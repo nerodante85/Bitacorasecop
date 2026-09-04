@@ -754,7 +754,8 @@
 
   function scoreRecord(item, keywords, geos, minV, maxV){
     let score = 1;
-    keywords.forEach(k => { if (k && item.searchable.includes(k.toLowerCase())) score += 2; });
+    let keywordHits = 0;
+    keywords.forEach(k => { if (k && item.searchable.includes(k.toLowerCase())) { score += 2; keywordHits++; } });
     geos.forEach(g => { if (g && item.searchable.includes(g.toLowerCase())) score += 2; });
 
     let daysLeft = null;
@@ -771,7 +772,7 @@
       if (minV && numVal < minV) score -= 2;
       if (maxV && numVal > maxV) score -= 2;
     }
-    return { score, daysLeft };
+    return { score, daysLeft, keywordHits };
   }
 
   function classify(score){
@@ -805,8 +806,15 @@
       const analysisEntry = analisis[item.id];
       const adjustment = analysisScoreAdjustment(analysisEntry);
       const score = base.score + adjustment;
-      return { item, score, daysLeft: base.daysLeft, tier: classify(score), scoreAdjusted: adjustment !== 0 };
+      return { item, score, daysLeft: base.daysLeft, keywordHits: base.keywordHits, tier: classify(score), scoreAdjusted: adjustment !== 0 };
     });
+
+    // Las especialidades son un FILTRO real, no solo un peso de orden: si el usuario
+    // puso palabras clave, se descartan los procesos que no mencionan ninguna. Antes
+    // solo afectaban el puntaje, así que un proceso sin ninguna relación (ej. un
+    // contrato de abogado) podía terminar mostrándose igual si sobrevivía el filtro
+    // de vencidos.
+    if (keywords.length) scored = scored.filter(s => s.keywordHits > 0);
 
     if (hideClosed) scored = scored.filter(s => s.daysLeft === null || s.daysLeft >= 0);
 
