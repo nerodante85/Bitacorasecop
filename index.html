@@ -745,6 +745,7 @@
     const ciudad = findField(record, ['ciudad','ciudad_entidad','localizaci_n'], 'ciudad') || null;
     const valor = findField(record, ['precio_base','valor_estimado','valor_del_contrato','valor_total_estimado'], 'precio') || findField(record, [], 'valor');
     const url = extractUrl(record);
+    const referencia = findField(record, ['referencia_del_proceso','referencia'], 'referencia') || null;
     const dates = findAllDates(record);
 
     let closingRaw = null;
@@ -760,7 +761,7 @@
     const searchable = JSON.stringify(record).toLowerCase();
     const fuente = record._fuente === 'I' ? 'I' : 'II';
 
-    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, closingRaw, pubRaw, searchable, fuente };
+    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, fuente };
   }
 
   function scoreRecord(item, keywords, geos, minV, maxV){
@@ -904,6 +905,7 @@
           (money ? '<span><b>Valor base:</b> ' + money + '</span>' : '') +
           '<span><b>Plazo:</b> ' + deadlineText + '</span>' +
           (pub ? '<span><b>Publicado:</b> ' + pub + '</span>' : '') +
+          (it.referencia ? '<span><b>Referencia:</b> ' + escapeHtml(it.referencia) + '</span>' : '') +
         '</div>' +
         linkHtml +
         actionsHtml +
