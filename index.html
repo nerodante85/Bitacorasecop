@@ -423,11 +423,11 @@
     <div id="bt-results"></div>
 
     <div class="footnote">
-      Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Los datos son un <b>snapshot descargado manualmente</b>, no una consulta en vivo: los artifacts de Claude.ai no pueden hacer peticiones de red a dominios externos. Para refrescar, descarga un CSV filtrado desde datos.gov.co (Departamento Entidad = tu departamento, Tipo de Contrato = Obra) y pídele a Claude que actualice la bitácora con ese archivo. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
+      Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
       El historial de "visto"/"descartado", el perfil de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios.<br>
       El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma.<br>
       Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos de tu perfil aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
-      SECOP I no está incluido en este snapshot — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
+      SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
     </div>
   </div>
 </div>
@@ -755,8 +755,9 @@
   function scoreRecord(item, keywords, geos, minV, maxV){
     let score = 1;
     let keywordHits = 0;
+    let geoHits = 0;
     keywords.forEach(k => { if (k && item.searchable.includes(k.toLowerCase())) { score += 2; keywordHits++; } });
-    geos.forEach(g => { if (g && item.searchable.includes(g.toLowerCase())) score += 2; });
+    geos.forEach(g => { if (g && item.searchable.includes(g.toLowerCase())) { score += 2; geoHits++; } });
 
     let daysLeft = null;
     if (item.closingRaw && isPlausibleDate(item.closingRaw)){
@@ -772,7 +773,7 @@
       if (minV && numVal < minV) score -= 2;
       if (maxV && numVal > maxV) score -= 2;
     }
-    return { score, daysLeft, keywordHits };
+    return { score, daysLeft, keywordHits, geoHits };
   }
 
   function classify(score){
@@ -806,15 +807,14 @@
       const analysisEntry = analisis[item.id];
       const adjustment = analysisScoreAdjustment(analysisEntry);
       const score = base.score + adjustment;
-      return { item, score, daysLeft: base.daysLeft, keywordHits: base.keywordHits, tier: classify(score), scoreAdjusted: adjustment !== 0 };
+      return { item, score, daysLeft: base.daysLeft, keywordHits: base.keywordHits, geoHits: base.geoHits, tier: classify(score), scoreAdjusted: adjustment !== 0 };
     });
 
-    // Las especialidades son un FILTRO real, no solo un peso de orden: si el usuario
-    // puso palabras clave, se descartan los procesos que no mencionan ninguna. Antes
-    // solo afectaban el puntaje, así que un proceso sin ninguna relación (ej. un
-    // contrato de abogado) podía terminar mostrándose igual si sobrevivía el filtro
-    // de vencidos.
+    // Las especialidades y el departamento son FILTROS reales, no solo un peso de
+    // orden: si el usuario puso palabras clave o departamentos, se descartan los
+    // procesos que no mencionan ninguno.
     if (keywords.length) scored = scored.filter(s => s.keywordHits > 0);
+    if (geos.length) scored = scored.filter(s => s.geoHits > 0);
 
     if (hideClosed) scored = scored.filter(s => s.daysLeft === null || s.daysLeft >= 0);
 
@@ -856,8 +856,9 @@
       const vencido = s.daysLeft !== null && s.daysLeft < 0;
       const tierLabel = s.tier === 'alta' ? 'ALTA' : s.tier === 'media' ? 'MEDIA' : 'BAJA';
       const deadlineText = close ? (vencido ? ('Venció · ' + close) : (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close)) : 'Sin fecha límite reportada';
-      const linkHtml = it.url
-        ? '<div class="row-link"><a href="' + it.url + '" target="_blank" rel="noopener">Abrir expediente en SECOP ' + it.fuente + '</a></div>'
+      const safeUrl = it.url && /^https?:\/\//i.test(it.url) ? escapeHtml(it.url) : null;
+      const linkHtml = safeUrl
+        ? '<div class="row-link"><a href="' + safeUrl + '" target="_blank" rel="noopener">Abrir expediente en SECOP ' + it.fuente + '</a></div>'
         : (it.fuente === 'I'
             ? '<div class="row-link"><a href="https://www.colombiacompra.gov.co/secop/secop-i/consulte-en-el-secop-i" target="_blank" rel="noopener">Buscar en SECOP I (por número de proceso)</a></div>'
             : '<div class="row-link"><a href="https://community.secop.gov.co/Public/Tendering/ContractNoticeManagement/Index?currentLanguage=es-CO" target="_blank" rel="noopener">Buscar en SECOP II</a></div>');
@@ -946,9 +947,9 @@
     return data;
   }
 
-  async function fetchAllForDataset(datasetId, geos, fuente){
-    const anchors = geos.length ? geos : [null];
-    const batches = await Promise.all(anchors.map(g => fetchSecopDataset(datasetId, g, fuente)));
+  async function fetchAllForDataset(datasetId, anchors, fuente){
+    const list = anchors.length ? anchors : [null];
+    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente)));
     const merged = [].concat(...batches);
     const seen = new Set();
     const deduped = [];
@@ -964,9 +965,19 @@
     demoBanner.style.display = 'none';
     const { keywords, geos, minV, maxV } = getInputs();
 
+    // IMPORTANTE: se ancla la consulta en vivo por ESPECIALIDAD cuando hay alguna
+    // (una consulta $q por palabra clave), no por departamento. Anclar solo por
+    // departamento traía una muestra genérica de esa zona (lo primero que Socrata
+    // devuelve, sin relación con lo que se busca) y luego el filtro de palabras
+    // clave del lado del cliente no tenía nada relevante que mostrar, aunque
+    // existieran miles de procesos reales con ese término en todo el dataset.
+    // El departamento se sigue aplicando, pero como filtro del lado del cliente
+    // (ver render()), igual que las palabras clave.
+    const anchors = keywords.length ? keywords : geos;
+
     searchBtn.disabled = true;
     try {
-      const live = await fetchAllForDataset('p6dx-8zbt', geos, 'II');
+      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
       lastRecords = live;
       await appReady;
       render(live, keywords, geos, minV, maxV);
@@ -987,6 +998,7 @@
   async function loadDemo(){
     isDemo = true;
     demoBanner.style.display = 'block';
+    dataFreshnessEl.textContent = 'Mostrando datos de ejemplo (ficticios) — no proviene de SECOP II en vivo.';
     const demo = [
       { entidad: 'Alcaldía de Cúcuta', objeto_del_proceso: 'Mejoramiento y pavimentación de vías urbanas en el barrio La Libertad, Cúcuta, Norte de Santander', modalidad_de_contratacion: 'Licitación pública', departamento: 'Norte de Santander', ciudad: 'Cúcuta', precio_base: 1850000000, urlproceso: { url: 'https://community.secop.gov.co' }, fecha_de_publicacion_del: '2026-08-20T00:00:00.000', fecha_de_recepcion_de: futureDate(12) },
       { entidad: 'Instituto Nacional de Vías - INVÍAS', objeto_del_proceso: 'Construcción de obras de contención y drenaje en la vía Cúcuta - Pamplona', modalidad_de_contratacion: 'Licitación pública', departamento: 'Norte de Santander', ciudad: 'Pamplona', precio_base: 4200000000, urlproceso: { url: 'https://community.secop.gov.co' }, fecha_de_publicacion_del: '2026-08-15T00:00:00.000', fecha_de_recepcion_de: futureDate(25) },
