@@ -437,6 +437,7 @@
       <span class="count" id="bt-count"></span>
       <div class="status-toggles">
         <label class="toggle"><input type="checkbox" id="bt-hide-closed" checked> Ocultar vencidos</label>
+        <label class="toggle"><input type="checkbox" id="bt-hide-old" checked> Solo publicados hace ≤30 días</label>
         <label class="toggle"><input type="checkbox" id="bt-hide-discarded"> Ocultar descartados</label>
         <button class="link-btn" id="bt-export-csv">Exportar alta prioridad (CSV)</button>
         <button class="link-btn" id="bt-copy-summary">Copiar resumen</button>
@@ -484,6 +485,7 @@
   const statusEl = document.getElementById('bt-status');
   const countEl = document.getElementById('bt-count');
   const hideClosedEl = document.getElementById('bt-hide-closed');
+  const hideOldEl = document.getElementById('bt-hide-old');
   const hideDiscardedEl = document.getElementById('bt-hide-discarded');
   const clearHistorialBtn = document.getElementById('bt-clear-historial');
   const exportCsvBtn = document.getElementById('bt-export-csv');
@@ -902,12 +904,20 @@
       if (daysLeft < 0) score -= 6;
       else if (daysLeft <= 15) score += 1;
     }
+
+    let daysSincePub = null;
+    if (item.pubRaw && isPlausibleDate(item.pubRaw)){
+      const d = new Date(item.pubRaw);
+      daysSincePub = Math.floor((Date.now() - d.getTime()) / 86400000);
+    }
+    if (daysSincePub !== null && daysSincePub <= 7) score += 1; // recién publicado: prioridad extra
+
     const numVal = Number(item.valor);
     if (!isNaN(numVal) && numVal > 0){
       if (minV && numVal < minV) score -= 2;
       if (maxV && numVal > maxV) score -= 2;
     }
-    return { score, daysLeft, keywordHits, geoHits };
+    return { score, daysLeft, daysSincePub, keywordHits, geoHits };
   }
 
   function classify(score){
@@ -932,6 +942,7 @@
 
   function render(records, keywords, geos, minV, maxV){
     const hideClosed = hideClosedEl.checked;
+    const hideOld = hideOldEl.checked;
     const hideDiscarded = hideDiscardedEl.checked;
 
     let scored = records.map(r => {
@@ -941,7 +952,7 @@
       const analysisEntry = analisis[item.id];
       const adjustment = analysisScoreAdjustment(analysisEntry);
       const score = base.score + adjustment;
-      return { item, score, daysLeft: base.daysLeft, keywordHits: base.keywordHits, geoHits: base.geoHits, tier: classify(score), scoreAdjusted: adjustment !== 0 };
+      return { item, score, daysLeft: base.daysLeft, daysSincePub: base.daysSincePub, keywordHits: base.keywordHits, geoHits: base.geoHits, tier: classify(score), scoreAdjusted: adjustment !== 0 };
     });
 
     // Las especialidades y el departamento son FILTROS reales, no solo un peso de
@@ -951,6 +962,10 @@
     if (geos.length) scored = scored.filter(s => s.geoHits > 0);
 
     if (hideClosed) scored = scored.filter(s => s.daysLeft === null || s.daysLeft >= 0);
+    // "Solo publicados hace ≤30 días": si no se sabe la fecha de publicación, se
+    // descarta también en vez de mostrarlo -- con este filtro activo, lo que se
+    // pide es certeza de que es reciente, no darle el beneficio de la duda.
+    if (hideOld) scored = scored.filter(s => s.daysSincePub !== null && s.daysSincePub >= 0 && s.daysSincePub <= 30);
 
     const vistoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'visto').length;
     const descartadoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'descartado').length;
@@ -961,7 +976,7 @@
 
     if (hideDiscarded) scored = scored.filter(s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
 
-    scored.sort((a,b) => b.score - a.score || (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
+    scored.sort((a,b) => b.score - a.score || (a.daysLeft ?? 999) - (b.daysLeft ?? 999) || (a.daysSincePub ?? 999) - (b.daysSincePub ?? 999));
     scored = scored.slice(0, 40);
 
     statusEl.style.display = 'flex';
@@ -974,7 +989,7 @@
     lastScored = scored;
 
     if (scored.length === 0){
-      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Barlow Condensed\',sans-serif;font-size:18px;margin-bottom:6px;">SIN RESULTADOS</strong>Prueba con menos palabras clave, quita el filtro de departamento o desmarca los filtros de vencidos/descartados.</div>';
+      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Barlow Condensed\',sans-serif;font-size:18px;margin-bottom:6px;">SIN RESULTADOS</strong>Prueba con menos palabras clave, quita el filtro de departamento, o desmarca "Solo publicados hace ≤30 días" / vencidos / descartados.</div>';
       return;
     }
 
@@ -1210,6 +1225,7 @@
   searchBtn.addEventListener('click', runSearch);
   demoBtn.addEventListener('click', loadDemo);
   hideClosedEl.addEventListener('change', rerender);
+  hideOldEl.addEventListener('change', rerender);
   hideDiscardedEl.addEventListener('change', rerender);
   perfilSaveBtn.addEventListener('click', savePerfil);
   perfilNuevoBtn.addEventListener('click', nuevoPerfil);
