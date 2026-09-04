@@ -684,11 +684,22 @@
     return null;
   }
 
+  // El campo urlproceso del dataset abierto trae la URL SIN los parámetros
+  // isFromPublicArea/isModal. Sin ellos, SECOP II a veces manda a la pantalla de
+  // login en vez de mostrar el expediente público (confirmado comparando contra
+  // enlaces oficiales vigentes que sí los incluyen). Se agregan aquí si faltan.
+  function ensurePublicAreaParams(url){
+    if (!url || !/community\.secop\.gov\.co/i.test(url)) return url;
+    if (/isFromPublicArea=/i.test(url)) return url; // ya los trae, no duplicar
+    const sep = url.includes('?') ? '&' : '?';
+    return url + sep + 'isFromPublicArea=True&isModal=False';
+  }
+
   function extractUrl(record){
     const u = findField(record, ['urlproceso','url_proceso','url_del_proceso'], 'url');
     if (!u) return null;
-    if (typeof u === 'string') return u;
-    if (typeof u === 'object' && u.url) return u.url;
+    if (typeof u === 'string') return ensurePublicAreaParams(u);
+    if (typeof u === 'object' && u.url) return ensurePublicAreaParams(u.url);
     return null;
   }
 
