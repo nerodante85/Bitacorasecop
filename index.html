@@ -1135,12 +1135,29 @@
   }
 
   async function fetchSecopDataset(datasetId, qTerm, fuente){
-    const url = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=200' +
+    const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' +
       (qTerm ? ('&$q=' + encodeURIComponent(qTerm)) : '');
-    const res = await withTimeout(fetch(url), 12000, 'La consulta a SECOP');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+    // Socrata no garantiza ningún orden por defecto. Con $limit=300 y palabras
+    // clave comunes a nivel nacional (ej. "pavimento"), es posible que haya más
+    // de 300 coincidencias en todo el país y que el proceso que buscas -- aunque
+    // exista -- simplemente no caiga dentro de esa página si no se ordena. Se
+    // pide lo más reciente primero, que es justo lo que le importa al filtro de
+    // "publicados hace ≤30 días". Si el nombre de columna de orden no coincide
+    // con el esquema real (fuera de nuestro control, puede cambiar), se reintenta
+    // sin orden en vez de fallar la consulta completa.
+    async function intentar(url){
+      const res = await withTimeout(fetch(url), 12000, 'La consulta a SECOP');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+      return data;
+    }
+    let data;
+    try {
+      data = await intentar(base + '&$order=fecha_de_publicacion_del%20DESC');
+    } catch(e){
+      data = await intentar(base);
+    }
     data.forEach(r => { r._fuente = fuente; });
     return data;
   }
