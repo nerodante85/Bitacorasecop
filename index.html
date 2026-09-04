@@ -887,12 +887,28 @@
     return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, fuente };
   }
 
+  // Coincidencia por RAÍZ, no solo por texto exacto: "pavimentación" y "pavimento"
+  // son formas distintas de la misma palabra y antes NO se consideraban coincidencia
+  // (caso real detectado: un proceso decía "PAVIMENTO FLEXIBLE" y quedó fuera al
+  // buscar "pavimentación"). Para palabras de 6+ letras, además del texto exacto,
+  // se acepta que el texto contenga los primeros 6 caracteres del término --
+  // suficiente para cubrir variantes como pavimento/pavimentación, edificio/
+  // edificación, alcantarilla/alcantarillado, sin generar demasiados falsos
+  // positivos (términos cortos siguen exigiendo coincidencia exacta).
+  function matchesTerm(searchable, term){
+    if (!term) return false;
+    const t = term.toLowerCase();
+    if (searchable.includes(t)) return true;
+    if (t.length >= 6) return searchable.includes(t.slice(0, 6));
+    return false;
+  }
+
   function scoreRecord(item, keywords, geos, minV, maxV){
     let score = 1;
     let keywordHits = 0;
     let geoHits = 0;
-    keywords.forEach(k => { if (k && item.searchable.includes(k.toLowerCase())) { score += 2; keywordHits++; } });
-    geos.forEach(g => { if (g && item.searchable.includes(g.toLowerCase())) { score += 2; geoHits++; } });
+    keywords.forEach(k => { if (matchesTerm(item.searchable, k)) { score += 2; keywordHits++; } });
+    geos.forEach(g => { if (matchesTerm(item.searchable, g)) { score += 2; geoHits++; } });
 
     let daysLeft = null;
     if (item.closingRaw && isPlausibleDate(item.closingRaw)){
