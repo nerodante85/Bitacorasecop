@@ -1,10 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bitácora — Rastreador SECOP II</title>
-</head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bitácora — Rastreador SECOP II</title></head>
 <body>
 <style>
   #bitacora-root {
@@ -438,6 +434,7 @@
       <div class="status-toggles">
         <label class="toggle"><input type="checkbox" id="bt-hide-closed" checked> Ocultar vencidos</label>
         <label class="toggle"><input type="checkbox" id="bt-hide-old" checked> Solo publicados hace ≤30 días</label>
+        <label class="toggle"><input type="checkbox" id="bt-only-licitacion" checked> Solo Licitación Pública (Obra pública)</label>
         <label class="toggle"><input type="checkbox" id="bt-hide-discarded"> Ocultar descartados</label>
         <button class="link-btn" id="bt-export-csv">Exportar alta prioridad (CSV)</button>
         <button class="link-btn" id="bt-copy-summary">Copiar resumen</button>
@@ -486,6 +483,7 @@
   const countEl = document.getElementById('bt-count');
   const hideClosedEl = document.getElementById('bt-hide-closed');
   const hideOldEl = document.getElementById('bt-hide-old');
+  const onlyLicitacionEl = document.getElementById('bt-only-licitacion');
   const hideDiscardedEl = document.getElementById('bt-hide-discarded');
   const clearHistorialBtn = document.getElementById('bt-clear-historial');
   const exportCsvBtn = document.getElementById('bt-export-csv');
@@ -943,6 +941,7 @@
   function render(records, keywords, geos, minV, maxV){
     const hideClosed = hideClosedEl.checked;
     const hideOld = hideOldEl.checked;
+    const onlyLicitacion = onlyLicitacionEl.checked;
     const hideDiscarded = hideDiscardedEl.checked;
 
     let scored = records.map(r => {
@@ -966,6 +965,19 @@
     // descarta también en vez de mostrarlo -- con este filtro activo, lo que se
     // pide es certeza de que es reciente, no darle el beneficio de la duda.
     if (hideOld) scored = scored.filter(s => s.daysSincePub !== null && s.daysSincePub >= 0 && s.daysSincePub <= 30);
+    // "Solo Licitación Pública": el campo modalidad_de_contratacion trae variantes
+    // como "Licitación pública" y "Licitación pública Obra Publica" -- se aceptan
+    // ambas, cualquier modalidad que empiece por "licitación pública" (sin importar
+    // acentos/mayúsculas). Otras modalidades (Selección Abreviada, Mínima Cuantía,
+    // Contratación Directa/régimen especial, etc.) quedan fuera.
+    // "Solo Licitación Pública (Obra pública)": exige que la modalidad diga tanto
+    // "licitación pública" como "obra" -- la licitación pública genérica (sin la
+    // palabra obra) puede ser para consultoría, bienes u otros servicios, no
+    // necesariamente para construcción.
+    if (onlyLicitacion) scored = scored.filter(s => {
+      const m = (s.item.modalidad || '').toLowerCase();
+      return /licitaci[oó]n\s*p[uú]blica/i.test(m) && /obra/i.test(m);
+    });
 
     const vistoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'visto').length;
     const descartadoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'descartado').length;
@@ -989,7 +1001,7 @@
     lastScored = scored;
 
     if (scored.length === 0){
-      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Barlow Condensed\',sans-serif;font-size:18px;margin-bottom:6px;">SIN RESULTADOS</strong>Prueba con menos palabras clave, quita el filtro de departamento, o desmarca "Solo publicados hace ≤30 días" / vencidos / descartados.</div>';
+      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Barlow Condensed\',sans-serif;font-size:18px;margin-bottom:6px;">SIN RESULTADOS</strong>Prueba con menos palabras clave, quita el filtro de departamento, o desmarca "Solo Licitación Pública" / "Solo publicados hace ≤30 días" / vencidos / descartados.</div>';
       return;
     }
 
@@ -1226,6 +1238,7 @@
   demoBtn.addEventListener('click', loadDemo);
   hideClosedEl.addEventListener('change', rerender);
   hideOldEl.addEventListener('change', rerender);
+  onlyLicitacionEl.addEventListener('change', rerender);
   hideDiscardedEl.addEventListener('change', rerender);
   perfilSaveBtn.addEventListener('click', savePerfil);
   perfilNuevoBtn.addEventListener('click', nuevoPerfil);
