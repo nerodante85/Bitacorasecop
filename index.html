@@ -696,13 +696,25 @@
     return Object.keys(record)
       .filter(k => k.toLowerCase().startsWith('fecha'))
       .map(k => ({ key: k, val: record[k] }))
-      .filter(d => d.val);
+      .filter(d => d.val)
+      .filter(d => isPlausibleDate(d.val)); // descarta fechas centinela/basura (ej. 1961) que a veces trae el dataset en vivo
+  }
+
+  // SECOP II no existía antes de ~2015, así que cualquier fecha fuera de este rango
+  // es dato sucio (campos sin llenar por la entidad, valores por defecto, etc.), no
+  // un dato real. Se descarta en vez de mostrarse. Esto solo se ha visto en datos en
+  // vivo -- el snapshot embebido, curado a mano, no lo necesita pero no hace daño.
+  function isPlausibleDate(iso){
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return false;
+    const y = d.getFullYear();
+    return y >= 2015 && y <= 2035;
   }
 
   function fmtDate(iso){
     try {
+      if (!isPlausibleDate(iso)) return null;
       const d = new Date(iso);
-      if (isNaN(d.getTime())) return null;
       return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
     } catch(e){ return null; }
   }
@@ -746,9 +758,9 @@
     geos.forEach(g => { if (g && item.searchable.includes(g.toLowerCase())) score += 2; });
 
     let daysLeft = null;
-    if (item.closingRaw){
+    if (item.closingRaw && isPlausibleDate(item.closingRaw)){
       const d = new Date(item.closingRaw);
-      if (!isNaN(d.getTime())) daysLeft = Math.ceil((d.getTime() - Date.now()) / 86400000);
+      daysLeft = Math.ceil((d.getTime() - Date.now()) / 86400000);
     }
     if (daysLeft !== null){
       if (daysLeft < 0) score -= 6;
