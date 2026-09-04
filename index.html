@@ -97,6 +97,7 @@
     margin-bottom: 4px;
   }
   #bitacora-root .field input,
+  #bitacora-root .field select,
   #bitacora-root .field textarea {
     width: 100%;
     border: 1px solid #C9C2AE;
@@ -108,8 +109,22 @@
     resize: vertical;
   }
   #bitacora-root .field input:focus,
+  #bitacora-root .field select:focus,
   #bitacora-root .field textarea:focus { outline: 2px solid var(--orange); outline-offset: -1px; }
   #bitacora-root .field-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #bitacora-root .perfil-switcher {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  #bitacora-root .perfil-switcher .field { flex: 1 1 220px; margin-bottom: 0; }
+  #bitacora-root .perfil-switcher button {
+    font-size: 12.5px;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
 
   #bitacora-root .actions {
     display: flex;
@@ -387,6 +402,15 @@
         <h2>Perfil de la empresa</h2>
         <span>Se usa para comparar contra los requisitos habilitantes de cada pliego</span>
       </div>
+      <div class="perfil-switcher">
+        <div class="field">
+          <label>PERFIL ACTIVO</label>
+          <select id="bt-perfil-select"></select>
+        </div>
+        <button class="btn-secondary" id="bt-perfil-nuevo">+ NUEVO</button>
+        <button class="btn-secondary" id="bt-perfil-renombrar">RENOMBRAR</button>
+        <button class="btn-secondary" id="bt-perfil-eliminar">ELIMINAR</button>
+      </div>
       <div class="field-grid">
         <div class="field full">
           <label>RUP / CLASIFICADOR (códigos UNSPSC o actividades, separados por coma)</label>
@@ -471,6 +495,10 @@
   const perfilExpEl = document.getElementById('bt-perfil-exp');
   const perfilSaveBtn = document.getElementById('bt-perfil-save');
   const perfilSavedEl = document.getElementById('bt-perfil-saved');
+  const perfilSelectEl = document.getElementById('bt-perfil-select');
+  const perfilNuevoBtn = document.getElementById('bt-perfil-nuevo');
+  const perfilRenombrarBtn = document.getElementById('bt-perfil-renombrar');
+  const perfilEliminarBtn = document.getElementById('bt-perfil-eliminar');
 
   let lastRecords = null;
   let isDemo = false;
@@ -505,32 +533,126 @@
     rerender();
   }
 
-  let perfil = { rup: '', k: '', experiencia: '' };
+  // Múltiples perfiles de empresa: se guardan todos en 'perfiles_empresa' (mapa id -> perfil)
+  // y cuál está activo en 'perfil_activo_id'. Si el usuario ya tenía un perfil guardado con
+  // el esquema viejo (un solo perfil, clave 'perfil_empresa'), se migra automáticamente la
+  // primera vez que carga, sin que pierda lo que ya había llenado.
+  let perfiles = {}; // { id: { nombre, rup, k, experiencia } }
+  let perfilActivoId = null;
+  let perfil = { rup: '', k: '', experiencia: '' }; // perfil activo, usado por el análisis de pliegos
 
-  async function loadPerfil(){
+  function nuevoPerfilId(){
+    return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  async function loadPerfiles(){
     try {
-      const r = await window.storage.get('perfil_empresa', false);
-      if (r && r.value) perfil = Object.assign({ rup: '', k: '', experiencia: '' }, JSON.parse(r.value));
-    } catch(e){
-      // sin perfil guardado aún
+      const r = await window.storage.get('perfiles_empresa', false);
+      if (r && r.value) perfiles = JSON.parse(r.value);
+    } catch(e){ /* nada guardado aún */ }
+
+    const activoR = await (async () => {
+      try { return await window.storage.get('perfil_activo_id', false); } catch(e){ return null; }
+    })();
+    perfilActivoId = (activoR && activoR.value) || null;
+
+    // Migración desde el esquema de un solo perfil (perfil_empresa)
+    if (Object.keys(perfiles).length === 0){
+      let perfilViejo = null;
+      try {
+        const r = await window.storage.get('perfil_empresa', false);
+        if (r && r.value) perfilViejo = JSON.parse(r.value);
+      } catch(e){ /* nada */ }
+      const id = nuevoPerfilId();
+      perfiles[id] = Object.assign({ nombre: 'Mi empresa', rup: '', k: '', experiencia: '' }, perfilViejo || {});
+      perfilActivoId = id;
+      await persistirPerfiles();
     }
+
+    if (!perfilActivoId || !perfiles[perfilActivoId]){
+      perfilActivoId = Object.keys(perfiles)[0];
+    }
+
+    renderPerfilSelect();
+    cargarPerfilActivoEnCampos();
+  }
+
+  async function persistirPerfiles(){
+    try {
+      await window.storage.set('perfiles_empresa', JSON.stringify(perfiles), false);
+      await window.storage.set('perfil_activo_id', perfilActivoId, false);
+    } catch(e){
+      perfilSavedEl.textContent = 'No se pudo guardar (revisa tu conexión)';
+    }
+  }
+
+  function renderPerfilSelect(){
+    perfilSelectEl.innerHTML = Object.keys(perfiles).map(id =>
+      '<option value="' + id + '"' + (id === perfilActivoId ? ' selected' : '') + '>' + escapeHtml(perfiles[id].nombre || 'Sin nombre') + '</option>'
+    ).join('');
+  }
+
+  function cargarPerfilActivoEnCampos(){
+    perfil = Object.assign({ nombre: '', rup: '', k: '', experiencia: '' }, perfiles[perfilActivoId] || {});
     perfilRupEl.value = perfil.rup || '';
     perfilKEl.value = perfil.k || '';
     perfilExpEl.value = perfil.experiencia || '';
+    perfilSavedEl.textContent = '';
   }
 
   async function savePerfil(){
-    perfil = {
+    if (!perfilActivoId) return;
+    perfiles[perfilActivoId] = {
+      nombre: (perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'Sin nombre',
       rup: perfilRupEl.value.trim(),
       k: perfilKEl.value.trim(),
       experiencia: perfilExpEl.value.trim()
     };
-    try {
-      await window.storage.set('perfil_empresa', JSON.stringify(perfil), false);
-      perfilSavedEl.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-    } catch(e){
-      perfilSavedEl.textContent = 'No se pudo guardar (revisa tu conexión)';
+    perfil = perfiles[perfilActivoId];
+    await persistirPerfiles();
+    perfilSavedEl.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  async function nuevoPerfil(){
+    const nombre = (window.prompt('Nombre del nuevo perfil (ej. razón social):') || '').trim();
+    if (!nombre) return;
+    const id = nuevoPerfilId();
+    perfiles[id] = { nombre, rup: '', k: '', experiencia: '' };
+    perfilActivoId = id;
+    renderPerfilSelect();
+    cargarPerfilActivoEnCampos();
+    await persistirPerfiles();
+  }
+
+  async function renombrarPerfil(){
+    if (!perfilActivoId) return;
+    const actual = perfiles[perfilActivoId].nombre || '';
+    const nuevo = (window.prompt('Nuevo nombre para este perfil:', actual) || '').trim();
+    if (!nuevo) return;
+    perfiles[perfilActivoId].nombre = nuevo;
+    renderPerfilSelect();
+    await persistirPerfiles();
+  }
+
+  async function eliminarPerfil(){
+    if (!perfilActivoId) return;
+    if (Object.keys(perfiles).length <= 1){
+      alert('No puedes eliminar el único perfil que tienes. Crea otro primero si quieres reemplazarlo.');
+      return;
     }
+    const nombre = perfiles[perfilActivoId].nombre || 'este perfil';
+    if (!confirm('¿Eliminar el perfil "' + nombre + '"? Esta acción no se puede deshacer.')) return;
+    delete perfiles[perfilActivoId];
+    perfilActivoId = Object.keys(perfiles)[0];
+    renderPerfilSelect();
+    cargarPerfilActivoEnCampos();
+    await persistirPerfiles();
+  }
+
+  function cambiarPerfilActivo(){
+    perfilActivoId = perfilSelectEl.value;
+    cargarPerfilActivoEnCampos();
+    persistirPerfiles(); // solo persiste cuál quedó activo, no pisa los datos de los perfiles
   }
 
   let analisis = {};
@@ -552,7 +674,7 @@
     }
   }
 
-  const appReady = Promise.all([loadHistorial(), loadPerfil(), loadAnalisis()]);
+  const appReady = Promise.all([loadHistorial(), loadPerfiles(), loadAnalisis()]);
 
   function rerender(){
     if (lastRecords){
@@ -1090,6 +1212,10 @@
   hideClosedEl.addEventListener('change', rerender);
   hideDiscardedEl.addEventListener('change', rerender);
   perfilSaveBtn.addEventListener('click', savePerfil);
+  perfilNuevoBtn.addEventListener('click', nuevoPerfil);
+  perfilRenombrarBtn.addEventListener('click', renombrarPerfil);
+  perfilEliminarBtn.addEventListener('click', eliminarPerfil);
+  perfilSelectEl.addEventListener('change', cambiarPerfilActivo);
   exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
   copySummaryBtn.addEventListener('click', copyAltaPrioridadSummary);
 
