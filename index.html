@@ -157,6 +157,7 @@
   #bitacora-root .status-row .count { font-family: 'Barlow Condensed', sans-serif; font-size: 17px; font-weight: 700; }
   #bitacora-root .status-toggles { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-left: auto; }
   #bitacora-root .toggle { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--navy); white-space: nowrap; }
+  #bitacora-root .toggle-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--grey); align-self: center; }
   #bitacora-root .link-btn {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
@@ -440,6 +441,7 @@
         <button class="link-btn" id="bt-copy-summary">Copiar resumen</button>
         <button class="link-btn" id="bt-clear-historial">Borrar historial</button>
       </div>
+      <div class="status-toggles" id="bt-estado-toggles"></div>
     </div>
 
     <div id="bt-results"></div>
@@ -485,6 +487,7 @@
   const hideOldEl = document.getElementById('bt-hide-old');
   const onlyLicitacionEl = document.getElementById('bt-only-licitacion');
   const hideDiscardedEl = document.getElementById('bt-hide-discarded');
+  const estadoTogglesEl = document.getElementById('bt-estado-toggles');
   const clearHistorialBtn = document.getElementById('bt-clear-historial');
   const exportCsvBtn = document.getElementById('bt-export-csv');
   const copySummaryBtn = document.getElementById('bt-copy-summary');
@@ -503,6 +506,7 @@
   let lastRecords = null;
   let isDemo = false;
   let lastScored = [];
+  let estadoSeleccionado = {}; // { 'Publicado': true, 'Evaluación': false, ... } -- persiste entre renders
 
   let historial = {};
 
@@ -697,17 +701,14 @@
   }
 
   // ============================================================================
-  // NOTA DE ARQUITECTURA: se intentó consultar SECOP II/I en vivo desde este
-  // artifact (fetch() directo) y también desde las herramientas de Claude en el
-  // chat. Ambas rutas están bloqueadas: el sandbox de artifacts de Claude.ai
-  // bloquea fetch() a dominios externos arbitrarios (CSP/iframe sandbox), y la
-  // herramienta de fetch de Claude ignora los parámetros de query string en este
-  // dataset específico. Por eso los datos de abajo son un snapshot REAL pero
-  // ESTÁTICO: el usuario descarga el CSV ya filtrado desde la interfaz de
-  // datos.gov.co (que sí respeta filtros) y se lo sube a Claude en el chat, quien
-  // regenera este archivo con los datos embebidos. "APLICAR FILTROS" solo vuelve
-  // a puntuar/ordenar este snapshot con las palabras clave y filtros actuales —
-  // no hace ninguna petición de red.
+  // NOTA DE ARQUITECTURA (actualizada): fetch() directo SÍ funciona cuando esta
+  // página corre fuera del sandbox de artifacts de Claude.ai (ej. publicada en
+  // GitHub Pages) -- confirmado en producción desde el 3 sep 2026. El bloqueo de
+  // fetch es específico del sandbox de artifacts (CSP/iframe), no de la API en sí.
+  // "APLICAR FILTROS" intenta primero una consulta en vivo (ver runSearch/
+  // fetchAllForDataset más abajo); solo si esa consulta falla (sin conexión,
+  // límites de la API pública, o si por algún motivo se está corriendo dentro
+  // del sandbox de un artifact) cae al snapshot embebido de abajo como respaldo.
   // ============================================================================
   const DATA_SNAPSHOT_DATE = '2026-09-03';
   const DATA_SNAPSHOT_NOTE = 'Departamento Entidad = Norte de Santander, Tipo de Contrato = Obra, procesos en estado activo publicados en los últimos ~270 días.';
@@ -979,6 +980,25 @@
       return /licitaci[oó]n\s*p[uú]blica/i.test(m) && /obra/i.test(m);
     });
 
+    // Filtro por ESTADO: los valores posibles varían según lo que traiga la consulta
+    // (a diferencia de modalidad, que tiene un set fijo), así que los checkboxes se
+    // generan dinámicamente según lo que aparezca aquí. Se recuerda qué estados
+    // dejó marcados/desmarcados el usuario (estadoSeleccionado) para no resetear su
+    // elección cada vez que cambia otro filtro; un estado nuevo que no se había visto
+    // antes empieza marcado (visible) por defecto.
+    const estadosPresentes = Array.from(new Set(scored.map(s => s.item.estado || 'Sin estado'))).sort();
+    estadosPresentes.forEach(e => { if (!(e in estadoSeleccionado)) estadoSeleccionado[e] = true; });
+    estadoTogglesEl.innerHTML = estadosPresentes.length ? ('<span class="toggle-label">Estado:</span>' + estadosPresentes.map(e =>
+      '<label class="toggle"><input type="checkbox" data-estado="' + escapeHtml(e) + '"' + (estadoSeleccionado[e] ? ' checked' : '') + '> ' + escapeHtml(e) + '</label>'
+    ).join('')) : '';
+    estadoTogglesEl.querySelectorAll('input[data-estado]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        estadoSeleccionado[cb.getAttribute('data-estado')] = cb.checked;
+        rerender();
+      });
+    });
+    scored = scored.filter(s => estadoSeleccionado[s.item.estado || 'Sin estado'] !== false);
+
     const vistoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'visto').length;
     const descartadoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'descartado').length;
     const venceProntoCount = scored.filter(s => {
@@ -1190,12 +1210,12 @@
       alert('No hay procesos de alta prioridad en la vista actual para exportar.');
       return;
     }
-    const headers = ['Entidad','Objeto','Modalidad','Departamento','Ciudad','Valor base','Fecha límite','Días restantes','Enlace'];
+    const headers = ['Entidad','Objeto','Modalidad','Departamento','Ciudad','Valor base','Fecha límite','Días restantes','Referencia','Enlace'];
     const rows = altas.map(s => {
       const it = s.item;
       return [
         it.entidad, it.objeto, it.modalidad || '', it.departamento || '', it.ciudad || '',
-        it.valor || '', fmtDate(it.closingRaw) || '', (s.daysLeft ?? ''), it.url || ''
+        it.valor || '', fmtDate(it.closingRaw) || '', (s.daysLeft ?? ''), it.referencia || '', it.url || ''
       ].map(csvEscape).join(',');
     });
     const csv = headers.map(csvEscape).join(',') + '\n' + rows.join('\n');
@@ -1221,7 +1241,7 @@
       const close = fmtDate(it.closingRaw);
       const plazo = close ? (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close) : 'sin fecha límite reportada';
       const money = fmtMoney(it.valor);
-      return '• ' + it.entidad + ' — ' + truncate(it.objeto, 140) + '\n  Plazo: ' + plazo + (money ? ' · Valor base: ' + money : '') + (it.url ? '\n  ' + it.url : '');
+      return '• ' + it.entidad + ' — ' + truncate(it.objeto, 140) + '\n  Plazo: ' + plazo + (money ? ' · Valor base: ' + money : '') + (it.referencia ? '\n  Referencia: ' + it.referencia : '') + (it.url ? '\n  ' + it.url : '');
     });
     const texto = 'Procesos de alta prioridad — Bitácora (' + new Date().toLocaleDateString('es-CO') + ')\n\n' + lineas.join('\n\n');
     try {
