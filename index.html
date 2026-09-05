@@ -882,9 +882,15 @@
     else if (dates.length > 0) pubRaw = dates[0].val;
 
     const searchable = JSON.stringify(record).toLowerCase();
+    // Búsqueda geográfica ACOTADA solo a departamento/ciudad -- a diferencia de
+    // 'searchable' (todo el registro), esto evita falsos positivos cuando el
+    // nombre de una entidad, calle o barrio menciona el nombre de un departamento
+    // sin que el proceso esté realmente ahí (ej. "Santander" aparece en muchos
+    // nombres propios en Colombia, sin importar en qué departamento estén).
+    const geoSearchable = [departamento, ciudad].filter(Boolean).join(' ').toLowerCase();
     const fuente = record._fuente === 'I' ? 'I' : 'II';
 
-    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, fuente };
+    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente };
   }
 
   // Coincidencia por RAÍZ, no solo por texto exacto: "pavimentación" y "pavimento"
@@ -908,7 +914,7 @@
     let keywordHits = 0;
     let geoHits = 0;
     keywords.forEach(k => { if (matchesTerm(item.searchable, k)) { score += 2; keywordHits++; } });
-    geos.forEach(g => { if (matchesTerm(item.searchable, g)) { score += 2; geoHits++; } });
+    geos.forEach(g => { if (matchesTerm(item.geoSearchable, g)) { score += 2; geoHits++; } });
 
     let daysLeft = null;
     if (item.closingRaw && isPlausibleDate(item.closingRaw)){
