@@ -1326,7 +1326,8 @@
       await appReady;
       const { text, numPages, pagesRead } = await extractPdfText(file);
       if (!text || text.trim().length < 200){
-        slot.innerHTML = '<div class="analysis-block analysis-warn">Este PDF no tiene texto extraíble (probablemente está escaneado como imagen). Ábrelo manualmente para revisarlo.</div>';
+        const blobUrl = URL.createObjectURL(file);
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Este PDF no tiene texto extraíble (probablemente está escaneado como imagen). <a href="' + blobUrl + '" target="_blank" rel="noopener">Ábrelo aquí para revisarlo manualmente</a>.</div>';
         return;
       }
       const hallazgos = analizarTexto(text);
