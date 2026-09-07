@@ -732,6 +732,57 @@
     return window.__bitacoraPdfjsPromise;
   }
 
+  // OCR client-side con Tesseract.js: se usa SOLO como respaldo cuando el PDF no
+  // trae texto extraíble (escaneado como imagen). Es lento (segundos por página,
+  // corre entero en el navegador del usuario) y la precisión depende de la
+  // calidad del escaneo -- por eso nunca se dispara automáticamente, solo si el
+  // usuario le da clic al botón "Intentar con OCR" a sabiendas de la demora.
+  function loadTesseractJs(){
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (window.__bitacoraTesseractPromise) return window.__bitacoraTesseractPromise;
+    window.__bitacoraTesseractPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js';
+      script.onload = () => resolve(window.Tesseract);
+      script.onerror = () => reject(new Error('no se pudo cargar el lector OCR (revisa tu conexión)'));
+      document.head.appendChild(script);
+    });
+    return window.__bitacoraTesseractPromise;
+  }
+
+  const OCR_MAX_PAGES = 15; // tope más bajo que la extracción de texto normal -- OCR es mucho más lento
+
+  async function ocrPdfPages(file, onProgress){
+    const [pdfjsLib, Tesseract] = await Promise.all([loadPdfJs(), loadTesseractJs()]);
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const n = Math.min(pdf.numPages, OCR_MAX_PAGES);
+
+    const worker = await Tesseract.createWorker('spa', 1, {
+      logger: m => {
+        if (m.status === 'recognizing text' && onProgress) onProgress(m.progress);
+      }
+    });
+
+    let text = '';
+    try {
+      for (let i = 1; i <= n; i++){
+        if (onProgress) onProgress(0, i, n);
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2.0 }); // resolución más alta ayuda a la precisión del OCR
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+        const { data } = await worker.recognize(canvas);
+        text += (data.text || '') + '\n';
+      }
+    } finally {
+      await worker.terminate();
+    }
+    return { text: text, numPages: pdf.numPages, pagesRead: n };
+  }
+
   async function extractPdfText(file, maxPages){
     maxPages = maxPages || 40;
     const pdfjsLib = await loadPdfJs();
@@ -784,13 +835,15 @@
     const fecha = fmtDate(new Date(entry.ts).toISOString()) || '';
 
     return '<div class="analysis-block">' +
-      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas <span style="color:var(--grey);font-weight:400;">· ' + fecha + '</span></div>' +
+      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' · <span style="color:var(--orange);">vía OCR</span>' : '') + ' <span style="color:var(--grey);font-weight:400;">· ' + fecha + '</span></div>' +
       '<div class="analysis-sub">REQUISITOS HABILITANTES DETECTADOS</div>' +
       '<ul class="analysis-list">' + hallazgosHtml + '</ul>' +
       '<div class="analysis-sub">COINCIDENCIA CON TU PERFIL</div>' +
       '<div>RUP/clasificador: ' + rupPct + (entry.comp.rupMatches.length ? ' — ' + escapeHtml(entry.comp.rupMatches.join(', ')) : '') + '</div>' +
       '<div>Experiencia: ' + expPct + (entry.comp.expMatches.length ? ' — ' + escapeHtml(entry.comp.expMatches.join(', ')) : '') + '</div>' +
-      '<div class="analysis-disclaimer">Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.</div>' +
+      (entry.viaOcr
+        ? '<div class="analysis-disclaimer">Texto leído por OCR (reconocimiento en imagen) — puede tener errores de transcripción, sobre todo en sellos, firmas o escaneos de baja calidad. No reemplaza revisar el pliego completo antes de decidir.</div>'
+        : '<div class="analysis-disclaimer">Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.</div>') +
     '</div>';
   }
 
@@ -1324,6 +1377,8 @@
     }
   });
 
+  const pendingOcrFiles = {}; // { id: File } -- se guarda porque input.value se limpia después de leer, y el botón de OCR se hace clic más tarde
+
   resultsEl.addEventListener('change', async function(e){
     const input = e.target.closest('input[type=file][data-analyze-id]');
     if (!input) return;
@@ -1336,8 +1391,12 @@
       await appReady;
       const { text, numPages, pagesRead } = await extractPdfText(file);
       if (!text || text.trim().length < 200){
+        pendingOcrFiles[id] = file;
         const blobUrl = URL.createObjectURL(file);
-        slot.innerHTML = '<div class="analysis-block analysis-warn">Este PDF no tiene texto extraíble (probablemente está escaneado como imagen). <a href="' + blobUrl + '" target="_blank" rel="noopener">Ábrelo aquí para revisarlo manualmente</a>.</div>';
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Este PDF no tiene texto extraíble (probablemente está escaneado como imagen). ' +
+          '<a href="' + blobUrl + '" target="_blank" rel="noopener">Ábrelo aquí para revisarlo manualmente</a>, ' +
+          'o <button class="link-btn analysis-ocr-btn" data-ocr-id="' + escapeHtml(id) + '">intenta leerlo con OCR</button> ' +
+          '(reconocimiento de texto en imagen — puede tardar varios minutos y no siempre es exacto).</div>';
         return;
       }
       const hallazgos = analizarTexto(text);
@@ -1350,6 +1409,38 @@
       slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(err.message || 'error') + ').</div>';
     } finally {
       input.value = '';
+    }
+  });
+
+  resultsEl.addEventListener('click', async function(e){
+    const btn = e.target.closest('.analysis-ocr-btn');
+    if (!btn) return;
+    const id = btn.getAttribute('data-ocr-id');
+    const file = pendingOcrFiles[id];
+    const slot = btn.closest('.analysis-block').parentElement;
+    if (!file){
+      slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para intentar de nuevo.</div>';
+      return;
+    }
+    try {
+      await appReady;
+      slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página 1</div>';
+      const { text, numPages, pagesRead } = await ocrPdfPages(file, (pct, page, total) => {
+        slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
+      });
+      if (!text || text.trim().length < 50){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">El OCR no logró reconocer texto en este PDF (calidad de escaneo muy baja, o el documento no tiene contenido en las páginas leídas). Revísalo manualmente.</div>';
+        return;
+      }
+      const hallazgos = analizarTexto(text);
+      const comp = compararConPerfil(text, perfil);
+      const entry = { ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, hallazgos: hallazgos, comp: comp, viaOcr: true };
+      analisis[id] = entry;
+      saveAnalisis();
+      slot.innerHTML = renderAnalysisHtml(entry);
+      delete pendingOcrFiles[id];
+    } catch(err){
+      slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml(err.message || 'error') + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
     }
   });
 
