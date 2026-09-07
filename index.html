@@ -882,12 +882,16 @@
     else if (dates.length > 0) pubRaw = dates[0].val;
 
     const searchable = JSON.stringify(record).toLowerCase();
-    // Búsqueda geográfica ACOTADA solo a departamento/ciudad -- a diferencia de
+    // Búsqueda geográfica ACOTADA solo a DEPARTAMENTO -- a diferencia de
     // 'searchable' (todo el registro), esto evita falsos positivos cuando el
     // nombre de una entidad, calle o barrio menciona el nombre de un departamento
     // sin que el proceso esté realmente ahí (ej. "Santander" aparece en muchos
     // nombres propios en Colombia, sin importar en qué departamento estén).
-    const geoSearchable = [departamento, ciudad].filter(Boolean).join(' ').toLowerCase();
+    // IMPORTANTE: no se incluye 'ciudad' aquí -- existen municipios cuyo nombre
+    // menciona un departamento distinto al que realmente pertenecen (ej.
+    // "Santander de Quilichao" está en el Cauca, no en Santander), así que
+    // agregar la ciudad reintroducía el mismo tipo de falso positivo por otra vía.
+    const geoSearchable = (departamento || '').toLowerCase();
     const fuente = record._fuente === 'I' ? 'I' : 'II';
 
     return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente };
