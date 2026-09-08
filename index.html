@@ -742,7 +742,12 @@
     if (window.__bitacoraTesseractPromise) return window.__bitacoraTesseractPromise;
     window.__bitacoraTesseractPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js';
+      // jsDelivr, no cdnjs: Tesseract.js resuelve internamente las rutas de su
+      // worker y del motor WASM en base a la ubicación de este script, siguiendo
+      // la estructura del paquete de npm. cdnjs solo sirve un subconjunto de
+      // archivos y no tiene esa estructura completa, lo que causaba 404 al
+      // cargar el worker/núcleo y tumbaba el OCR (confirmado en la práctica).
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js';
       script.onload = () => resolve(window.Tesseract);
       script.onerror = () => reject(new Error('no se pudo cargar el lector OCR (revisa tu conexión)'));
       document.head.appendChild(script);
@@ -1440,7 +1445,7 @@
       slot.innerHTML = renderAnalysisHtml(entry);
       delete pendingOcrFiles[id];
     } catch(err){
-      slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml(err.message || 'error') + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
+      slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
     }
   });
 
