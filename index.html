@@ -121,6 +121,22 @@
     padding: 8px 10px;
     white-space: nowrap;
   }
+  #bitacora-root .perfil-comparar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 14px;
+    margin-bottom: 14px;
+    padding: 8px 10px;
+    background: var(--paper);
+    border: 1px solid #D8D0BC;
+  }
+  #bitacora-root .perfil-comparar #bt-perfil-comparar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  #bitacora-root .perfil-comparar .toggle { color: var(--navy); }
 
   #bitacora-root .actions {
     display: flex;
@@ -396,17 +412,21 @@
 
     <div class="titleblock" id="bt-perfil-panel">
       <div class="titleblock-head">
-        <h2>Perfil de la empresa</h2>
-        <span>Se usa para comparar contra los requisitos habilitantes de cada pliego</span>
+        <h2>Perfiles de empresa</h2>
+        <span>Marca uno o varios para compararlos, empresa por empresa, contra los requisitos habilitantes de cada pliego</span>
       </div>
       <div class="perfil-switcher">
         <div class="field">
-          <label>PERFIL ACTIVO</label>
+          <label>PERFIL EN EDICIÓN</label>
           <select id="bt-perfil-select"></select>
         </div>
         <button class="btn-secondary" id="bt-perfil-nuevo">+ NUEVO</button>
         <button class="btn-secondary" id="bt-perfil-renombrar">RENOMBRAR</button>
         <button class="btn-secondary" id="bt-perfil-eliminar">ELIMINAR</button>
+      </div>
+      <div class="perfil-comparar">
+        <span class="toggle-label">Comparar en el análisis de pliegos:</span>
+        <div id="bt-perfil-comparar"></div>
       </div>
       <div class="field-grid">
         <div class="field full">
@@ -458,9 +478,9 @@
 
     <div class="footnote">
       Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
-      El historial de "visto"/"descartado", el perfil de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios.<br>
-      El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma.<br>
-      Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos de tu perfil aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
+      El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios.<br>
+      El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos", empresa por empresa.<br>
+      Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
       SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
     </div>
   </div>
@@ -557,8 +577,9 @@
   // primera vez que carga, sin que pierda lo que ya había llenado.
   const PERFIL_VACIO = { nombre: '', rup: '', k: '', kResidual: '', experienciaGeneral: '', experienciaEspecifica: '' };
   let perfiles = {}; // { id: { nombre, rup, k, kResidual, experienciaGeneral, experienciaEspecifica } }
-  let perfilActivoId = null;
-  let perfil = Object.assign({}, PERFIL_VACIO); // perfil activo, usado por el análisis de pliegos
+  let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
+  let perfilesActivos = [];       // ids marcados para comparar contra cada pliego (varios a la vez)
+  let perfil = Object.assign({}, PERFIL_VACIO); // = perfiles[perfilActivoId], el que se está editando
 
   // Lleva cualquier perfil guardado al esquema actual: el campo único 'experiencia'
   // (esquema viejo) pasa a 'experienciaGeneral', y se rellenan las claves nuevas.
@@ -606,7 +627,21 @@
       perfilActivoId = Object.keys(perfiles)[0];
     }
 
+    // Perfiles marcados para comparar contra los pliegos. Si no hay nada guardado
+    // (o es la primera vez tras esta actualización), se arranca con el perfil en
+    // edición como único comparado -- equivale al comportamiento anterior.
+    let activosRaw = null;
+    try {
+      const r = await window.storage.get('perfiles_activos', false);
+      if (r && r.value) activosRaw = JSON.parse(r.value);
+    } catch(e){ /* nada guardado aún */ }
+    perfilesActivos = (Array.isArray(activosRaw) ? activosRaw : []).filter(id => perfiles[id]);
+    if (!perfilesActivos.length){
+      perfilesActivos = (perfilActivoId && perfiles[perfilActivoId]) ? [perfilActivoId] : Object.keys(perfiles).slice(0, 1);
+    }
+
     renderPerfilSelect();
+    renderPerfilComparar();
     cargarPerfilActivoEnCampos();
   }
 
@@ -614,8 +649,9 @@
     try {
       await window.storage.set('perfiles_empresa', JSON.stringify(perfiles), false);
       await window.storage.set('perfil_activo_id', perfilActivoId, false);
+      await window.storage.set('perfiles_activos', JSON.stringify(perfilesActivos.filter(id => perfiles[id])), false);
     } catch(e){
-      perfilSavedEl.textContent = 'No se pudo guardar (revisa tu conexión)';
+      if (perfilSavedEl) perfilSavedEl.textContent = 'No se pudo guardar (revisa tu conexión)';
     }
   }
 
@@ -623,6 +659,28 @@
     perfilSelectEl.innerHTML = Object.keys(perfiles).map(id =>
       '<option value="' + id + '"' + (id === perfilActivoId ? ' selected' : '') + '>' + escapeHtml(perfiles[id].nombre || 'Sin nombre') + '</option>'
     ).join('');
+  }
+
+  // Casillas "comparar en el análisis de pliegos" -- una por perfil, varias
+  // marcables a la vez. Se regenera cuando cambia la lista o los nombres.
+  function renderPerfilComparar(){
+    const wrap = document.getElementById('bt-perfil-comparar');
+    if (!wrap) return;
+    const ids = Object.keys(perfiles);
+    wrap.innerHTML = ids.length ? ids.map(id =>
+      '<label class="toggle"><input type="checkbox" data-perfil-comparar="' + escapeHtml(id) + '"' +
+      (perfilesActivos.indexOf(id) !== -1 ? ' checked' : '') + '> ' +
+      escapeHtml(perfiles[id].nombre || 'Sin nombre') + '</label>'
+    ).join('') : '<span class="saved-note">Sin perfiles todavía.</span>';
+    wrap.querySelectorAll('input[data-perfil-comparar]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = cb.getAttribute('data-perfil-comparar');
+        const i = perfilesActivos.indexOf(id);
+        if (cb.checked && i === -1) perfilesActivos.push(id);
+        else if (!cb.checked && i !== -1) perfilesActivos.splice(i, 1);
+        persistirPerfiles();
+      });
+    });
   }
 
   // Los campos del DOM pudieron haber sido renombrados/quitados sin actualizar este
@@ -652,6 +710,7 @@
       experienciaEspecifica: getCampo(perfilExpEspecificaEl)
     };
     perfil = perfiles[perfilActivoId];
+    renderPerfilComparar(); // por si el nombre cambió (aunque se renombra aparte, no cuesta)
     await persistirPerfiles();
     if (perfilSavedEl) perfilSavedEl.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   }
@@ -662,7 +721,9 @@
     const id = nuevoPerfilId();
     perfiles[id] = Object.assign({}, PERFIL_VACIO, { nombre });
     perfilActivoId = id;
+    if (perfilesActivos.indexOf(id) === -1) perfilesActivos.push(id); // un perfil nuevo entra marcado para comparar
     renderPerfilSelect();
+    renderPerfilComparar();
     cargarPerfilActivoEnCampos();
     await persistirPerfiles();
   }
@@ -674,6 +735,7 @@
     if (!nuevo) return;
     perfiles[perfilActivoId].nombre = nuevo;
     renderPerfilSelect();
+    renderPerfilComparar();
     await persistirPerfiles();
   }
 
@@ -685,9 +747,13 @@
     }
     const nombre = perfiles[perfilActivoId].nombre || 'este perfil';
     if (!confirm('¿Eliminar el perfil "' + nombre + '"? Esta acción no se puede deshacer.')) return;
-    delete perfiles[perfilActivoId];
+    const idEliminado = perfilActivoId;
+    delete perfiles[idEliminado];
+    perfilesActivos = perfilesActivos.filter(id => id !== idEliminado);
     perfilActivoId = Object.keys(perfiles)[0];
+    if (!perfilesActivos.length && perfilActivoId) perfilesActivos = [perfilActivoId];
     renderPerfilSelect();
+    renderPerfilComparar();
     cargarPerfilActivoEnCampos();
     await persistirPerfiles();
   }
@@ -953,10 +1019,62 @@
     };
   }
 
+  // Perfiles que entran en la comparación de un pliego: los marcados en las
+  // casillas; si no hay ninguno marcado, se usa el que está en edición para no
+  // dejar el análisis sin nada contra qué comparar.
+  function perfilesParaComparar(){
+    let ids = perfilesActivos.filter(id => perfiles[id]);
+    if (!ids.length && perfilActivoId && perfiles[perfilActivoId]) ids = [perfilActivoId];
+    return ids.map(id => Object.assign({ _id: id }, migrarPerfil(Object.assign({}, perfiles[id]))));
+  }
+
+  // Corre compararConPerfil una vez por cada perfil marcado y devuelve
+  // { comps: [ { perfilId, perfilNombre, ...campos de coincidencia } ] }.
+  function compararConPerfiles(text, hallazgos){
+    const comps = perfilesParaComparar().map(p => Object.assign(
+      { perfilId: p._id, perfilNombre: p.nombre || 'Sin nombre' },
+      compararConPerfil(text, p, hallazgos)
+    ));
+    return { comps: comps };
+  }
+
+  // Normaliza un entry (nuevo o del esquema viejo de un solo comp) a una lista de comps.
+  function compsDe(entry){
+    if (entry && Array.isArray(entry.comps)) return entry.comps;
+    if (entry && entry.comp) return [Object.assign({ perfilNombre: 'Tu perfil' }, entry.comp)];
+    return [];
+  }
+
+  // Resumen de coincidencia de UN perfil: K, K residual, RUP, experiencia
+  // general y específica. 'linea' es local para poder reusarlo por perfil.
+  function resumenPerfilHtml(c){
+    const linea = (label, matches, total) => {
+      const m = matches || [];
+      const pct = total ? (m.length + '/' + total) : 'sin datos de perfil';
+      return '<div>' + label + ': ' + pct + (m.length ? ' — ' + escapeHtml(m.join(', ')) : '') + '</div>';
+    };
+    const tieneDesgloseExp = ('expGeneralTotal' in c) || ('expEspecificaTotal' in c);
+    return linea('Capacidad K / financiera', c.kMatches, c.kTotal || 0) +
+      (c.kResidualTotal ? linea('&nbsp;&nbsp;· de esa, K residual', c.kResidualMatches, c.kResidualTotal) : '') +
+      linea('RUP / clasificador', c.rupMatches, c.rupTotal || 0) +
+      (tieneDesgloseExp
+        ? (linea('Experiencia general', c.expGeneralMatches, c.expGeneralTotal || 0) +
+           linea('Experiencia específica', c.expEspecificaMatches, c.expEspecificaTotal || 0))
+        : linea('Experiencia (general + específica)', c.expMatches, c.expTotal || 0));
+  }
+
   function renderAnalysisHtml(entry){
+    const comps = compsDe(entry);
+    const primero = comps[0] || {};
+
+    // Requisitos detectados en el TEXTO -- no dependen del perfil, se listan una
+    // sola vez. Bajo cada uno se indica qué perfiles marcados lo cubren.
     const porCategoria = {};
-    (entry.comp.hallazgosAnotados || []).forEach(h => {
-      (porCategoria[h.categoria] = porCategoria[h.categoria] || []).push(h);
+    (primero.hallazgosAnotados || []).forEach((h, i) => {
+      const cubiertoPor = comps
+        .filter(c => ((c.hallazgosAnotados || [])[i] || {}).perfilMatches && c.hallazgosAnotados[i].perfilMatches.length)
+        .map(c => c.perfilNombre || 'Perfil');
+      (porCategoria[h.categoria] = porCategoria[h.categoria] || []).push(Object.assign({}, h, { cubiertoPor: cubiertoPor }));
     });
     const ordenCategorias = ['Capacidad K / Financiera', 'Experiencia', 'RUP / Clasificador'];
     const hallazgosHtml = ordenCategorias
@@ -964,29 +1082,21 @@
       .map(cat => {
         const items = porCategoria[cat].map(h =>
           '<li><b>' + escapeHtml(h.trigger) + ':</b> ' + escapeHtml(h.snippet) +
-          (h.perfilMatches.length ? ' <span style="color:var(--navy-line);">— coincide con tu perfil: ' + escapeHtml(h.perfilMatches.join(', ')) + '</span>' : '') +
+          (h.cubiertoPor.length ? ' <span style="color:var(--navy-line);">— cubierto por: ' + escapeHtml(h.cubiertoPor.join(', ')) + '</span>' : '') +
           '</li>'
         ).join('');
         return '<div class="analysis-sub">' + escapeHtml(cat.toUpperCase()) + '</div><ul class="analysis-list">' + items + '</ul>';
       }).join('');
 
-    const sinHallazgos = !entry.comp.hallazgosAnotados || entry.comp.hallazgosAnotados.length === 0;
-
-    const comp = entry.comp || {};
-    const rupMatches = comp.rupMatches || [];
-    const kMatches = comp.kMatches || [];
-    const kResidualMatches = comp.kResidualMatches || [];
-    // Análisis viejos (antes de separar general/específica) solo traen expMatches/expTotal.
-    const expGeneralMatches = comp.expGeneralMatches || [];
-    const expEspecificaMatches = comp.expEspecificaMatches || [];
-    const tieneDesgloseExp = ('expGeneralTotal' in comp) || ('expEspecificaTotal' in comp);
-    const linea = (label, matches, total) => {
-      const pct = total ? (matches.length + '/' + total) : 'sin datos de perfil';
-      return '<div>' + label + ': ' + pct + (matches.length ? ' — ' + escapeHtml(matches.join(', ')) : '') + '</div>';
-    };
-    const rupPct = comp.rupTotal ? (rupMatches.length + '/' + comp.rupTotal) : 'sin datos de perfil';
-    const kPct = comp.kTotal ? (kMatches.length + '/' + comp.kTotal) : 'sin datos de perfil';
+    const sinHallazgos = !primero.hallazgosAnotados || primero.hallazgosAnotados.length === 0;
     const fecha = fmtDate(new Date(entry.ts).toISOString()) || '';
+
+    const perfilesHtml = comps.length
+      ? comps.map(c =>
+          '<div class="analysis-sub">COINCIDENCIA — ' + escapeHtml(c.perfilNombre || 'Perfil') + '</div>' +
+          resumenPerfilHtml(c)
+        ).join('')
+      : '<ul class="analysis-list"><li>No hay perfiles marcados para comparar. Marca al menos uno en “Comparar en el análisis de pliegos” y vuelve a analizar.</li></ul>';
 
     return '<div class="analysis-block">' +
       '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' · <span style="color:var(--orange);">vía OCR</span>' : '') + ' <span style="color:var(--grey);font-weight:400;">· ' + fecha + '</span></div>' +
@@ -995,14 +1105,8 @@
       (sinHallazgos
         ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de capacidad K, RUP o experiencia mínima en el texto extraído — revisa el pliego completo.</li></ul>'
         : hallazgosHtml) +
-      '<div class="analysis-sub">RESUMEN DE COINCIDENCIA CON TU PERFIL</div>' +
-      '<div>Capacidad K / financiera: ' + kPct + (kMatches.length ? ' — ' + escapeHtml(kMatches.join(', ')) : '') + '</div>' +
-      (comp.kResidualTotal ? linea('&nbsp;&nbsp;· de esa, K residual', kResidualMatches, comp.kResidualTotal) : '') +
-      '<div>RUP/clasificador: ' + rupPct + (rupMatches.length ? ' — ' + escapeHtml(rupMatches.join(', ')) : '') + '</div>' +
-      (tieneDesgloseExp
-        ? (linea('Experiencia general', expGeneralMatches, comp.expGeneralTotal || 0) +
-           linea('Experiencia específica', expEspecificaMatches, comp.expEspecificaTotal || 0))
-        : '<div>Experiencia (general + específica): ' + (comp.expTotal ? ((comp.expMatches || []).length + '/' + comp.expTotal) : 'sin datos de perfil') + ((comp.expMatches || []).length ? ' — ' + escapeHtml((comp.expMatches || []).join(', ')) : '') + '</div>') +
+      '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' +
+      perfilesHtml +
       (entry.viaOcr
         ? '<div class="analysis-disclaimer">Texto leído por OCR (reconocimiento en imagen) — puede tener errores de transcripción, sobre todo en sellos, firmas o escaneos de baja calidad. No reemplaza revisar el pliego completo antes de decidir.</div>'
         : '<div class="analysis-disclaimer">Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.</div>') +
@@ -1215,18 +1319,23 @@
     return 'baja';
   }
 
-  // Ajusta el puntaje según cuántos términos del perfil (RUP/experiencia) aparecieron
-  // en el análisis del pliego PDF, si se subió uno para este proceso. Heurístico:
-  // más coincidencias detectadas -> más probable que la empresa cumpla -> sube prioridad.
+  // Ajusta el puntaje según cuántos términos del perfil (RUP/experiencia/K)
+  // aparecieron en el análisis del pliego PDF, si se subió uno para este proceso.
+  // Con varios perfiles marcados se toma el MEJOR: si alguna de las empresas
+  // cubre bien los requisitos, el proceso vale la pena priorizarlo.
   function analysisScoreAdjustment(entry){
-    if (!entry || !entry.comp) return 0;
-    const c = entry.comp;
-    const total = (c.rupTotal || 0) + (c.expTotal || 0) + (c.kTotal || 0);
-    if (total === 0) return 0;
-    const matched = (c.rupMatches || []).length + (c.expMatches || []).length + (c.kMatches || []).length;
-    const ratio = matched / total;
-    if (ratio >= 0.66) return 3;
-    if (ratio >= 0.33) return 1;
+    const comps = compsDe(entry);
+    if (!comps.length) return 0;
+    let best = -Infinity;
+    comps.forEach(c => {
+      const total = (c.rupTotal || 0) + (c.expTotal || 0) + (c.kTotal || 0);
+      if (total === 0) return;
+      const matched = (c.rupMatches || []).length + (c.expMatches || []).length + (c.kMatches || []).length;
+      best = Math.max(best, matched / total);
+    });
+    if (best === -Infinity) return 0;
+    if (best >= 0.66) return 3;
+    if (best >= 0.33) return 1;
     return -2;
   }
 
@@ -1637,8 +1746,8 @@
           return;
         }
         const { hallazgos, kResidual } = analizarTexto(text);
-        const comp = compararConPerfil(text, perfil, hallazgos);
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, kResidual: kResidual, comp: comp, viaOcr: true };
+        const { comps } = compararConPerfiles(text, hallazgos);
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, kResidual: kResidual, comps: comps, viaOcr: true };
         analisis[id] = entry;
         saveAnalisis();
         slot.innerHTML = renderAnalysisHtml(entry);
@@ -1677,7 +1786,8 @@
         entry.ts = Date.now();
         const { hallazgos: nuevosHallazgos, kResidual } = analizarTexto(fullText);
         entry.kResidual = kResidual;
-        entry.comp = compararConPerfil(fullText, perfil, nuevosHallazgos);
+        entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
+        delete entry.comp; // por si venía del esquema viejo de un solo perfil
         analisis[id] = entry;
         saveAnalisis();
         slot.innerHTML = renderAnalysisHtml(entry);
@@ -1710,8 +1820,8 @@
         return;
       }
       const { hallazgos, kResidual } = analizarTexto(text);
-      const comp = compararConPerfil(text, perfil, hallazgos);
-      const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, kResidual: kResidual, comp: comp };
+      const { comps } = compararConPerfiles(text, hallazgos);
+      const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, kResidual: kResidual, comps: comps };
       analisis[id] = entry;
       saveAnalisis();
       slot.innerHTML = renderAnalysisHtml(entry);
