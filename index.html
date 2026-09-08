@@ -747,7 +747,12 @@
       // la estructura del paquete de npm. cdnjs solo sirve un subconjunto de
       // archivos y no tiene esa estructura completa, lo que causaba 404 al
       // cargar el worker/núcleo y tumbaba el OCR (confirmado en la práctica).
-      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js';
+      // v5 sin fijar el parche exacto, igual al ejemplo oficial del README de
+      // Tesseract.js -- con la v4.1.1 fijada, la detección automática de rutas
+      // internas (worker/núcleo WASM) fallaba con 404 encadenados aunque se
+      // sirviera desde jsDelivr. La v5 sin pin de parche es el patrón que el
+      // propio proyecto documenta y prueba activamente.
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
       script.onload = () => resolve(window.Tesseract);
       script.onerror = () => reject(new Error('no se pudo cargar el lector OCR (revisa tu conexión)'));
       document.head.appendChild(script);
