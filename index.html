@@ -497,7 +497,7 @@
 
     <div class="footnote">
       Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
-      El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfiles de empresa" puedes cargar el certificado del RUP (PDF) y se autocompletan los códigos UNSPSC, la capacidad residual y los indicadores financieros — revisa antes de guardar.<br>
+      El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfiles de empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y de experiencia (priorizando los de obra) y, orientativamente, los indicadores financieros — revísalos antes de guardar.<br>
       El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos", empresa por empresa. Desde el resultado puedes descargar o copiar un informe detallado (qué coincide y qué NO aparece, por empresa).<br>
       Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
       SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
@@ -797,30 +797,40 @@
   // las listas; en los campos de texto libre solo rellena si están vacíos.
   function _num(s){ return String(s || '').replace(/\s+/g, ''); }
 
-  // Códigos UNSPSC: 8 dígitos en 4 grupos de 2. En el RUP aparecen casi siempre
-  // punteados (72.14.11.00), a veces con prefijo de versión "V1.". El 4º grupo
-  // puede faltar (segmento.familia.clase) -- se completa con "00". Con
-  // permitirBare=true (solo para la sección de clasificación, donde no hay cifras
-  // grandes) también se aceptan los 8 dígitos seguidos sin separador.
+  // Extrae códigos UNSPSC (8 dígitos, 4 grupos de 2). El RUP de Confecámaras los
+  // lista como "NN NN NN NN : DESCRIPCIÓN" (separados por espacio, con dos puntos
+  // detrás). También se aceptan la forma punteada (72.14.11.00 / V1.72.14.11.00)
+  // y, en una sección acotada, los 8 dígitos seguidos.
   function extraerCodigosUNSPSC(texto, permitirBare){
     const out = [];
-    const add = code => { if (out.indexOf(code) === -1) out.push(code); };
-    const re = /(?:v\d\s*\.?\s*)?\b(\d{2})\s*\.\s*(\d{2})\s*\.\s*(\d{2})(?:\s*\.\s*(\d{2}))?\b/gi;
+    const add = c => { if (/^\d{8}$/.test(c) && out.indexOf(c) === -1) out.push(c); };
+    const ok = seg => seg >= 10 && seg <= 95; // segmentos UNSPSC
     let m;
-    while ((m = re.exec(texto)) !== null){
-      const seg = parseInt(m[1], 10);
-      if (seg < 10 || seg > 95) continue; // los segmentos UNSPSC van de 10 a 95
-      add(m[1] + m[2] + m[3] + (m[4] || '00'));
-    }
+    const reCol = /\b(\d{2})[ .\-](\d{2})[ .\-](\d{2})[ .\-](\d{2})\s*:/g; // formato Confecámaras
+    while ((m = reCol.exec(texto)) !== null){ if (ok(+m[1])) add(m[1] + m[2] + m[3] + m[4]); }
+    const reDot = /(?:v\d\s*\.\s*)?\b(\d{2})\s*\.\s*(\d{2})\s*\.\s*(\d{2})(?:\s*\.\s*(\d{2}))?\b/gi;
+    while ((m = reDot.exec(texto)) !== null){ if (ok(+m[1])) add(m[1] + m[2] + m[3] + (m[4] || '00')); }
     if (permitirBare){
       const reBare = /(?<![\d.,])(\d{2})(\d{2})(\d{2})(\d{2})(?![\d.,])/g;
-      while ((m = reBare.exec(texto)) !== null){
-        const seg = parseInt(m[1], 10);
-        if (seg < 10 || seg > 95) continue;
-        add(m[1] + m[2] + m[3] + m[4]);
-      }
+      while ((m = reBare.exec(texto)) !== null){ if (ok(+m[1])) add(m[1] + m[2] + m[3] + m[4]); }
     }
     return out;
+  }
+
+  // Un RUP puede traer cientos de códigos. Para que el campo siga sirviendo en la
+  // comparación se ORDENAN por relevancia para obra pública (segmento 72 =
+  // construcción primero, luego 95 infraestructura, 81 ingeniería, 30 materiales…)
+  // y se corta la lista al tope. Sin recorte se respeta el orden del documento.
+  const _SEG_OBRA = ['72', '95', '81', '30', '40', '15', '22', '25', '26', '83', '76', '77', '93', '12', '11', '24', '31', '20', '23', '27', '39', '78', '73', '71', '70'];
+  function _acotarUNSPSC(codes, tope){
+    tope = tope || 90;
+    if (codes.length <= tope) return { lista: codes, total: codes.length, recortado: false };
+    const rank = c => { const i = _SEG_OBRA.indexOf(c.slice(0, 2)); return i === -1 ? 99 : i; };
+    const ordenado = codes
+      .map((c, i) => [c, i])
+      .sort((a, b) => (rank(a[0]) - rank(b[0])) || (a[1] - b[1]))
+      .map(p => p[0]);
+    return { lista: ordenado.slice(0, tope), total: codes.length, recortado: true };
   }
 
   function _seccionRUP(lower, texto, desdeRe, hastaRes){
@@ -834,10 +844,39 @@
     return texto.slice(i, fin);
   }
 
-  function _valorTrasEtiqueta(texto, etiquetaSource){
-    const re = new RegExp(etiquetaSource + '[^0-9$\\-]{0,45}?(\\$?\\s*[0-9][0-9.,]*)', 'i');
-    const m = texto.match(re);
-    return m ? _num(m[1]) : null;
+  // Indicadores financieros del RUP. Al extraer el texto, el PDF (tabla a 2
+  // columnas) suele quedar como "todas las etiquetas, luego el bloque de valores",
+  // así que se emparejan por POSICIÓN dentro de cada sub-sección. Es orientativo:
+  // el usuario revisa. Devuelve una lista de "Etiqueta: valor".
+  function extraerIndicadoresRUP(flat){
+    const out = [];
+    const lower = flat.toLowerCase();
+
+    const iFin = Math.max(lower.indexOf('informacion financiera'), lower.indexOf('información financiera'));
+    if (iFin !== -1){
+      const sec = flat.slice(iFin, iFin + 1400);
+      const etiquetas = ['activo corriente', 'activo total', 'pasivo corriente', 'pasivo total', 'patrimonio', 'utilidad', 'gastos de intereses'];
+      const secLower = sec.toLowerCase();
+      const presentes = etiquetas.filter(e => secLower.indexOf(e) !== -1);
+      const dinero = sec.match(/\$\s*[0-9][0-9.]*(?:,[0-9]{2})?/g) || [];
+      const interes = { 'activo corriente': 'Activo corriente', 'pasivo corriente': 'Pasivo corriente', 'patrimonio': 'Patrimonio' };
+      presentes.forEach((e, i) => {
+        if (interes[e] && dinero[i]) out.push(interes[e] + ': ' + dinero[i].replace(/\s+/g, ''));
+      });
+    }
+
+    const iCF = lower.indexOf('capacidad financiera');
+    if (iCF !== -1){
+      const sec = flat.slice(iCF, iCF + 600);
+      const etq = ['liquidez', 'endeudamiento', 'cobertura'];
+      let pos = -1;
+      etq.forEach(e => { const k = sec.toLowerCase().lastIndexOf(e); if (k > pos) pos = k; });
+      if (pos !== -1){
+        const vals = sec.slice(pos, pos + 220).match(/-?[0-9]+(?:[.,][0-9]+)?|INDETERMINADO|INDEFINIDO/gi) || [];
+        ['Liquidez', 'Endeudamiento', 'Cobertura de intereses'].forEach((n, i) => { if (vals[i]) out.push(n + ': ' + vals[i]); });
+      }
+    }
+    return out;
   }
 
   function parsearRUP(textoOriginal){
@@ -845,31 +884,29 @@
     const lower = flat.toLowerCase();
 
     const secClasif = _seccionRUP(lower, flat,
-      /clasificaci[oó]n|c[oó]digos?\s+unspsc|bienes,?\s+obras\s+y\s+servicios/,
-      [/experiencia/, /informaci[oó]n\s+financiera/, /indicador/]);
-    let unspsc = extraerCodigosUNSPSC(secClasif, true);
-    if (!unspsc.length) unspsc = extraerCodigosUNSPSC(flat, false); // sin sección: solo punteados, evita cifras
+      /clasificaci[oó]n(?:es)?\s+de\s+bienes|c[oó]digos?\s+unspsc|bienes,?\s+obras\s+y\s+servicios/,
+      [/certifica:\s*capacidad/, /certifica:\s*experiencia/, /informaci[oó]n\s+financiera/]);
+    const clasifRaw = extraerCodigosUNSPSC(secClasif || flat, true);
+    const clasif = _acotarUNSPSC(clasifRaw);
 
-    const secExp = _seccionRUP(lower, flat, /experiencia\b/,
-      [/informaci[oó]n\s+financiera/, /indicador/, /representante\s+legal/, /certifica/]);
-    const unspscExp = extraerCodigosUNSPSC(secExp, true);
+    const secExp = _seccionRUP(lower, flat, /certifica:\s*experiencia|experiencia\s+no\.?\s*1/,
+      [/informaci[oó]n\s+financiera/, /representante\s+legal/]);
+    const expRaw = extraerCodigosUNSPSC(secExp, true);
+    const exp = _acotarUNSPSC(expRaw, 60);
 
     let capResidual = null;
     const mRes = flat.match(/(capacidad\s+(?:residual|m[aá]xima\s+de\s+contrataci[oó]n))[^.\n]{0,80}?([0-9][0-9.,]*\s*(?:smmlv|salarios\s+m[ií]nimos)?)/i);
     if (mRes) capResidual = mRes[0].replace(/\s+/g, ' ').trim();
 
-    const ind = [];
-    const push = (etq, src) => { const v = _valorTrasEtiqueta(flat, src); if (v) ind.push(etq + ': ' + v); };
-    push('Patrimonio', 'patrimonio');
-    push('Capacidad de organización', 'capacidad\\s+de\\s+organizaci[oó]n');
-    push('Capital de trabajo', 'capital\\s+de\\s+trabajo');
-    push('Índice de liquidez', '(?:[ií]ndice|raz[oó]n)\\s+de\\s+liquidez');
-    push('Índice de endeudamiento', '(?:[ií]ndice|nivel)\\s+de\\s+endeudamiento');
-    push('Razón de cobertura de intereses', 'raz[oó]n\\s+de\\s+cobertura\\s+de\\s+intereses');
+    const ind = extraerIndicadoresRUP(flat);
     const capK = ind.join(' · ') || null;
 
-    return { unspsc, unspscExp, capResidual, capK,
-      encontrado: unspsc.length + unspscExp.length + (capResidual ? 1 : 0) + ind.length };
+    return {
+      unspsc: clasif.lista, unspscTotal: clasif.total, unspscRecortado: clasif.recortado,
+      unspscExp: exp.lista, unspscExpTotal: exp.total, unspscExpRecortado: exp.recortado,
+      capResidual, capK,
+      encontrado: clasif.lista.length + exp.lista.length + (capResidual ? 1 : 0) + ind.length
+    };
   }
 
   // Fusiona en una lista separada por comas sin duplicar (case-insensitive).
@@ -887,14 +924,16 @@
     const partes = [];
     if (data.unspsc.length){
       setCampo(perfilRupEl, _fusionarLista(getCampo(perfilRupEl), data.unspsc));
-      partes.push(data.unspsc.length + ' códigos UNSPSC → RUP/Clasificador');
+      partes.push(data.unspsc.length + ' códigos UNSPSC → RUP/Clasificador' +
+        (data.unspscRecortado ? ' (de ' + data.unspscTotal + ' en el RUP; se cargaron los más relevantes para obra)' : ''));
     }
     if (data.unspscExp.length){
       setCampo(perfilExpEspecificaEl, _fusionarLista(getCampo(perfilExpEspecificaEl), data.unspscExp));
-      partes.push(data.unspscExp.length + ' códigos de experiencia → Experiencia específica');
+      partes.push(data.unspscExp.length + ' códigos de experiencia → Experiencia específica' +
+        (data.unspscExpRecortado ? ' (de ' + data.unspscExpTotal + ')' : ''));
     }
     if (data.capK){
-      if (!getCampo(perfilKEl)){ setCampo(perfilKEl, data.capK); partes.push('indicadores financieros → Capacidad K'); }
+      if (!getCampo(perfilKEl)){ setCampo(perfilKEl, data.capK); partes.push('indicadores financieros → Capacidad K (verifica los valores)'); }
       else partes.push('Capacidad K no sobrescrita (ya tenía datos); en el RUP: ' + data.capK);
     }
     if (data.capResidual){
@@ -940,7 +979,8 @@
     const partes = aplicarRUPaCampos(data);
     if (perfilSavedEl) perfilSavedEl.textContent = '';
     perfilRupStatusEl.textContent = 'RUP leído (' + pagesRead + '/' + numPages + ' págs' + (viaOcr ? ', vía OCR' : '') + '). ' +
-      (partes.length ? partes.join(' · ') + '. ' : '') + 'Revisa las casillas y pulsa GUARDAR PERFIL.';
+      (partes.length ? partes.join(' · ') + '. ' : '') +
+      'La capacidad K/financiera y la capacidad residual del RUP salen de una tabla y pueden no leerse bien: revísalas contra el PDF antes de GUARDAR PERFIL.';
   }
 
   let analisis = {};
