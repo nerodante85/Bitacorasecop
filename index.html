@@ -505,7 +505,9 @@
   const dataFreshnessEl = document.getElementById('bt-data-freshness');
   const perfilRupEl = document.getElementById('bt-perfil-rup');
   const perfilKEl = document.getElementById('bt-perfil-k');
-  const perfilExpEl = document.getElementById('bt-perfil-exp');
+  const perfilKResidualEl = document.getElementById('bt-perfil-k-residual');
+  const perfilExpGeneralEl = document.getElementById('bt-perfil-exp-general');
+  const perfilExpEspecificaEl = document.getElementById('bt-perfil-exp-especifica');
   const perfilSaveBtn = document.getElementById('bt-perfil-save');
   const perfilSavedEl = document.getElementById('bt-perfil-saved');
   const perfilSelectEl = document.getElementById('bt-perfil-select');
@@ -549,11 +551,24 @@
 
   // Múltiples perfiles de empresa: se guardan todos en 'perfiles_empresa' (mapa id -> perfil)
   // y cuál está activo en 'perfil_activo_id'. Si el usuario ya tenía un perfil guardado con
-  // el esquema viejo (un solo perfil, clave 'perfil_empresa'), se migra automáticamente la
+  // un esquema viejo (un solo perfil en la clave 'perfil_empresa', o el esquema de un solo
+  // campo 'experiencia' anterior a separar general/específica), se migra automáticamente la
   // primera vez que carga, sin que pierda lo que ya había llenado.
-  let perfiles = {}; // { id: { nombre, rup, k, experiencia } }
+  const PERFIL_VACIO = { nombre: '', rup: '', k: '', kResidual: '', experienciaGeneral: '', experienciaEspecifica: '' };
+  let perfiles = {}; // { id: { nombre, rup, k, kResidual, experienciaGeneral, experienciaEspecifica } }
   let perfilActivoId = null;
-  let perfil = { rup: '', k: '', experiencia: '' }; // perfil activo, usado por el análisis de pliegos
+  let perfil = Object.assign({}, PERFIL_VACIO); // perfil activo, usado por el análisis de pliegos
+
+  // Lleva cualquier perfil guardado al esquema actual: el campo único 'experiencia'
+  // (esquema viejo) pasa a 'experienciaGeneral', y se rellenan las claves nuevas.
+  function migrarPerfil(p){
+    p = p || {};
+    if (p.experiencia && !p.experienciaGeneral){
+      p.experienciaGeneral = p.experiencia;
+    }
+    delete p.experiencia;
+    return Object.assign({}, PERFIL_VACIO, p);
+  }
 
   function nuevoPerfilId(){
     return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -578,10 +593,13 @@
         if (r && r.value) perfilViejo = JSON.parse(r.value);
       } catch(e){ /* nada */ }
       const id = nuevoPerfilId();
-      perfiles[id] = Object.assign({ nombre: 'Mi empresa', rup: '', k: '', experiencia: '' }, perfilViejo || {});
+      perfiles[id] = migrarPerfil(Object.assign({ nombre: 'Mi empresa' }, perfilViejo || {}));
       perfilActivoId = id;
       await persistirPerfiles();
     }
+
+    // Lleva todos los perfiles guardados al esquema actual (idempotente).
+    Object.keys(perfiles).forEach(id => { perfiles[id] = migrarPerfil(perfiles[id]); });
 
     if (!perfilActivoId || !perfiles[perfilActivoId]){
       perfilActivoId = Object.keys(perfiles)[0];
@@ -606,32 +624,42 @@
     ).join('');
   }
 
+  // Los campos del DOM pudieron haber sido renombrados/quitados sin actualizar este
+  // script (ya pasó una vez). Se accede con guardas para que un id que no exista no
+  // tumbe toda la carga inicial (rechazaba appReady y dejaba la página en blanco).
+  function setCampo(el, valor){ if (el) el.value = valor || ''; }
+  function getCampo(el){ return el ? el.value.trim() : ''; }
+
   function cargarPerfilActivoEnCampos(){
-    perfil = Object.assign({ nombre: '', rup: '', k: '', experiencia: '' }, perfiles[perfilActivoId] || {});
-    perfilRupEl.value = perfil.rup || '';
-    perfilKEl.value = perfil.k || '';
-    perfilExpEl.value = perfil.experiencia || '';
-    perfilSavedEl.textContent = '';
+    perfil = migrarPerfil(Object.assign({}, perfiles[perfilActivoId] || {}));
+    setCampo(perfilRupEl, perfil.rup);
+    setCampo(perfilKEl, perfil.k);
+    setCampo(perfilKResidualEl, perfil.kResidual);
+    setCampo(perfilExpGeneralEl, perfil.experienciaGeneral);
+    setCampo(perfilExpEspecificaEl, perfil.experienciaEspecifica);
+    if (perfilSavedEl) perfilSavedEl.textContent = '';
   }
 
   async function savePerfil(){
     if (!perfilActivoId) return;
     perfiles[perfilActivoId] = {
       nombre: (perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'Sin nombre',
-      rup: perfilRupEl.value.trim(),
-      k: perfilKEl.value.trim(),
-      experiencia: perfilExpEl.value.trim()
+      rup: getCampo(perfilRupEl),
+      k: getCampo(perfilKEl),
+      kResidual: getCampo(perfilKResidualEl),
+      experienciaGeneral: getCampo(perfilExpGeneralEl),
+      experienciaEspecifica: getCampo(perfilExpEspecificaEl)
     };
     perfil = perfiles[perfilActivoId];
     await persistirPerfiles();
-    perfilSavedEl.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    if (perfilSavedEl) perfilSavedEl.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   }
 
   async function nuevoPerfil(){
     const nombre = (window.prompt('Nombre del nuevo perfil (ej. razón social):') || '').trim();
     if (!nombre) return;
     const id = nuevoPerfilId();
-    perfiles[id] = { nombre, rup: '', k: '', experiencia: '' };
+    perfiles[id] = Object.assign({}, PERFIL_VACIO, { nombre });
     perfilActivoId = id;
     renderPerfilSelect();
     cargarPerfilActivoEnCampos();
@@ -688,7 +716,10 @@
     }
   }
 
-  const appReady = Promise.all([loadHistorial(), loadPerfiles(), loadAnalisis()]);
+  // allSettled, no all: si un loader falla (p.ej. un getElementById que devuelve
+  // null por un campo renombrado en el HTML), los otros dos igual cargan y el
+  // arranque no se aborta -- antes esto dejaba la página pegada en "Cargando...".
+  const appReady = Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis()]);
 
   function rerender(){
     if (lastRecords){
@@ -872,23 +903,35 @@
   function compararConPerfil(text, perfilActual, hallazgos){
     const lower = text.toLowerCase();
     const splitTerms = s => (s || '').split(/[,;\n]/).map(t => t.trim()).filter(Boolean);
+    perfilActual = migrarPerfil(Object.assign({}, perfilActual || {}));
     const rupTerms = splitTerms(perfilActual.rup);
-    const expTerms = splitTerms(perfilActual.experiencia);
+    // K y K residual se comparan juntas contra el texto (el pliego mezcla ambas
+    // en la misma sección), pero se conserva el desglose para el resumen.
     const kTerms = splitTerms(perfilActual.k);
-    const rupMatches = rupTerms.filter(t => lower.includes(t.toLowerCase()));
-    const expMatches = expTerms.filter(t => lower.includes(t.toLowerCase()));
-    const kMatches = kTerms.filter(t => lower.includes(t.toLowerCase()));
+    const kResidualTerms = splitTerms(perfilActual.kResidual);
+    const kTermsAll = kTerms.concat(kResidualTerms);
+    // Experiencia general y específica: listas separadas, para poder ver si TU
+    // experiencia general cubre lo que pide el pliego en general, aparte de la
+    // específica -- en vez de un solo número global que mezcla ambas.
+    const expGeneralTerms = splitTerms(perfilActual.experienciaGeneral);
+    const expEspecificaTerms = splitTerms(perfilActual.experienciaEspecifica);
+    const expTerms = expGeneralTerms.concat(expEspecificaTerms);
+
+    const matchIn = (terms, haystack) => terms.filter(t => haystack.includes(t.toLowerCase()));
+    const rupMatches = matchIn(rupTerms, lower);
+    const expMatches = matchIn(expTerms, lower);
+    const expGeneralMatches = matchIn(expGeneralTerms, lower);
+    const expEspecificaMatches = matchIn(expEspecificaTerms, lower);
+    const kMatches = matchIn(kTermsAll, lower);
+    const kResidualMatches = matchIn(kResidualTerms, lower);
 
     // Comparación POR HALLAZGO: cada mención detectada (ej. "experiencia
-    // específica" vs "experiencia general") se compara solo contra los términos
-    // de perfil de su propia categoría, y solo dentro de ese fragmento de texto
-    // -- así se puede ver si TU experiencia general coincide con lo que pide el
-    // pliego en experiencia general, por separado de la específica, en vez de
-    // un solo número global que mezcla ambas.
+    // específica" vs "experiencia general") se compara contra los términos de
+    // perfil de su categoría, solo dentro de ese fragmento de texto.
     const termsPorCategoria = {
       'Experiencia': expTerms,
       'RUP / Clasificador': rupTerms,
-      'Capacidad K / Financiera': kTerms
+      'Capacidad K / Financiera': kTermsAll
     };
     const hallazgosAnotados = (hallazgos || []).map(h => {
       const terms = termsPorCategoria[h.categoria] || [];
@@ -899,8 +942,12 @@
 
     return {
       rupMatches: rupMatches, rupTotal: rupTerms.length,
+      // expMatches/expTotal = general + específica combinadas (lo usa el ajuste de puntaje)
       expMatches: expMatches, expTotal: expTerms.length,
-      kMatches: kMatches, kTotal: kTerms.length,
+      expGeneralMatches: expGeneralMatches, expGeneralTotal: expGeneralTerms.length,
+      expEspecificaMatches: expEspecificaMatches, expEspecificaTotal: expEspecificaTerms.length,
+      kMatches: kMatches, kTotal: kTermsAll.length,
+      kResidualMatches: kResidualMatches, kResidualTotal: kResidualTerms.length,
       hallazgosAnotados: hallazgosAnotados
     };
   }
@@ -924,12 +971,20 @@
 
     const sinHallazgos = !entry.comp.hallazgosAnotados || entry.comp.hallazgosAnotados.length === 0;
 
-    const rupMatches = entry.comp.rupMatches || [];
-    const expMatches = entry.comp.expMatches || [];
-    const kMatches = entry.comp.kMatches || [];
-    const rupPct = entry.comp.rupTotal ? (rupMatches.length + '/' + entry.comp.rupTotal) : 'sin datos de perfil';
-    const expPct = entry.comp.expTotal ? (expMatches.length + '/' + entry.comp.expTotal) : 'sin datos de perfil';
-    const kPct = entry.comp.kTotal ? (kMatches.length + '/' + entry.comp.kTotal) : 'sin datos de perfil';
+    const comp = entry.comp || {};
+    const rupMatches = comp.rupMatches || [];
+    const kMatches = comp.kMatches || [];
+    const kResidualMatches = comp.kResidualMatches || [];
+    // Análisis viejos (antes de separar general/específica) solo traen expMatches/expTotal.
+    const expGeneralMatches = comp.expGeneralMatches || [];
+    const expEspecificaMatches = comp.expEspecificaMatches || [];
+    const tieneDesgloseExp = ('expGeneralTotal' in comp) || ('expEspecificaTotal' in comp);
+    const linea = (label, matches, total) => {
+      const pct = total ? (matches.length + '/' + total) : 'sin datos de perfil';
+      return '<div>' + label + ': ' + pct + (matches.length ? ' — ' + escapeHtml(matches.join(', ')) : '') + '</div>';
+    };
+    const rupPct = comp.rupTotal ? (rupMatches.length + '/' + comp.rupTotal) : 'sin datos de perfil';
+    const kPct = comp.kTotal ? (kMatches.length + '/' + comp.kTotal) : 'sin datos de perfil';
     const fecha = fmtDate(new Date(entry.ts).toISOString()) || '';
 
     return '<div class="analysis-block">' +
@@ -941,8 +996,12 @@
         : hallazgosHtml) +
       '<div class="analysis-sub">RESUMEN DE COINCIDENCIA CON TU PERFIL</div>' +
       '<div>Capacidad K / financiera: ' + kPct + (kMatches.length ? ' — ' + escapeHtml(kMatches.join(', ')) : '') + '</div>' +
+      (comp.kResidualTotal ? linea('&nbsp;&nbsp;· de esa, K residual', kResidualMatches, comp.kResidualTotal) : '') +
       '<div>RUP/clasificador: ' + rupPct + (rupMatches.length ? ' — ' + escapeHtml(rupMatches.join(', ')) : '') + '</div>' +
-      '<div>Experiencia (general + específica): ' + expPct + (expMatches.length ? ' — ' + escapeHtml(expMatches.join(', ')) : '') + '</div>' +
+      (tieneDesgloseExp
+        ? (linea('Experiencia general', expGeneralMatches, comp.expGeneralTotal || 0) +
+           linea('Experiencia específica', expEspecificaMatches, comp.expEspecificaTotal || 0))
+        : '<div>Experiencia (general + específica): ' + (comp.expTotal ? ((comp.expMatches || []).length + '/' + comp.expTotal) : 'sin datos de perfil') + ((comp.expMatches || []).length ? ' — ' + escapeHtml((comp.expMatches || []).join(', ')) : '') + '</div>') +
       (entry.viaOcr
         ? '<div class="analysis-disclaimer">Texto leído por OCR (reconocimiento en imagen) — puede tener errores de transcripción, sobre todo en sellos, firmas o escaneos de baja calidad. No reemplaza revisar el pliego completo antes de decidir.</div>'
         : '<div class="analysis-disclaimer">Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.</div>') +
@@ -1114,9 +1173,10 @@
   // más coincidencias detectadas -> más probable que la empresa cumpla -> sube prioridad.
   function analysisScoreAdjustment(entry){
     if (!entry || !entry.comp) return 0;
-    const total = (entry.comp.rupTotal || 0) + (entry.comp.expTotal || 0) + (entry.comp.kTotal || 0);
+    const c = entry.comp;
+    const total = (c.rupTotal || 0) + (c.expTotal || 0) + (c.kTotal || 0);
     if (total === 0) return 0;
-    const matched = entry.comp.rupMatches.length + entry.comp.expMatches.length + (entry.comp.kMatches || []).length;
+    const matched = (c.rupMatches || []).length + (c.expMatches || []).length + (c.kMatches || []).length;
     const ratio = matched / total;
     if (ratio >= 0.66) return 3;
     if (ratio >= 0.33) return 1;
@@ -1359,21 +1419,30 @@
     // (ver render()), igual que las palabras clave.
     const anchors = keywords.length ? keywords : geos;
 
+    showLoading();
     searchBtn.disabled = true;
+    // appReady es allSettled: nunca rechaza. Se espera antes del fetch para que
+    // historial/perfil/análisis ya estén cargados cuando render() los use.
+    await appReady;
     try {
       const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
       lastRecords = live;
-      await appReady;
       render(live, keywords, geos, minV, maxV);
       dataFreshnessEl.textContent = 'Datos en vivo (' + live.length + ' procesos) — consultados justo ahora en datos.gov.co.';
     } catch(err){
       // Sin conexión en vivo (p.ej. corriendo dentro de un artifact de Claude.ai):
       // usa el snapshot embebido como respaldo, sin dejar la pantalla vacía.
-      lastRecords = EMBEDDED_RECORDS_II;
-      await appReady;
-      render(lastRecords, keywords, geos, minV, maxV);
-      const freshDate = fmtDate(DATA_SNAPSHOT_DATE + 'T00:00:00.000');
-      dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (' + (err.message || 'error de red') + '). Mostrando snapshot de respaldo: ' + EMBEDDED_RECORDS_II.length + ' procesos, actualizado el ' + freshDate + '.';
+      try {
+        lastRecords = EMBEDDED_RECORDS_II;
+        render(lastRecords, keywords, geos, minV, maxV);
+        const freshDate = fmtDate(DATA_SNAPSHOT_DATE + 'T00:00:00.000');
+        dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (' + (err.message || 'error de red') + '). Mostrando snapshot de respaldo: ' + EMBEDDED_RECORDS_II.length + ' procesos, actualizado el ' + freshDate + '.';
+      } catch(err2){
+        // Ni en vivo ni el respaldo: al menos mostrar el error en vez de quedar en blanco.
+        showError((err && err.message ? err.message : 'error de red') + '.');
+        dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo ni mostrar el snapshot de respaldo (' + (err2 && err2.message ? err2.message : err2) + ').';
+        console.error('runSearch: falló también el render del snapshot', err2);
+      }
     } finally {
       searchBtn.disabled = false;
     }
