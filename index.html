@@ -137,6 +137,19 @@
     gap: 6px 14px;
   }
   #bitacora-root .perfil-comparar .toggle { color: var(--navy); }
+  #bitacora-root .perfil-rup-cargar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin-bottom: 14px;
+    padding: 8px 10px;
+    background: var(--paper);
+    border: 1px solid #D8D0BC;
+  }
+  #bitacora-root .perfil-rup-cargar button { font-size: 12.5px; padding: 8px 10px; }
+  #bitacora-root .perfil-rup-cargar .saved-note { flex: 1 1 100%; }
+  #bitacora-root .perfil-rup-cargar .link-btn { color: var(--good); }
 
   #bitacora-root .actions {
     display: flex;
@@ -428,6 +441,12 @@
         <span class="toggle-label">Comparar en el análisis de pliegos:</span>
         <div id="bt-perfil-comparar"></div>
       </div>
+      <div class="perfil-rup-cargar">
+        <span class="toggle-label">Autocompletar desde el RUP:</span>
+        <button class="btn-secondary" id="bt-perfil-rup-upload" type="button">CARGAR RUP (PDF)</button>
+        <input type="file" accept="application/pdf" id="bt-perfil-rup-file" hidden>
+        <span class="saved-note" id="bt-perfil-rup-status">Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa GUARDAR PERFIL).</span>
+      </div>
       <div class="field-grid">
         <div class="field full">
           <label>RUP / CLASIFICADOR (códigos UNSPSC o actividades, separados por coma)</label>
@@ -478,7 +497,7 @@
 
     <div class="footnote">
       Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
-      El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios.<br>
+      El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfiles de empresa" puedes cargar el certificado del RUP (PDF) y se autocompletan los códigos UNSPSC, la capacidad residual y los indicadores financieros — revisa antes de guardar.<br>
       El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos", empresa por empresa. Desde el resultado puedes descargar o copiar un informe detallado (qué coincide y qué NO aparece, por empresa).<br>
       Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
       SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
@@ -534,6 +553,9 @@
   const perfilNuevoBtn = document.getElementById('bt-perfil-nuevo');
   const perfilRenombrarBtn = document.getElementById('bt-perfil-renombrar');
   const perfilEliminarBtn = document.getElementById('bt-perfil-eliminar');
+  const perfilRupUploadBtn = document.getElementById('bt-perfil-rup-upload');
+  const perfilRupFileEl = document.getElementById('bt-perfil-rup-file');
+  const perfilRupStatusEl = document.getElementById('bt-perfil-rup-status');
 
   let lastRecords = null;
   let isDemo = false;
@@ -580,6 +602,7 @@
   let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
   let perfilesActivos = [];       // ids marcados para comparar contra cada pliego (varios a la vez)
   let perfil = Object.assign({}, PERFIL_VACIO); // = perfiles[perfilActivoId], el que se está editando
+  let pendingRupFile = null;      // PDF del RUP en espera de OCR (input.value se limpia tras leer)
 
   // Lleva cualquier perfil guardado al esquema actual: el campo único 'experiencia'
   // (esquema viejo) pasa a 'experienciaGeneral', y se rellenan las claves nuevas.
@@ -697,6 +720,8 @@
     setCampo(perfilExpGeneralEl, perfil.experienciaGeneral);
     setCampo(perfilExpEspecificaEl, perfil.experienciaEspecifica);
     if (perfilSavedEl) perfilSavedEl.textContent = '';
+    if (perfilRupStatusEl) perfilRupStatusEl.textContent = 'Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa GUARDAR PERFIL).';
+    pendingRupFile = null;
   }
 
   async function savePerfil(){
@@ -762,6 +787,160 @@
     perfilActivoId = perfilSelectEl.value;
     cargarPerfilActivoEnCampos();
     persistirPerfiles(); // solo persiste cuál quedó activo, no pisa los datos de los perfiles
+  }
+
+  // ── Autocompletar el perfil desde el certificado del RUP ─────────────────────
+  // El RUP (Cámara de Comercio) es un PDF de formato variable. Se extrae lo que
+  // se puede con confianza -- códigos UNSPSC, capacidad residual, indicadores
+  // financieros -- y se vuelca en los campos del perfil EN EDICIÓN sin guardar;
+  // el usuario revisa y pulsa GUARDAR PERFIL. Fusiona con lo que ya haya, no pisa
+  // las listas; en los campos de texto libre solo rellena si están vacíos.
+  function _num(s){ return String(s || '').replace(/\s+/g, ''); }
+
+  // Códigos UNSPSC: 8 dígitos en 4 grupos de 2. En el RUP aparecen casi siempre
+  // punteados (72.14.11.00), a veces con prefijo de versión "V1.". El 4º grupo
+  // puede faltar (segmento.familia.clase) -- se completa con "00". Con
+  // permitirBare=true (solo para la sección de clasificación, donde no hay cifras
+  // grandes) también se aceptan los 8 dígitos seguidos sin separador.
+  function extraerCodigosUNSPSC(texto, permitirBare){
+    const out = [];
+    const add = code => { if (out.indexOf(code) === -1) out.push(code); };
+    const re = /(?:v\d\s*\.?\s*)?\b(\d{2})\s*\.\s*(\d{2})\s*\.\s*(\d{2})(?:\s*\.\s*(\d{2}))?\b/gi;
+    let m;
+    while ((m = re.exec(texto)) !== null){
+      const seg = parseInt(m[1], 10);
+      if (seg < 10 || seg > 95) continue; // los segmentos UNSPSC van de 10 a 95
+      add(m[1] + m[2] + m[3] + (m[4] || '00'));
+    }
+    if (permitirBare){
+      const reBare = /(?<![\d.,])(\d{2})(\d{2})(\d{2})(\d{2})(?![\d.,])/g;
+      while ((m = reBare.exec(texto)) !== null){
+        const seg = parseInt(m[1], 10);
+        if (seg < 10 || seg > 95) continue;
+        add(m[1] + m[2] + m[3] + m[4]);
+      }
+    }
+    return out;
+  }
+
+  function _seccionRUP(lower, texto, desdeRe, hastaRes){
+    const i = lower.search(desdeRe);
+    if (i === -1) return '';
+    let fin = texto.length;
+    (hastaRes || []).forEach(r => {
+      const j = lower.slice(i + 20).search(r);
+      if (j !== -1) fin = Math.min(fin, i + 20 + j);
+    });
+    return texto.slice(i, fin);
+  }
+
+  function _valorTrasEtiqueta(texto, etiquetaSource){
+    const re = new RegExp(etiquetaSource + '[^0-9$\\-]{0,45}?(\\$?\\s*[0-9][0-9.,]*)', 'i');
+    const m = texto.match(re);
+    return m ? _num(m[1]) : null;
+  }
+
+  function parsearRUP(textoOriginal){
+    const flat = String(textoOriginal || '').replace(/\s+/g, ' ');
+    const lower = flat.toLowerCase();
+
+    const secClasif = _seccionRUP(lower, flat,
+      /clasificaci[oó]n|c[oó]digos?\s+unspsc|bienes,?\s+obras\s+y\s+servicios/,
+      [/experiencia/, /informaci[oó]n\s+financiera/, /indicador/]);
+    let unspsc = extraerCodigosUNSPSC(secClasif, true);
+    if (!unspsc.length) unspsc = extraerCodigosUNSPSC(flat, false); // sin sección: solo punteados, evita cifras
+
+    const secExp = _seccionRUP(lower, flat, /experiencia\b/,
+      [/informaci[oó]n\s+financiera/, /indicador/, /representante\s+legal/, /certifica/]);
+    const unspscExp = extraerCodigosUNSPSC(secExp, true);
+
+    let capResidual = null;
+    const mRes = flat.match(/(capacidad\s+(?:residual|m[aá]xima\s+de\s+contrataci[oó]n))[^.\n]{0,80}?([0-9][0-9.,]*\s*(?:smmlv|salarios\s+m[ií]nimos)?)/i);
+    if (mRes) capResidual = mRes[0].replace(/\s+/g, ' ').trim();
+
+    const ind = [];
+    const push = (etq, src) => { const v = _valorTrasEtiqueta(flat, src); if (v) ind.push(etq + ': ' + v); };
+    push('Patrimonio', 'patrimonio');
+    push('Capacidad de organización', 'capacidad\\s+de\\s+organizaci[oó]n');
+    push('Capital de trabajo', 'capital\\s+de\\s+trabajo');
+    push('Índice de liquidez', '(?:[ií]ndice|raz[oó]n)\\s+de\\s+liquidez');
+    push('Índice de endeudamiento', '(?:[ií]ndice|nivel)\\s+de\\s+endeudamiento');
+    push('Razón de cobertura de intereses', 'raz[oó]n\\s+de\\s+cobertura\\s+de\\s+intereses');
+    const capK = ind.join(' · ') || null;
+
+    return { unspsc, unspscExp, capResidual, capK,
+      encontrado: unspsc.length + unspscExp.length + (capResidual ? 1 : 0) + ind.length };
+  }
+
+  // Fusiona en una lista separada por comas sin duplicar (case-insensitive).
+  function _fusionarLista(actual, nuevos){
+    const base = (actual || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+    const baseLower = base.map(s => s.toLowerCase());
+    nuevos.forEach(n => {
+      const k = String(n).toLowerCase();
+      if (n && baseLower.indexOf(k) === -1){ base.push(n); baseLower.push(k); }
+    });
+    return base.join(', ');
+  }
+
+  function aplicarRUPaCampos(data){
+    const partes = [];
+    if (data.unspsc.length){
+      setCampo(perfilRupEl, _fusionarLista(getCampo(perfilRupEl), data.unspsc));
+      partes.push(data.unspsc.length + ' códigos UNSPSC → RUP/Clasificador');
+    }
+    if (data.unspscExp.length){
+      setCampo(perfilExpEspecificaEl, _fusionarLista(getCampo(perfilExpEspecificaEl), data.unspscExp));
+      partes.push(data.unspscExp.length + ' códigos de experiencia → Experiencia específica');
+    }
+    if (data.capK){
+      if (!getCampo(perfilKEl)){ setCampo(perfilKEl, data.capK); partes.push('indicadores financieros → Capacidad K'); }
+      else partes.push('Capacidad K no sobrescrita (ya tenía datos); en el RUP: ' + data.capK);
+    }
+    if (data.capResidual){
+      if (!getCampo(perfilKResidualEl)){ setCampo(perfilKResidualEl, data.capResidual); partes.push('capacidad residual → Capacidad K residual'); }
+      else partes.push('K residual no sobrescrita (ya tenía datos); en el RUP: ' + data.capResidual);
+    }
+    return partes;
+  }
+
+  async function procesarRUP(file, viaOcr){
+    perfilRupStatusEl.textContent = viaOcr ? 'Leyendo el RUP con OCR (puede tardar varios minutos)…' : 'Leyendo el RUP…';
+    let text = '', numPages = 0, pagesRead = 0;
+    try {
+      await appReady;
+      if (viaOcr){
+        const r = await ocrPdfPages(file, 1, 20, (pct, page, total) => {
+          perfilRupStatusEl.textContent = 'OCR del RUP… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
+        });
+        text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
+      } else {
+        const r = await extractPdfText(file, 30);
+        text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
+      }
+    } catch(err){
+      perfilRupStatusEl.textContent = 'No se pudo leer el RUP (' + (err && err.message ? err.message : 'error') + ').';
+      return;
+    }
+
+    if (!viaOcr && (!text || text.trim().length < 200)){
+      pendingRupFile = file;
+      perfilRupStatusEl.innerHTML = 'El PDF del RUP no tiene texto extraíble (parece escaneado). ' +
+        '<button class="link-btn" id="bt-perfil-rup-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
+      const b = document.getElementById('bt-perfil-rup-ocr');
+      if (b) b.addEventListener('click', () => procesarRUP(file, true));
+      return;
+    }
+
+    const data = parsearRUP(text);
+    if (!data.encontrado){
+      perfilRupStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' páginas del RUP pero no reconocí códigos UNSPSC ni indicadores con este formato. Rellena las casillas a mano.';
+      return;
+    }
+    const partes = aplicarRUPaCampos(data);
+    if (perfilSavedEl) perfilSavedEl.textContent = '';
+    perfilRupStatusEl.textContent = 'RUP leído (' + pagesRead + '/' + numPages + ' págs' + (viaOcr ? ', vía OCR' : '') + '). ' +
+      (partes.length ? partes.join(' · ') + '. ' : '') + 'Revisa las casillas y pulsa GUARDAR PERFIL.';
   }
 
   let analisis = {};
@@ -1856,6 +2035,14 @@
   perfilRenombrarBtn.addEventListener('click', renombrarPerfil);
   perfilEliminarBtn.addEventListener('click', eliminarPerfil);
   perfilSelectEl.addEventListener('change', cambiarPerfilActivo);
+  if (perfilRupUploadBtn && perfilRupFileEl){
+    perfilRupUploadBtn.addEventListener('click', () => perfilRupFileEl.click());
+    perfilRupFileEl.addEventListener('change', async () => {
+      const file = perfilRupFileEl.files && perfilRupFileEl.files[0];
+      perfilRupFileEl.value = '';
+      if (file) await procesarRUP(file, false);
+    });
+  }
   exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
   copySummaryBtn.addEventListener('click', copyAltaPrioridadSummary);
 
