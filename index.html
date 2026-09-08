@@ -1594,20 +1594,100 @@
   exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
   copySummaryBtn.addEventListener('click', copyAltaPrioridadSummary);
 
-  resultsEl.addEventListener('click', function(e){
-    const btn = e.target.closest('button[data-action]');
-    if (!btn) return;
-    const id = btn.getAttribute('data-id');
-    const action = btn.getAttribute('data-action');
-    if (action === 'visto' || action === 'descartar'){
-      toggleStatus(id, action === 'visto' ? 'visto' : 'descartado');
-    } else if (action === 'analizar'){
-      const input = btn.closest('.row').querySelector('input[type=file][data-analyze-id]');
-      if (input) input.click();
+  const pendingOcrFiles = {}; // { id: File } -- se guarda porque input.value se limpia después de leer, y el botón de OCR se hace clic más tarde
+
+  // Un solo listener delegado para todos los clics dentro de la lista de
+  // resultados: acciones de tarjeta (visto/descartar/analizar), y los dos
+  // botones del análisis de pliegos (OCR y "seguir leyendo"). Antes eran tres
+  // listeners 'click' separados sobre el mismo elemento.
+  resultsEl.addEventListener('click', async function(e){
+    // 1) Acciones de tarjeta
+    const actionBtn = e.target.closest('button[data-action]');
+    if (actionBtn){
+      const id = actionBtn.getAttribute('data-id');
+      const action = actionBtn.getAttribute('data-action');
+      if (action === 'visto' || action === 'descartar'){
+        toggleStatus(id, action === 'visto' ? 'visto' : 'descartado');
+      } else if (action === 'analizar'){
+        const input = actionBtn.closest('.row').querySelector('input[type=file][data-analyze-id]');
+        if (input) input.click();
+      }
+      return;
+    }
+
+    // 2) "Intentar con OCR" -- primera tanda de páginas
+    const ocrBtn = e.target.closest('.analysis-ocr-btn');
+    if (ocrBtn){
+      const btn = ocrBtn;
+      const id = btn.getAttribute('data-ocr-id');
+      const file = pendingOcrFiles[id];
+      const slot = btn.closest('.analysis-block').parentElement;
+      if (!file){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para intentar de nuevo.</div>';
+        return;
+      }
+      try {
+        await appReady;
+        slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página 1</div>';
+        const { text, numPages, pagesRead } = await ocrPdfPages(file, 1, OCR_BATCH_PAGES, (pct, page, total) => {
+          slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
+        });
+        if (!text || text.trim().length < 50){
+          slot.innerHTML = '<div class="analysis-block analysis-warn">El OCR no logró reconocer texto en este PDF (calidad de escaneo muy baja, o el documento no tiene contenido en las páginas leídas). Revísalo manualmente.</div>';
+          return;
+        }
+        const { hallazgos, kResidual } = analizarTexto(text);
+        const comp = compararConPerfil(text, perfil, hallazgos);
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, kResidual: kResidual, comp: comp, viaOcr: true };
+        analisis[id] = entry;
+        saveAnalisis();
+        slot.innerHTML = renderAnalysisHtml(entry);
+        // Solo se descarta el archivo en memoria si ya se leyó completo -- si quedan
+        // páginas pendientes, "Seguir leyendo" lo necesita para continuar.
+        if (pagesRead >= numPages) delete pendingOcrFiles[id];
+      } catch(err){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
+      }
+      return;
+    }
+
+    // 3) "Seguir leyendo más páginas" -- siguiente tanda de OCR
+    const contBtn = e.target.closest('.analysis-ocr-continue-btn');
+    if (contBtn){
+      const btn = contBtn;
+      const id = btn.getAttribute('data-ocr-id');
+      const file = pendingOcrFiles[id];
+      const entry = analisis[id];
+      const slot = btn.closest('.analysis-block').parentElement;
+      if (!file || !entry){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para continuar leyéndolo.</div>';
+        return;
+      }
+      const from = entry.pagesRead + 1;
+      const to = Math.min(entry.numPages, entry.pagesRead + OCR_BATCH_PAGES);
+      try {
+        await appReady;
+        slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página ' + from + '</div>';
+        const result = await ocrPdfPages(file, from, to, (pct, page, total) => {
+          slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
+        });
+        const fullText = (entry.ocrText || '') + result.text;
+        entry.ocrText = fullText;
+        entry.pagesRead = result.pagesRead;
+        entry.ts = Date.now();
+        const { hallazgos: nuevosHallazgos, kResidual } = analizarTexto(fullText);
+        entry.kResidual = kResidual;
+        entry.comp = compararConPerfil(fullText, perfil, nuevosHallazgos);
+        analisis[id] = entry;
+        saveAnalisis();
+        slot.innerHTML = renderAnalysisHtml(entry);
+        if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
+      } catch(err){
+        slot.innerHTML = renderAnalysisHtml(entry) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
+      }
+      return;
     }
   });
-
-  const pendingOcrFiles = {}; // { id: File } -- se guarda porque input.value se limpia después de leer, y el botón de OCR se hace clic más tarde
 
   resultsEl.addEventListener('change', async function(e){
     const input = e.target.closest('input[type=file][data-analyze-id]');
@@ -1624,7 +1704,7 @@
         pendingOcrFiles[id] = file;
         const blobUrl = URL.createObjectURL(file);
         slot.innerHTML = '<div class="analysis-block analysis-warn">Este PDF no tiene texto extraíble (probablemente está escaneado como imagen). ' +
-          '<a href="' + blobUrl + '" target="_blank" rel="noopener">Ábrelo aquí para revisarlo manualmente</a>, ' +
+          '<a href="' + escapeHtml(blobUrl) + '" target="_blank" rel="noopener">Ábrelo aquí para revisarlo manualmente</a>, ' +
           'o <button class="link-btn analysis-ocr-btn" data-ocr-id="' + escapeHtml(id) + '">intenta leerlo con OCR</button> ' +
           '(reconocimiento de texto en imagen — puede tardar varios minutos y no siempre es exacto).</div>';
         return;
@@ -1639,75 +1719,6 @@
       slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(err.message || 'error') + ').</div>';
     } finally {
       input.value = '';
-    }
-  });
-
-  resultsEl.addEventListener('click', async function(e){
-    const btn = e.target.closest('.analysis-ocr-btn');
-    if (!btn) return;
-    const id = btn.getAttribute('data-ocr-id');
-    const file = pendingOcrFiles[id];
-    const slot = btn.closest('.analysis-block').parentElement;
-    if (!file){
-      slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para intentar de nuevo.</div>';
-      return;
-    }
-    try {
-      await appReady;
-      slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página 1</div>';
-      const { text, numPages, pagesRead } = await ocrPdfPages(file, 1, OCR_BATCH_PAGES, (pct, page, total) => {
-        slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
-      });
-      if (!text || text.trim().length < 50){
-        slot.innerHTML = '<div class="analysis-block analysis-warn">El OCR no logró reconocer texto en este PDF (calidad de escaneo muy baja, o el documento no tiene contenido en las páginas leídas). Revísalo manualmente.</div>';
-        return;
-      }
-      const { hallazgos, kResidual } = analizarTexto(text);
-      const comp = compararConPerfil(text, perfil, hallazgos);
-      const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, kResidual: kResidual, comp: comp, viaOcr: true };
-      analisis[id] = entry;
-      saveAnalisis();
-      slot.innerHTML = renderAnalysisHtml(entry);
-      // Solo se descarta el archivo en memoria si ya se leyó completo -- si quedan
-      // páginas pendientes, "Seguir leyendo" lo necesita para continuar.
-      if (pagesRead >= numPages) delete pendingOcrFiles[id];
-    } catch(err){
-      slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
-    }
-  });
-
-  resultsEl.addEventListener('click', async function(e){
-    const btn = e.target.closest('.analysis-ocr-continue-btn');
-    if (!btn) return;
-    const id = btn.getAttribute('data-ocr-id');
-    const file = pendingOcrFiles[id];
-    const entry = analisis[id];
-    const slot = btn.closest('.analysis-block').parentElement;
-    if (!file || !entry){
-      slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para continuar leyéndolo.</div>';
-      return;
-    }
-    const from = entry.pagesRead + 1;
-    const to = Math.min(entry.numPages, entry.pagesRead + OCR_BATCH_PAGES);
-    try {
-      await appReady;
-      slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página ' + from + '</div>';
-      const result = await ocrPdfPages(file, from, to, (pct, page, total) => {
-        slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
-      });
-      const fullText = (entry.ocrText || '') + result.text;
-      entry.ocrText = fullText;
-      entry.pagesRead = result.pagesRead;
-      entry.ts = Date.now();
-      const { hallazgos: nuevosHallazgos, kResidual } = analizarTexto(fullText);
-      entry.kResidual = kResidual;
-      entry.comp = compararConPerfil(fullText, perfil, nuevosHallazgos);
-      analisis[id] = entry;
-      saveAnalisis();
-      slot.innerHTML = renderAnalysisHtml(entry);
-      if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
-    } catch(err){
-      slot.innerHTML = renderAnalysisHtml(entry) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
     }
   });
 
