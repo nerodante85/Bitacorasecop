@@ -479,7 +479,7 @@
     <div class="footnote">
       Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
       El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios.<br>
-      El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos", empresa por empresa.<br>
+      El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos", empresa por empresa. Desde el resultado puedes descargar o copiar un informe detallado (qué coincide y qué NO aparece, por empresa).<br>
       Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
       SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
     </div>
@@ -985,6 +985,7 @@
     const expTerms = expGeneralTerms.concat(expEspecificaTerms);
 
     const matchIn = (terms, haystack) => terms.filter(t => haystack.includes(t.toLowerCase()));
+    const noMatchIn = (terms, haystack) => terms.filter(t => !haystack.includes(t.toLowerCase()));
     const rupMatches = matchIn(rupTerms, lower);
     const expMatches = matchIn(expTerms, lower);
     const expGeneralMatches = matchIn(expGeneralTerms, lower);
@@ -1015,6 +1016,13 @@
       expEspecificaMatches: expEspecificaMatches, expEspecificaTotal: expEspecificaTerms.length,
       kMatches: kMatches, kTotal: kTermsAll.length,
       kResidualMatches: kResidualMatches, kResidualTotal: kResidualTerms.length,
+      // Términos del perfil que NO aparecieron en el pliego -- los usa el informe
+      // detallado para listar qué le falta a cada empresa.
+      rupNoMatch: noMatchIn(rupTerms, lower),
+      expGeneralNoMatch: noMatchIn(expGeneralTerms, lower),
+      expEspecificaNoMatch: noMatchIn(expEspecificaTerms, lower),
+      kNoMatch: noMatchIn(kTermsAll, lower),
+      kResidualNoMatch: noMatchIn(kResidualTerms, lower),
       hallazgosAnotados: hallazgosAnotados
     };
   }
@@ -1107,6 +1115,12 @@
         : hallazgosHtml) +
       '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' +
       perfilesHtml +
+      (comps.length
+        ? '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">' +
+            '<button class="link-btn analysis-informe-btn" data-informe-id="' + escapeHtml(entry.id || '') + '">⬇ Descargar informe detallado (.txt)</button>' +
+            '<button class="link-btn analysis-informe-copy-btn" data-informe-id="' + escapeHtml(entry.id || '') + '">Copiar informe</button>' +
+          '</div>'
+        : '') +
       (entry.viaOcr
         ? '<div class="analysis-disclaimer">Texto leído por OCR (reconocimiento en imagen) — puede tener errores de transcripción, sobre todo en sellos, firmas o escaneos de baja calidad. No reemplaza revisar el pliego completo antes de decidir.</div>'
         : '<div class="analysis-disclaimer">Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.</div>') +
@@ -1689,6 +1703,148 @@
     }
   }
 
+  function descargarTexto(nombreArchivo, texto){
+    const blob = new Blob(['﻿' + texto], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function slugArchivo(s){
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 45) || 'proceso';
+  }
+
+  // Informe detallado en texto plano de un análisis: requisitos detectados en el
+  // pliego + comparación término por término contra cada empresa (lo que coincide
+  // y, sobre todo, lo que NO aparece), más una valoración orientativa.
+  function informeAnalisisTexto(entry, it){
+    const comps = compsDe(entry);
+    const L = [];
+    const sep = '════════════════════════════════════════════════════════';
+    const sub = '────────────────────────────────────────────────────────';
+    const nl = () => L.push('');
+    const listar = arr => (arr && arr.length) ? arr.join(', ') : '—';
+
+    L.push('INFORME DE ANÁLISIS DE PLIEGO — Bitácora SECOP');
+    L.push('Generado: ' + new Date().toLocaleString('es-CO'));
+    nl();
+
+    L.push('PROCESO');
+    if (it){
+      L.push('  Entidad:     ' + (it.entidad || '—'));
+      L.push('  Objeto:      ' + (it.objeto || '—'));
+      if (it.modalidad) L.push('  Modalidad:   ' + it.modalidad);
+      if (it.departamento || it.ciudad) L.push('  Ubicación:   ' + [it.departamento, it.ciudad].filter(Boolean).join(' · '));
+      if (it.referencia) L.push('  Referencia:  ' + it.referencia);
+      if (it.url) L.push('  Enlace:      ' + it.url);
+    } else {
+      L.push('  (el proceso no está en la vista actual; solo se incluye el análisis del pliego)');
+    }
+    nl();
+
+    L.push('PLIEGO ANALIZADO');
+    L.push('  Archivo:        ' + (entry.fileName || '—'));
+    L.push('  Páginas leídas: ' + entry.pagesRead + '/' + entry.numPages + (entry.viaOcr ? '  (leído por OCR)' : ''));
+    L.push('  Fecha análisis: ' + (fmtDate(new Date(entry.ts).toISOString()) || '—'));
+    nl();
+
+    L.push('CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)');
+    L.push('  ' + (entry.kResidual || 'No detectada explícitamente en las páginas leídas.'));
+    nl();
+
+    const primero = comps[0] || {};
+    const ha = primero.hallazgosAnotados || [];
+    L.push('REQUISITOS HABILITANTES DETECTADOS EN EL PLIEGO');
+    if (!ha.length){
+      L.push('  No se detectaron menciones explícitas de capacidad K, RUP o experiencia');
+      L.push('  mínima en el texto extraído. Revisa el pliego completo.');
+    } else {
+      ['Capacidad K / Financiera', 'Experiencia', 'RUP / Clasificador'].forEach(cat => {
+        const delCat = ha.filter(h => h.categoria === cat);
+        if (!delCat.length) return;
+        L.push('  [' + cat.toUpperCase() + ']');
+        delCat.forEach(h => {
+          const idx = ha.indexOf(h);
+          const cubiertoPor = comps
+            .filter(c => ((c.hallazgosAnotados || [])[idx] || {}).perfilMatches && c.hallazgosAnotados[idx].perfilMatches.length)
+            .map(c => c.perfilNombre || 'Perfil');
+          L.push('    • "' + h.trigger + '"');
+          L.push('      ' + h.snippet);
+          L.push('      Cubierto por: ' + (cubiertoPor.length ? cubiertoPor.join(', ') : 'ninguna de las empresas comparadas'));
+        });
+      });
+    }
+    nl();
+
+    L.push('COMPARACIÓN POR EMPRESA');
+    if (!comps.length) L.push('  No hay perfiles marcados para comparar.');
+    comps.forEach(c => {
+      nl();
+      L.push('  ' + sub);
+      L.push('  EMPRESA: ' + (c.perfilNombre || 'Perfil'));
+      nl();
+      const bloque = (label, total, matches, noMatch) => {
+        const m = matches || [];
+        L.push('    ' + label + ': ' + (total ? (m.length + '/' + total) : 'sin datos de perfil'));
+        if (total){
+          L.push('      Coinciden en el pliego:  ' + listar(m));
+          if (noMatch) L.push('      NO aparecen en el pliego: ' + listar(noMatch));
+        }
+      };
+      const tieneDesglose = ('expGeneralTotal' in c) || ('expEspecificaTotal' in c);
+      bloque('Capacidad K / financiera', c.kTotal || 0, c.kMatches, c.kNoMatch);
+      if (c.kResidualTotal) bloque('  · de esa, K residual', c.kResidualTotal, c.kResidualMatches, c.kResidualNoMatch);
+      bloque('RUP / clasificador', c.rupTotal || 0, c.rupMatches, c.rupNoMatch);
+      if (tieneDesglose){
+        bloque('Experiencia general', c.expGeneralTotal || 0, c.expGeneralMatches, c.expGeneralNoMatch);
+        bloque('Experiencia específica', c.expEspecificaTotal || 0, c.expEspecificaMatches, c.expEspecificaNoMatch);
+      } else {
+        bloque('Experiencia (general + específica)', c.expTotal || 0, c.expMatches, null);
+      }
+      nl();
+      const cubre = [], noCubre = [];
+      (c.hallazgosAnotados || []).forEach(h => {
+        ((h.perfilMatches && h.perfilMatches.length) ? cubre : noCubre).push('"' + h.trigger + '" (' + h.categoria + ')');
+      });
+      L.push('    Requisitos del pliego que ESTA empresa cubre:');
+      (cubre.length ? cubre : ['—']).forEach(x => L.push('      - ' + x));
+      L.push('    Requisitos del pliego que NO cubre:');
+      (noCubre.length ? noCubre : ['—']).forEach(x => L.push('      - ' + x));
+      nl();
+      const cats = [
+        ['Capacidad K', c.kTotal, (c.kMatches || []).length],
+        ['RUP', c.rupTotal, (c.rupMatches || []).length],
+        ['Experiencia', c.expTotal, (c.expMatches || []).length]
+      ].filter(x => x[1]);
+      if (cats.length){
+        const cumplidas = cats.filter(x => x[2] > 0).length;
+        L.push('    Valoración orientativa: al menos un término del perfil aparece en ' +
+          cumplidas + ' de ' + cats.length + ' categorías con datos cargados (' + cats.map(x => x[0]).join(', ') + ').');
+      } else {
+        L.push('    Valoración orientativa: este perfil no tiene términos cargados para comparar.');
+      }
+    });
+    nl();
+    L.push(sep);
+    L.push('NOTA');
+    L.push('  Informe orientativo por coincidencia de palabras clave. NO interpreta el');
+    L.push('  documento ni valida jurídicamente los requisitos habilitantes. Que un');
+    L.push('  término no aparezca puede deberse a que el pliego lo redacta con otras');
+    L.push('  palabras, o a páginas del PDF aún no leídas. Verifica siempre el pliego');
+    L.push('  completo y el expediente en SECOP II antes de decidir.');
+    if (entry.viaOcr){
+      L.push('  El texto fue leído por OCR (reconocimiento de imagen) y puede contener');
+      L.push('  errores de transcripción.');
+    }
+    return L.join('\n');
+  }
+
   searchBtn.addEventListener('click', runSearch);
   demoBtn.addEventListener('click', loadDemo);
   hideClosedEl.addEventListener('change', rerender);
@@ -1794,6 +1950,31 @@
         if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
       } catch(err){
         slot.innerHTML = renderAnalysisHtml(entry) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
+      }
+      return;
+    }
+
+    // 4) y 5) Informe detallado del análisis -- descargar (.txt) o copiar al portapapeles
+    const informeBtn = e.target.closest('.analysis-informe-btn, .analysis-informe-copy-btn');
+    if (informeBtn){
+      const id = informeBtn.getAttribute('data-informe-id');
+      const entry = analisis[id];
+      if (!entry){ alert('No se encontró el análisis para generar el informe. Vuelve a analizar el pliego.'); return; }
+      const s = (lastScored || []).find(x => x.item && x.item.id === id);
+      const it = s ? s.item : null;
+      const texto = informeAnalisisTexto(entry, it);
+      if (informeBtn.classList.contains('analysis-informe-copy-btn')){
+        try {
+          await navigator.clipboard.writeText(texto);
+          const orig = informeBtn.textContent;
+          informeBtn.textContent = 'Informe copiado ✓';
+          setTimeout(() => { informeBtn.textContent = orig; }, 2000);
+        } catch(err){
+          alert('No se pudo copiar automáticamente. Copia manual:\n\n' + texto);
+        }
+      } else {
+        const base = (it && (it.referencia || it.entidad)) || entry.fileName || 'pliego';
+        descargarTexto('informe-analisis-' + slugArchivo(base) + '-' + new Date().toISOString().slice(0, 10) + '.txt', texto);
       }
       return;
     }
