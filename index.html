@@ -517,6 +517,7 @@
 
   let lastRecords = null;
   let isDemo = false;
+  let isSnapshot = false; // true cuando se está mostrando el snapshot embebido de respaldo
   let lastScored = [];
   let estadoSeleccionado = {}; // { 'Publicado': true, 'Evaluación': false, ... } -- persiste entre renders
 
@@ -1088,15 +1089,27 @@
     const referencia = findField(record, ['referencia_del_proceso','referencia'], 'referencia') || null;
     const dates = findAllDates(record);
 
-    let closingRaw = null;
-    const closeCandidate = dates.find(d => /recep|cierre|limite|l_mite/.test(d.key.toLowerCase()));
-    if (closeCandidate) closingRaw = closeCandidate.val;
-    else if (dates.length > 1) closingRaw = dates[1].val;
+    // Selección de fechas. Las columnas `fecha_*` del dataset llegan en orden
+    // arbitrario, así que NO se puede confiar en la posición (antes se usaba
+    // dates[0]/dates[1] a ciegas, lo que podía tomar una fecha de adjudicación
+    // como si fuera el plazo). Se prioriza el nombre de la columna; y si el
+    // nombre no dice nada, se usa el orden CRONOLÓGICO: la publicación es la
+    // fecha más temprana del registro, el cierre/plazo la más tardía posterior
+    // a la publicación. Las cadenas ISO ('2026-06-22T00:00:00.000') ordenan
+    // cronológicamente con un sort lexicográfico normal.
+    const dateVals = dates.map(d => d.val).sort();
 
-    let pubRaw = null;
-    const pubCandidate = dates.find(d => /public/.test(d.key.toLowerCase()));
-    if (pubCandidate) pubRaw = pubCandidate.val;
-    else if (dates.length > 0) pubRaw = dates[0].val;
+    const pubNamed = dates.filter(d => /public/.test(d.key.toLowerCase())).map(d => d.val).sort();
+    let pubRaw = pubNamed.length ? pubNamed[0] : (dateVals.length ? dateVals[0] : null);
+
+    let closingRaw = null;
+    const closeNamed = dates.filter(d => /recep|cierre|limite|l_mite|plazo/.test(d.key.toLowerCase())).map(d => d.val).sort();
+    if (closeNamed.length){
+      closingRaw = closeNamed[closeNamed.length - 1];
+    } else {
+      const posteriores = dateVals.filter(v => !pubRaw || v > pubRaw);
+      closingRaw = posteriores.length ? posteriores[posteriores.length - 1] : null;
+    }
 
     const searchable = JSON.stringify(record).toLowerCase();
     // Búsqueda geográfica ACOTADA solo a DEPARTAMENTO -- a diferencia de
@@ -1158,7 +1171,13 @@
     return !!d && !!t && d === t;
   }
 
-  function scoreRecord(item, keywords, geos, minV, maxV){
+  // refNow: momento contra el que se miden "días restantes" y "días desde
+  // publicación". Para datos en vivo es ahora; para el snapshot embebido es la
+  // fecha en que se tomó el snapshot -- si no, con el paso de los meses todo el
+  // snapshot aparece "vencido" o fuera del filtro "≤30 días" y el respaldo, que
+  // existe justamente para no dejar la pantalla vacía, no muestra nada.
+  function scoreRecord(item, keywords, geos, minV, maxV, refNow){
+    refNow = refNow || Date.now();
     let score = 1;
     let keywordHits = 0;
     let geoHits = 0;
@@ -1168,7 +1187,7 @@
     let daysLeft = null;
     if (item.closingRaw && isPlausibleDate(item.closingRaw)){
       const d = new Date(item.closingRaw);
-      daysLeft = Math.ceil((d.getTime() - Date.now()) / 86400000);
+      daysLeft = Math.ceil((d.getTime() - refNow) / 86400000);
     }
     if (daysLeft !== null){
       if (daysLeft < 0) score -= 6;
@@ -1178,7 +1197,7 @@
     let daysSincePub = null;
     if (item.pubRaw && isPlausibleDate(item.pubRaw)){
       const d = new Date(item.pubRaw);
-      daysSincePub = Math.floor((Date.now() - d.getTime()) / 86400000);
+      daysSincePub = Math.floor((refNow - d.getTime()) / 86400000);
     }
     if (daysSincePub !== null && daysSincePub <= 7) score += 1; // recién publicado: prioridad extra
 
@@ -1217,10 +1236,15 @@
     const onlyLicitacion = onlyLicitacionEl.checked;
     const hideDiscarded = hideDiscardedEl.checked;
 
+    // Con el snapshot embebido, "vencido" y "≤30 días" se miden contra la fecha
+    // del snapshot, no contra hoy (ver scoreRecord).
+    const snapshotTs = new Date(DATA_SNAPSHOT_DATE + 'T00:00:00.000').getTime();
+    const refNow = (isSnapshot && !isNaN(snapshotTs)) ? snapshotTs : Date.now();
+
     let scored = records.map(r => {
       const item = normalize(r);
       item.id = getProcessId(r, item);
-      const base = scoreRecord(item, keywords, geos, minV, maxV);
+      const base = scoreRecord(item, keywords, geos, minV, maxV, refNow);
       const analysisEntry = analisis[item.id];
       const adjustment = analysisScoreAdjustment(analysisEntry);
       const score = base.score + adjustment;
@@ -1434,6 +1458,7 @@
 
   async function runSearch(){
     isDemo = false;
+    isSnapshot = false;
     demoBanner.style.display = 'none';
     const { keywords, geos, minV, maxV } = getInputs();
 
@@ -1461,10 +1486,11 @@
       // Sin conexión en vivo (p.ej. corriendo dentro de un artifact de Claude.ai):
       // usa el snapshot embebido como respaldo, sin dejar la pantalla vacía.
       try {
+        isSnapshot = true;
         lastRecords = EMBEDDED_RECORDS_II;
         render(lastRecords, keywords, geos, minV, maxV);
         const freshDate = fmtDate(DATA_SNAPSHOT_DATE + 'T00:00:00.000');
-        dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (' + (err.message || 'error de red') + '). Mostrando snapshot de respaldo: ' + EMBEDDED_RECORDS_II.length + ' procesos, actualizado el ' + freshDate + '.';
+        dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (' + (err.message || 'error de red') + '). Mostrando snapshot de respaldo: ' + EMBEDDED_RECORDS_II.length + ' procesos, actualizado el ' + freshDate + '. Los filtros de "vencido" y "≤30 días" se miden contra esa fecha.';
       } catch(err2){
         // Ni en vivo ni el respaldo: al menos mostrar el error en vez de quedar en blanco.
         showError((err && err.message ? err.message : 'error de red') + '.');
@@ -1478,6 +1504,7 @@
 
   async function loadDemo(){
     isDemo = true;
+    isSnapshot = false;
     demoBanner.style.display = 'block';
     dataFreshnessEl.textContent = 'Mostrando datos de ejemplo (ficticios) — no proviene de SECOP II en vivo.';
     const demo = [
