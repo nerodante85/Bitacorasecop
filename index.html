@@ -1118,16 +1118,44 @@
   // son formas distintas de la misma palabra y antes NO se consideraban coincidencia
   // (caso real detectado: un proceso decía "PAVIMENTO FLEXIBLE" y quedó fuera al
   // buscar "pavimentación"). Para palabras de 6+ letras, además del texto exacto,
-  // se acepta que el texto contenga los primeros 6 caracteres del término --
-  // suficiente para cubrir variantes como pavimento/pavimentación, edificio/
-  // edificación, alcantarilla/alcantarillado, sin generar demasiados falsos
-  // positivos (términos cortos siguen exigiendo coincidencia exacta).
+  // se acepta que el texto contenga los primeros 6 caracteres de esa palabra --
+  // cubre pavimento/pavimentación, edificio/edificación, alcantarilla/alcantarillado.
+  //
+  // La raíz de 6 caracteres se aplica PALABRA POR PALABRA, no al término completo.
+  // Antes se tomaba el prefijo del término entero: "obra civil" -> "obra c", que
+  // coincidía con cualquier "obra c..." del registro ("obra construcción", "obra
+  // contratada"...). Ahora un término de varias palabras exige que TODAS sus
+  // palabras aparezcan (en cualquier orden), cada una con su propia regla de raíz;
+  // las palabras de <6 letras siguen exigiendo coincidencia exacta.
   function matchesTerm(searchable, term){
     if (!term) return false;
-    const t = term.toLowerCase();
-    if (searchable.includes(t)) return true;
-    if (t.length >= 6) return searchable.includes(t.slice(0, 6));
-    return false;
+    const t = String(term).toLowerCase().trim();
+    if (!t) return false;
+    if (searchable.includes(t)) return true; // frase completa literal
+    const words = t.split(/\s+/).filter(Boolean);
+    if (!words.length) return false;
+    return words.every(w =>
+      searchable.includes(w) || (w.length >= 6 && searchable.includes(w.slice(0, 6)))
+    );
+  }
+
+  // Coincidencia GEOGRÁFICA: igualdad exacta de departamento (sin acentos ni
+  // mayúsculas), NO contención de texto. "Santander" no debe traer "Norte de
+  // Santander" ni al revés -- son departamentos distintos, y "santander" es
+  // subcadena de "norte de santander", así que el includes() genérico los mezclaba.
+  function normalizeGeo(s){
+    return String(s || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')        // quita acentos
+      .replace(/[^a-z\s]/g, ' ')                               // puntuación -> espacio
+      .replace(/^\s*(departamento|dpto|depto)\s+(de\s+)?/, '') // "Departamento de X" -> "X"
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  function matchesGeo(departamento, term){
+    const d = normalizeGeo(departamento);
+    const t = normalizeGeo(term);
+    return !!d && !!t && d === t;
   }
 
   function scoreRecord(item, keywords, geos, minV, maxV){
@@ -1135,7 +1163,7 @@
     let keywordHits = 0;
     let geoHits = 0;
     keywords.forEach(k => { if (matchesTerm(item.searchable, k)) { score += 2; keywordHits++; } });
-    geos.forEach(g => { if (matchesTerm(item.geoSearchable, g)) { score += 2; geoHits++; } });
+    geos.forEach(g => { if (matchesGeo(item.geoSearchable, g)) { score += 2; geoHits++; } });
 
     let daysLeft = null;
     if (item.closingRaw && isPlausibleDate(item.closingRaw)){
