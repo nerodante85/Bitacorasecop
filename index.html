@@ -844,38 +844,27 @@
     return texto.slice(i, fin);
   }
 
-  // Indicadores financieros del RUP. Al extraer el texto, el PDF (tabla a 2
-  // columnas) suele quedar como "todas las etiquetas, luego el bloque de valores",
-  // así que se emparejan por POSICIÓN dentro de cada sub-sección. Es orientativo:
-  // el usuario revisa. Devuelve una lista de "Etiqueta: valor".
+  // Indicadores financieros del RUP. Al extraer el PDF con pdf.js, cada renglón
+  // de la tabla queda como "ETIQUETA : valor" seguidos, así que se toma el valor
+  // que va justo después de cada etiqueta conocida. Los montos exigen "$" (para
+  // no confundir con "RENTABILIDAD DEL PATRIMONIO : 0"); los ratios aceptan un
+  // número o "INDETERMINADO". Es orientativo -- el usuario revisa.
   function extraerIndicadoresRUP(flat){
     const out = [];
-    const lower = flat.toLowerCase();
-
-    const iFin = Math.max(lower.indexOf('informacion financiera'), lower.indexOf('información financiera'));
-    if (iFin !== -1){
-      const sec = flat.slice(iFin, iFin + 1400);
-      const etiquetas = ['activo corriente', 'activo total', 'pasivo corriente', 'pasivo total', 'patrimonio', 'utilidad', 'gastos de intereses'];
-      const secLower = sec.toLowerCase();
-      const presentes = etiquetas.filter(e => secLower.indexOf(e) !== -1);
-      const dinero = sec.match(/\$\s*[0-9][0-9.]*(?:,[0-9]{2})?/g) || [];
-      const interes = { 'activo corriente': 'Activo corriente', 'pasivo corriente': 'Pasivo corriente', 'patrimonio': 'Patrimonio' };
-      presentes.forEach((e, i) => {
-        if (interes[e] && dinero[i]) out.push(interes[e] + ': ' + dinero[i].replace(/\s+/g, ''));
-      });
-    }
-
-    const iCF = lower.indexOf('capacidad financiera');
-    if (iCF !== -1){
-      const sec = flat.slice(iCF, iCF + 600);
-      const etq = ['liquidez', 'endeudamiento', 'cobertura'];
-      let pos = -1;
-      etq.forEach(e => { const k = sec.toLowerCase().lastIndexOf(e); if (k > pos) pos = k; });
-      if (pos !== -1){
-        const vals = sec.slice(pos, pos + 220).match(/-?[0-9]+(?:[.,][0-9]+)?|INDETERMINADO|INDEFINIDO/gi) || [];
-        ['Liquidez', 'Endeudamiento', 'Cobertura de intereses'].forEach((n, i) => { if (vals[i]) out.push(n + ': ' + vals[i]); });
-      }
-    }
+    const MONTO = '(\\$\\s?[0-9][0-9.,]*)';
+    const RATIO = '([0-9][0-9.,]*|INDETERMINADO|INDEFINIDO|N\\/?A)';
+    const grab = (label, etiquetaSrc, valSrc) => {
+      const m = flat.match(new RegExp('(?:' + etiquetaSrc + ')\\s*:?\\s*' + valSrc, 'i'));
+      if (m) out.push(label + ': ' + m[1].replace(/\s+/g, ''));
+    };
+    grab('Activo corriente', 'ACTIVO\\s+CORRIENTE', MONTO);
+    grab('Pasivo corriente', 'PASIVO\\s+CORRIENTE', MONTO);
+    grab('Patrimonio', '(?<!RENTABILIDAD DEL )PATRIMONIO', MONTO);
+    grab('Capital de trabajo', 'CAPITAL\\s+DE\\s+TRABAJO', MONTO);
+    grab('Capacidad de organización', 'CAPACIDAD\\s+DE\\s+ORGANIZACI[ÓO]N', MONTO);
+    grab('Índice de liquidez', '[ÍI]NDICE\\s+DE\\s+LIQUIDEZ|RAZ[ÓO]N\\s+DE\\s+LIQUIDEZ', RATIO);
+    grab('Índice de endeudamiento', '[ÍI]NDICE\\s+DE\\s+ENDEUDAMIENTO|NIVEL\\s+DE\\s+ENDEUDAMIENTO', RATIO);
+    grab('Razón de cobertura de intereses', 'RAZ[ÓO]N\\s+DE\\s+COBERTURA\\s+DE\\s+INTERESES', RATIO);
     return out;
   }
 
@@ -954,7 +943,7 @@
         });
         text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
       } else {
-        const r = await extractPdfText(file, 30);
+        const r = await extractPdfText(file, 45); // el RUP es largo; sus secciones pueden repartirse en muchas páginas
         text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
       }
     } catch(err){
