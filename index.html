@@ -671,6 +671,24 @@
     #bitacora-root .sidebar-foot { display: none; }
     #bitacora-root .wrap { padding: 24px 18px 40px; }
   }
+
+  /* Celular: con marca + 5 ítems de texto no cabe todo en ~375px de ancho y
+     terminaba desbordado sin ninguna pista de que se podía deslizar (mala
+     "facilidad de uso" -- se detectó revisando la app real en un viewport de
+     celular). Se compacta la marca (sin subtítulo) y la navegación pasa a
+     solo íconos -- con eso los 5 caben sin scroll horizontal; el nombre de
+     cada sección se conserva como `title` (tooltip) y `aria-label` para
+     accesibilidad. */
+  @media (max-width: 560px) {
+    #bitacora-root .sidebar-brand { padding: 12px 12px; gap: 8px; }
+    #bitacora-root .sidebar-brand-text p { display: none; }
+    #bitacora-root .sidebar-brand-text h1 { font-size: 14px; }
+    #bitacora-root .sidebar-nav { gap: 4px; padding: 8px; }
+    #bitacora-root .nav-item { padding: 10px; }
+    #bitacora-root .nav-item .nav-label { display: none; }
+    #bitacora-root .wrap { padding: 20px 14px 32px; }
+    #bitacora-root .view-header h1 { font-size: 20px; }
+  }
 </style>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -687,25 +705,25 @@
         </div>
       </div>
       <div class="sidebar-nav" id="bt-nav" role="tablist">
-        <button class="nav-item" type="button" data-view="dashboard" role="tab" aria-selected="true">
+        <button class="nav-item" type="button" data-view="dashboard" role="tab" aria-selected="true" title="Inicio" aria-label="Inicio">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-          Inicio
+          <span class="nav-label">Inicio</span>
         </button>
-        <button class="nav-item" type="button" data-view="buscar" role="tab" aria-selected="false">
+        <button class="nav-item" type="button" data-view="buscar" role="tab" aria-selected="false" title="Buscar procesos" aria-label="Buscar procesos">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="20" y1="20" x2="15.4" y2="15.4"/></svg>
-          Buscar procesos
+          <span class="nav-label">Buscar procesos</span>
         </button>
-        <button class="nav-item" type="button" data-view="perfil" role="tab" aria-selected="false">
+        <button class="nav-item" type="button" data-view="perfil" role="tab" aria-selected="false" title="Perfil de la empresa" aria-label="Perfil de la empresa">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-          Perfil de la empresa
+          <span class="nav-label">Perfil de la empresa</span>
         </button>
-        <button class="nav-item" type="button" data-view="experiencia" role="tab" aria-selected="false">
+        <button class="nav-item" type="button" data-view="experiencia" role="tab" aria-selected="false" title="Experiencia" aria-label="Experiencia">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8.5 13l2 2 4.5-4.5"/></svg>
-          Experiencia
+          <span class="nav-label">Experiencia</span>
         </button>
-        <button class="nav-item" type="button" data-view="evaluacion" role="tab" aria-selected="false">
+        <button class="nav-item" type="button" data-view="evaluacion" role="tab" aria-selected="false" title="Evaluación" aria-label="Evaluación">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-          Evaluación
+          <span class="nav-label">Evaluación</span>
         </button>
       </div>
       <div class="sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>

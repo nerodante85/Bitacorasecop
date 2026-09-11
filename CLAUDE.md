@@ -81,10 +81,16 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
   `lastScored` (la última búsqueda en pantalla) para mostrar título/veredicto
   cuando puede, y nunca inventa un título si el proceso no está en la
   búsqueda actual.
-- **Responsive**: un solo breakpoint (900px) — por debajo, `.app-shell` pasa
-  de fila a columna y la sidebar de columna vertical a fila horizontal con
-  scroll, en vez de ocultarse tras un menú hamburguesa (menos JS, no se
-  "rompe" en tablet).
+- **Responsive**: dos breakpoints. A 900px `.app-shell` pasa de fila a
+  columna y la sidebar de columna vertical a fila horizontal, en vez de
+  ocultarse tras un menú hamburguesa (menos JS, no se "rompe" en tablet). A
+  560px (celular real) la marca + 5 ítems de texto no cabían y quedaban
+  desbordados con scroll horizontal SIN ninguna pista visual de que había más
+  -- se detectó pidiéndole a Claude que revisara la app real en un viewport
+  de celular, no solo tablet. Se corrigió: la navegación pasa a solo íconos
+  (`.nav-item .nav-label { display:none }`, con `title`/`aria-label` en cada
+  botón para conservar el nombre accesible) y la marca pierde el subtítulo —
+  los 5 caben sin scroll.
 - **Botones/mensajes en mayúscula sostenida** ("GUARDAR PERFIL", "CARGAR RUP",
   "¿ELIMINAR? CLIC DE NUEVO"): quedaban varios reinyectados dinámicamente por
   JS después de convertir el HTML estático a minúscula/oración normal (ej. en
