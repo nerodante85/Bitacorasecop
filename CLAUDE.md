@@ -105,8 +105,11 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
       empresa se inscribe en un rango enorme, desde semillas hasta cemento).
       Volcarlos todos deja el campo inútil para la comparación (todo "coincide").
       Se ordenan por segmento relevante para obra pública (72 construcción, 95
-      infraestructura, 81 ingeniería, 30 materiales…) y se cortan (~90
-      clasificación / ~60 experiencia). Se informa el total en la línea de estado.
+      infraestructura, 81 ingeniería, 30 materiales…) y se cortan a ~90. Se
+      informa el total en la línea de estado. (El RUP también trae una sección
+      de códigos "Certifica: Experiencia" — a propósito ya NO se extrae ni se
+      usa: ver la nota de arquitectura más abajo, "Perfil de empresa NO evalúa
+      experiencia".)
     - **Indicadores financieros**: el RUP es una tabla a 2 columnas. Extraída con
       **pdf.js real**, cada renglón queda como `ETIQUETA : valor` pegados
       (extracción limpia); NO como "todas las etiquetas y luego el bloque de
@@ -117,7 +120,7 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
       contratación"** — eso lo calcula cada entidad por proceso. No la busques ahí;
       ese campo del perfil se llena a mano.
     - Un RUP tiene entre ~30 y ~90 páginas; se leen ~45 para cubrir las secciones
-      de clasificación + experiencia + información financiera.
+      de clasificación + información financiera.
     - **Probar la carga real es difícil desde el entorno de desarrollo**: el
       navegador de la sesión aísla la red, así que una página en el origen
       `github.io` no puede leer un archivo servido desde `localhost` (ni con CORS
@@ -127,6 +130,29 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
       carga en el origen real. El `<input type=file>` real se probó así, no con
       un clic literal.
 
+12. **Perfil de empresa NO evalúa experiencia** (cambio de arquitectura,
+    pedido explícito del usuario). Antes, "Perfiles de empresa" tenía dos
+    campos de texto libre (Experiencia general / específica) que el RUP
+    autocompletaba con códigos UNSPSC, y el análisis de pliego los comparaba
+    por palabra suelta. Eso mezclaba dos cosas distintas: que el RUP mencione
+    un código de clasificación NO equivale a acreditar experiencia específica
+    para un proceso puntual (depende del objeto, valor, fechas y cantidades
+    del contrato real). Ahora:
+    - El perfil (`PERFIL_VACIO`) solo tiene `nombre, rup, k, kResidual` — el
+      RUP-clasificador y la Capacidad K/financiera. `migrarPerfil()` descarta
+      (no migra) los campos viejos `experiencia`/`experienciaGeneral`/
+      `experienciaEspecifica` si los encuentra en un perfil guardado.
+    - `parsearRUP()` ya NO extrae la sección "Certifica: Experiencia" del RUP.
+    - La experiencia (general Y específica) vive exclusivamente en
+      "Evaluación de experiencia" (Excel del proponente + matriz), que es
+      GLOBAL — no una por perfil de empresa.
+    - Todo lo que antes leía `compPerfil.expGeneralMatches` / `expTotal` (el
+      gate "Experiencia" del semáforo go/no-go, el bloque de coincidencia del
+      análisis de pliego, el informe .txt) ahora llama a
+      `experienciaGateDetalle()`, que lee `expevalResultado` (el resultado
+      global de "Evaluación de experiencia") y es el MISMO para cualquier
+      perfil comparado — no depende de cuál empresa se está evaluando.
+
 ## Funcionalidad actual
 
 - Búsqueda en vivo anclada por palabra clave (Especialidades), con
@@ -135,24 +161,25 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
   Pública (Obra pública), filtro dinámico por Estado (checkboxes generados
   según lo que traiga cada búsqueda).
 - Múltiples perfiles de empresa (RUP/clasificador, Capacidad K/financiera,
-  Capacidad K residual, Experiencia general y específica). El desplegable elige
+  Capacidad K residual — SIN experiencia, ver punto 12). El desplegable elige
   el perfil EN EDICIÓN; un juego de casillas ("Comparar en el análisis de
   pliegos") elige cuáles se comparan — se pueden marcar VARIOS a la vez y el
   análisis los evalúa empresa por empresa.
 - Autocompletar el perfil desde el PDF del RUP ("CARGAR RUP"): extrae códigos
-  UNSPSC (clasificación → RUP/Clasificador, experiencia → Experiencia específica,
-  priorizados por segmento de obra y acotados) e indicadores financieros →
-  Capacidad K. Fusiona sin duplicar; los campos de texto libre solo se rellenan
-  si están vacíos. No guarda solo: el usuario revisa y pulsa GUARDAR PERFIL.
-  Ver punto 11 de "Cosas aprendidas" para el formato del RUP.
+  UNSPSC de clasificación → RUP/Clasificador (priorizados por segmento de obra
+  y acotados) e indicadores financieros → Capacidad K. Ya NO toca experiencia
+  (ver punto 12). Fusiona sin duplicar; los campos de texto libre solo se
+  rellenan si están vacíos. No guarda solo: el usuario revisa y pulsa GUARDAR
+  PERFIL. Ver punto 11 de "Cosas aprendidas" para el formato del RUP.
 - Análisis de pliegos PDF: extracción de texto normal, con respaldo de OCR
   (Tesseract.js) para PDFs escaneados como imagen, con progreso por página y
   botón para "seguir leyendo" más páginas sin repetir las ya leídas.
-- El análisis categoriza hallazgos en Capacidad K/Financiera, Experiencia
-  (general y específica comparadas por separado contra el perfil), y RUP/
-  Clasificador. Extrae el valor de Capacidad K Residual exigido cuando el
-  texto lo menciona explícitamente. Con varios perfiles marcados muestra un
-  bloque de coincidencia por empresa.
+- El análisis categoriza hallazgos en Capacidad K/Financiera, Experiencia (lo
+  que el pliego pide, detectado en el texto) y RUP/Clasificador. Extrae el
+  valor de Capacidad K Residual exigido cuando el texto lo menciona
+  explícitamente. Con varios perfiles marcados muestra un bloque de
+  coincidencia por empresa (solo K/RUP) más UN bloque de Experiencia
+  compartido (viene de "Evaluación de experiencia", no del perfil).
 - Informe detallado del análisis (descargar `.txt` o copiar): requisitos
   detectados en el pliego + comparación término por término por empresa (lo que
   coincide y lo que NO aparece), con una valoración orientativa.

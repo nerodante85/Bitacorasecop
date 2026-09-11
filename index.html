@@ -520,19 +520,12 @@
           <label>CAPACIDAD K RESIDUAL (texto libre)</label>
           <input id="bt-perfil-k-residual" type="text" placeholder="ej. K residual = 1.200.000.000">
         </div>
-        <div class="field full">
-          <label>EXPERIENCIA GENERAL (contratos ejecutados en total, separados por coma)</label>
-          <textarea id="bt-perfil-exp-general" rows="2" placeholder="ej. más de 5 contratos de obra civil, más de 8.000 SMMLV ejecutados"></textarea>
-        </div>
-        <div class="field full">
-          <label>EXPERIENCIA ESPECÍFICA (relacionada directamente con el objeto a contratar, separados por coma)</label>
-          <textarea id="bt-perfil-exp-especifica" rows="2" placeholder="ej. pavimentación vías urbanas, alcantarillado pluvial, construcción de puentes"></textarea>
-        </div>
       </div>
       <div class="actions">
         <button class="btn-secondary" id="bt-perfil-save">GUARDAR PERFIL</button>
         <span class="saved-note" id="bt-perfil-saved"></span>
       </div>
+      <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga y evalúa aparte, en la sección "Evaluación de experiencia" de abajo (Excel del proponente + matriz de requisitos). El RUP tampoco se usa aquí para inferir experiencia.</div>
     </div>
 
     <div class="titleblock" id="bt-expeval-panel">
@@ -598,11 +591,11 @@
     <div class="footnote">
       Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades, o por el Nº de proceso si lo llenaste). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
       Si llenas "Nº de proceso o referencia", esa búsqueda manda: encuentra el proceso aunque no coincida con las Especialidades, el Departamento, ni con "Ocultar vencidos" / "≤30 días" / "Solo Licitación Pública" / estado / descartados — para no ocultar por accidente el proceso puntual que buscas. Vacía esa casilla para volver a la búsqueda por filtros.<br>
-      El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfiles de empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y de experiencia (priorizando los de obra) y, orientativamente, los indicadores financieros — revísalos antes de guardar.<br>
-      El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos", empresa por empresa. Desde el resultado puedes descargar o copiar un informe detallado (qué coincide y qué NO aparece, por empresa).<br>
-      Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
+      El historial de "visto"/"descartado", los perfiles de empresa, los análisis de pliegos y la evaluación de experiencia se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfiles de empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y, orientativamente, los indicadores financieros — revísalos antes de guardar. El RUP ya NO se usa para inferir experiencia general ni específica; eso vive aparte, en "Evaluación de experiencia".<br>
+      El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos" (RUP/clasificador y Capacidad K), empresa por empresa; el requisito de experiencia que detecta en el texto se muestra igual, pero si lo cumples o no sale de "Evaluación de experiencia", no de este perfil. Desde el resultado puedes descargar o copiar un informe detallado.<br>
+      Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto, más el resultado de la evaluación de experiencia si ya la corriste; esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
       Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes).<br>
-      Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros, la clasificación UNSPSC y la experiencia (general y específica, comparando el objeto de tus contratos ejecutados contra lo que exige el pliego) que exige el pliego contra la matriz de capacidad de los perfiles marcados. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist. En la sección "Evaluación go / no-go" ves el veredicto detallado por empresa con una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.<br>
+      Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados, más el resultado de "Evaluación de experiencia" (CUMPLE/NO CUMPLE/NO DETERMINABLE), que es el mismo para cualquier perfil comparado. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist. En la sección "Evaluación go / no-go" ves el veredicto detallado por empresa con una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.<br>
       SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
     </div>
   </div>
@@ -654,8 +647,6 @@
   const perfilRupEl = document.getElementById('bt-perfil-rup');
   const perfilKEl = document.getElementById('bt-perfil-k');
   const perfilKResidualEl = document.getElementById('bt-perfil-k-residual');
-  const perfilExpGeneralEl = document.getElementById('bt-perfil-exp-general');
-  const perfilExpEspecificaEl = document.getElementById('bt-perfil-exp-especifica');
   const perfilSaveBtn = document.getElementById('bt-perfil-save');
   const perfilSavedEl = document.getElementById('bt-perfil-saved');
   const perfilSelectEl = document.getElementById('bt-perfil-select');
@@ -713,25 +704,31 @@
   }
 
   // Múltiples perfiles de empresa: se guardan todos en 'perfiles_empresa' (mapa id -> perfil)
-  // y cuál está activo en 'perfil_activo_id'. Si el usuario ya tenía un perfil guardado con
-  // un esquema viejo (un solo perfil en la clave 'perfil_empresa', o el esquema de un solo
-  // campo 'experiencia' anterior a separar general/específica), se migra automáticamente la
-  // primera vez que carga, sin que pierda lo que ya había llenado.
-  const PERFIL_VACIO = { nombre: '', rup: '', k: '', kResidual: '', experienciaGeneral: '', experienciaEspecifica: '' };
-  let perfiles = {}; // { id: { nombre, rup, k, kResidual, experienciaGeneral, experienciaEspecifica } }
+  // y cuál está activo en 'perfil_activo_id'. El perfil es SOLO información del RUP/registro
+  // de la empresa (RUP-clasificador, Capacidad K, K residual) -- la experiencia general y
+  // específica NO vive aquí, se evalúa aparte en la sección "Evaluación de experiencia"
+  // (Excel del proponente + matriz de requisitos). Si el usuario ya tenía un perfil guardado
+  // con un esquema viejo (un solo perfil en la clave 'perfil_empresa', el campo único
+  // 'experiencia' de antes de separar general/específica, o los campos separados
+  // 'experienciaGeneral'/'experienciaEspecifica' de una versión posterior), se migra
+  // automáticamente -- y esos campos de experiencia se DESCARTAN, no se conservan, porque ya
+  // no tienen un lugar en el perfil.
+  const PERFIL_VACIO = { nombre: '', rup: '', k: '', kResidual: '' };
+  let perfiles = {}; // { id: { nombre, rup, k, kResidual } }
   let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
   let perfilesActivos = [];       // ids marcados para comparar contra cada pliego (varios a la vez)
   let perfil = Object.assign({}, PERFIL_VACIO); // = perfiles[perfilActivoId], el que se está editando
   let pendingRupFile = null;      // PDF del RUP en espera de OCR (input.value se limpia tras leer)
 
-  // Lleva cualquier perfil guardado al esquema actual: el campo único 'experiencia'
-  // (esquema viejo) pasa a 'experienciaGeneral', y se rellenan las claves nuevas.
+  // Lleva cualquier perfil guardado al esquema actual. Descarta explícitamente los campos
+  // de experiencia de esquemas viejos (single 'experiencia', o 'experienciaGeneral' /
+  // 'experienciaEspecifica') -- ya no son parte del perfil, así que no se migran a ningún
+  // lado; el usuario debe cargar esa información en "Evaluación de experiencia".
   function migrarPerfil(p){
-    p = p || {};
-    if (p.experiencia && !p.experienciaGeneral){
-      p.experienciaGeneral = p.experiencia;
-    }
+    p = Object.assign({}, p || {});
     delete p.experiencia;
+    delete p.experienciaGeneral;
+    delete p.experienciaEspecifica;
     return Object.assign({}, PERFIL_VACIO, p);
   }
 
@@ -838,8 +835,6 @@
     setCampo(perfilRupEl, perfil.rup);
     setCampo(perfilKEl, perfil.k);
     setCampo(perfilKResidualEl, perfil.kResidual);
-    setCampo(perfilExpGeneralEl, perfil.experienciaGeneral);
-    setCampo(perfilExpEspecificaEl, perfil.experienciaEspecifica);
     if (perfilSavedEl) perfilSavedEl.textContent = '';
     if (perfilRupStatusEl) perfilRupStatusEl.textContent = 'Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa GUARDAR PERFIL).';
     pendingRupFile = null;
@@ -851,9 +846,7 @@
       nombre: getCampo(perfilNombreEl) || (perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'Sin nombre',
       rup: getCampo(perfilRupEl),
       k: getCampo(perfilKEl),
-      kResidual: getCampo(perfilKResidualEl),
-      experienciaGeneral: getCampo(perfilExpGeneralEl),
-      experienciaEspecifica: getCampo(perfilExpEspecificaEl)
+      kResidual: getCampo(perfilKResidualEl)
     };
     perfil = perfiles[perfilActivoId];
     renderPerfilSelect();
@@ -1026,11 +1019,13 @@
     const clasifRaw = extraerCodigosUNSPSC(secClasif || flat, true);
     const clasif = _acotarUNSPSC(clasifRaw);
 
-    const secExp = _seccionRUP(lower, flat, /certifica:\s*experiencia|experiencia\s+no\.?\s*1/,
-      [/informaci[oó]n\s+financiera/, /representante\s+legal/]);
-    const expRaw = extraerCodigosUNSPSC(secExp, true);
-    const exp = _acotarUNSPSC(expRaw, 60);
-
+    // NOTA: el RUP también trae una sección "Certifica: Experiencia" con códigos
+    // UNSPSC de los contratos que la Cámara de Comercio le validó a la empresa.
+    // A propósito NO se extrae ni se usa aquí -- que el RUP mencione un código no
+    // equivale a acreditar experiencia general/específica para un proceso puntual
+    // (eso depende del objeto, valor, fechas y cantidades del contrato real, no
+    // solo de un código de clasificación). La experiencia se evalúa aparte, en la
+    // sección "Evaluación de experiencia", a partir del Excel del proponente.
     let capResidual = null;
     const mRes = flat.match(/(capacidad\s+(?:residual|m[aá]xima\s+de\s+contrataci[oó]n))[^.\n]{0,80}?([0-9][0-9.,]*\s*(?:smmlv|salarios\s+m[ií]nimos)?)/i);
     if (mRes) capResidual = mRes[0].replace(/\s+/g, ' ').trim();
@@ -1043,9 +1038,8 @@
 
     return {
       unspsc: clasif.lista, unspscTotal: clasif.total, unspscRecortado: clasif.recortado,
-      unspscExp: exp.lista, unspscExpTotal: exp.total, unspscExpRecortado: exp.recortado,
       capResidual, capK,
-      encontrado: clasif.lista.length + exp.lista.length + (capResidual ? 1 : 0) + ind.length
+      encontrado: clasif.lista.length + (capResidual ? 1 : 0) + ind.length
     };
   }
 
@@ -1066,11 +1060,6 @@
       setCampo(perfilRupEl, _fusionarLista(getCampo(perfilRupEl), data.unspsc));
       partes.push(data.unspsc.length + ' códigos UNSPSC → RUP/Clasificador' +
         (data.unspscRecortado ? ' (de ' + data.unspscTotal + ' en el RUP; se cargaron los más relevantes para obra)' : ''));
-    }
-    if (data.unspscExp.length){
-      setCampo(perfilExpEspecificaEl, _fusionarLista(getCampo(perfilExpEspecificaEl), data.unspscExp));
-      partes.push(data.unspscExp.length + ' códigos de experiencia → Experiencia específica' +
-        (data.unspscExpRecortado ? ' (de ' + data.unspscExpTotal + ')' : ''));
     }
     if (data.capK){
       if (!getCampo(perfilKEl)){ setCampo(perfilKEl, data.capK); partes.push('indicadores financieros → Capacidad K (verifica los valores)'); }
@@ -1611,7 +1600,17 @@
     if (obligatorios.some(r => r.resultado === 'NO CUMPLE')) resultadoGlobal = 'NO CUMPLE';
     else if (!obligatorios.length || obligatorios.some(r => r.resultado === 'NO DETERMINABLE')) resultadoGlobal = 'REQUIERE REVISIÓN';
     else resultadoGlobal = 'CUMPLE';
-    return { resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length };
+    // Experiencia general = la que trae el Excel del proponente, sin más (solo se
+    // identifica, no se evalúa cumplimiento sobre ella sola). Experiencia
+    // específica = la que de verdad decide CUMPLE/NO CUMPLE/NO DETERMINABLE,
+    // comparándola contra la matriz -- ver sección 7 del pedido del usuario.
+    const resumenContratos = {
+      general: contratos.filter(c => c.tipo === 'general').length,
+      especifica: contratos.filter(c => c.tipo === 'especifica').length,
+      noClasificado: contratos.filter(c => c.tipo === 'no-clasificado').length,
+      total: contratos.length
+    };
+    return { resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length, resumenContratos: resumenContratos };
   }
 
   const ETIQUETAS_CONTRATO = { objeto: 'Objeto', contratante: 'Contratante', valor: 'Valor', fechaInicio: 'Fecha inicio', fechaFin: 'Fecha fin', duracion: 'Duración', cantidad: 'Cantidad', tipo: 'Tipo (general/específica)', actividades: 'Actividades', numeroContrato: 'N° contrato', participacion: '% participación' };
@@ -1633,6 +1632,11 @@
   }
 
   function renderResultadoExperiencia(ev){
+    const rc = ev.resumenContratos || {};
+    const identificacion = '<div class="saved-note" style="margin-bottom:8px;">Experiencia general identificada: ' + (rc.general || 0) + ' contrato(s) del Excel' +
+      ' · Experiencia específica identificada: ' + (rc.especifica || 0) + ' contrato(s)' +
+      (rc.noClasificado ? ' · sin distinguir general/específica en el Excel: ' + rc.noClasificado : '') +
+      ' (de ' + (rc.total || 0) + ' contrato(s) en total). El CUMPLE/NO CUMPLE de cada requisito de abajo es el que decide si la experiencia acreditada satisface la matriz.</div>';
     const resumen = '<div class="expeval-summary">' +
       '<div class="stat">' + ev.resultados.length + '<span>REQUISITOS EVALUADOS</span></div>' +
       '<div class="stat" style="color:var(--good)">' + ev.conteo['CUMPLE'] + '<span>CUMPLE</span></div>' +
@@ -1653,7 +1657,7 @@
         '<td>' + escapeHtml(r.justificacion) + (r.faltantes.length ? '<br><em>Falta: ' + escapeHtml(r.faltantes.join(' ')) + '</em>' : '') + '</td></tr>';
     }).join('');
     const tabla = '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Información encontrada</th><th>Evidencia (contrato)</th><th>Resultado</th><th>Justificación</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
-    return resumen + global + tabla;
+    return identificacion + resumen + global + tabla;
   }
 
   function informeExperienciaTexto(ev, meta){
@@ -1664,6 +1668,10 @@
       L.push('Excel de experiencia: ' + (meta.expFile || '—') + ' (' + (meta.nContratos || 0) + ' contratos leídos)');
       L.push('Matriz de experiencia: ' + (meta.matrizFile || '—') + ' (' + (meta.nRequisitos || 0) + ' requisitos leídos)');
     }
+    L.push('');
+    const rc = ev.resumenContratos || {};
+    L.push('Experiencia general identificada: ' + (rc.general || 0) + ' contrato(s) · Experiencia específica identificada: ' + (rc.especifica || 0) + ' contrato(s)' +
+      (rc.noClasificado ? ' · sin distinguir en el Excel: ' + rc.noClasificado : '') + ' (de ' + (rc.total || 0) + ' en total)');
     L.push('');
     L.push('RESULTADO GLOBAL: ' + ev.resultadoGlobal);
     L.push('CUMPLE: ' + ev.conteo['CUMPLE'] + ' · NO CUMPLE: ' + ev.conteo['NO CUMPLE'] + ' · NO DETERMINABLE: ' + ev.conteo['NO DETERMINABLE']);
@@ -1687,6 +1695,23 @@
     L.push('-'.repeat(60));
     L.push('Este informe es una evaluación automatizada por reglas (coincidencia de palabras clave distintivas y comparación numérica de campos del Excel). No interpreta el lenguaje jurídico del pliego ni reemplaza la revisión humana, en especial en los requisitos marcados NO DETERMINABLE.');
     return L.join('\n');
+  }
+
+  // Traduce el resultado de la evaluación de experiencia independiente (Excel
+  // del proponente vs matriz, sección "Evaluación de experiencia") al estado
+  // ok/revisar/fail/nd que usa el semáforo go/no-go, con un detalle legible.
+  // Es la MISMA para cualquier perfil comparado -- esa evaluación ya no
+  // distingue por empresa (no está en el perfil), a propósito.
+  function experienciaGateDetalle(){
+    if (!expevalResultado || !expevalResultado.resultados || !expevalResultado.resultados.length){
+      return { estado: 'nd', detalle: 'Sin evaluación de experiencia -- cárgala en la sección "Evaluación de experiencia" (Excel del proponente + matriz de requisitos).' };
+    }
+    const ev = expevalResultado;
+    const estado = ev.resultadoGlobal === 'CUMPLE' ? 'ok' : (ev.resultadoGlobal === 'NO CUMPLE' ? 'fail' : 'revisar');
+    const detalle = 'Evaluación de experiencia: ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' +
+      ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' +
+      ev.resultados.length + ' requisito(s), ' + ev.totalObligatorios + ' obligatorio(s)). Ver detalle en "Evaluación de experiencia".';
+    return { estado: estado, detalle: detalle };
   }
 
   // Los triggers se agrupan por categoría para que el análisis no mezcle todo en
@@ -1804,6 +1829,8 @@
     return { hallazgos: hallazgos, kResidual: kResidual, exigencias: exigencias };
   }
 
+  // Ya NO compara experiencia -- el perfil no la tiene (ver "Evaluación de
+  // experiencia" para eso). Solo RUP/clasificador y Capacidad K/financiera.
   function compararConPerfil(text, perfilActual, hallazgos){
     const lower = text.toLowerCase();
     const splitTerms = s => (s || '').split(/[,;\n]/).map(t => t.trim()).filter(Boolean);
@@ -1814,27 +1841,20 @@
     const kTerms = splitTerms(perfilActual.k);
     const kResidualTerms = splitTerms(perfilActual.kResidual);
     const kTermsAll = kTerms.concat(kResidualTerms);
-    // Experiencia general y específica: listas separadas, para poder ver si TU
-    // experiencia general cubre lo que pide el pliego en general, aparte de la
-    // específica -- en vez de un solo número global que mezcla ambas.
-    const expGeneralTerms = splitTerms(perfilActual.experienciaGeneral);
-    const expEspecificaTerms = splitTerms(perfilActual.experienciaEspecifica);
-    const expTerms = expGeneralTerms.concat(expEspecificaTerms);
 
     const matchIn = (terms, haystack) => terms.filter(t => haystack.includes(t.toLowerCase()));
     const noMatchIn = (terms, haystack) => terms.filter(t => !haystack.includes(t.toLowerCase()));
     const rupMatches = matchIn(rupTerms, lower);
-    const expMatches = matchIn(expTerms, lower);
-    const expGeneralMatches = matchIn(expGeneralTerms, lower);
-    const expEspecificaMatches = matchIn(expEspecificaTerms, lower);
     const kMatches = matchIn(kTermsAll, lower);
     const kResidualMatches = matchIn(kResidualTerms, lower);
 
-    // Comparación POR HALLAZGO: cada mención detectada (ej. "experiencia
-    // específica" vs "experiencia general") se compara contra los términos de
-    // perfil de su categoría, solo dentro de ese fragmento de texto.
+    // Comparación POR HALLAZGO: cada mención detectada en el pliego (ej. "K
+    // residual", "RUP") se compara contra los términos de perfil de su
+    // categoría, solo dentro de ese fragmento de texto. "Experiencia" queda
+    // sin términos de perfil a propósito -- lo que el pliego exige en
+    // experiencia se detecta igual (para que el usuario lo vea), pero de qué
+    // la cubre lo decide la sección "Evaluación de experiencia", no esto.
     const termsPorCategoria = {
-      'Experiencia': expTerms,
       'RUP / Clasificador': rupTerms,
       'Capacidad K / Financiera': kTermsAll
     };
@@ -1847,17 +1867,11 @@
 
     return {
       rupMatches: rupMatches, rupTotal: rupTerms.length,
-      // expMatches/expTotal = general + específica combinadas (lo usa el ajuste de puntaje)
-      expMatches: expMatches, expTotal: expTerms.length,
-      expGeneralMatches: expGeneralMatches, expGeneralTotal: expGeneralTerms.length,
-      expEspecificaMatches: expEspecificaMatches, expEspecificaTotal: expEspecificaTerms.length,
       kMatches: kMatches, kTotal: kTermsAll.length,
       kResidualMatches: kResidualMatches, kResidualTotal: kResidualTerms.length,
       // Términos del perfil que NO aparecieron en el pliego -- los usa el informe
       // detallado para listar qué le falta a cada empresa.
       rupNoMatch: noMatchIn(rupTerms, lower),
-      expGeneralNoMatch: noMatchIn(expGeneralTerms, lower),
-      expEspecificaNoMatch: noMatchIn(expEspecificaTerms, lower),
       kNoMatch: noMatchIn(kTermsAll, lower),
       kResidualNoMatch: noMatchIn(kResidualTerms, lower),
       hallazgosAnotados: hallazgosAnotados
@@ -1996,29 +2010,12 @@
           g('Capacidad K residual', 'nd', 'El pliego la exige (' + ex.kResidual.valor + ' ' + ex.kResidual.unidad + ') pero tu perfil no la tiene en esa unidad.');
         }
       }
-      // Experiencia: se usa el detalle YA calculado por compararConPerfil para
-      // este perfil (qué objetos de contrato declarados coinciden y cuáles NO
-      // aparecen en el pliego), en vez de un solo número -- así el informe puede
-      // decir exactamente qué experiencia falta, no solo "cumple/no cumple".
-      const compPerfil = compsDe(entry).find(c => c.perfilNombre === matriz.nombre);
-      if (!compPerfil){
-        g('Experiencia', 'nd', 'Sin datos de experiencia en el perfil para comparar.');
-      } else {
-        const totalExp = (compPerfil.expGeneralTotal || 0) + (compPerfil.expEspecificaTotal || 0);
-        if (!totalExp){
-          g('Experiencia', 'nd', 'Tu perfil no tiene experiencia general/específica cargada (Perfiles de empresa).');
-        } else {
-          const matchExp = (compPerfil.expGeneralMatches || []).length + (compPerfil.expEspecificaMatches || []).length;
-          const ratio = matchExp / totalExp;
-          const faltaEspecifica = compPerfil.expEspecificaNoMatch || [];
-          const faltaGeneral = compPerfil.expGeneralNoMatch || [];
-          let detalle = 'General ' + (compPerfil.expGeneralMatches || []).length + '/' + (compPerfil.expGeneralTotal || 0) +
-            ' · Específica ' + (compPerfil.expEspecificaMatches || []).length + '/' + (compPerfil.expEspecificaTotal || 0) + '.';
-          if (faltaEspecifica.length) detalle += ' Objeto de experiencia específica que el pliego no encuentra declarado: ' + faltaEspecifica.join(', ') + '.';
-          if (faltaGeneral.length) detalle += ' Experiencia general no encontrada: ' + faltaGeneral.join(', ') + '.';
-          g('Experiencia', ratio >= 0.66 ? 'ok' : ratio >= 0.33 ? 'revisar' : 'fail', detalle);
-        }
-      }
+      // Experiencia: YA NO sale del perfil (el perfil no la tiene). Sale de la
+      // evaluación independiente Excel-del-proponente-vs-matriz de la sección
+      // "Evaluación de experiencia" -- es la misma para cualquier perfil
+      // comparado, porque esa evaluación no distingue por empresa.
+      const gExp = experienciaGateDetalle();
+      g('Experiencia', gExp.estado, gExp.detalle);
     } else {
       g('Requisitos habilitantes', 'nd', 'Sube y analiza el pliego (PDF) para evaluar indicadores financieros y experiencia.');
     }
@@ -2248,22 +2245,29 @@
     evalOutEl.innerHTML = evalDetalleHtml(s.item, res, entry);
   }
 
-  // Resumen de coincidencia de UN perfil: K, K residual, RUP, experiencia
-  // general y específica. 'linea' es local para poder reusarlo por perfil.
+  // Resumen de coincidencia de UN perfil: K, K residual, RUP/clasificador.
+  // Experiencia NO va aquí -- el perfil ya no la tiene; sale por separado, una
+  // sola vez (no por perfil), de la sección "Evaluación de experiencia" (ver
+  // experienciaGateDetalle / bloqueExperienciaHtml).
   function resumenPerfilHtml(c){
     const linea = (label, matches, total) => {
       const m = matches || [];
       const pct = total ? (m.length + '/' + total) : 'sin datos de perfil';
       return '<div>' + label + ': ' + pct + (m.length ? ' — ' + escapeHtml(m.join(', ')) : '') + '</div>';
     };
-    const tieneDesgloseExp = ('expGeneralTotal' in c) || ('expEspecificaTotal' in c);
     return linea('Capacidad K / financiera', c.kMatches, c.kTotal || 0) +
       (c.kResidualTotal ? linea('&nbsp;&nbsp;· de esa, K residual', c.kResidualMatches, c.kResidualTotal) : '') +
-      linea('RUP / clasificador', c.rupMatches, c.rupTotal || 0) +
-      (tieneDesgloseExp
-        ? (linea('Experiencia general', c.expGeneralMatches, c.expGeneralTotal || 0) +
-           linea('Experiencia específica', c.expEspecificaMatches, c.expEspecificaTotal || 0))
-        : linea('Experiencia (general + específica)', c.expMatches, c.expTotal || 0));
+      linea('RUP / clasificador', c.rupMatches, c.rupTotal || 0);
+  }
+
+  // Bloque compartido (una sola vez por análisis, no por perfil) que muestra el
+  // resultado de la evaluación de experiencia independiente dentro del análisis
+  // de pliego -- para que quien lo lea sepa dónde está ese dato sin tener que
+  // adivinar por qué ya no aparece desglosado por empresa.
+  function bloqueExperienciaHtml(){
+    const g = experienciaGateDetalle();
+    return '<div class="analysis-sub">EXPERIENCIA (evaluación independiente — no varía por perfil)</div>' +
+      '<div style="margin-bottom:8px;">' + escapeHtml(g.detalle) + '</div>';
   }
 
   function renderAnalysisHtml(entry){
@@ -2308,6 +2312,7 @@
       (sinHallazgos
         ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de capacidad K, RUP o experiencia mínima en el texto extraído — revisa el pliego completo.</li></ul>'
         : hallazgosHtml) +
+      bloqueExperienciaHtml() +
       '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' +
       perfilesHtml +
       (comps.length
@@ -2544,18 +2549,24 @@
     return 'baja';
   }
 
-  // Ajusta el puntaje según cuántos términos del perfil (RUP/experiencia/K)
-  // aparecieron en el análisis del pliego PDF, si se subió uno para este proceso.
-  // Con varios perfiles marcados se toma el MEJOR: si alguna de las empresas
-  // cubre bien los requisitos, el proceso vale la pena priorizarlo.
+  // Ajusta el puntaje según cuántos términos del perfil (RUP/K) aparecieron en
+  // el análisis del pliego PDF, si se subió uno para este proceso, más el
+  // resultado de la evaluación de experiencia independiente (Excel vs matriz)
+  // si ya se corrió una. Con varios perfiles marcados se toma el MEJOR: si
+  // alguna de las empresas cubre bien los requisitos, el proceso vale la pena
+  // priorizarlo. La experiencia ya NO sale de términos del perfil (ver
+  // "Evaluación de experiencia") -- se pesa aparte, como un término más.
   function analysisScoreAdjustment(entry){
     const comps = compsDe(entry);
-    if (!comps.length) return 0;
+    const expPeso = expevalResultado
+      ? { total: 1, matched: expevalResultado.resultadoGlobal === 'CUMPLE' ? 1 : (expevalResultado.resultadoGlobal === 'NO CUMPLE' ? 0 : 0.5) }
+      : { total: 0, matched: 0 };
+    if (!comps.length && !expPeso.total) return 0;
     let best = -Infinity;
-    comps.forEach(c => {
-      const total = (c.rupTotal || 0) + (c.expTotal || 0) + (c.kTotal || 0);
+    (comps.length ? comps : [{}]).forEach(c => {
+      const total = (c.rupTotal || 0) + (c.kTotal || 0) + expPeso.total;
       if (total === 0) return;
-      const matched = (c.rupMatches || []).length + (c.expMatches || []).length + (c.kMatches || []).length;
+      const matched = (c.rupMatches || []).length + (c.kMatches || []).length + expPeso.matched;
       best = Math.max(best, matched / total);
     });
     if (best === -Infinity) return 0;
@@ -2581,10 +2592,12 @@
     const snapshotTs = new Date(DATA_SNAPSHOT_DATE + 'T00:00:00.000').getTime();
     const refNow = (isSnapshot && !isNaN(snapshotTs)) ? snapshotTs : Date.now();
 
-    // ¿algún perfil marcado tiene datos para evaluar? (si no, no se muestra semáforo)
+    // ¿algún perfil marcado tiene datos para evaluar, o hay una evaluación de
+    // experiencia independiente ya corrida? (si no hay nada de esto, no se
+    // muestra semáforo)
     const perfilConDatos = perfilesParaComparar().some(p =>
-      (p.rup || '').trim() || (p.k || '').trim() || (p.kResidual || '').trim() ||
-      (p.experienciaGeneral || '').trim() || (p.experienciaEspecifica || '').trim());
+      (p.rup || '').trim() || (p.k || '').trim() || (p.kResidual || '').trim()) ||
+      !!(expevalResultado && expevalResultado.resultados && expevalResultado.resultados.length);
 
     let scored = records.map(r => {
       const item = normalize(r);
@@ -3012,6 +3025,10 @@
     L.push('  ' + (entry.kResidual || 'No detectada explícitamente en las páginas leídas.'));
     nl();
 
+    L.push('EXPERIENCIA (evaluación independiente — no varía por perfil)');
+    L.push('  ' + experienciaGateDetalle().detalle);
+    nl();
+
     const primero = comps[0] || {};
     const ha = primero.hallazgosAnotados || [];
     L.push('REQUISITOS HABILITANTES DETECTADOS EN EL PLIEGO');
@@ -3051,16 +3068,9 @@
           if (noMatch) L.push('      NO aparecen en el pliego: ' + listar(noMatch));
         }
       };
-      const tieneDesglose = ('expGeneralTotal' in c) || ('expEspecificaTotal' in c);
       bloque('Capacidad K / financiera', c.kTotal || 0, c.kMatches, c.kNoMatch);
       if (c.kResidualTotal) bloque('  · de esa, K residual', c.kResidualTotal, c.kResidualMatches, c.kResidualNoMatch);
       bloque('RUP / clasificador', c.rupTotal || 0, c.rupMatches, c.rupNoMatch);
-      if (tieneDesglose){
-        bloque('Experiencia general', c.expGeneralTotal || 0, c.expGeneralMatches, c.expGeneralNoMatch);
-        bloque('Experiencia específica', c.expEspecificaTotal || 0, c.expEspecificaMatches, c.expEspecificaNoMatch);
-      } else {
-        bloque('Experiencia (general + específica)', c.expTotal || 0, c.expMatches, null);
-      }
       nl();
       const cubre = [], noCubre = [];
       (c.hallazgosAnotados || []).forEach(h => {
@@ -3073,8 +3083,7 @@
       nl();
       const cats = [
         ['Capacidad K', c.kTotal, (c.kMatches || []).length],
-        ['RUP', c.rupTotal, (c.rupMatches || []).length],
-        ['Experiencia', c.expTotal, (c.expMatches || []).length]
+        ['RUP', c.rupTotal, (c.rupMatches || []).length]
       ].filter(x => x[1]);
       if (cats.length){
         const cumplidas = cats.filter(x => x[2] > 0).length;
