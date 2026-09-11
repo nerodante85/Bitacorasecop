@@ -533,7 +533,8 @@
       El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfiles de empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y de experiencia (priorizando los de obra) y, orientativamente, los indicadores financieros — revísalos antes de guardar.<br>
       El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos", empresa por empresa. Desde el resultado puedes descargar o copiar un informe detallado (qué coincide y qué NO aparece, por empresa).<br>
       Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
-      Cada tarjeta trae un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist. En la sección "Evaluación go / no-go" ves el veredicto detallado por empresa, lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos.<br>
+      Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes).<br>
+      Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros, la clasificación UNSPSC y la experiencia (general y específica, comparando el objeto de tus contratos ejecutados contra lo que exige el pliego) que exige el pliego contra la matriz de capacidad de los perfiles marcados. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist. En la sección "Evaluación go / no-go" ves el veredicto detallado por empresa con una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.<br>
       SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
     </div>
   </div>
@@ -1272,8 +1273,30 @@
       kResidual: (function(){
         const m = t.match(/(k\s*residual|capacidad\s+residual(?:\s+de\s+contrataci[óo]n)?|capacidad\s+m[áa]xima\s+de\s+contrataci[óo]n)[^.\n]{0,90}?(\d[\d.,]*\s*(?:smmlv|smlmv|salarios?\s+m[íi]nimos)?)/i);
         return m ? parseValorUnidad(m[0]) : null;
-      })()
+      })(),
+      participacionConsorcio: extraerParticipacionConsorcio(t)
     };
+  }
+
+  // Participación mínima exigida en consorcio/unión temporal, y si el pliego la
+  // prohíbe o la permite. Es informativo -- no hay con qué compararlo en el perfil
+  // (el perfil es de UNA empresa), así que no entra como gate go/no-go, solo se
+  // muestra para que quien decide si presentarse lo tenga en cuenta.
+  function extraerParticipacionConsorcio(flat){
+    let participacion = null;
+    const mPart = flat.match(/participaci[óo]n[^.\n]{0,90}?(\d{1,3}(?:[.,]\d+)?)\s*%/i) ||
+                  flat.match(/(\d{1,3}(?:[.,]\d+)?)\s*%[^.\n]{0,60}?participaci[óo]n/i);
+    if (mPart) participacion = { valor: parseNumCO(mPart[1]), raw: truncate(mPart[0].trim(), 180) };
+
+    let consorcio = null;
+    const mProhibido = flat.match(/no\s+se\s+(?:podr[áa]n?|permit(?:e|ir[áa]n?)|admit(?:e|ir[áa]n?)|aceptar[áa]n?)[^.\n]{0,50}(?:consorcio|uni[óo]n\s+temporal)[^.\n]{0,80}/i);
+    if (mProhibido){
+      consorcio = { permitido: false, raw: truncate(mProhibido[0].trim(), 220) };
+    } else {
+      const mMencion = flat.match(/[^.\n]{0,60}(?:consorcio|uni[óo]n\s+temporal)[^.\n]{0,140}/i);
+      if (mMencion) consorcio = { permitido: true, raw: truncate(mMencion[0].trim(), 220) };
+    }
+    return { participacion: participacion, consorcio: consorcio };
   }
 
   function analizarTexto(text){
@@ -1435,11 +1458,11 @@
     if (/adjudicad|celebrad|liquidad|termin|desiert|revocad|cancelad|suspend/.test(est))
       g('Estado del proceso', 'fail', 'Está "' + item.estado + '": ya no admite ofertas.');
 
-    // Plazo
-    if (daysLeft == null) g('Plazo', 'nd', 'Sin fecha de cierre confiable en el dataset.');
-    else if (daysLeft < 0) g('Plazo', 'fail', 'Venció hace ' + (-daysLeft) + ' días.');
-    else if (daysLeft < 5) g('Plazo', 'revisar', 'Solo ' + daysLeft + ' día(s) hasta el cierre — poco margen para armar la oferta.');
-    else g('Plazo', 'ok', daysLeft + ' días hasta el cierre.');
+    // Presentación de oferta (fecha de recepción de respuestas / cierre)
+    if (daysLeft == null) g('Presentación de oferta', 'nd', 'Sin fecha de cierre confiable en el dataset.');
+    else if (daysLeft < 0) g('Presentación de oferta', 'fail', 'Venció hace ' + (-daysLeft) + ' días.');
+    else if (daysLeft < 5) g('Presentación de oferta', 'revisar', 'Solo ' + daysLeft + ' día(s) hasta el cierre — poco margen para armar la oferta.');
+    else g('Presentación de oferta', 'ok', daysLeft + ' días hasta el cierre.');
 
     // Valor de la obra vs rango del "Perfil de la obra"
     if (valor == null) g('Valor de la obra', 'nd', 'El proceso no reporta valor base.');
@@ -1484,11 +1507,29 @@
           g('Capacidad K residual', 'nd', 'El pliego la exige (' + ex.kResidual.valor + ' ' + ex.kResidual.unidad + ') pero tu perfil no la tiene en esa unidad.');
         }
       }
-      const adj = analysisScoreAdjustment(Object.assign({}, entry, { comps: (compsDe(entry).filter(c => c.perfilNombre === matriz.nombre)) }));
-      if (adj >= 3) g('Experiencia (heurístico)', 'ok', 'Varios términos de tu experiencia aparecen en el pliego.');
-      else if (adj >= 1) g('Experiencia (heurístico)', 'revisar', 'Coincidencia parcial de tu experiencia con el pliego.');
-      else if (adj <= -2) g('Experiencia (heurístico)', 'fail', 'Casi ningún término de tu experiencia aparece en el pliego.');
-      else g('Experiencia (heurístico)', 'nd', 'Sin datos de experiencia en el perfil para comparar.');
+      // Experiencia: se usa el detalle YA calculado por compararConPerfil para
+      // este perfil (qué objetos de contrato declarados coinciden y cuáles NO
+      // aparecen en el pliego), en vez de un solo número -- así el informe puede
+      // decir exactamente qué experiencia falta, no solo "cumple/no cumple".
+      const compPerfil = compsDe(entry).find(c => c.perfilNombre === matriz.nombre);
+      if (!compPerfil){
+        g('Experiencia', 'nd', 'Sin datos de experiencia en el perfil para comparar.');
+      } else {
+        const totalExp = (compPerfil.expGeneralTotal || 0) + (compPerfil.expEspecificaTotal || 0);
+        if (!totalExp){
+          g('Experiencia', 'nd', 'Tu perfil no tiene experiencia general/específica cargada (Perfiles de empresa).');
+        } else {
+          const matchExp = (compPerfil.expGeneralMatches || []).length + (compPerfil.expEspecificaMatches || []).length;
+          const ratio = matchExp / totalExp;
+          const faltaEspecifica = compPerfil.expEspecificaNoMatch || [];
+          const faltaGeneral = compPerfil.expGeneralNoMatch || [];
+          let detalle = 'General ' + (compPerfil.expGeneralMatches || []).length + '/' + (compPerfil.expGeneralTotal || 0) +
+            ' · Específica ' + (compPerfil.expEspecificaMatches || []).length + '/' + (compPerfil.expEspecificaTotal || 0) + '.';
+          if (faltaEspecifica.length) detalle += ' Objeto de experiencia específica que el pliego no encuentra declarado: ' + faltaEspecifica.join(', ') + '.';
+          if (faltaGeneral.length) detalle += ' Experiencia general no encontrada: ' + faltaGeneral.join(', ') + '.';
+          g('Experiencia', ratio >= 0.66 ? 'ok' : ratio >= 0.33 ? 'revisar' : 'fail', detalle);
+        }
+      }
     } else {
       g('Requisitos habilitantes', 'nd', 'Sube y analiza el pliego (PDF) para evaluar indicadores financieros y experiencia.');
     }
@@ -1523,8 +1564,36 @@
     return '<span class="tag eval ' + cls + '" title="' + escapeHtml(t) + '">' + v + (res.mejor.conPliego ? '' : ' ·') + '</span>';
   }
 
+  // Un párrafo: "de un vistazo", para que quien decide si presentarse no tenga
+  // que leer cada gate. Es la primera línea que debe leer una constructora.
+  function resumenEjecutivo(res){
+    const m = res.mejor;
+    const fails = m.gates.filter(g => g.estado === 'fail').map(g => g.nombre);
+    const revisar = m.gates.filter(g => g.estado === 'revisar').map(g => g.nombre);
+    const quien = res.porPerfil.length > 1 ? ' con ' + m.perfil : '';
+    if (m.veredicto === 'GO') return 'SÍ vale la pena participar' + quien + ': no se detectó ningún incumplimiento en los puntos evaluados.';
+    if (m.veredicto === 'NO-GO') return 'NO se recomienda participar' + quien + (fails.length ? ' — no cumple: ' + fails.join(', ') + '.' : '.');
+    return !m.conPliego
+      ? 'Evaluación preliminar, sin pliego analizado. Sube y analiza el PDF del pliego en esta tarjeta para saber con certeza si vale la pena participar.'
+      : 'Antes de decidir, confirma' + quien + ': ' + (revisar.length ? revisar.join(', ') : 'los puntos marcados como "revisar"') + '.';
+  }
+
+  // Participación en consorcio/unión temporal detectada en el pliego. Es
+  // informativo: no hay con qué compararlo en el perfil (una sola empresa), así
+  // que no mueve el veredicto -- solo se lo hace saber a quien decide.
+  function notasParticipacion(entry){
+    const pc = entry && entry.exigencias && entry.exigencias.participacionConsorcio;
+    if (!pc || (!pc.participacion && !pc.consorcio)) return [];
+    const L = [];
+    if (pc.consorcio) L.push(pc.consorcio.permitido === false
+      ? 'El pliego NO admite consorcio/unión temporal: "' + pc.consorcio.raw + '"'
+      : 'El pliego menciona consorcio/unión temporal: "' + pc.consorcio.raw + '"');
+    if (pc.participacion) L.push('Participación mínima detectada: ' + pc.participacion.valor + '% — "' + pc.participacion.raw + '"');
+    return L;
+  }
+
   const EVAL_ICONO = { ok: '✅', fail: '❌', revisar: '⚠', nd: '·' };
-  function evalDetalleHtml(item, res){
+  function evalDetalleHtml(item, res, entry){
     if (!res) return '<div class="analysis-block analysis-warn">No hay perfiles para evaluar. Marca al menos uno en "Comparar en el análisis de pliegos".</div>';
     const bloquePerfil = r => {
       const filas = r.gates.map(x =>
@@ -1535,10 +1604,17 @@
         (r.conPliego ? '' : ' <span style="color:var(--grey);font-weight:400;">(evaluación ligera — sin pliego analizado)</span>') + '</div>' +
         '<ul class="analysis-list">' + filas + '</ul>';
     };
+    const notas = notasParticipacion(entry);
+    const notasHtml = notas.length
+      ? '<div class="analysis-sub">PARTICIPACIÓN EN CONSORCIO / UNIÓN TEMPORAL (del pliego, informativo)</div>' +
+        '<ul class="analysis-list">' + notas.map(n => '<li>' + escapeHtml(n) + '</li>').join('') + '</ul>'
+      : '';
     return '<div class="analysis-block' + (res.mejor.veredicto === 'NO-GO' ? ' analysis-warn' : '') + '">' +
       '<div class="analysis-head">' + escapeHtml(truncate(item.entidad, 90)) + ' — veredicto: ' +
         '<span class="eval-verdict ' + (res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar') + '">' + res.mejor.veredicto + '</span>' +
         (res.porPerfil.length > 1 ? ' <span style="color:var(--grey);font-weight:400;">(mejor de ' + res.porPerfil.length + ' perfiles)</span>' : '') + '</div>' +
+      '<div class="analysis-sub">RECOMENDACIÓN</div><div style="margin-bottom:8px;">' + escapeHtml(resumenEjecutivo(res)) + '</div>' +
+      notasHtml +
       res.porPerfil.map(bloquePerfil).join('') +
       '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">' +
         '<button class="link-btn eval-informe-btn" data-eval-id="' + escapeHtml(item.id) + '">⬇ Descargar evaluación (.txt)</button>' +
@@ -1549,7 +1625,7 @@
     '</div>';
   }
 
-  function informeEvalTexto(item, res){
+  function informeEvalTexto(item, res, entry){
     const L = [];
     L.push('EVALUACIÓN GO / NO-GO — Bitácora SECOP');
     L.push('Generado: ' + new Date().toLocaleString('es-CO'));
@@ -1563,6 +1639,13 @@
     if (item.url) L.push('  Enlace:     ' + item.url);
     L.push('');
     L.push('VEREDICTO (mejor de ' + res.porPerfil.length + ' perfil(es)): ' + res.mejor.veredicto);
+    L.push('RECOMENDACIÓN: ' + resumenEjecutivo(res));
+    const notas = notasParticipacion(entry);
+    if (notas.length){
+      L.push('');
+      L.push('PARTICIPACIÓN EN CONSORCIO / UNIÓN TEMPORAL (detectado en el pliego, informativo -- no compite con el veredicto)');
+      notas.forEach(n => L.push('  - ' + n));
+    }
     res.porPerfil.forEach(r => {
       L.push('');
       L.push('────────────────────────────────────────────────────────');
@@ -1673,7 +1756,7 @@
     if (!s){ evalOutEl.innerHTML = '<div class="analysis-block analysis-warn">Elige un proceso de la lista.</div>'; return; }
     const entry = analisis[id];
     const res = s.evaluacion || evaluarMejor(s.item, { daysLeft: s.daysLeft }, entry);
-    evalOutEl.innerHTML = evalDetalleHtml(s.item, res);
+    evalOutEl.innerHTML = evalDetalleHtml(s.item, res, entry);
   }
 
   // Resumen de coincidencia de UN perfil: K, K residual, RUP, experiencia
@@ -1840,12 +1923,28 @@
     // cronológicamente con un sort lexicográfico normal.
     const dateVals = dates.map(d => d.val).sort();
 
+    // "Apertura del proceso" (fecha de expedición y publicación del acto de
+    // apertura): el dataset vivo de SECOP II trae VARIAS columnas de publicación
+    // por fase (última publicación, fase borrador, fase selección...) además de
+    // la inicial -- verificado contra el catálogo de columnas de datos.gov.co.
+    // La columna exacta de la publicación INICIAL es fecha_de_publicacion_del; se
+    // prioriza por nombre exacto y, si no está, se cae a la más temprana de
+    // cualquier columna "publicaci..." (que casi siempre coincide con la inicial).
+    const pubExacta = dates.find(d => /^fecha_de_publicacion_del(_proceso)?$/.test(d.key.toLowerCase()));
     const pubNamed = dates.filter(d => /public/.test(d.key.toLowerCase())).map(d => d.val).sort();
-    let pubRaw = pubNamed.length ? pubNamed[0] : (dateVals.length ? dateVals[0] : null);
+    let pubRaw = pubExacta ? pubExacta.val : (pubNamed.length ? pubNamed[0] : (dateVals.length ? dateVals[0] : null));
 
+    // "Presentación de oferta" (fecha de recepción de respuestas / cierre): la
+    // columna exacta es fecha_de_recepcion_de ("Fecha asignada para la recepción
+    // de respuestas por parte de los proveedores"). No confundir con
+    // fecha_de_apertura_de_respuesta/efectiva -- esa es cuándo la ENTIDAD abre lo
+    // ya recibido, no el plazo del proponente para presentar la oferta.
     let closingRaw = null;
+    const closeExacta = dates.find(d => /^fecha_de_recepcion_de(_respuestas)?$/.test(d.key.toLowerCase()));
     const closeNamed = dates.filter(d => /recep|cierre|limite|l_mite|plazo/.test(d.key.toLowerCase())).map(d => d.val).sort();
-    if (closeNamed.length){
+    if (closeExacta){
+      closingRaw = closeExacta.val;
+    } else if (closeNamed.length){
       closingRaw = closeNamed[closeNamed.length - 1];
     } else {
       const posteriores = dateVals.filter(v => !pubRaw || v > pubRaw);
@@ -2109,7 +2208,7 @@
       const money = fmtMoney(it.valor);
       const vencido = s.daysLeft !== null && s.daysLeft < 0;
       const tierLabel = s.tier === 'alta' ? 'ALTA' : s.tier === 'media' ? 'MEDIA' : 'BAJA';
-      const deadlineText = close ? (vencido ? ('Venció · ' + close) : (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close)) : 'Sin fecha límite reportada';
+      const deadlineText = close ? (vencido ? ('Venció · ' + close) : (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close)) : 'Sin fecha de presentación reportada';
       const safeUrl = it.url && /^https?:\/\//i.test(it.url) ? escapeHtml(it.url) : null;
       const linkHtml = safeUrl
         ? '<div class="row-link"><a href="' + safeUrl + '" target="_blank" rel="noopener">Abrir expediente en SECOP ' + it.fuente + '</a></div>'
@@ -2146,8 +2245,8 @@
           '<span>' + escapeHtml(loc) + '</span>' +
           (it.modalidad ? '<span><b>Modalidad:</b> ' + escapeHtml(it.modalidad) + '</span>' : '') +
           (money ? '<span><b>Valor base:</b> ' + money + '</span>' : '') +
-          '<span><b>Plazo:</b> ' + deadlineText + '</span>' +
-          (pub ? '<span><b>Publicado:</b> ' + pub + '</span>' : '') +
+          '<span><b>Presentación de oferta:</b> ' + deadlineText + '</span>' +
+          (pub ? '<span><b>Apertura del proceso:</b> ' + pub + '</span>' : '') +
           (it.referencia ? '<span><b>Referencia:</b> ' + escapeHtml(it.referencia) + '</span>' : '') +
         '</div>' +
         linkHtml +
@@ -2325,12 +2424,12 @@
       alert('No hay procesos de alta prioridad en la vista actual para exportar.');
       return;
     }
-    const headers = ['Entidad','Objeto','Modalidad','Departamento','Ciudad','Valor base','Fecha límite','Días restantes','Referencia','Enlace'];
+    const headers = ['Entidad','Objeto','Modalidad','Departamento','Ciudad','Valor base','Apertura del proceso','Presentación de oferta','Días restantes','Referencia','Enlace'];
     const rows = altas.map(s => {
       const it = s.item;
       return [
         it.entidad, it.objeto, it.modalidad || '', it.departamento || '', it.ciudad || '',
-        it.valor || '', fmtDate(it.closingRaw) || '', (s.daysLeft ?? ''), it.referencia || '', it.url || ''
+        it.valor || '', fmtDate(it.pubRaw) || '', fmtDate(it.closingRaw) || '', (s.daysLeft ?? ''), it.referencia || '', it.url || ''
       ].map(csvEscape).join(',');
     });
     const csv = headers.map(csvEscape).join(',') + '\n' + rows.join('\n');
@@ -2354,9 +2453,9 @@
     const lineas = altas.map(s => {
       const it = s.item;
       const close = fmtDate(it.closingRaw);
-      const plazo = close ? (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close) : 'sin fecha límite reportada';
+      const plazo = close ? (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close) : 'sin fecha de presentación reportada';
       const money = fmtMoney(it.valor);
-      return '• ' + it.entidad + ' — ' + truncate(it.objeto, 140) + '\n  Plazo: ' + plazo + (money ? ' · Valor base: ' + money : '') + (it.referencia ? '\n  Referencia: ' + it.referencia : '') + (it.url ? '\n  ' + it.url : '');
+      return '• ' + it.entidad + ' — ' + truncate(it.objeto, 140) + '\n  Presentación de oferta: ' + plazo + (money ? ' · Valor base: ' + money : '') + (it.referencia ? '\n  Referencia: ' + it.referencia : '') + (it.url ? '\n  ' + it.url : '');
     });
     const texto = 'Procesos de alta prioridad — Bitácora (' + new Date().toLocaleDateString('es-CO') + ')\n\n' + lineas.join('\n\n');
     try {
@@ -2527,8 +2626,9 @@
     if (infBtn){
       const s = (lastScored || []).find(x => x.item.id === infBtn.getAttribute('data-eval-id'));
       if (!s) return;
-      const res = s.evaluacion || evaluarMejor(s.item, { daysLeft: s.daysLeft }, analisis[s.item.id]);
-      descargarTexto('evaluacion-' + slugArchivo((s.item.referencia || s.item.entidad)) + '-' + new Date().toISOString().slice(0, 10) + '.txt', informeEvalTexto(s.item, res));
+      const entryInf = analisis[s.item.id];
+      const res = s.evaluacion || evaluarMejor(s.item, { daysLeft: s.daysLeft }, entryInf);
+      descargarTexto('evaluacion-' + slugArchivo((s.item.referencia || s.item.entidad)) + '-' + new Date().toISOString().slice(0, 10) + '.txt', informeEvalTexto(s.item, res, entryInf));
       return;
     }
     if (adjBtn){
