@@ -659,33 +659,44 @@
   #bitacora-root .recent-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   #bitacora-root .empty-inline { font-size: 13px; color: var(--text-muted); padding: 12px 4px; }
 
+  /* Tablet (768-900px, ej. iPad en vertical): la sidebar sigue siendo una
+     columna vertical al lado del contenido (NO se convierte en fila
+     horizontal aquí) -- se probó una fila horizontal con marca + 5 ítems de
+     texto y con 768px de ancho el contenido necesitaba 993px, se desbordaba
+     con scroll horizontal sin ninguna pista visual. Basta con angostar la
+     sidebar; a esta anchura sigue habiendo espacio de sobra para el
+     contenido en una sola columna. */
   @media (max-width: 900px) {
+    #bitacora-root .sidebar { width: 208px; }
+    #bitacora-root .sidebar-brand { padding: 18px 14px 16px; }
+    #bitacora-root .nav-item { font-size: 13px; padding: 9px 10px; }
+    #bitacora-root .wrap { padding: 24px 20px 40px; }
+  }
+
+  /* Celular (≤560px): aquí sí conviene una barra horizontal compacta, porque
+     una sidebar vertical de ~208px en una pantalla de 375px se comería más
+     de la mitad. Con marca + 5 ítems de texto tampoco cabía en fila (mismo
+     problema que arriba, agravado) -- se detectó revisando la app real en
+     viewports de celular Y tablet, no solo diseñando "a ojo". Se compacta la
+     marca (sin subtítulo) y la navegación pasa a solo íconos -- con eso los
+     5 caben sin scroll horizontal; el nombre de cada sección se conserva
+     como `title` (tooltip) y `aria-label` para accesibilidad. */
+  @media (max-width: 560px) {
     #bitacora-root .app-shell { flex-direction: column; min-height: 0; }
     #bitacora-root .sidebar {
       width: 100%; height: auto; position: sticky; top: 0; z-index: 5;
       flex-direction: row; align-items: center; overflow-x: auto;
     }
-    #bitacora-root .sidebar-brand { border-bottom: none; border-right: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
-    #bitacora-root .sidebar-nav { flex-direction: row; padding: 10px 12px; flex: 0 0 auto; }
-    #bitacora-root .nav-item { white-space: nowrap; }
-    #bitacora-root .sidebar-foot { display: none; }
-    #bitacora-root .wrap { padding: 24px 18px 40px; }
-  }
-
-  /* Celular: con marca + 5 ítems de texto no cabe todo en ~375px de ancho y
-     terminaba desbordado sin ninguna pista de que se podía deslizar (mala
-     "facilidad de uso" -- se detectó revisando la app real en un viewport de
-     celular). Se compacta la marca (sin subtítulo) y la navegación pasa a
-     solo íconos -- con eso los 5 caben sin scroll horizontal; el nombre de
-     cada sección se conserva como `title` (tooltip) y `aria-label` para
-     accesibilidad. */
-  @media (max-width: 560px) {
-    #bitacora-root .sidebar-brand { padding: 12px 12px; gap: 8px; }
+    #bitacora-root .sidebar-brand {
+      border-bottom: none; border-right: 1px solid rgba(255,255,255,.08); flex-shrink: 0;
+      padding: 12px 12px; gap: 8px;
+    }
     #bitacora-root .sidebar-brand-text p { display: none; }
     #bitacora-root .sidebar-brand-text h1 { font-size: 14px; }
-    #bitacora-root .sidebar-nav { gap: 4px; padding: 8px; }
-    #bitacora-root .nav-item { padding: 10px; }
+    #bitacora-root .sidebar-nav { flex-direction: row; gap: 4px; padding: 8px; flex: 0 0 auto; }
+    #bitacora-root .nav-item { padding: 10px; white-space: nowrap; font-size: 13.5px; }
     #bitacora-root .nav-item .nav-label { display: none; }
+    #bitacora-root .sidebar-foot { display: none; }
     #bitacora-root .wrap { padding: 20px 14px 32px; }
     #bitacora-root .view-header h1 { font-size: 20px; }
   }

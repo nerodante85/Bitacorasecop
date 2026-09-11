@@ -81,16 +81,32 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
   `lastScored` (la última búsqueda en pantalla) para mostrar título/veredicto
   cuando puede, y nunca inventa un título si el proceso no está en la
   búsqueda actual.
-- **Responsive**: dos breakpoints. A 900px `.app-shell` pasa de fila a
-  columna y la sidebar de columna vertical a fila horizontal, en vez de
-  ocultarse tras un menú hamburguesa (menos JS, no se "rompe" en tablet). A
-  560px (celular real) la marca + 5 ítems de texto no cabían y quedaban
-  desbordados con scroll horizontal SIN ninguna pista visual de que había más
-  -- se detectó pidiéndole a Claude que revisara la app real en un viewport
-  de celular, no solo tablet. Se corrigió: la navegación pasa a solo íconos
-  (`.nav-item .nav-label { display:none }`, con `title`/`aria-label` en cada
-  botón para conservar el nombre accesible) y la marca pierde el subtítulo —
-  los 5 caben sin scroll.
+- **Responsive**: dos breakpoints, y el primer intento a 900px estaba mal —
+  probar en un viewport real (no solo "achicar la ventana en desktop") lo
+  dejó en evidencia dos veces seguidas:
+  - Intento 1 (descartado): a ≤900px la sidebar pasaba de columna vertical a
+    FILA horizontal con marca + 5 ítems de texto. Se veía bien en desktop
+    achicado, pero probado en un viewport de celular real (375px) el
+    contenido necesitaba 993px contra 359px visibles — desbordado con scroll
+    horizontal sin ninguna pista visual. Al pedir "revisa cómo se ve en
+    tablet" y probarlo en 768px real (no el ancho ~800px al que la
+    herramienta de captura redondea por defecto — hay que fijar un tamaño
+    custom de 768x1024 para que `window.innerWidth` sea realmente 768).
+    seguía desbordado (993px contra 737px) — la fila horizontal tampoco cabe
+    en un iPad en vertical.
+  - Solución final: **la sidebar se queda vertical mucho más abajo**. A
+    ≤900px (tablet, ej. 768px de ancho) solo se angosta a 208px — sigue
+    siendo una columna con `.app-shell` en fila, hay espacio de sobra para
+    el contenido en una sola columna al lado. Recién a ≤560px (celular real)
+    `.app-shell` pasa a columna y la sidebar a fila horizontal SOLO ÍCONOS
+    (`.nav-item .nav-label { display:none }`, con `title`/`aria-label` en
+    cada botón para conservar el nombre accesible) — ahí sí una sidebar
+    vertical de 208px se comería más de la mitad de la pantalla.
+  - Lección: para probar un breakpoint intermedio (tablet), fijar el tamaño
+    exacto con `resize_window` (ancho+alto explícitos) en vez de un preset o
+    de solo achicar la ventana de escritorio — un preset o la ventana del
+    propio panel de vista previa pueden no bajar de ~800px de ancho real
+    aunque se pida menos, dando una falsa sensación de que "cabe".
 - **Botones/mensajes en mayúscula sostenida** ("GUARDAR PERFIL", "CARGAR RUP",
   "¿ELIMINAR? CLIC DE NUEVO"): quedaban varios reinyectados dinámicamente por
   JS después de convertir el HTML estático a minúscula/oración normal (ej. en
