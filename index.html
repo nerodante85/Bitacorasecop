@@ -409,6 +409,10 @@
       </div>
       <div class="field-grid">
         <div class="field full">
+          <label>Nº DE PROCESO O REFERENCIA (búsqueda directa, opcional)</label>
+          <input id="bt-proceso" type="text" placeholder="ej. LP-005-2026, SAMC-05-2026, CO1.REQ.10526881">
+        </div>
+        <div class="field full">
           <label>ESPECIALIDADES (separadas por coma)</label>
           <input id="bt-kw" type="text" placeholder="pavimentación, alcantarillado, obra civil, vías terciarias" value="pavimentación, obra civil, alcantarillado, edificación">
         </div>
@@ -524,7 +528,8 @@
     </div>
 
     <div class="footnote">
-      Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
+      Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades, o por el Nº de proceso si lo llenaste). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
+      Si llenas "Nº de proceso o referencia", esa búsqueda manda: encuentra el proceso aunque no coincida con las Especialidades, el Departamento, ni con "Ocultar vencidos" / "≤30 días" / "Solo Licitación Pública" / estado / descartados — para no ocultar por accidente el proceso puntual que buscas. Vacía esa casilla para volver a la búsqueda por filtros.<br>
       El historial de "visto"/"descartado", los perfiles de empresa y los análisis de pliegos se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfiles de empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y de experiencia (priorizando los de obra) y, orientativamente, los indicadores financieros — revísalos antes de guardar.<br>
       El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos", empresa por empresa. Desde el resultado puedes descargar o copiar un informe detallado (qué coincide y qué NO aparece, por empresa).<br>
       Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto (marcado con ⚙); esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
@@ -552,6 +557,7 @@
     };
   }
   const root = document.getElementById('bitacora-root');
+  const procesoInput = document.getElementById('bt-proceso');
   const kwInput = document.getElementById('bt-kw');
   const geoInput = document.getElementById('bt-geo');
   const minInput = document.getElementById('bt-min');
@@ -1063,8 +1069,8 @@
 
   function rerender(){
     if (lastRecords){
-      const { keywords, geos, minV, maxV } = getInputs();
-      render(lastRecords, keywords, geos, minV, maxV);
+      const { keywords, geos, minV, maxV, numProceso } = getInputs();
+      render(lastRecords, keywords, geos, minV, maxV, numProceso);
     }
   }
 
@@ -1970,12 +1976,17 @@
     return -2;
   }
 
-  function render(records, keywords, geos, minV, maxV){
+  function render(records, keywords, geos, minV, maxV, numProceso){
     const hideClosed = hideClosedEl.checked;
     const hideOld = hideOldEl.checked;
     const onlyLicitacion = onlyLicitacionEl.checked;
     const hideDiscarded = hideDiscardedEl.checked;
     const hideNoGo = hideNoGoEl && hideNoGoEl.checked;
+    // Con Nº de proceso lleno, esa búsqueda MANDA: se ignoran especialidades,
+    // departamento, y el resto de casillas (vencidos/≤30 días/Licitación
+    // Pública/estado/descartados) para no ocultar por accidente el proceso
+    // puntual que se busca.
+    const buscandoProceso = !!(numProceso && numProceso.trim());
 
     // Con el snapshot embebido, "vencido" y "≤30 días" se miden contra la fecha
     // del snapshot, no contra hoy (ver scoreRecord).
@@ -1997,37 +2008,42 @@
       return { item, score, daysLeft: base.daysLeft, daysSincePub: base.daysSincePub, keywordHits: base.keywordHits, geoHits: base.geoHits, tier: classify(score), scoreAdjusted: adjustment !== 0, evaluacion: null };
     });
 
-    // Las especialidades y el departamento son FILTROS reales, no solo un peso de
-    // orden: si el usuario puso palabras clave o departamentos, se descartan los
-    // procesos que no mencionan ninguno.
-    if (keywords.length) scored = scored.filter(s => s.keywordHits > 0);
-    if (geos.length) scored = scored.filter(s => s.geoHits > 0);
+    if (buscandoProceso){
+      scored = scored.filter(s => matchesProceso(s.item.searchable, numProceso));
+    } else {
+      // Las especialidades y el departamento son FILTROS reales, no solo un peso de
+      // orden: si el usuario puso palabras clave o departamentos, se descartan los
+      // procesos que no mencionan ninguno.
+      if (keywords.length) scored = scored.filter(s => s.keywordHits > 0);
+      if (geos.length) scored = scored.filter(s => s.geoHits > 0);
 
-    if (hideClosed) scored = scored.filter(s => s.daysLeft === null || s.daysLeft >= 0);
-    // "Solo publicados hace ≤30 días": si no se sabe la fecha de publicación, se
-    // descarta también en vez de mostrarlo -- con este filtro activo, lo que se
-    // pide es certeza de que es reciente, no darle el beneficio de la duda.
-    if (hideOld) scored = scored.filter(s => s.daysSincePub !== null && s.daysSincePub >= 0 && s.daysSincePub <= 30);
-    // "Solo Licitación Pública": el campo modalidad_de_contratacion trae variantes
-    // como "Licitación pública" y "Licitación pública Obra Publica" -- se aceptan
-    // ambas, cualquier modalidad que empiece por "licitación pública" (sin importar
-    // acentos/mayúsculas). Otras modalidades (Selección Abreviada, Mínima Cuantía,
-    // Contratación Directa/régimen especial, etc.) quedan fuera.
-    // "Solo Licitación Pública (Obra pública)": exige que la modalidad diga tanto
-    // "licitación pública" como "obra" -- la licitación pública genérica (sin la
-    // palabra obra) puede ser para consultoría, bienes u otros servicios, no
-    // necesariamente para construcción.
-    if (onlyLicitacion) scored = scored.filter(s => {
-      const m = (s.item.modalidad || '').toLowerCase();
-      return /licitaci[oó]n\s*p[uú]blica/i.test(m) && /obra/i.test(m);
-    });
+      if (hideClosed) scored = scored.filter(s => s.daysLeft === null || s.daysLeft >= 0);
+      // "Solo publicados hace ≤30 días": si no se sabe la fecha de publicación, se
+      // descarta también en vez de mostrarlo -- con este filtro activo, lo que se
+      // pide es certeza de que es reciente, no darle el beneficio de la duda.
+      if (hideOld) scored = scored.filter(s => s.daysSincePub !== null && s.daysSincePub >= 0 && s.daysSincePub <= 30);
+      // "Solo Licitación Pública": el campo modalidad_de_contratacion trae variantes
+      // como "Licitación pública" y "Licitación pública Obra Publica" -- se aceptan
+      // ambas, cualquier modalidad que empiece por "licitación pública" (sin importar
+      // acentos/mayúsculas). Otras modalidades (Selección Abreviada, Mínima Cuantía,
+      // Contratación Directa/régimen especial, etc.) quedan fuera.
+      // "Solo Licitación Pública (Obra pública)": exige que la modalidad diga tanto
+      // "licitación pública" como "obra" -- la licitación pública genérica (sin la
+      // palabra obra) puede ser para consultoría, bienes u otros servicios, no
+      // necesariamente para construcción.
+      if (onlyLicitacion) scored = scored.filter(s => {
+        const m = (s.item.modalidad || '').toLowerCase();
+        return /licitaci[oó]n\s*p[uú]blica/i.test(m) && /obra/i.test(m);
+      });
+    }
 
     // Filtro por ESTADO: los valores posibles varían según lo que traiga la consulta
     // (a diferencia de modalidad, que tiene un set fijo), así que los checkboxes se
     // generan dinámicamente según lo que aparezca aquí. Se recuerda qué estados
     // dejó marcados/desmarcados el usuario (estadoSeleccionado) para no resetear su
     // elección cada vez que cambia otro filtro; un estado nuevo que no se había visto
-    // antes empieza marcado (visible) por defecto.
+    // antes empieza marcado (visible) por defecto. Con búsqueda por Nº de proceso no
+    // se aplica -- ver comentario de buscandoProceso más arriba.
     const estadosPresentes = Array.from(new Set(scored.map(s => s.item.estado || 'Sin estado'))).sort();
     estadosPresentes.forEach(e => { if (!(e in estadoSeleccionado)) estadoSeleccionado[e] = true; });
     estadoTogglesEl.innerHTML = estadosPresentes.length ? ('<span class="toggle-label">Estado:</span>' + estadosPresentes.map(e =>
@@ -2039,7 +2055,7 @@
         rerender();
       });
     });
-    scored = scored.filter(s => estadoSeleccionado[s.item.estado || 'Sin estado'] !== false);
+    if (!buscandoProceso) scored = scored.filter(s => estadoSeleccionado[s.item.estado || 'Sin estado'] !== false);
 
     // Evaluación go/no-go: se calcula AQUÍ (tras los filtros baratos) para no
     // correrla sobre los ~1000 registros crudos.
@@ -2055,7 +2071,7 @@
       return h && h.status === 'visto' && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
     }).length;
 
-    if (hideDiscarded) scored = scored.filter(s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
+    if (hideDiscarded && !buscandoProceso) scored = scored.filter(s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
     if (hideNoGo) scored = scored.filter(s => !(s.evaluacion && s.evaluacion.mejor.veredicto === 'NO-GO'));
 
     scored.sort((a,b) => b.score - a.score || (a.daysLeft ?? 999) - (b.daysLeft ?? 999) || (a.daysSincePub ?? 999) - (b.daysSincePub ?? 999));
@@ -2075,7 +2091,10 @@
     poblarEvalSelect(scored);
 
     if (scored.length === 0){
-      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Barlow Condensed\',sans-serif;font-size:18px;margin-bottom:6px;">SIN RESULTADOS</strong>Prueba con menos palabras clave, quita el filtro de departamento, o desmarca "Solo Licitación Pública" / "Solo publicados hace ≤30 días" / vencidos / descartados.</div>';
+      const sugerencia = buscandoProceso
+        ? 'No apareció ningún proceso con ese número/referencia entre los datos consultados. Revisa que esté bien escrito, o prueba solo con una parte (por ejemplo, sin el año).'
+        : 'Prueba con menos palabras clave, quita el filtro de departamento, o desmarca "Solo Licitación Pública" / "Solo publicados hace ≤30 días" / vencidos / descartados.';
+      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Barlow Condensed\',sans-serif;font-size:18px;margin-bottom:6px;">SIN RESULTADOS</strong>' + sugerencia + '</div>';
       return;
     }
 
@@ -2154,7 +2173,18 @@
     const geos = geoInput.value.split(',').map(s => s.trim()).filter(Boolean);
     const minV = Number(minInput.value) || 0;
     const maxV = Number(maxInput.value) || 0;
-    return { keywords, geos, minV, maxV };
+    const numProceso = procesoInput ? procesoInput.value.trim() : '';
+    return { keywords, geos, minV, maxV, numProceso };
+  }
+
+  // Búsqueda directa por Nº de proceso / referencia: substring simple (sin la
+  // raíz de 6 letras de matchesTerm, que es para palabras -- esto es un código)
+  // contra el registro completo, así que da igual en qué campo del dataset esté
+  // (referencia_del_proceso, id_del_proceso, proceso_de_compra...).
+  function matchesProceso(searchable, term){
+    const t = String(term || '').toLowerCase().replace(/\s+/g, '');
+    if (!t) return false;
+    return searchable.replace(/\s+/g, '').includes(t);
   }
 
   // ============================================================================
@@ -2218,7 +2248,7 @@
     isDemo = false;
     isSnapshot = false;
     demoBanner.style.display = 'none';
-    const { keywords, geos, minV, maxV } = getInputs();
+    const { keywords, geos, minV, maxV, numProceso } = getInputs();
 
     // IMPORTANTE: se ancla la consulta en vivo por ESPECIALIDAD cuando hay alguna
     // (una consulta $q por palabra clave), no por departamento. Anclar solo por
@@ -2227,8 +2257,9 @@
     // clave del lado del cliente no tenía nada relevante que mostrar, aunque
     // existieran miles de procesos reales con ese término en todo el dataset.
     // El departamento se sigue aplicando, pero como filtro del lado del cliente
-    // (ver render()), igual que las palabras clave.
-    const anchors = keywords.length ? keywords : geos;
+    // (ver render()), igual que las palabras clave. Si hay Nº de proceso, ese es
+    // el único ancla -- es lo bastante específico como para no necesitar más.
+    const anchors = numProceso ? [numProceso] : (keywords.length ? keywords : geos);
 
     showLoading();
     searchBtn.disabled = true;
@@ -2238,7 +2269,7 @@
     try {
       const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
       lastRecords = live;
-      render(live, keywords, geos, minV, maxV);
+      render(live, keywords, geos, minV, maxV, numProceso);
       dataFreshnessEl.textContent = 'Datos en vivo (' + live.length + ' procesos) — consultados justo ahora en datos.gov.co.';
     } catch(err){
       // Sin conexión en vivo (p.ej. corriendo dentro de un artifact de Claude.ai):
@@ -2246,7 +2277,7 @@
       try {
         isSnapshot = true;
         lastRecords = EMBEDDED_RECORDS_II;
-        render(lastRecords, keywords, geos, minV, maxV);
+        render(lastRecords, keywords, geos, minV, maxV, numProceso);
         const freshDate = fmtDate(DATA_SNAPSHOT_DATE + 'T00:00:00.000');
         dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (' + (err.message || 'error de red') + '). Mostrando snapshot de respaldo: ' + EMBEDDED_RECORDS_II.length + ' procesos, actualizado el ' + freshDate + '. Los filtros de "vencido" y "≤30 días" se miden contra esa fecha.';
       } catch(err2){
@@ -2273,10 +2304,10 @@
       { entidad: 'Municipio de Los Patios', objeto_del_proceso: 'Construcción de la primera etapa del edificio administrativo municipal', modalidad_de_contratacion: 'Licitación pública', departamento: 'Norte de Santander', ciudad: 'Los Patios', precio_base: 2600000000, urlproceso: { url: 'https://community.secop.gov.co' }, fecha_de_publicacion_del: '2026-07-30T00:00:00.000', fecha_de_recepcion_de: pastDate(4) },
       { entidad: 'Área Metropolitana de Cúcuta', objeto_del_proceso: 'Interventoría técnica, administrativa y financiera a obras de pavimentación en vías terciarias', modalidad_de_contratacion: 'Concurso de méritos', departamento: 'Norte de Santander', ciudad: 'Cúcuta', precio_base: 610000000, urlproceso: { url: 'https://community.secop.gov.co' }, fecha_de_publicacion_del: '2026-08-18T00:00:00.000', fecha_de_recepcion_de: futureDate(18) }
     ];
-    const { keywords, geos, minV, maxV } = getInputs();
+    const { keywords, geos, minV, maxV, numProceso } = getInputs();
     lastRecords = demo;
     await appReady;
-    render(demo, keywords, geos, minV, maxV);
+    render(demo, keywords, geos, minV, maxV, numProceso);
   }
 
   function futureDate(days){ const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString(); }
@@ -2481,6 +2512,7 @@
   }
 
   searchBtn.addEventListener('click', runSearch);
+  if (procesoInput) procesoInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
   demoBtn.addEventListener('click', loadDemo);
   hideClosedEl.addEventListener('change', rerender);
   hideOldEl.addEventListener('change', rerender);
