@@ -78,6 +78,20 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
     versión 3.11.174, con `GlobalWorkerOptions.workerSrc` apuntando al mismo
     CDN.
 
+10b. **SheetJS (xlsx) también se sirve bien desde cdnjs** —
+    `cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js`. Con
+    `XLSX.utils.sheet_to_json(hoja, {header:1, raw:false, defval:''})` se
+    obtienen filas como arrays (no objetos por encabezado), lo que permite
+    detectar la fila de encabezados por heurística (primera fila con ≥2
+    celdas no vacías) en vez de asumir que es la fila 1. No se pudo generar
+    un `.xlsx` de prueba con Node/openpyxl en este entorno (ninguno de los
+    dos está disponible) — los archivos de prueba se armaron a mano con
+    `zipfile` de Python (OOXML mínimo: `[Content_Types].xml`, `_rels/.rels`,
+    `xl/workbook.xml`, `xl/_rels/workbook.xml.rels`,
+    `xl/worksheets/sheet1.xml`, celdas `t="inlineStr"` para texto y `<v>`
+    plano para números) e inyectados al `<input type=file>` real con el mismo
+    patrón que el RUP (ver punto 11).
+
 11. **Formato del RUP (certificado de la Cámara de Comercio / Confecámaras)** —
     verificado contra 2 certificados reales de la Cámara de Comercio de Cúcuta
     (2020 y 2026), para el autocompletado del perfil:
@@ -145,6 +159,26 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
 - Exportación CSV de procesos de alta prioridad, y "copiar resumen" como
   texto plano.
 - Historial persistente de "visto"/"descartado" por proceso.
+- **Evaluación de experiencia** (panel independiente, "Evaluación de
+  experiencia"): cruza DOS Excel — "Experiencia del proponente" (contratos
+  ejecutados) y "Matriz de experiencia / Formato" (requisitos) — con un motor
+  de comparación ESTRUCTURADO por fila (no por palabra suelta como el
+  análisis de pliegos PDF). Detecta encabezados por heurística de substrings
+  (no asume nombres de columna fijos) y muestra qué columna usó por campo
+  ("Revisar interpretación") antes de evaluar. Cada requisito se evalúa
+  contra los contratos relevantes (coincidencia de palabra clave DISTINTIVA
+  del objeto/actividades — una palabra genérica como "construcción" sola no
+  basta) más los criterios numéricos que traiga la matriz (mínimo de
+  contratos, valor mínimo, cantidad mínima, acumulable o no). Resultado por
+  requisito: CUMPLE / NO CUMPLE / NO DETERMINABLE, con evidencia (qué fila de
+  contrato) y justificación — NO DETERMINABLE nunca se convierte en NO CUMPLE
+  automáticamente. El resultado global solo lo deciden los requisitos
+  marcados "obligatorio" (detectado por palabras en la matriz;
+  opcional/complementario/alternativo se muestran pero no arrastran el
+  global). Informe descargable en `.txt`. Es una evaluación por reglas, no
+  interpretación semántica real: no hay NLP/LLM en el navegador para juzgar
+  si dos objetos contractuales son "equivalentes" en alcance — por diseño,
+  ante la duda marca NO DETERMINABLE en vez de inventar un CUMPLE.
 
 ## Cómo probar cambios sin desplegar
 

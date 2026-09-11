@@ -381,6 +381,48 @@
     #bitacora-root .field-grid { grid-template-columns: 1fr 1fr; }
     #bitacora-root .field.full { grid-column: 1 / -1; }
   }
+
+  #bitacora-root .expeval-uploads {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+    margin-bottom: 10px; padding: 8px 10px; background: var(--paper); border: 1px solid #D8D0BC;
+  }
+  #bitacora-root .expeval-uploads button { font-size: 12.5px; padding: 8px 10px; }
+  #bitacora-root .expeval-review { margin-top: 4px; margin-bottom: 10px; }
+  #bitacora-root .expeval-review summary {
+    cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--navy-line);
+  }
+  #bitacora-root .expeval-table-wrap { overflow-x: auto; margin-top: 6px; }
+  #bitacora-root table.expeval-table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+  #bitacora-root table.expeval-table th, #bitacora-root table.expeval-table td {
+    border: 1px solid #D8D0BC; padding: 5px 7px; text-align: left; vertical-align: top;
+  }
+  #bitacora-root table.expeval-table th {
+    background: var(--paper-dark); font-family: 'IBM Plex Mono', monospace; font-weight: 500;
+    font-size: 10px; letter-spacing: 0.3px; color: var(--navy);
+  }
+  #bitacora-root .expeval-badge {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11.5px;
+    letter-spacing: 0.3px; border: 1.5px solid currentColor; padding: 1px 7px;
+    white-space: nowrap; display: inline-block;
+  }
+  #bitacora-root .expeval-cumple { color: var(--good); }
+  #bitacora-root .expeval-nocumple { color: var(--orange); }
+  #bitacora-root .expeval-nd { color: #8A6A1C; }
+  #bitacora-root .expeval-summary { display: flex; flex-wrap: wrap; gap: 18px; margin: 10px 0; }
+  #bitacora-root .expeval-summary .stat {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; line-height: 1;
+  }
+  #bitacora-root .expeval-summary .stat span {
+    display: block; font-family: 'IBM Plex Mono', monospace; font-weight: 400; font-size: 10px;
+    color: var(--grey); letter-spacing: 0.3px; margin-top: 3px;
+  }
+  #bitacora-root .expeval-global {
+    border: 1.5px solid currentColor; padding: 8px 12px; margin: 4px 0 10px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px;
+  }
+  #bitacora-root .expeval-global small {
+    font-family: 'IBM Plex Mono', monospace; font-weight: 400; font-size: 11px;
+  }
 </style>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -493,6 +535,32 @@
       </div>
     </div>
 
+    <div class="titleblock" id="bt-expeval-panel">
+      <div class="titleblock-head">
+        <h2>Evaluación de experiencia</h2>
+        <span>Cruza la experiencia acreditada (Excel) contra la matriz de requisitos (Excel/Formato) — CUMPLE / NO CUMPLE / NO DETERMINABLE</span>
+      </div>
+      <div class="expeval-uploads">
+        <span class="toggle-label">1. EXPERIENCIA DEL PROPONENTE:</span>
+        <button class="btn-secondary" id="bt-expeval-exp-upload" type="button">CARGAR EXCEL</button>
+        <input type="file" accept=".xlsx,.xls,.csv" id="bt-expeval-exp-file" hidden>
+        <span class="saved-note" id="bt-expeval-exp-status">Sin cargar.</span>
+      </div>
+      <div class="expeval-uploads">
+        <span class="toggle-label">2. MATRIZ DE EXPERIENCIA (FORMATO):</span>
+        <button class="btn-secondary" id="bt-expeval-matriz-upload" type="button">CARGAR EXCEL</button>
+        <input type="file" accept=".xlsx,.xls,.csv" id="bt-expeval-matriz-file" hidden>
+        <span class="saved-note" id="bt-expeval-matriz-status">Sin cargar.</span>
+      </div>
+      <div id="bt-expeval-review"></div>
+      <div class="actions">
+        <button class="btn-primary" id="bt-expeval-run" disabled>ANALIZAR EXPERIENCIA</button>
+        <button class="link-btn" id="bt-expeval-informe" style="display:none">Descargar informe (.txt)</button>
+        <button class="link-btn" id="bt-expeval-clear" style="display:none">Borrar lo cargado</button>
+      </div>
+      <div id="bt-expeval-out"></div>
+    </div>
+
     <div id="bt-demo-banner" style="display:none" class="demo-banner">DATOS DE EJEMPLO — no proviene de SECOP II en vivo. Úsalo solo para ver cómo luce la bitácora.</div>
 
     <div class="status-row" id="bt-status" style="display:none">
@@ -597,6 +665,17 @@
   const perfilRupUploadBtn = document.getElementById('bt-perfil-rup-upload');
   const perfilRupFileEl = document.getElementById('bt-perfil-rup-file');
   const perfilRupStatusEl = document.getElementById('bt-perfil-rup-status');
+  const expevalExpUploadBtn = document.getElementById('bt-expeval-exp-upload');
+  const expevalExpFileEl = document.getElementById('bt-expeval-exp-file');
+  const expevalExpStatusEl = document.getElementById('bt-expeval-exp-status');
+  const expevalMatrizUploadBtn = document.getElementById('bt-expeval-matriz-upload');
+  const expevalMatrizFileEl = document.getElementById('bt-expeval-matriz-file');
+  const expevalMatrizStatusEl = document.getElementById('bt-expeval-matriz-status');
+  const expevalReviewEl = document.getElementById('bt-expeval-review');
+  const expevalRunBtn = document.getElementById('bt-expeval-run');
+  const expevalInformeBtn = document.getElementById('bt-expeval-informe');
+  const expevalClearBtn = document.getElementById('bt-expeval-clear');
+  const expevalOutEl = document.getElementById('bt-expeval-out');
 
   let lastRecords = null;
   let isDemo = false;
@@ -1063,10 +1142,42 @@
     }
   }
 
+  // Evaluación de experiencia (Excel proponente vs Excel matriz): se guarda
+  // todo junto (contratos parseados, requisitos parseados, metadatos de los
+  // archivos y el último resultado) para no repetir la lectura del Excel al
+  // recargar la página.
+  let expevalContratos = null;   // { headers, cols, contratos } de parsearExcelExperiencia
+  let expevalRequisitos = null;  // { headers, cols, requisitos } de parsearMatrizExperiencia
+  let expevalMeta = null;        // { expFile, matrizFile }
+  let expevalResultado = null;   // resultado de evaluarExperienciaCompleta
+
+  async function loadExpEval(){
+    try {
+      const r = await window.storage.get('experiencia_evaluacion', false);
+      if (r && r.value){
+        const d = JSON.parse(r.value);
+        expevalContratos = d.contratos || null;
+        expevalRequisitos = d.requisitos || null;
+        expevalMeta = d.meta || null;
+        expevalResultado = d.resultado || null;
+      }
+    } catch(e){ /* nada guardado aún */ }
+  }
+
+  async function saveExpEval(){
+    try {
+      await window.storage.set('experiencia_evaluacion', JSON.stringify({
+        contratos: expevalContratos, requisitos: expevalRequisitos, meta: expevalMeta, resultado: expevalResultado
+      }), false);
+    } catch(e){
+      console.error('No se pudo guardar la evaluación de experiencia', e);
+    }
+  }
+
   // allSettled, no all: si un loader falla (p.ej. un getElementById que devuelve
   // null por un campo renombrado en el HTML), los otros dos igual cargan y el
   // arranque no se aborta -- antes esto dejaba la página pegada en "Cargando...".
-  const appReady = Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis()]);
+  const appReady = Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval()]);
 
   function rerender(){
     if (lastRecords){
@@ -1198,6 +1309,384 @@
       text += content.items.map(it => it.str).join(' ') + '\n';
     }
     return { text: text, numPages: pdf.numPages, pagesRead: n };
+  }
+
+  // ==========================================================================
+  // EVALUACIÓN DE EXPERIENCIA: cruce Excel "Experiencia del proponente" (Fuente
+  // A) contra Excel "Matriz de experiencia / Formato" (Fuente B). A diferencia
+  // del análisis de pliegos PDF de arriba (que compara texto libre por palabra
+  // suelta), este motor trabaja con datos ESTRUCTURADOS fila por fila y evalúa
+  // criterio por criterio, con evidencia trazable (qué contrato, qué campo) y
+  // tres estados: CUMPLE / NO CUMPLE / NO DETERMINABLE. NO DETERMINABLE nunca
+  // se convierte automáticamente en NO CUMPLE -- si falta un dato para decidir,
+  // se dice explícitamente qué falta, tal como se pidió.
+  // ==========================================================================
+
+  function loadXlsxLib(){
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    if (window.__bitacoraXlsxPromise) return window.__bitacoraXlsxPromise;
+    window.__bitacoraXlsxPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.onload = () => resolve(window.XLSX);
+      script.onerror = () => reject(new Error('no se pudo cargar el lector de Excel (revisa tu conexión)'));
+      document.head.appendChild(script);
+    });
+    return window.__bitacoraXlsxPromise;
+  }
+
+  // Quita tildes, baja a minúscula y colapsa espacios -- para comparar
+  // encabezados de Excel sin depender de mayúsculas/tildes/acentos.
+  function normHeader(s){
+    return String(s == null ? '' : s)
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9%\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Diccionarios de encabezados candidatos por campo lógico. No asume que el
+  // Excel siempre trae exactamente estos nombres -- prueba coincidencia por
+  // substring y se queda con la más específica (más larga) disponible.
+  const DICC_CONTRATO = {
+    objeto: ['objeto contractual', 'objeto del contrato', 'descripcion del contrato', 'objeto', 'descripcion', 'alcance del contrato', 'alcance'],
+    contratante: ['entidad contratante', 'contratante', 'cliente', 'entidad'],
+    valor: ['valor del contrato', 'valor contrato', 'valor ejecutado', 'valor', 'monto'],
+    fechaInicio: ['fecha de inicio', 'fecha inicio', 'inicio'],
+    fechaFin: ['fecha de terminacion', 'fecha terminacion', 'fecha de fin', 'fecha fin', 'terminacion', 'fin'],
+    duracion: ['duracion en meses', 'duracion meses', 'plazo en meses', 'duracion', 'plazo'],
+    cantidad: ['cantidad ejecutada', 'unidades ejecutadas', 'cantidad', 'unidades'],
+    tipo: ['tipo de experiencia', 'general especifica', 'clasificacion', 'tipo'],
+    actividades: ['actividades ejecutadas', 'trabajos ejecutados', 'alcance de actividades', 'actividades'],
+    numeroContrato: ['numero de contrato', 'no de contrato', 'contrato no', 'numero contrato'],
+    participacion: ['porcentaje de participacion', 'participacion']
+  };
+  const DICC_REQUISITO = {
+    criterio: ['requisito', 'descripcion del requisito', 'experiencia requerida', 'experiencia exigida', 'objeto exigido', 'criterio', 'descripcion'],
+    tipo: ['tipo de experiencia', 'general especifica', 'clasificacion', 'tipo'],
+    minContratos: ['numero minimo de contratos', 'minimo de contratos', 'contratos minimos', 'cantidad minima de contratos'],
+    minValor: ['valor minimo exigido', 'valor minimo', 'smmlv minimo', 'smmlv exigido'],
+    minCantidad: ['cantidad minima exigida', 'cantidad minima'],
+    obligatoriedad: ['tipo de exigencia', 'obligatoriedad', 'caracter'],
+    acumulable: ['acumulable', 'sumatoria']
+  };
+
+  // Asigna, para cada campo lógico del diccionario, cuál columna del Excel
+  // (índice) le corresponde -- sin repetir columna entre campos, y dejando
+  // null (sin adivinar) lo que no reconoce con suficiente confianza.
+  function detectarColumnas(headers, diccionario){
+    const normed = headers.map(normHeader);
+    const usados = new Set();
+    const resultado = {};
+    Object.keys(diccionario).forEach(campo => {
+      const candidatos = diccionario[campo];
+      let mejorIdx = -1, mejorScore = 0;
+      normed.forEach((h, i) => {
+        if (usados.has(i) || !h) return;
+        candidatos.forEach(c => {
+          const score = (h === c) ? c.length + 1000 : (h.indexOf(c) !== -1 ? c.length : 0);
+          if (score > mejorScore){ mejorScore = score; mejorIdx = i; }
+        });
+      });
+      resultado[campo] = mejorIdx !== -1 ? mejorIdx : null;
+      if (mejorIdx !== -1) usados.add(mejorIdx);
+    });
+    return resultado;
+  }
+
+  // Lee la primera hoja de un workbook como filas. La fila de encabezados es
+  // la primera con al menos 2 celdas no vacías (evita confundir una fila-título
+  // suelta arriba con el encabezado real).
+  function leerHojaComoFilas(workbook){
+    const nombreHoja = workbook.SheetNames[0];
+    const hoja = workbook.Sheets[nombreHoja];
+    const filas = window.XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
+    const idxHeader = filas.findIndex(f => f.filter(c => String(c).trim() !== '').length >= 2);
+    if (idxHeader === -1) return { headers: [], rows: [], hojaNombre: nombreHoja };
+    const headers = filas[idxHeader].map(h => String(h || '').trim());
+    const rows = filas.slice(idxHeader + 1).filter(f => f.some(c => String(c).trim() !== ''));
+    return { headers: headers, rows: rows, hojaNombre: nombreHoja };
+  }
+
+  // dd/mm/yyyy, dd-mm-yyyy o yyyy-mm-dd -> 'yyyy-mm-dd'. Si el formato no se
+  // reconoce, devuelve null -- no inventa una fecha.
+  function parseFechaExcel(v){
+    if (v == null || v === '') return null;
+    const s = String(v).trim();
+    let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+    m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+    return null;
+  }
+
+  function parsearExcelExperiencia(workbook){
+    const { headers, rows } = leerHojaComoFilas(workbook);
+    const cols = detectarColumnas(headers, DICC_CONTRATO);
+    const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
+    const contratos = rows.map((row, i) => {
+      const valorObj = parseValorUnidad(String(get(row, 'valor') || ''));
+      const cantidadObj = parseValorUnidad(String(get(row, 'cantidad') || ''));
+      const tipoRaw = normHeader(String(get(row, 'tipo') || ''));
+      let tipo = 'no-clasificado';
+      if (/especif/.test(tipoRaw)) tipo = 'especifica';
+      else if (/general/.test(tipoRaw)) tipo = 'general';
+      return {
+        fila: i + 1,
+        objeto: (get(row, 'objeto') || '').toString().trim() || null,
+        contratante: (get(row, 'contratante') || '').toString().trim() || null,
+        valor: valorObj ? valorObj.valor : null,
+        valorRaw: (get(row, 'valor') || '').toString().trim() || null,
+        fechaInicio: parseFechaExcel(get(row, 'fechaInicio')),
+        fechaFin: parseFechaExcel(get(row, 'fechaFin')),
+        duracion: (get(row, 'duracion') || '').toString().trim() || null,
+        cantidad: cantidadObj,
+        cantidadRaw: (get(row, 'cantidad') || '').toString().trim() || null,
+        tipo: tipo,
+        actividades: (get(row, 'actividades') || '').toString().trim() || null,
+        numeroContrato: (get(row, 'numeroContrato') || '').toString().trim() || null,
+        participacion: parseValorUnidad(String(get(row, 'participacion') || ''))
+      };
+    });
+    return { headers: headers, cols: cols, contratos: contratos };
+  }
+
+  const STOPWORDS_ES = new Set(['de','del','la','el','los','las','en','y','o','para','con','por','a','al','un','una','que','se','su','sus','como','entre','sobre','este','esta','estos','estas','sea','ser','mas','no']);
+  // Palabras que aparecen en casi cualquier objeto de obra pública -- por sí
+  // solas NO bastan para considerar relevante un contrato frente a un requisito
+  // (así "construcción" no hace CUMPLIR algo que exige "construcción de vías"
+  // contra un contrato de "construcción de un edificio administrativo").
+  const PALABRAS_GENERICAS_OBRA = new Set(['construccion','construir','obra','obras','proyecto','proyectos','contrato','contratacion','ejecucion','ejecutar','mantenimiento','adecuacion','mejoramiento','infraestructura','servicio','servicios','desarrollo']);
+
+  function palabrasClaveDe(texto){
+    return Array.from(new Set(normHeader(texto).split(' ').filter(w => w.length > 3 && !STOPWORDS_ES.has(w))));
+  }
+
+  function parsearMatrizExperiencia(workbook){
+    const { headers, rows } = leerHojaComoFilas(workbook);
+    const cols = detectarColumnas(headers, DICC_REQUISITO);
+    const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
+    const requisitos = rows.map((row, i) => {
+      const criterioTexto = ((cols.criterio != null ? get(row, 'criterio') : row.join(' ')) || '').toString().trim();
+      const tipoRaw = normHeader(String(get(row, 'tipo') || criterioTexto));
+      let tipo = 'no-clasificado';
+      if (/especif/.test(tipoRaw)) tipo = 'especifica';
+      else if (/general/.test(tipoRaw)) tipo = 'general';
+      const oblRaw = normHeader(String(get(row, 'obligatoriedad') || '') + ' ' + criterioTexto);
+      let obligatoriedad = 'obligatorio';
+      if (/opcional/.test(oblRaw)) obligatoriedad = 'opcional';
+      else if (/complementari/.test(oblRaw)) obligatoriedad = 'complementario';
+      else if (/alternativ|cualquiera de|uno de los siguientes|o bien/.test(oblRaw)) obligatoriedad = 'alternativo';
+      const minContratosCelda = get(row, 'minContratos');
+      const minContratos = minContratosCelda ? parseNumCO(String(minContratosCelda)) : (function(){
+        const m = criterioTexto.match(/m[ií]nimo\s+de\s+(\d+)\s+contratos?/i) || criterioTexto.match(/(\d+)\s+contratos?\s+como\s+m[ií]nimo/i);
+        return m ? parseInt(m[1], 10) : null;
+      })();
+      const minValor = parseValorUnidad(String(get(row, 'minValor') || '')) || (function(){
+        const m = criterioTexto.match(/(\d[\d.,]*)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i);
+        return m ? parseValorUnidad(m[0]) : null;
+      })();
+      const minCantidad = parseValorUnidad(String(get(row, 'minCantidad') || ''));
+      const acumulableRaw = normHeader(String(get(row, 'acumulable') || '') + ' ' + criterioTexto);
+      const acumulable = /acumul|sumatoria|suma de los? contratos?/.test(acumulableRaw);
+      const palabras = palabrasClaveDe(criterioTexto);
+      const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p));
+      return {
+        id: 'r' + (i + 1), fila: i + 1, criterio: criterioTexto, tipo: tipo, obligatoriedad: obligatoriedad,
+        minContratos: minContratos, minValor: minValor, minCantidad: minCantidad, acumulable: acumulable,
+        palabrasClave: palabras, palabrasDistintivas: distintivas
+      };
+    }).filter(r => r.criterio);
+    return { headers: headers, cols: cols, requisitos: requisitos };
+  }
+
+  // Evalúa UN requisito contra los contratos disponibles. Nunca inventa: si
+  // falta un dato para decidir con confianza, el resultado es NO DETERMINABLE
+  // y se explica exactamente qué información adicional haría falta.
+  function evaluarRequisito(req, contratos){
+    const candidatos = (req.tipo === 'general' || req.tipo === 'especifica')
+      ? contratos.filter(c => c.tipo === req.tipo || c.tipo === 'no-clasificado')
+      : contratos.slice();
+
+    const relevancia = candidatos.map(c => {
+      const texto = normHeader((c.objeto || '') + ' ' + (c.actividades || ''));
+      const palabrasContrato = new Set(texto.split(' '));
+      const distMatch = req.palabrasDistintivas.filter(p => palabrasContrato.has(p));
+      const genMatch = req.palabrasClave.filter(p => PALABRAS_GENERICAS_OBRA.has(p) && palabrasContrato.has(p));
+      return { contrato: c, distMatch: distMatch, genMatch: genMatch, relevante: distMatch.length > 0 };
+    });
+    const relevantes = relevancia.filter(r => r.relevante).map(r => r.contrato);
+    const soloGenericos = relevancia.filter(r => !r.relevante && r.genMatch.length > 0);
+
+    const evidencia = [];
+    const faltantes = [];
+    let numericoOk = null;
+
+    if (req.minContratos != null){
+      const n = relevantes.length;
+      if (n === 0 && !req.palabrasDistintivas.length){
+        faltantes.push('El requisito no trae palabras clave distintivas del Excel/matriz para identificar qué contrato aplica.');
+      } else {
+        evidencia.push('Contratos relevantes encontrados: ' + n + ' (exige mínimo ' + req.minContratos + ').');
+        numericoOk = (numericoOk === false) ? false : (n >= req.minContratos);
+      }
+    }
+    if (req.minValor != null){
+      if (relevantes.length === 0){
+        faltantes.push('No hay contratos relevantes por objeto para comparar contra el valor mínimo exigido (' + req.minValor.valor + ' ' + req.minValor.unidad + ').');
+      } else if (relevantes.every(c => c.valor == null)){
+        faltantes.push('Los contratos relevantes no tienen un valor reconocido en el Excel (columna de valor no detectada o vacía).');
+      } else {
+        const conValor = relevantes.filter(c => c.valor != null);
+        const suma = conValor.reduce((a, c) => a + c.valor, 0);
+        const mejorIndividual = Math.max.apply(null, conValor.map(c => c.valor));
+        const cumpleValor = req.acumulable ? (suma >= req.minValor.valor) : (mejorIndividual >= req.minValor.valor);
+        evidencia.push((req.acumulable ? 'Suma de valores de contratos relevantes: ' : 'Mejor valor individual entre contratos relevantes: ') +
+          (req.acumulable ? suma : mejorIndividual) + ' (exige ' + req.minValor.valor + ' ' + req.minValor.unidad +
+          (req.acumulable ? ', acumulable entre contratos' : ', por contrato individual') + ').');
+        numericoOk = (numericoOk === false) ? false : cumpleValor;
+      }
+    }
+    if (req.minCantidad != null){
+      const conCantidad = relevantes.filter(c => c.cantidad && c.cantidad.valor != null);
+      if (!conCantidad.length){
+        faltantes.push('Ningún contrato relevante trae una cantidad reconocida para comparar contra el mínimo exigido (' + req.minCantidad.valor + ').');
+      } else {
+        const suma = conCantidad.reduce((a, c) => a + c.cantidad.valor, 0);
+        evidencia.push('Cantidad acumulada en contratos relevantes: ' + suma + ' (exige ' + req.minCantidad.valor + ').');
+        numericoOk = (numericoOk === false) ? false : (suma >= req.minCantidad.valor);
+      }
+    }
+
+    let resultado, justificacion;
+    const sinCriteriosNumericos = (req.minContratos == null && req.minValor == null && req.minCantidad == null);
+
+    if (relevantes.length === 0){
+      resultado = 'NO DETERMINABLE';
+      if (soloGenericos.length){
+        justificacion = 'Hay ' + soloGenericos.length + ' contrato(s) que comparten solo palabras genéricas de obra (' +
+          Array.from(new Set(soloGenericos.flatMap(r => r.genMatch))).join(', ') + ') con el requisito, pero ninguno comparte una palabra distintiva de su alcance específico' +
+          (req.palabrasDistintivas.length ? ' (' + req.palabrasDistintivas.join(', ') + ')' : '') +
+          '. No es suficiente para confirmar que el objeto realmente coincide -- requiere revisión humana del objeto completo.';
+        faltantes.push('Revisar manualmente si alguno de esos contratos, pese a no compartir palabra distintiva, sí corresponde al alcance exigido.');
+      } else {
+        justificacion = 'Ningún contrato del Excel de experiencia comparte palabras clave con este requisito. Puede que la experiencia no exista, o que esté descrita con términos distintos a los del requisito.';
+        faltantes.push('Confirmar si existe experiencia relacionada descrita con otras palabras, o si el requisito realmente no se cumple.');
+      }
+    } else if (sinCriteriosNumericos){
+      resultado = 'CUMPLE';
+      justificacion = 'Se encontró(aron) ' + relevantes.length + ' contrato(s) cuyo objeto/actividades comparten palabra(s) distintiva(s) del requisito (' +
+        Array.from(new Set(relevancia.filter(r => r.relevante).flatMap(r => r.distMatch))).join(', ') +
+        '). El requisito no trae un mínimo numérico (contratos/valor/cantidad) explícito en la matriz -- verifica el alcance exacto contra el objeto completo del contrato.';
+    } else if (numericoOk === true){
+      resultado = 'CUMPLE';
+      justificacion = 'Hay contratos relevantes por objeto y satisfacen el/los criterio(s) numérico(s) exigido(s). ' + evidencia.join(' ');
+    } else if (numericoOk === false){
+      resultado = 'NO CUMPLE';
+      justificacion = 'Hay contratos relevantes por objeto, pero no alcanzan el/los criterio(s) numérico(s) exigido(s) en la matriz. ' + evidencia.join(' ');
+    } else {
+      resultado = 'NO DETERMINABLE';
+      justificacion = 'Hay contratos relevantes por objeto, pero falta información en el Excel para confirmar el criterio numérico exigido. ' + faltantes.join(' ');
+    }
+
+    return {
+      requisito: req,
+      contratosEvaluados: relevantes.map(c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin })),
+      evidencia: evidencia, faltantes: faltantes, resultado: resultado, justificacion: justificacion
+    };
+  }
+
+  // Resultado global: se basa SOLO en los requisitos "obligatorio" (sección 11
+  // del pedido). "opcional"/"complementario"/"alternativo" quedan en el detalle
+  // pero no arrastran el global a NO CUMPLE por sí solos -- la matriz rara vez
+  // dice explícitamente qué alternativos van agrupados, así que cada uno se
+  // reporta individualmente y se avisa que puede requerir agrupamiento manual.
+  function evaluarExperienciaCompleta(contratos, requisitos){
+    const resultados = requisitos.map(r => evaluarRequisito(r, contratos));
+    const conteo = { 'CUMPLE': 0, 'NO CUMPLE': 0, 'NO DETERMINABLE': 0 };
+    resultados.forEach(r => conteo[r.resultado]++);
+    const obligatorios = resultados.filter(r => r.requisito.obligatoriedad === 'obligatorio');
+    let resultadoGlobal;
+    if (obligatorios.some(r => r.resultado === 'NO CUMPLE')) resultadoGlobal = 'NO CUMPLE';
+    else if (!obligatorios.length || obligatorios.some(r => r.resultado === 'NO DETERMINABLE')) resultadoGlobal = 'REQUIERE REVISIÓN';
+    else resultadoGlobal = 'CUMPLE';
+    return { resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length };
+  }
+
+  const ETIQUETAS_CONTRATO = { objeto: 'Objeto', contratante: 'Contratante', valor: 'Valor', fechaInicio: 'Fecha inicio', fechaFin: 'Fecha fin', duracion: 'Duración', cantidad: 'Cantidad', tipo: 'Tipo (general/específica)', actividades: 'Actividades', numeroContrato: 'N° contrato', participacion: '% participación' };
+  const ETIQUETAS_REQUISITO = { criterio: 'Criterio / requisito', tipo: 'Tipo', minContratos: 'Mín. contratos', minValor: 'Valor mínimo', minCantidad: 'Cantidad mínima', obligatoriedad: 'Obligatoriedad', acumulable: 'Acumulable' };
+
+  function renderColumnasDetectadas(titulo, headers, cols, etiquetas, nRegistros){
+    const filas = Object.keys(etiquetas).map(campo => {
+      const idx = cols[campo];
+      const encontrada = idx != null;
+      return '<tr><td>' + escapeHtml(etiquetas[campo]) + '</td><td>' + (encontrada ? escapeHtml(headers[idx]) : '<em>no detectada</em>') + '</td></tr>';
+    }).join('');
+    return '<details class="expeval-review"><summary>Revisar interpretación: ' + escapeHtml(titulo) + ' (' + nRegistros + ' registro(s) leído(s))</summary>' +
+      '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Campo</th><th>Columna del Excel usada</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
+  }
+
+  function badgeExpEval(resultado){
+    const cls = resultado === 'CUMPLE' ? 'expeval-cumple' : (resultado === 'NO CUMPLE' ? 'expeval-nocumple' : 'expeval-nd');
+    return '<span class="expeval-badge ' + cls + '">' + escapeHtml(resultado) + '</span>';
+  }
+
+  function renderResultadoExperiencia(ev){
+    const resumen = '<div class="expeval-summary">' +
+      '<div class="stat">' + ev.resultados.length + '<span>REQUISITOS EVALUADOS</span></div>' +
+      '<div class="stat" style="color:var(--good)">' + ev.conteo['CUMPLE'] + '<span>CUMPLE</span></div>' +
+      '<div class="stat" style="color:var(--orange)">' + ev.conteo['NO CUMPLE'] + '<span>NO CUMPLE</span></div>' +
+      '<div class="stat" style="color:#8A6A1C">' + ev.conteo['NO DETERMINABLE'] + '<span>NO DETERMINABLE</span></div>' +
+      '</div>';
+    const claseGlobal = ev.resultadoGlobal === 'CUMPLE' ? 'expeval-cumple' : (ev.resultadoGlobal === 'NO CUMPLE' ? 'expeval-nocumple' : 'expeval-nd');
+    const global = '<div class="expeval-global ' + claseGlobal + '">RESULTADO GLOBAL: ' + escapeHtml(ev.resultadoGlobal) +
+      ' <small>(' + ev.totalObligatorios + ' requisito(s) obligatorio(s) de ' + ev.resultados.length + ' evaluados)</small></div>';
+    const filas = ev.resultados.map(r => {
+      const evid = r.contratosEvaluados.length
+        ? r.contratosEvaluados.map(c => 'Fila ' + c.fila + (c.objeto ? ': ' + escapeHtml(truncate(c.objeto, 90)) : '') + (c.valor != null ? ' · valor ' + c.valor : '')).join('<br>')
+        : '—';
+      return '<tr><td>' + escapeHtml(truncate(r.requisito.criterio, 160)) + ' <span class="tag">' + escapeHtml(r.requisito.obligatoriedad) + '</span></td>' +
+        '<td>' + escapeHtml(r.evidencia.join(' ') || '—') + '</td>' +
+        '<td>' + evid + '</td>' +
+        '<td>' + badgeExpEval(r.resultado) + '</td>' +
+        '<td>' + escapeHtml(r.justificacion) + (r.faltantes.length ? '<br><em>Falta: ' + escapeHtml(r.faltantes.join(' ')) + '</em>' : '') + '</td></tr>';
+    }).join('');
+    const tabla = '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Información encontrada</th><th>Evidencia (contrato)</th><th>Resultado</th><th>Justificación</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
+    return resumen + global + tabla;
+  }
+
+  function informeExperienciaTexto(ev, meta){
+    const L = [];
+    L.push('INFORME DE EVALUACIÓN DE EXPERIENCIA');
+    L.push('Generado: ' + new Date().toLocaleString('es-CO'));
+    if (meta){
+      L.push('Excel de experiencia: ' + (meta.expFile || '—') + ' (' + (meta.nContratos || 0) + ' contratos leídos)');
+      L.push('Matriz de experiencia: ' + (meta.matrizFile || '—') + ' (' + (meta.nRequisitos || 0) + ' requisitos leídos)');
+    }
+    L.push('');
+    L.push('RESULTADO GLOBAL: ' + ev.resultadoGlobal);
+    L.push('CUMPLE: ' + ev.conteo['CUMPLE'] + ' · NO CUMPLE: ' + ev.conteo['NO CUMPLE'] + ' · NO DETERMINABLE: ' + ev.conteo['NO DETERMINABLE']);
+    L.push('Requisitos obligatorios evaluados: ' + ev.totalObligatorios);
+    L.push('');
+    L.push('DETALLE POR REQUISITO');
+    L.push('-'.repeat(60));
+    ev.resultados.forEach((r, i) => {
+      L.push((i + 1) + '. [' + r.resultado + '] (' + r.requisito.obligatoriedad + (r.requisito.tipo !== 'no-clasificado' ? ', ' + r.requisito.tipo : '') + ')');
+      L.push('   Requisito: ' + r.requisito.criterio);
+      if (r.evidencia.length) L.push('   Información encontrada: ' + r.evidencia.join(' '));
+      if (r.contratosEvaluados.length){
+        L.push('   Evidencia (contratos):');
+        r.contratosEvaluados.forEach(c => L.push('     - Fila ' + c.fila + (c.objeto ? ': ' + c.objeto : '') + (c.contratante ? ' · ' + c.contratante : '') +
+          (c.valor != null ? ' · valor ' + c.valor : '') + (c.fechaInicio ? ' · desde ' + c.fechaInicio : '') + (c.fechaFin ? ' hasta ' + c.fechaFin : '')));
+      }
+      L.push('   Justificación: ' + r.justificacion);
+      if (r.faltantes.length) L.push('   Falta para determinar: ' + r.faltantes.join(' '));
+      L.push('');
+    });
+    L.push('-'.repeat(60));
+    L.push('Este informe es una evaluación automatizada por reglas (coincidencia de palabras clave distintivas y comparación numérica de campos del Excel). No interpreta el lenguaje jurídico del pliego ni reemplaza la revisión humana, en especial en los requisitos marcados NO DETERMINABLE.');
+    return L.join('\n');
   }
 
   // Los triggers se agrupan por categoría para que el análisis no mezcle todo en
@@ -2661,6 +3150,111 @@
       if (file) await procesarRUP(file, false);
     });
   }
+
+  // --- Evaluación de experiencia: carga de los dos Excel y ejecución -------
+  function renderExpEvalReview(){
+    let html = '';
+    if (expevalContratos) html += renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length);
+    if (expevalRequisitos) html += renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length);
+    expevalReviewEl.innerHTML = html;
+    expevalRunBtn.disabled = !(expevalContratos && expevalRequisitos);
+    expevalClearBtn.style.display = (expevalContratos || expevalRequisitos) ? '' : 'none';
+  }
+
+  function renderExpEvalResultado(){
+    if (!expevalResultado){ expevalOutEl.innerHTML = ''; expevalInformeBtn.style.display = 'none'; return; }
+    expevalOutEl.innerHTML = renderResultadoExperiencia(expevalResultado);
+    expevalInformeBtn.style.display = '';
+  }
+
+  async function cargarExcelExperiencia(file){
+    expevalExpStatusEl.textContent = 'Leyendo Excel…';
+    try {
+      const XLSX = await loadXlsxLib();
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const parsed = parsearExcelExperiencia(wb);
+      if (!parsed.contratos.length){
+        expevalExpStatusEl.textContent = 'Se leyó el archivo pero no se reconocieron filas de contratos. Revisa que tenga encabezados y al menos una fila de datos.';
+        return;
+      }
+      expevalContratos = parsed;
+      expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
+      expevalResultado = null; // el resultado anterior queda obsoleto si se cambia la fuente
+      expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s).';
+      renderExpEvalReview();
+      renderExpEvalResultado();
+      saveExpEval();
+    } catch(err){
+      expevalExpStatusEl.textContent = 'No se pudo leer el Excel (' + (err && err.message ? err.message : 'error') + ').';
+    }
+  }
+
+  async function cargarExcelMatriz(file){
+    expevalMatrizStatusEl.textContent = 'Leyendo Excel…';
+    try {
+      const XLSX = await loadXlsxLib();
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const parsed = parsearMatrizExperiencia(wb);
+      if (!parsed.requisitos.length){
+        expevalMatrizStatusEl.textContent = 'Se leyó el archivo pero no se reconocieron filas de requisitos. Revisa que tenga encabezados y al menos una fila de datos.';
+        return;
+      }
+      expevalRequisitos = parsed;
+      expevalMeta = Object.assign({}, expevalMeta, { matrizFile: file.name, nRequisitos: parsed.requisitos.length });
+      expevalResultado = null;
+      expevalMatrizStatusEl.textContent = file.name + ' · ' + parsed.requisitos.length + ' requisito(s) leído(s).';
+      renderExpEvalReview();
+      renderExpEvalResultado();
+      saveExpEval();
+    } catch(err){
+      expevalMatrizStatusEl.textContent = 'No se pudo leer el Excel (' + (err && err.message ? err.message : 'error') + ').';
+    }
+  }
+
+  if (expevalExpUploadBtn && expevalExpFileEl){
+    expevalExpUploadBtn.addEventListener('click', () => expevalExpFileEl.click());
+    expevalExpFileEl.addEventListener('change', async () => {
+      const file = expevalExpFileEl.files && expevalExpFileEl.files[0];
+      expevalExpFileEl.value = '';
+      if (file) await cargarExcelExperiencia(file);
+    });
+  }
+  if (expevalMatrizUploadBtn && expevalMatrizFileEl){
+    expevalMatrizUploadBtn.addEventListener('click', () => expevalMatrizFileEl.click());
+    expevalMatrizFileEl.addEventListener('change', async () => {
+      const file = expevalMatrizFileEl.files && expevalMatrizFileEl.files[0];
+      expevalMatrizFileEl.value = '';
+      if (file) await cargarExcelMatriz(file);
+    });
+  }
+  if (expevalRunBtn){
+    expevalRunBtn.addEventListener('click', () => {
+      if (!expevalContratos || !expevalRequisitos) return;
+      expevalResultado = evaluarExperienciaCompleta(expevalContratos.contratos, expevalRequisitos.requisitos);
+      renderExpEvalResultado();
+      saveExpEval();
+    });
+  }
+  if (expevalInformeBtn){
+    expevalInformeBtn.addEventListener('click', () => {
+      if (!expevalResultado) return;
+      const texto = informeExperienciaTexto(expevalResultado, expevalMeta);
+      descargarTexto('informe-experiencia-' + new Date().toISOString().slice(0, 10) + '.txt', texto);
+    });
+  }
+  if (expevalClearBtn){
+    expevalClearBtn.addEventListener('click', () => {
+      expevalContratos = null; expevalRequisitos = null; expevalMeta = null; expevalResultado = null;
+      expevalExpStatusEl.textContent = 'Sin cargar.';
+      expevalMatrizStatusEl.textContent = 'Sin cargar.';
+      renderExpEvalReview();
+      renderExpEvalResultado();
+      saveExpEval();
+    });
+  }
+
   exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
   copySummaryBtn.addEventListener('click', copyAltaPrioridadSummary);
 
@@ -2825,6 +3419,13 @@
     historial = {};
     await saveHistorial();
     rerender();
+  });
+
+  // Restaura en pantalla la evaluación de experiencia guardada (si había Excel
+  // cargados de una sesión anterior), una vez que appReady haya resuelto.
+  appReady.then(() => {
+    renderExpEvalReview();
+    renderExpEvalResultado();
   });
 
   // Carga automática al abrir la página: intenta en vivo, y si falla (p.ej.
