@@ -23,13 +23,44 @@ Rediseño integral (pedido explícito del usuario): de una estética "bitácora 
 campo" (papel cuadriculado, naranja vivo, tipografía condensada) a una
 plataforma de consultoría empresarial profesional. Decisiones clave:
 
-- **Sistema de tokens** en `#bitacora-root` (inicio del `<style>`): paleta
-  slate/azul (`--brand-*`, `--accent`, `--bg`, `--surface`, `--border*`,
-  `--text*`) + colores semánticos con fondo tintado (`--success*`,
-  `--danger*`, `--warning*`, `--neutral*`) + radios/sombras (`--radius-*`,
-  `--shadow-*`). Toda la hoja de estilos referencia estas variables — para
-  ajustar la paleta completa basta con cambiar los tokens, no cada regla.
-- **Tipografía**: una sola familia (Inter, pesos 400–800) en toda la app. Se
+- **Sistema de tokens** en `#bitacora-root` (inicio del `<style>`):
+  `--brand-*`, `--accent`, `--bg`, `--surface`, `--border*`, `--text*` +
+  colores semánticos con fondo tintado (`--success*`, `--danger*`,
+  `--warning*`, `--neutral*`) + radios/sombras (`--radius-*`, `--shadow-*`).
+  Toda la hoja de estilos referencia estas variables — para ajustar la
+  paleta completa basta con cambiar los tokens, no cada regla (esto se
+  aprovechó literalmente para el reskin violeta "Wiza", ver más abajo).
+- **Paleta actual: "Wiza" (violeta/lavanda)**, aplicada desde un archivo de
+  guía de estilo (`DESIGN (3).md`) que el usuario pidió replicar
+  literalmente. Mapeo de sus tokens a los nuestros:
+  `--deep-iris #26114A` (marca/sidebar/botón lleno/títulos grandes),
+  `--plum-velvet #312747` (títulos de tarjeta, texto secundario de marca),
+  `--royal-amethyst #3E0079` (`--accent`: enlaces, foco, iconos — NUNCA el
+  fondo del botón lleno, que usa Deep Iris vía `--accent-button`),
+  `--mist-violet #EDECFF` (`--accent-soft`), `--canvas #FFFFFF` (`--surface`),
+  `--paper #F6F7FA` (`--bg`), `--mist`/`--smoke` (`--border`/`--border-strong`),
+  `--charcoal #333333` (`--text`, cuerpo), `--slate`/`--ash`
+  (`--text-muted`/`--text-faint`). Radios unificados a 8px (`--radius-sm/md/lg`
+  ahora los tres valen 8px — la guía es explícita: "8px es la firma, no 4 ni
+  12px"); los `.tag`/`.expeval-badge`/pills de navegación siguen en 999px
+  (radio de cápsula, reservado solo para píldoras según la guía).
+  Tipografía de encabezados: Britti Sans (de marca, no disponible en Google
+  Fonts) sustituida por **Plus Jakarta Sans 500** — la propia guía la nombra
+  como sustituto más cercano — aplicada SOLO en `.view-header h1` (24px,
+  cae en su rango de uso 24-64px) con `line-height:1` exacto; el resto de
+  la UI se queda en Inter, tal como pide la guía ("Inter 12-16px para todo
+  el texto de UI, señal de producto denso en datos").
+  **Excepción deliberada**: la guía es monocromática-violeta ("no introducir
+  colores fuera de la familia violeta"), pero esta app depende de
+  rojo/verde/ámbar para comunicar CUMPLE/NO CUMPLE/NO DETERMINABLE y
+  GO/NO-GO/REVISAR — son señales funcionales de cumplimiento, no
+  decoración de marca. Se mantuvieron los `--success/--danger/--warning`
+  tal como estaban del rediseño anterior; el violeta se aplicó a todo lo
+  demás (marca, botones, enlaces, tarjetas, tipografía, sombras). Esto no
+  se le preguntó al usuario porque es la lectura obvia de "aplica el
+  diseño" para una herramienta de cumplimiento, no una ambigüedad real.
+- **Tipografía**: Inter (pesos 400–800) para toda la UI, más Plus Jakarta
+  Sans 500 solo para el título de página (ver reskin "Wiza" arriba). Se
   quitaron Barlow Condensed (encabezados condensados) e IBM Plex Mono (para
   todo lo demás) — `.mono` ahora usa una pila de monoespaciadas del sistema,
   sin dependencia externa extra, reservada para códigos/referencias.
