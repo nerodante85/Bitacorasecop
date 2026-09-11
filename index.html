@@ -444,8 +444,11 @@
           <label>PERFIL EN EDICIÓN</label>
           <select id="bt-perfil-select"></select>
         </div>
+        <div class="field">
+          <label>NOMBRE DE LA EMPRESA</label>
+          <input id="bt-perfil-nombre" type="text" placeholder="Razón social">
+        </div>
         <button class="btn-secondary" id="bt-perfil-nuevo">+ NUEVO</button>
-        <button class="btn-secondary" id="bt-perfil-renombrar">RENOMBRAR</button>
         <button class="btn-secondary" id="bt-perfil-eliminar">ELIMINAR</button>
       </div>
       <div class="perfil-comparar">
@@ -581,8 +584,8 @@
   const perfilSaveBtn = document.getElementById('bt-perfil-save');
   const perfilSavedEl = document.getElementById('bt-perfil-saved');
   const perfilSelectEl = document.getElementById('bt-perfil-select');
+  const perfilNombreEl = document.getElementById('bt-perfil-nombre');
   const perfilNuevoBtn = document.getElementById('bt-perfil-nuevo');
-  const perfilRenombrarBtn = document.getElementById('bt-perfil-renombrar');
   const perfilEliminarBtn = document.getElementById('bt-perfil-eliminar');
   const perfilRupUploadBtn = document.getElementById('bt-perfil-rup-upload');
   const perfilRupFileEl = document.getElementById('bt-perfil-rup-file');
@@ -745,6 +748,7 @@
 
   function cargarPerfilActivoEnCampos(){
     perfil = migrarPerfil(Object.assign({}, perfiles[perfilActivoId] || {}));
+    setCampo(perfilNombreEl, perfil.nombre);
     setCampo(perfilRupEl, perfil.rup);
     setCampo(perfilKEl, perfil.k);
     setCampo(perfilKResidualEl, perfil.kResidual);
@@ -758,7 +762,7 @@
   async function savePerfil(){
     if (!perfilActivoId) return;
     perfiles[perfilActivoId] = {
-      nombre: (perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'Sin nombre',
+      nombre: getCampo(perfilNombreEl) || (perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'Sin nombre',
       rup: getCampo(perfilRupEl),
       k: getCampo(perfilKEl),
       kResidual: getCampo(perfilKResidualEl),
@@ -766,43 +770,70 @@
       experienciaEspecifica: getCampo(perfilExpEspecificaEl)
     };
     perfil = perfiles[perfilActivoId];
-    renderPerfilComparar(); // por si el nombre cambió (aunque se renombra aparte, no cuesta)
+    renderPerfilSelect();
+    renderPerfilComparar();
     await persistirPerfiles();
     if (perfilSavedEl) perfilSavedEl.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   }
 
   async function nuevoPerfil(){
-    const nombre = (window.prompt('Nombre del nuevo perfil (ej. razón social):') || '').trim();
-    if (!nombre) return;
+    // Sin window.prompt (algunos navegadores/incrustaciones lo bloquean y el
+    // botón parecía no hacer nada). Se crea con un nombre por defecto y se
+    // enfoca el campo "NOMBRE DE LA EMPRESA" para que lo edites ahí mismo.
+    const n = Object.keys(perfiles).length + 1;
     const id = nuevoPerfilId();
-    perfiles[id] = Object.assign({}, PERFIL_VACIO, { nombre });
+    perfiles[id] = Object.assign({}, PERFIL_VACIO, { nombre: 'Empresa ' + n });
     perfilActivoId = id;
     if (perfilesActivos.indexOf(id) === -1) perfilesActivos.push(id); // un perfil nuevo entra marcado para comparar
     renderPerfilSelect();
     renderPerfilComparar();
     cargarPerfilActivoEnCampos();
     await persistirPerfiles();
+    if (perfilNombreEl){ perfilNombreEl.focus(); perfilNombreEl.select(); }
   }
 
-  async function renombrarPerfil(){
-    if (!perfilActivoId) return;
-    const actual = perfiles[perfilActivoId].nombre || '';
-    const nuevo = (window.prompt('Nuevo nombre para este perfil:', actual) || '').trim();
-    if (!nuevo) return;
-    perfiles[perfilActivoId].nombre = nuevo;
+  // Renombrar es AHORA en línea: se edita el campo "NOMBRE DE LA EMPRESA".
+  let _renombrarTimer = null;
+  function onNombrePerfilInput(){
+    if (!perfilActivoId || !perfiles[perfilActivoId]) return;
+    perfiles[perfilActivoId].nombre = perfilNombreEl.value;
     renderPerfilSelect();
     renderPerfilComparar();
-    await persistirPerfiles();
+    clearTimeout(_renombrarTimer);
+    _renombrarTimer = setTimeout(persistirPerfiles, 400);
+  }
+  function onNombrePerfilBlur(){
+    if (!perfilActivoId || !perfiles[perfilActivoId]) return;
+    if (!perfilNombreEl.value.trim()){
+      perfiles[perfilActivoId].nombre = 'Sin nombre';
+      perfilNombreEl.value = 'Sin nombre';
+      renderPerfilSelect();
+      renderPerfilComparar();
+    }
+    clearTimeout(_renombrarTimer);
+    persistirPerfiles();
   }
 
+  // Confirmación EN LÍNEA (sin window.confirm, que también puede estar bloqueado):
+  // el primer clic pide confirmar cambiando el texto del botón; el segundo, dentro
+  // de 4 s, elimina.
+  let _eliminarArmado = false, _eliminarTimer = null;
   async function eliminarPerfil(){
     if (!perfilActivoId) return;
     if (Object.keys(perfiles).length <= 1){
-      alert('No puedes eliminar el único perfil que tienes. Crea otro primero si quieres reemplazarlo.');
+      if (perfilSavedEl) perfilSavedEl.textContent = 'No puedes eliminar el único perfil. Crea otro primero.';
       return;
     }
-    const nombre = perfiles[perfilActivoId].nombre || 'este perfil';
-    if (!confirm('¿Eliminar el perfil "' + nombre + '"? Esta acción no se puede deshacer.')) return;
+    if (!_eliminarArmado){
+      _eliminarArmado = true;
+      const original = perfilEliminarBtn.textContent;
+      perfilEliminarBtn.textContent = '¿ELIMINAR? CLIC DE NUEVO';
+      _eliminarTimer = setTimeout(() => { _eliminarArmado = false; perfilEliminarBtn.textContent = original; }, 4000);
+      return;
+    }
+    clearTimeout(_eliminarTimer);
+    _eliminarArmado = false;
+    perfilEliminarBtn.textContent = 'ELIMINAR';
     const idEliminado = perfilActivoId;
     delete perfiles[idEliminado];
     perfilesActivos = perfilesActivos.filter(id => id !== idEliminado);
@@ -2484,9 +2515,12 @@
   });
   perfilSaveBtn.addEventListener('click', savePerfil);
   perfilNuevoBtn.addEventListener('click', nuevoPerfil);
-  perfilRenombrarBtn.addEventListener('click', renombrarPerfil);
   perfilEliminarBtn.addEventListener('click', eliminarPerfil);
   perfilSelectEl.addEventListener('change', cambiarPerfilActivo);
+  if (perfilNombreEl){
+    perfilNombreEl.addEventListener('input', onNombrePerfilInput);
+    perfilNombreEl.addEventListener('blur', onNombrePerfilBlur);
+  }
   if (perfilRupUploadBtn && perfilRupFileEl){
     perfilRupUploadBtn.addEventListener('click', () => perfilRupFileEl.click());
     perfilRupFileEl.addEventListener('change', async () => {
