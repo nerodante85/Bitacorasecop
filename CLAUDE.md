@@ -12,10 +12,86 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
   cuenta de usuario — los datos viven solo en el navegador donde se usó.
 - **Fuente de datos**: dataset abierto "Procesos de Contratación — SECOP II"
   (datos.gov.co, Socrata, dataset `p6dx-8zbt`). Se consulta en vivo con `fetch()`
-  al hacer clic en "APLICAR FILTROS".
+  al hacer clic en "Aplicar filtros" (vista "Buscar procesos").
 - **Snapshot embebido de respaldo**: si la consulta en vivo falla, cae a un
   array de procesos reales embebido en el propio archivo (curado a mano en
   algún momento, con fecha fija). Solo es respaldo, no la fuente principal.
+
+## Diseño de interfaz
+
+Rediseño integral (pedido explícito del usuario): de una estética "bitácora de
+campo" (papel cuadriculado, naranja vivo, tipografía condensada) a una
+plataforma de consultoría empresarial profesional. Decisiones clave:
+
+- **Sistema de tokens** en `#bitacora-root` (inicio del `<style>`): paleta
+  slate/azul (`--brand-*`, `--accent`, `--bg`, `--surface`, `--border*`,
+  `--text*`) + colores semánticos con fondo tintado (`--success*`,
+  `--danger*`, `--warning*`, `--neutral*`) + radios/sombras (`--radius-*`,
+  `--shadow-*`). Toda la hoja de estilos referencia estas variables — para
+  ajustar la paleta completa basta con cambiar los tokens, no cada regla.
+- **Tipografía**: una sola familia (Inter, pesos 400–800) en toda la app. Se
+  quitaron Barlow Condensed (encabezados condensados) e IBM Plex Mono (para
+  todo lo demás) — `.mono` ahora usa una pila de monoespaciadas del sistema,
+  sin dependencia externa extra, reservada para códigos/referencias.
+- **Navegación tipo SPA sin router real**: 5 `<section class="view" id="view-*">`
+  (`dashboard`, `buscar`, `perfil`, `experiencia`, `evaluacion`) viven TODAS en
+  el DOM desde el arranque; `mostrarVista(nombre)` solo alterna el atributo
+  `hidden` y la clase `.active` en la sidebar — no hay re-render condicional
+  de contenido, así que ningún dato ni listener depende de si su vista está
+  visible. La última vista visitada se recuerda en
+  `localStorage['bitacora_ultima_vista']`.
+- **Reutilización de clases existentes**: `.titleblock`/`.titleblock-head`
+  (tarjeta base), `.field`/`.field-grid`, `.row` (tarjeta de proceso), `.tag`,
+  `.btn-primary`/`.btn-secondary`, `.analysis-block`/`.analysis-sub`,
+  `.expeval-*` mantienen el MISMO nombre de clase que ya usaba el JS — el
+  rediseño es casi 100% CSS sobre las mismas clases, no un sistema de
+  componentes paralelo. Esto redujo drásticamente el riesgo de romper algo:
+  las funciones que generan HTML (`renderAnalysisHtml`, `evalDetalleHtml`,
+  `renderResultadoExperiencia`, etc.) casi no cambiaron.
+- **Trampa real encontrada y corregida**: `.analysis-sub` se usa tanto para
+  rótulos fijos de sección ("RECOMENDACIÓN", ya en mayúscula literal en el
+  string) como para encabezados con datos dinámicos (nombre real de la
+  empresa, ej. `r.perfil`). Ponerle `text-transform: uppercase` en el CSS
+  (como se hizo en un primer intento) gritaba el nombre de la empresa en
+  mayúsculas — **nunca uses `text-transform` en una clase que envuelve texto
+  dinámico** sin revisar antes todos sus usos con grep.
+- **Carga de documentos**: un solo componente `.dropzone` (clic + arrastrar y
+  soltar + Enter/Espacio por teclado vía `wireDropzone(zoneEl, fileInputEl,
+  onFile)`) reemplaza los antiguos `<button>` de "CARGAR RUP (PDF)"/"CARGAR
+  EXCEL" — son `<div role="button" tabindex="0">`, no `<button>` reales, así
+  que **necesitan su propio manejo de teclado** (el navegador no lo da gratis
+  como con un `<button>`).
+- **Trampa real encontrada y corregida**: tras recargar la página, el
+  indicador de pasos de "Experiencia" restauraba correctamente el estado
+  (pasos 1-2 "hechos") pero el texto bajo cada dropzone seguía diciendo "Sin
+  cargar." — `renderExpEvalReview()` nunca restauraba `expevalExpStatusEl`/
+  `expevalMatrizStatusEl` desde `expevalMeta`, solo lo hacían
+  `cargarExcelExperiencia`/`cargarExcelMatriz` al momento de subir el
+  archivo. Se corrigió para que la restauración desde `localStorage` también
+  actualice ese texto.
+- **Indicador de pasos** (`#bt-expeval-steps`, sección Experiencia):
+  `renderExpEvalSteps()` calcula `is-done`/`is-active` a partir de
+  `expevalContratos`/`expevalRequisitos`/`expevalResultado` — se llama desde
+  `renderExpEvalReview()` y `renderExpEvalResultado()`, así que nunca queda
+  desincronizado del estado real.
+- **Dashboard** ("Inicio"): se recalcula solo al entrar a esa vista
+  (`actualizarDashboard()`, invocado por `mostrarVista('dashboard')`), no en
+  cada mutación de estado — no hace falta mantenerlo sincronizado mientras el
+  usuario está en otra pantalla. "Actividad reciente" cruza `historial` con
+  `lastScored` (la última búsqueda en pantalla) para mostrar título/veredicto
+  cuando puede, y nunca inventa un título si el proceso no está en la
+  búsqueda actual.
+- **Responsive**: un solo breakpoint (900px) — por debajo, `.app-shell` pasa
+  de fila a columna y la sidebar de columna vertical a fila horizontal con
+  scroll, en vez de ocultarse tras un menú hamburguesa (menos JS, no se
+  "rompe" en tablet).
+- **Botones/mensajes en mayúscula sostenida** ("GUARDAR PERFIL", "CARGAR RUP",
+  "¿ELIMINAR? CLIC DE NUEVO"): quedaban varios reinyectados dinámicamente por
+  JS después de convertir el HTML estático a minúscula/oración normal (ej. en
+  `cargarPerfilActivoEnCampos()`, en el flujo de doble clic de
+  `eliminarPerfil()`). Si cambias el texto de un botón en el HTML, **busca
+  también dónde el JS reescribe `textContent` de ese mismo elemento** —
+  quedan fácilmente desincronizados.
 
 ## Cosas aprendidas por las malas (no las repitas)
 
@@ -155,6 +231,9 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
 
 ## Funcionalidad actual
 
+- Navegación por sidebar con 5 secciones: Inicio (dashboard con resumen y
+  actividad reciente), Buscar procesos, Perfil de la empresa, Experiencia y
+  Evaluación (ver "Diseño de interfaz" arriba).
 - Búsqueda en vivo anclada por palabra clave (Especialidades), con
   departamento aplicado como filtro después de traer los resultados.
 - Filtros: ocultar vencidos, solo publicados hace ≤30 días, solo Licitación

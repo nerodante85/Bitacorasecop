@@ -1,247 +1,332 @@
 <!DOCTYPE html>
 <html lang="es">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bitácora — Rastreador SECOP II</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bitácora — Consultoría en contratación pública</title></head>
 <body>
 <style>
+  /* ============================================================
+     SISTEMA DE DISEÑO — tokens. Un solo lugar para paleta, tipografía,
+     radios y sombras; todo lo demás en este archivo referencia estas
+     variables en vez de repetir valores sueltos (petición explícita:
+     "centraliza estilos, usa variables/tokens de diseño").
+     ============================================================ */
   #bitacora-root {
-    --navy: #1B2E45;
-    --navy-line: #3A5A80;
-    --paper: #F3EEE1;
-    --paper-dark: #E9E2CF;
-    --ink: #1B1B18;
-    --orange: #D65A26;
-    --yellow: #C99328;
-    --grey: #8C877C;
-    --white: #FFFDF8;
-    --good: #3E7A4C;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    color: var(--ink);
-    background: var(--paper);
-    background-image:
-      repeating-linear-gradient(0deg, rgba(58,90,128,0.07) 0px, rgba(58,90,128,0.07) 1px, transparent 1px, transparent 24px),
-      repeating-linear-gradient(90deg, rgba(58,90,128,0.07) 0px, rgba(58,90,128,0.07) 1px, transparent 1px, transparent 24px);
+    --brand-900: #0B1F35;
+    --brand-800: #14304F;   /* sidebar / marca */
+    --brand-700: #1B3B60;
+    --brand-600: #2C5282;   /* hover sobre marca */
+    --accent: #2563EB;      /* acción principal, foco, enlaces */
+    --accent-hover: #1D4ED8;
+    --accent-soft: #EEF4FF;
+    --bg: #F5F7FA;          /* lienzo de la aplicación */
+    --surface: #FFFFFF;     /* tarjetas / paneles */
+    --border: #E3E7ED;
+    --border-strong: #CBD3DE;
+    --text: #101828;
+    --text-muted: #4A5568;
+    --text-faint: #8993A4;
+    --success: #067647; --success-bg: #ECFDF3; --success-border: #ABEFC6;
+    --danger:  #B42318; --danger-bg:  #FEF3F2; --danger-border:  #FECDCA;
+    --warning: #B54708; --warning-bg: #FFFAEB; --warning-border: #FEDF89;
+    --neutral: #475467; --neutral-bg: #F2F4F7; --neutral-border: #D0D5DD;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(16,24,40,.06);
+    --shadow-md: 0 4px 12px rgba(16,24,40,.07), 0 1px 3px rgba(16,24,40,.06);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--text);
+    background: var(--bg);
     min-height: 100%;
-    padding-bottom: 40px;
+    -webkit-font-smoothing: antialiased;
   }
   #bitacora-root * { box-sizing: border-box; }
-  #bitacora-root .mono { font-family: 'IBM Plex Mono', monospace; }
-  #bitacora-root .condensed { font-family: 'Barlow Condensed', sans-serif; }
-
-  #bitacora-root .topbar {
-    background: var(--navy);
-    color: var(--white);
-    padding: 18px 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 3px solid var(--orange);
+  #bitacora-root .mono {
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   }
-  #bitacora-root .topbar svg { flex-shrink: 0; }
-  #bitacora-root .topbar h1 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700;
-    font-size: 26px;
-    line-height: 1;
-    margin: 0;
-    letter-spacing: 0.3px;
-  }
-  #bitacora-root .topbar p {
-    margin: 4px 0 0;
-    font-size: 12.5px;
-    color: #C7D2DE;
+  #bitacora-root a { color: var(--accent); }
+  #bitacora-root :focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
   }
 
-  #bitacora-root .wrap { padding: 18px 16px 0; max-width: 780px; margin: 0 auto; }
+  /* ============================================================
+     ESTRUCTURA — sidebar fija + contenido. En pantallas angostas
+     (tablet) la sidebar pasa a ser una barra horizontal de pestañas
+     en vez de ocultarse, para no "romper" la navegación (petición:
+     "no diseñes componentes que se rompan en pantallas pequeñas").
+     ============================================================ */
+  #bitacora-root .app-shell { display: flex; align-items: stretch; min-height: 100vh; }
 
+  #bitacora-root .sidebar {
+    width: 264px; flex-shrink: 0;
+    background: var(--brand-800);
+    color: #C9D6E8;
+    display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  #bitacora-root .sidebar-brand {
+    display: flex; align-items: center; gap: 11px;
+    padding: 22px 20px 18px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  #bitacora-root .brand-mark {
+    width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+    background: var(--accent);
+    color: #fff; font-weight: 800; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #bitacora-root .sidebar-brand-text h1 {
+    margin: 0; font-size: 15.5px; font-weight: 700; color: #fff; line-height: 1.2;
+  }
+  #bitacora-root .sidebar-brand-text p {
+    margin: 2px 0 0; font-size: 11.5px; color: #90A3BD; line-height: 1.3;
+  }
+  #bitacora-root .sidebar-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  #bitacora-root .nav-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 12px; border-radius: var(--radius-sm);
+    font-size: 13.5px; font-weight: 500; color: #B9C7DC;
+    background: transparent; border: none; cursor: pointer; text-align: left; width: 100%;
+    transition: background .12s ease, color .12s ease;
+  }
+  #bitacora-root .nav-item svg { flex-shrink: 0; opacity: .85; }
+  #bitacora-root .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+  #bitacora-root .nav-item.active { background: var(--accent); color: #fff; }
+  #bitacora-root .nav-item.active svg { opacity: 1; }
+  #bitacora-root .sidebar-foot {
+    padding: 14px 20px 18px; font-size: 11px; color: #7488A5; line-height: 1.5;
+    border-top: 1px solid rgba(255,255,255,.08);
+  }
+
+  #bitacora-root .main { flex: 1; min-width: 0; }
+  #bitacora-root .wrap { padding: 32px 36px 56px; max-width: 1040px; margin: 0 auto; }
+  #bitacora-root .view[hidden] { display: none; }
+  #bitacora-root .view-header { margin-bottom: 22px; }
+  #bitacora-root .view-header h1 { margin: 0 0 5px; font-size: 24px; font-weight: 700; letter-spacing: -.2px; }
+  #bitacora-root .view-header p { margin: 0; font-size: 14px; color: var(--text-muted); max-width: 640px; line-height: 1.5; }
+
+  /* Barra superior compacta, solo visible en pantallas angostas donde la
+     sidebar vertical se convierte en fila horizontal de pestañas. */
+  #bitacora-root .mobile-topbar { display: none; }
+
+  /* ============================================================
+     TARJETAS — ".titleblock" es la tarjeta base reutilizada en TODAS
+     las secciones (filtros, perfil, experiencia, evaluación). Se
+     mantiene el mismo nombre de clase que ya usa el JS existente;
+     solo cambia su apariencia.
+     ============================================================ */
   #bitacora-root .titleblock {
-    border: 1.5px solid var(--navy);
-    background: var(--white);
-    padding: 16px;
-    margin-bottom: 22px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 22px 24px;
+    margin-bottom: 20px;
   }
   #bitacora-root .titleblock-head {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    border-bottom: 1px solid var(--navy-line);
-    padding-bottom: 8px;
-    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 18px;
     gap: 10px;
     flex-wrap: wrap;
   }
   #bitacora-root .titleblock-head h2 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 20px;
+    font-size: 16.5px;
     font-weight: 700;
     margin: 0;
+    color: var(--text);
   }
   #bitacora-root .titleblock-head span {
-    font-size: 11px;
-    color: var(--grey);
+    font-size: 12.5px;
+    color: var(--text-muted);
   }
   #bitacora-root .field-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 16px;
   }
   #bitacora-root .field label {
     display: block;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10.5px;
-    letter-spacing: 0.5px;
-    color: var(--navy-line);
-    margin-bottom: 4px;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .1px;
+    color: var(--text);
+    margin-bottom: 6px;
   }
   #bitacora-root .field input,
   #bitacora-root .field select,
   #bitacora-root .field textarea {
     width: 100%;
-    border: 1px solid #C9C2AE;
-    background: var(--paper);
-    padding: 9px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    padding: 10px 12px;
     font-size: 14px;
-    font-family: 'Inter', sans-serif;
-    color: var(--ink);
+    font-family: inherit;
+    color: var(--text);
     resize: vertical;
+    transition: border-color .12s ease, box-shadow .12s ease;
   }
+  #bitacora-root .field input::placeholder,
+  #bitacora-root .field textarea::placeholder { color: var(--text-faint); }
   #bitacora-root .field input:focus,
   #bitacora-root .field select:focus,
-  #bitacora-root .field textarea:focus { outline: 2px solid var(--orange); outline-offset: -1px; }
-  #bitacora-root .field-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #bitacora-root .field textarea:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  #bitacora-root .field-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   #bitacora-root .perfil-switcher {
     display: flex;
-    gap: 8px;
+    gap: 10px;
     align-items: flex-end;
     flex-wrap: wrap;
-    margin-bottom: 14px;
+    margin-bottom: 18px;
   }
   #bitacora-root .perfil-switcher .field { flex: 1 1 220px; margin-bottom: 0; }
   #bitacora-root .perfil-switcher button {
-    font-size: 12.5px;
-    padding: 8px 10px;
+    font-size: 13px;
+    padding: 10px 14px;
     white-space: nowrap;
   }
   #bitacora-root .perfil-comparar {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 6px 14px;
-    margin-bottom: 14px;
-    padding: 8px 10px;
-    background: var(--paper);
-    border: 1px solid #D8D0BC;
+    gap: 8px 14px;
+    margin-bottom: 18px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
   }
   #bitacora-root .perfil-comparar #bt-perfil-comparar {
     display: flex;
     flex-wrap: wrap;
     gap: 6px 14px;
   }
-  #bitacora-root .perfil-comparar .toggle { color: var(--navy); }
+  #bitacora-root .perfil-comparar .toggle { color: var(--text); }
   #bitacora-root .perfil-rup-cargar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 12px;
-    margin-bottom: 14px;
-    padding: 8px 10px;
-    background: var(--paper);
-    border: 1px solid #D8D0BC;
+    gap: 10px 12px;
+    margin-bottom: 18px;
   }
-  #bitacora-root .perfil-rup-cargar button { font-size: 12.5px; padding: 8px 10px; }
-  #bitacora-root .perfil-rup-cargar .saved-note { flex: 1 1 100%; }
-  #bitacora-root .perfil-rup-cargar .link-btn { color: var(--good); }
+  #bitacora-root .perfil-rup-cargar .link-btn { color: var(--accent); text-decoration: none; font-weight: 600; }
 
+  /* ============================================================
+     BOTONES — jerarquía clara: primario (acción principal, una sola
+     por pantalla en general), secundario (con borde) y fantasma/enlace
+     (acciones terciarias). Mismo nombre de clase que ya usa el JS.
+     ============================================================ */
   #bitacora-root .actions {
     display: flex;
     gap: 10px;
-    margin-top: 16px;
+    margin-top: 18px;
     flex-wrap: wrap;
     align-items: center;
   }
   #bitacora-root button {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.4px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 13.5px;
     border: none;
-    padding: 11px 18px;
+    border-radius: var(--radius-sm);
+    padding: 10px 16px;
     cursor: pointer;
+    transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
   }
-  #bitacora-root .btn-primary { background: var(--orange); color: var(--white); }
-  #bitacora-root .btn-primary:hover { background: #C24C1B; }
-  #bitacora-root .btn-secondary { background: transparent; color: var(--navy); border: 1.5px solid var(--navy); }
-  #bitacora-root .btn-secondary:hover { background: var(--navy); color: var(--white); }
-  #bitacora-root button:disabled { opacity: 0.5; cursor: default; }
-  #bitacora-root .saved-note { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--grey); }
+  #bitacora-root .btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow-sm); }
+  #bitacora-root .btn-primary:hover { background: var(--accent-hover); }
+  #bitacora-root .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
+  #bitacora-root .btn-secondary:hover { background: var(--bg); border-color: var(--text-faint); }
+  #bitacora-root button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+  #bitacora-root .saved-note { font-size: 12.5px; color: var(--text-muted); }
 
   #bitacora-root .status-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px 14px;
-    margin-bottom: 12px;
+    gap: 10px 16px;
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
     font-size: 13px;
   }
-  #bitacora-root .status-row .count { font-family: 'Barlow Condensed', sans-serif; font-size: 17px; font-weight: 700; }
-  #bitacora-root .status-toggles { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-left: auto; }
-  #bitacora-root .toggle { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--navy); white-space: nowrap; }
-  #bitacora-root .toggle-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--grey); align-self: center; }
+  #bitacora-root .status-row .count { font-size: 14.5px; font-weight: 700; color: var(--text); }
+  #bitacora-root .status-toggles { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-left: auto; }
+  #bitacora-root .toggle { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text); white-space: nowrap; }
+  #bitacora-root .toggle input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; }
+  #bitacora-root .toggle-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); align-self: center; }
   #bitacora-root .link-btn {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.3px;
+    font-size: 12.5px;
+    font-weight: 600;
     background: none;
     border: none;
-    color: var(--grey);
-    text-decoration: underline;
+    color: var(--accent);
+    text-decoration: none;
     padding: 0;
     cursor: pointer;
   }
-  #bitacora-root .link-btn:hover { color: var(--orange); }
+  #bitacora-root .link-btn:hover { text-decoration: underline; }
 
   #bitacora-root .demo-banner {
-    background: #F5DFC4;
-    border: 1px solid var(--yellow);
-    color: #6B4E17;
-    font-size: 12.5px;
-    padding: 8px 12px;
-    margin-bottom: 14px;
-    font-family: 'IBM Plex Mono', monospace;
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-border);
+    color: var(--warning);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 11px 14px;
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
   }
 
   #bitacora-root .loading, #bitacora-root .empty, #bitacora-root .error {
-    border: 1.5px dashed var(--navy-line);
-    padding: 26px 16px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    padding: 36px 20px;
     text-align: center;
     font-size: 14px;
-    color: var(--navy);
-    background: var(--white);
+    color: var(--text-muted);
+    background: var(--surface);
   }
-  #bitacora-root .error { border-color: var(--orange); color: #8C3413; }
-  #bitacora-root .error strong { display: block; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; margin-bottom: 6px; }
+  #bitacora-root .error { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
+  #bitacora-root .error strong { display: block; font-size: 16.5px; font-weight: 700; margin-bottom: 6px; }
 
+  /* ============================================================
+     TARJETAS DE PROCESO — se conserva la franja de color a la
+     izquierda como señal de prioridad (patrón habitual en
+     herramientas empresariales tipo Linear/Stripe), pero con tarjeta
+     moderna: fondo blanco, borde sutil, sombra ligera, radios.
+     ============================================================ */
   #bitacora-root .row {
-    background: var(--white);
-    border: 1px solid #DCD5C1;
-    border-left: 5px solid var(--grey);
-    padding: 12px 14px;
-    margin-bottom: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 16px 18px;
+    margin-bottom: 12px;
   }
-  #bitacora-root .row.alta { border-left-color: var(--orange); }
-  #bitacora-root .row.media { border-left-color: var(--yellow); }
-  #bitacora-root .row.vencido { opacity: 0.55; }
-  #bitacora-root .row.descartado { opacity: 0.4; }
-  #bitacora-root .row.vence-pronto { border-left-color: var(--orange); box-shadow: 0 0 0 1.5px var(--orange); }
+  #bitacora-root .row.alta { border-left-color: var(--danger); }
+  #bitacora-root .row.media { border-left-color: var(--warning); }
+  #bitacora-root .row.vencido { opacity: .6; }
+  #bitacora-root .row.descartado { opacity: .45; }
+  #bitacora-root .row.vence-pronto { border-left-color: var(--danger); box-shadow: 0 0 0 1.5px var(--danger-border), var(--shadow-sm); }
   #bitacora-root .expire-alert {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.3px;
-    color: var(--white);
-    background: var(--orange);
-    padding: 4px 8px;
-    margin: -12px -14px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .2px;
+    color: var(--danger);
+    background: var(--danger-bg);
+    border-radius: var(--radius-sm);
+    padding: 5px 10px;
+    margin: -16px -18px 12px;
+    display: inline-block;
+    border-bottom-left-radius: 0; border-bottom-right-radius: 0;
   }
 
   #bitacora-root .row-head {
@@ -251,130 +336,156 @@
     gap: 8px;
   }
   #bitacora-root .row-ent {
-    font-family: 'Barlow Condensed', sans-serif;
     font-weight: 700;
-    font-size: 16.5px;
-    line-height: 1.2;
+    font-size: 15.5px;
+    line-height: 1.3;
+    color: var(--text);
   }
-  #bitacora-root .row-head-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  #bitacora-root .row-head-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* Badge unificado: fondo con tinte + texto del mismo color de familia +
+     borde a juego. Es la base visual de TODOS los estados del sistema
+     (.tag, .eval-*, .expeval-*) -- no depende solo del color: siempre
+     lleva texto/etiqueta encima, y en varios casos también un símbolo. */
   #bitacora-root .tag {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.5px;
-    border: 1px solid var(--grey);
-    color: var(--grey);
-    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .1px;
+    border-radius: 999px;
+    border: 1px solid var(--neutral-border);
+    background: var(--neutral-bg);
+    color: var(--neutral);
+    padding: 3px 10px;
     white-space: nowrap;
     flex-shrink: 0;
+    display: inline-block;
   }
-  #bitacora-root .row.alta .tag.priority { border-color: var(--orange); color: var(--orange); }
-  #bitacora-root .row.media .tag.priority { border-color: var(--yellow); color: #8A6A1C; }
-  #bitacora-root .tag.visto { border-color: var(--navy-line); color: var(--navy-line); }
-  #bitacora-root .tag.fuente { border-color: #A99A72; color: #7A6B47; }
+  #bitacora-root .row.alta .tag.priority { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
+  #bitacora-root .row.media .tag.priority { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
+  #bitacora-root .tag.visto { border-color: var(--border-strong); background: var(--bg); color: var(--text-muted); }
+  #bitacora-root .tag.fuente { border-color: var(--border-strong); background: var(--bg); color: var(--text-muted); }
   #bitacora-root .tag.eval { font-weight: 700; }
-  #bitacora-root .eval-go { border-color: var(--good); color: var(--good); }
-  #bitacora-root .eval-nogo { border-color: var(--orange); color: var(--orange); }
-  #bitacora-root .eval-revisar { border-color: var(--yellow); color: #8A6A1C; }
+  #bitacora-root .eval-go { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
+  #bitacora-root .eval-nogo { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
+  #bitacora-root .eval-revisar { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
   #bitacora-root .eval-verdict {
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
-    border: 1.5px solid currentColor; padding: 0 6px; letter-spacing: 0.4px;
+    font-weight: 700; font-size: 12.5px;
+    border-radius: 999px; padding: 3px 12px;
+    border: 1px solid currentColor;
   }
   #bitacora-root #bt-eval-out:empty { display: none; }
-  #bitacora-root #bt-eval-out .analysis-list li { margin-bottom: 5px; }
+  #bitacora-root #bt-eval-out .analysis-list li { margin-bottom: 6px; }
   #bitacora-root .eval-adj-slot:empty { display: none; }
 
   #bitacora-root .row-obj {
     font-size: 13.5px;
-    line-height: 1.45;
-    margin: 6px 0 8px;
-    color: #33322D;
+    line-height: 1.5;
+    margin: 8px 0 10px;
+    color: var(--text-muted);
   }
   #bitacora-root .row-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px 16px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: var(--navy-line);
-    margin-bottom: 8px;
+    gap: 8px 18px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
   }
-  #bitacora-root .row-meta b { color: var(--navy); }
+  #bitacora-root .row-meta b { color: var(--text); font-weight: 600; }
   #bitacora-root .row-link a {
     font-size: 12.5px;
-    color: var(--orange);
-    text-decoration: underline;
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
   }
+  #bitacora-root .row-link a:hover { text-decoration: underline; }
 
   #bitacora-root .row-actions {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px dashed #DCD5C1;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
   }
   #bitacora-root .btn-mini {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10.5px;
-    letter-spacing: 0.3px;
-    border: 1px solid var(--navy-line);
-    background: var(--white);
-    color: var(--navy);
-    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    padding: 6px 12px;
     cursor: pointer;
   }
-  #bitacora-root .btn-mini:hover { background: var(--paper-dark); }
-  #bitacora-root .btn-mini.active-visto { background: var(--navy); color: var(--white); border-color: var(--navy); }
-  #bitacora-root .btn-mini.active-descartado { background: var(--orange); color: var(--white); border-color: var(--orange); }
-  #bitacora-root .btn-mini.analizar { border-color: var(--good); color: var(--good); }
-  #bitacora-root .btn-mini.analizar:hover { background: var(--good); color: var(--white); }
+  #bitacora-root .btn-mini:hover { background: var(--bg); }
+  #bitacora-root .btn-mini.active-visto { background: var(--brand-800); color: #fff; border-color: var(--brand-800); }
+  #bitacora-root .btn-mini.active-descartado { background: var(--danger); color: #fff; border-color: var(--danger); }
+  #bitacora-root .btn-mini.analizar { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
+  #bitacora-root .btn-mini.analizar:hover { background: var(--success); color: #fff; }
 
+  /* ============================================================
+     BLOQUES DE RESULTADO — análisis de pliego, evaluación go/no-go,
+     evaluación de experiencia. Panel anidado dentro de una tarjeta,
+     con jerarquía clara: encabezado > subtítulos > lista de detalle.
+     ============================================================ */
   #bitacora-root .analysis-slot:empty { display: none; }
   #bitacora-root .analysis-loading {
-    margin-top: 8px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11.5px;
-    color: var(--navy-line);
-  }
-  #bitacora-root .analysis-block {
     margin-top: 10px;
-    background: var(--paper);
-    border: 1px solid #D8D0BC;
-    border-left: 3px solid var(--good);
-    padding: 10px 12px;
-    font-size: 12px;
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px;
   }
-  #bitacora-root .analysis-block.analysis-warn { border-left-color: var(--orange); }
+  #bitacora-root .analysis-loading::before {
+    content: ''; width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid var(--border-strong); border-top-color: var(--accent);
+    animation: bt-spin .7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes bt-spin { to { transform: rotate(360deg); } }
+  #bitacora-root .analysis-block {
+    margin-top: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--success);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  #bitacora-root .analysis-block.analysis-warn { border-left-color: var(--danger); }
   #bitacora-root .analysis-head {
-    font-family: 'Barlow Condensed', sans-serif;
     font-weight: 700;
-    font-size: 13.5px;
-    color: var(--navy);
-    margin-bottom: 6px;
+    font-size: 14.5px;
+    color: var(--text);
+    margin-bottom: 8px;
   }
   #bitacora-root .analysis-sub {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 10.5px;
-    letter-spacing: 0.3px;
-    color: var(--navy-line);
-    margin: 8px 0 3px;
+    /* Sin text-transform:uppercase -- esta clase también envuelve contenido
+       dinámico (nombre de la empresa, objeto del contrato) y forzarlo a
+       mayúsculas se leería como "gritar" el nombre real de una empresa. Los
+       rótulos fijos de sección ("RECOMENDACIÓN", "REQUISITOS...") ya vienen
+       en mayúscula literal desde el texto que genera cada función. */
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .2px;
+    color: var(--text-faint);
+    margin: 12px 0 5px;
   }
-  #bitacora-root .analysis-list { margin: 0; padding-left: 18px; }
-  #bitacora-root .analysis-list li { margin-bottom: 4px; line-height: 1.4; }
+  #bitacora-root .analysis-list { margin: 0; padding-left: 20px; }
+  #bitacora-root .analysis-list li { margin-bottom: 5px; line-height: 1.5; }
   #bitacora-root .analysis-disclaimer {
-    margin-top: 8px;
-    font-size: 10.5px;
-    color: var(--grey);
-    font-style: italic;
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--text-faint);
   }
 
   #bitacora-root .footnote {
-    font-size: 11.5px;
-    color: var(--grey);
-    line-height: 1.5;
-    margin-top: 22px;
-    padding-top: 14px;
-    border-top: 1px solid #D8D0BC;
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.6;
+    margin-top: 26px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
   }
 
   @media (min-width: 640px) {
@@ -382,221 +493,505 @@
     #bitacora-root .field.full { grid-column: 1 / -1; }
   }
 
-  #bitacora-root .expeval-uploads {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
-    margin-bottom: 10px; padding: 8px 10px; background: var(--paper); border: 1px solid #D8D0BC;
+  /* ============================================================
+     CARGA DE DOCUMENTOS — un solo componente reutilizado para el RUP
+     (perfil) y para los dos Excel de la sección Experiencia, con
+     estados claros (esperando / cargando / cargado / error) en vez
+     de un botón "Upload" suelto.
+     ============================================================ */
+  #bitacora-root .dropzone {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: 6px;
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: var(--bg);
+    padding: 26px 20px;
+    cursor: pointer;
+    transition: border-color .12s ease, background .12s ease;
   }
-  #bitacora-root .expeval-uploads button { font-size: 12.5px; padding: 8px 10px; }
-  #bitacora-root .expeval-review { margin-top: 4px; margin-bottom: 10px; }
+  #bitacora-root .dropzone:hover, #bitacora-root .dropzone.drag-over {
+    border-color: var(--accent); background: var(--accent-soft);
+  }
+  #bitacora-root .dropzone-icon {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: var(--surface); border: 1px solid var(--border-strong);
+    display: flex; align-items: center; justify-content: center; color: var(--accent);
+    margin-bottom: 2px;
+  }
+  #bitacora-root .dropzone-title { font-size: 14px; font-weight: 600; color: var(--text); }
+  #bitacora-root .dropzone-sub { font-size: 12.5px; color: var(--text-muted); }
+  #bitacora-root .dropzone-types { font-size: 11px; color: var(--text-faint); letter-spacing: .3px; text-transform: uppercase; margin-top: 2px; }
+
+  #bitacora-root .file-status {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--surface); padding: 12px 14px; box-shadow: var(--shadow-sm);
+  }
+  #bitacora-root .file-status-icon {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--success-bg); color: var(--success);
+  }
+  #bitacora-root .file-status.is-error .file-status-icon { background: var(--danger-bg); color: var(--danger); }
+  #bitacora-root .file-status.is-loading .file-status-icon { background: var(--accent-soft); color: var(--accent); }
+  #bitacora-root .file-status-body { flex: 1; min-width: 0; }
+  #bitacora-root .file-status-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  #bitacora-root .file-status-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  #bitacora-root .file-status-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  #bitacora-root .expeval-uploads { margin-bottom: 16px; }
+  #bitacora-root .expeval-uploads .field-label-row {
+    font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #bitacora-root .step-num {
+    width: 20px; height: 20px; border-radius: 50%; background: var(--brand-800); color: #fff;
+    font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  #bitacora-root .expeval-review { margin-top: 4px; margin-bottom: 14px; }
   #bitacora-root .expeval-review summary {
-    cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--navy-line);
+    cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--accent); list-style: none;
   }
-  #bitacora-root .expeval-table-wrap { overflow-x: auto; margin-top: 6px; }
-  #bitacora-root table.expeval-table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+  #bitacora-root .expeval-review summary::-webkit-details-marker { display: none; }
+  #bitacora-root .expeval-review summary::before { content: '▸ '; }
+  #bitacora-root .expeval-review[open] summary::before { content: '▾ '; }
+  #bitacora-root .expeval-table-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+  #bitacora-root table.expeval-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
   #bitacora-root table.expeval-table th, #bitacora-root table.expeval-table td {
-    border: 1px solid #D8D0BC; padding: 5px 7px; text-align: left; vertical-align: top;
+    border-bottom: 1px solid var(--border); padding: 9px 12px; text-align: left; vertical-align: top;
   }
+  #bitacora-root table.expeval-table tbody tr:last-child td { border-bottom: none; }
   #bitacora-root table.expeval-table th {
-    background: var(--paper-dark); font-family: 'IBM Plex Mono', monospace; font-weight: 500;
-    font-size: 10px; letter-spacing: 0.3px; color: var(--navy);
+    background: var(--bg); font-weight: 700;
+    font-size: 11px; letter-spacing: .2px; color: var(--text-muted); text-transform: uppercase;
   }
+
+  /* Badge de estado (CUMPLE / NO CUMPLE / NO DETERMINABLE) — mismo
+     sistema visual del resto de badges, con símbolo para no depender
+     solo del color. */
   #bitacora-root .expeval-badge {
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11.5px;
-    letter-spacing: 0.3px; border: 1.5px solid currentColor; padding: 1px 7px;
-    white-space: nowrap; display: inline-block;
+    font-weight: 700; font-size: 12px;
+    border-radius: 999px; border: 1px solid currentColor;
+    padding: 3px 11px;
+    white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;
   }
-  #bitacora-root .expeval-cumple { color: var(--good); }
-  #bitacora-root .expeval-nocumple { color: var(--orange); }
-  #bitacora-root .expeval-nd { color: #8A6A1C; }
-  #bitacora-root .expeval-summary { display: flex; flex-wrap: wrap; gap: 18px; margin: 10px 0; }
+  #bitacora-root .expeval-cumple { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+  #bitacora-root .expeval-nocumple { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+  #bitacora-root .expeval-nd { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+  #bitacora-root .expeval-summary { display: flex; flex-wrap: wrap; gap: 14px; margin: 14px 0; }
   #bitacora-root .expeval-summary .stat {
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; line-height: 1;
+    flex: 1 1 130px;
+    border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface);
+    padding: 14px 16px; font-weight: 700; font-size: 24px; line-height: 1;
   }
   #bitacora-root .expeval-summary .stat span {
-    display: block; font-family: 'IBM Plex Mono', monospace; font-weight: 400; font-size: 10px;
-    color: var(--grey); letter-spacing: 0.3px; margin-top: 3px;
+    display: block; font-weight: 600; font-size: 11px;
+    color: var(--text-muted); letter-spacing: .2px; text-transform: uppercase; margin-top: 6px;
   }
+
+  /* Resultado global: tarjeta "hero" grande, lo primero que se lee --
+     resumen ejecutivo antes del detalle (petición explícita). */
   #bitacora-root .expeval-global {
-    border: 1.5px solid currentColor; padding: 8px 12px; margin: 4px 0 10px;
-    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+    padding: 20px 22px; margin: 4px 0 16px;
+    font-weight: 700; font-size: 18px;
+    background: var(--surface);
   }
+  #bitacora-root .expeval-global.expeval-cumple { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
+  #bitacora-root .expeval-global.expeval-nocumple { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger); }
+  #bitacora-root .expeval-global.expeval-nd { background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning); }
   #bitacora-root .expeval-global small {
-    font-family: 'IBM Plex Mono', monospace; font-weight: 400; font-size: 11px;
+    display: block; font-weight: 500; font-size: 12.5px; margin-top: 5px; color: inherit; opacity: .85;
+  }
+
+  /* Indicador de pasos (01 → 02 → 03 → 04) para el flujo de Experiencia. */
+  #bitacora-root .steps { display: flex; align-items: center; gap: 6px; margin-bottom: 22px; flex-wrap: wrap; }
+  #bitacora-root .step { display: flex; align-items: center; gap: 9px; }
+  #bitacora-root .step-circle {
+    width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    background: var(--neutral-bg); color: var(--text-muted); border: 1px solid var(--border-strong);
+  }
+  #bitacora-root .step.is-active .step-circle { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #bitacora-root .step.is-done .step-circle { background: var(--success); color: #fff; border-color: var(--success); }
+  #bitacora-root .step-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+  #bitacora-root .step.is-active .step-label, #bitacora-root .step.is-done .step-label { color: var(--text); }
+  #bitacora-root .step-sep { width: 22px; height: 1px; background: var(--border-strong); flex-shrink: 0; }
+  #bitacora-root .step.is-done + .step-sep { background: var(--success-border); }
+
+  /* ============================================================
+     DASHBOARD
+     ============================================================ */
+  #bitacora-root .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  #bitacora-root .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); padding: 18px 20px;
+  }
+  #bitacora-root .stat-card-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+  #bitacora-root .stat-card-value { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; }
+  #bitacora-root .stat-card-value.small { font-size: 17px; }
+  #bitacora-root .stat-card-note { font-size: 12px; color: var(--text-faint); margin-top: 6px; }
+
+  #bitacora-root .quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  #bitacora-root .quick-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm); padding: 18px 20px; text-align: left; cursor: pointer;
+    display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+    transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  #bitacora-root .quick-card:hover { border-color: var(--accent); box-shadow: var(--shadow-md); }
+  #bitacora-root .quick-card-icon {
+    width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #bitacora-root .quick-card-title { font-size: 14.5px; font-weight: 700; color: var(--text); }
+  #bitacora-root .quick-card-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+
+  #bitacora-root .recent-list { display: flex; flex-direction: column; gap: 1px; }
+  #bitacora-root .recent-item {
+    display: flex; align-items: center; gap: 14px; padding: 13px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  #bitacora-root .recent-item:last-child { border-bottom: none; }
+  #bitacora-root .recent-item-body { flex: 1; min-width: 0; }
+  #bitacora-root .recent-item-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+  #bitacora-root .recent-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  #bitacora-root .empty-inline { font-size: 13px; color: var(--text-muted); padding: 12px 4px; }
+
+  @media (max-width: 900px) {
+    #bitacora-root .app-shell { flex-direction: column; min-height: 0; }
+    #bitacora-root .sidebar {
+      width: 100%; height: auto; position: sticky; top: 0; z-index: 5;
+      flex-direction: row; align-items: center; overflow-x: auto;
+    }
+    #bitacora-root .sidebar-brand { border-bottom: none; border-right: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
+    #bitacora-root .sidebar-nav { flex-direction: row; padding: 10px 12px; flex: 0 0 auto; }
+    #bitacora-root .nav-item { white-space: nowrap; }
+    #bitacora-root .sidebar-foot { display: none; }
+    #bitacora-root .wrap { padding: 24px 18px 40px; }
   }
 </style>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <div id="bitacora-root">
-  <div class="topbar">
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
-      <circle cx="15" cy="15" r="12" stroke="#F3EEE1" stroke-width="2"/>
-      <line x1="15" y1="5" x2="15" y2="9" stroke="#D65A26" stroke-width="2"/>
-      <line x1="3" y1="15" x2="27" y2="15" stroke="#F3EEE1" stroke-width="1.2"/>
-      <circle cx="15" cy="15" r="2.4" fill="#D65A26"/>
-    </svg>
-    <div>
-      <h1>Bitácora</h1>
-      <p>Rastreador de licitaciones SECOP II para constructoras</p>
-    </div>
-  </div>
-
-  <div class="wrap">
-
-    <div class="titleblock">
-      <div class="titleblock-head">
-        <h2>Perfil de la obra</h2>
-        <span>Datos abiertos SECOP II · datos.gov.co</span>
+  <div class="app-shell">
+    <nav class="sidebar" aria-label="Navegación principal">
+      <div class="sidebar-brand">
+        <div class="brand-mark">B</div>
+        <div class="sidebar-brand-text">
+          <h1>Bitácora</h1>
+          <p>Consultoría en contratación pública</p>
+        </div>
       </div>
-      <div class="field-grid">
-        <div class="field full">
-          <label>Nº DE PROCESO O REFERENCIA (búsqueda directa, opcional)</label>
-          <input id="bt-proceso" type="text" placeholder="ej. LP-005-2026, SAMC-05-2026, CO1.REQ.10526881">
-        </div>
-        <div class="field full">
-          <label>ESPECIALIDADES (separadas por coma)</label>
-          <input id="bt-kw" type="text" placeholder="pavimentación, alcantarillado, obra civil, vías terciarias" value="pavimentación, obra civil, alcantarillado, edificación">
-        </div>
-        <div class="field full">
-          <label>COBERTURA GEOGRÁFICA (departamentos, separados por coma)</label>
-          <input id="bt-geo" type="text" placeholder="Norte de Santander, Santander" value="Norte de Santander">
-        </div>
-        <div class="field-row2 full">
-          <div class="field">
-            <label>VALOR MÍNIMO (COP)</label>
-            <input id="bt-min" type="number" placeholder="0">
+      <div class="sidebar-nav" id="bt-nav" role="tablist">
+        <button class="nav-item" type="button" data-view="dashboard" role="tab" aria-selected="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          Inicio
+        </button>
+        <button class="nav-item" type="button" data-view="buscar" role="tab" aria-selected="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="20" y1="20" x2="15.4" y2="15.4"/></svg>
+          Buscar procesos
+        </button>
+        <button class="nav-item" type="button" data-view="perfil" role="tab" aria-selected="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+          Perfil de la empresa
+        </button>
+        <button class="nav-item" type="button" data-view="experiencia" role="tab" aria-selected="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8.5 13l2 2 4.5-4.5"/></svg>
+          Experiencia
+        </button>
+        <button class="nav-item" type="button" data-view="evaluacion" role="tab" aria-selected="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          Evaluación
+        </button>
+      </div>
+      <div class="sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>
+    </nav>
+
+    <div class="main">
+      <div class="wrap">
+
+        <section class="view" id="view-dashboard" data-view="dashboard">
+          <div class="view-header">
+            <h1 id="bt-dash-greeting">Buenos días</h1>
+            <p>Este es el resumen de tu actividad de consultoría. Desde aquí puedes ir directo a lo que necesites hacer.</p>
           </div>
-          <div class="field">
-            <label>VALOR MÁXIMO (COP)</label>
-            <input id="bt-max" type="number" placeholder="Sin límite">
+
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="stat-card-label">Perfiles de empresa</div>
+              <div class="stat-card-value" id="bt-dash-perfiles">0</div>
+              <div class="stat-card-note">Guardados en esta cuenta</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Pliegos analizados</div>
+              <div class="stat-card-value" id="bt-dash-analisis">0</div>
+              <div class="stat-card-note">Procesos con análisis de documento</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Evaluación de experiencia</div>
+              <div class="stat-card-value small" id="bt-dash-experiencia">Sin ejecutar</div>
+              <div class="stat-card-note" id="bt-dash-experiencia-note">Carga tus documentos para evaluarla</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Procesos de alta prioridad</div>
+              <div class="stat-card-value" id="bt-dash-alta">0</div>
+              <div class="stat-card-note" id="bt-dash-alta-note">Busca procesos para ver tu shortlist</div>
+            </div>
           </div>
+
+          <div class="titleblock">
+            <div class="titleblock-head">
+              <h2>Actividad reciente</h2>
+              <span>Últimos procesos que revisaste</span>
+            </div>
+            <div class="recent-list" id="bt-dash-recientes">
+              <div class="empty-inline">Todavía no has revisado ningún proceso. Empieza por "Buscar procesos".</div>
+            </div>
+          </div>
+
+          <div class="quick-grid">
+            <button class="quick-card" type="button" data-view="buscar">
+              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="20" y1="20" x2="15.4" y2="15.4"/></svg></div>
+              <div class="quick-card-title">Buscar procesos</div>
+              <div class="quick-card-desc">Encuentra licitaciones públicas abiertas y da seguimiento a las que te interesan.</div>
+            </button>
+            <button class="quick-card" type="button" data-view="perfil">
+              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg></div>
+              <div class="quick-card-title">Perfil de la empresa</div>
+              <div class="quick-card-desc">Carga el RUP y mantén al día la ficha de clasificación y capacidad financiera.</div>
+            </button>
+            <button class="quick-card" type="button" data-view="experiencia">
+              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8.5 13l2 2 4.5-4.5"/></svg></div>
+              <div class="quick-card-title">Experiencia</div>
+              <div class="quick-card-desc">Cruza la experiencia acreditada contra la matriz de requisitos de un proceso.</div>
+            </button>
+            <button class="quick-card" type="button" data-view="evaluacion">
+              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
+              <div class="quick-card-title">Evaluación</div>
+              <div class="quick-card-desc">Revisa el veredicto detallado de un proceso frente a tus perfiles de empresa.</div>
+            </button>
+          </div>
+        </section>
+
+        <section class="view" id="view-buscar" data-view="buscar" hidden>
+          <div class="view-header">
+            <h1>Buscar procesos</h1>
+            <p>Busca licitaciones públicas abiertas en SECOP II y da seguimiento a las que te interesan.</p>
+          </div>
+
+          <div class="titleblock">
+            <div class="titleblock-head">
+              <h2>Filtros de búsqueda</h2>
+              <span>Datos abiertos SECOP II · datos.gov.co</span>
+            </div>
+            <div class="field-grid">
+              <div class="field full">
+                <label>Número de proceso o referencia (búsqueda directa, opcional)</label>
+                <input id="bt-proceso" type="text" placeholder="ej. LP-005-2026, SAMC-05-2026, CO1.REQ.10526881">
+              </div>
+              <div class="field full">
+                <label>Especialidades (separadas por coma)</label>
+                <input id="bt-kw" type="text" placeholder="pavimentación, alcantarillado, obra civil, vías terciarias" value="pavimentación, obra civil, alcantarillado, edificación">
+              </div>
+              <div class="field full">
+                <label>Cobertura geográfica (departamentos, separados por coma)</label>
+                <input id="bt-geo" type="text" placeholder="Norte de Santander, Santander" value="Norte de Santander">
+              </div>
+              <div class="field-row2 full">
+                <div class="field">
+                  <label>Valor mínimo (COP)</label>
+                  <input id="bt-min" type="number" placeholder="0">
+                </div>
+                <div class="field">
+                  <label>Valor máximo (COP)</label>
+                  <input id="bt-max" type="number" placeholder="Sin límite">
+                </div>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn-primary" id="bt-search">Aplicar filtros</button>
+              <button class="btn-secondary" id="bt-demo">Ver datos de ejemplo</button>
+            </div>
+            <div class="saved-note" id="bt-data-freshness" style="margin-top:8px;"></div>
+          </div>
+
+          <div id="bt-demo-banner" style="display:none" class="demo-banner">Estás viendo datos de ejemplo — no provienen de SECOP II en vivo. Úsalos solo para ver cómo luce la plataforma.</div>
+
+          <div class="status-row" id="bt-status" style="display:none">
+            <span class="count" id="bt-count"></span>
+            <div class="status-toggles">
+              <label class="toggle"><input type="checkbox" id="bt-hide-closed" checked> Ocultar vencidos</label>
+              <label class="toggle"><input type="checkbox" id="bt-hide-old" checked> Solo publicados hace ≤30 días</label>
+              <label class="toggle"><input type="checkbox" id="bt-only-licitacion" checked> Solo Licitación Pública (Obra pública)</label>
+              <label class="toggle"><input type="checkbox" id="bt-hide-discarded"> Ocultar descartados</label>
+              <label class="toggle"><input type="checkbox" id="bt-hide-nogo"> Ocultar NO-GO (shortlist)</label>
+              <button class="link-btn" id="bt-export-csv">Exportar alta prioridad (CSV)</button>
+              <button class="link-btn" id="bt-copy-summary">Copiar resumen</button>
+              <button class="link-btn" id="bt-clear-historial">Borrar historial</button>
+            </div>
+            <div class="status-toggles" id="bt-estado-toggles"></div>
+          </div>
+
+          <div id="bt-results"></div>
+        </section>
+
+        <section class="view" id="view-perfil" data-view="perfil" hidden>
+          <div class="view-header">
+            <h1>Perfil de la empresa</h1>
+            <p>Ficha empresarial: clasificación (RUP), capacidad financiera y capacidad residual. La experiencia se evalúa aparte, en "Experiencia".</p>
+          </div>
+
+          <div class="titleblock" id="bt-perfil-panel">
+            <div class="titleblock-head">
+              <h2>Perfiles guardados</h2>
+              <span>Marca uno o varios para compararlos, empresa por empresa, contra los requisitos de cada pliego</span>
+            </div>
+            <div class="perfil-switcher">
+              <div class="field">
+                <label>Perfil en edición</label>
+                <select id="bt-perfil-select"></select>
+              </div>
+              <div class="field">
+                <label>Nombre de la empresa</label>
+                <input id="bt-perfil-nombre" type="text" placeholder="Razón social">
+              </div>
+              <button class="btn-secondary" id="bt-perfil-nuevo">+ Nuevo perfil</button>
+              <button class="btn-secondary" id="bt-perfil-eliminar">Eliminar perfil</button>
+            </div>
+            <div class="perfil-comparar">
+              <span class="toggle-label">Comparar en el análisis de pliegos:</span>
+              <div id="bt-perfil-comparar"></div>
+            </div>
+
+            <div class="field full" style="margin-bottom:18px;">
+              <label>Autocompletar desde el certificado RUP</label>
+              <div class="dropzone" id="bt-perfil-rup-upload" tabindex="0" role="button" aria-label="Cargar certificado del RUP en PDF">
+                <div class="dropzone-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.6-2 4.5 4.5 0 0 1 1.4 8.7"/><path d="M12 21v-8"/><path d="M9 16l3-3 3 3"/></svg></div>
+                <div class="dropzone-title">Cargar certificado RUP</div>
+                <div class="dropzone-sub">Arrastra el archivo aquí o haz clic para seleccionarlo</div>
+                <div class="dropzone-types">PDF</div>
+              </div>
+              <input type="file" accept="application/pdf" id="bt-perfil-rup-file" hidden>
+              <div class="saved-note" id="bt-perfil-rup-status" style="margin-top:8px;">Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa Guardar perfil).</div>
+            </div>
+
+            <div class="field-grid">
+              <div class="field full">
+                <label>RUP / clasificador (códigos UNSPSC o actividades, separados por coma)</label>
+                <textarea id="bt-perfil-rup" rows="2" placeholder="ej. 72101507, 72141108, construcción de vías, alcantarillado"></textarea>
+              </div>
+              <div class="field full">
+                <label>Capacidad K / financiera (texto libre; el RUP la rellena con activo/pasivo corriente, patrimonio e indicadores)</label>
+                <textarea id="bt-perfil-k" rows="2" placeholder="ej. K = 3.500.000.000 · Patrimonio = 450.000.000 · Liquidez = 1,3"></textarea>
+              </div>
+              <div class="field full">
+                <label>Capacidad K residual (texto libre)</label>
+                <input id="bt-perfil-k-residual" type="text" placeholder="ej. K residual = 1.200.000.000">
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="bt-perfil-save">Guardar perfil</button>
+              <span class="saved-note" id="bt-perfil-saved"></span>
+            </div>
+            <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga y evalúa aparte, en "Experiencia" (Excel del proponente + matriz de requisitos). El RUP tampoco se usa aquí para inferir experiencia.</div>
+          </div>
+        </section>
+
+        <section class="view" id="view-experiencia" data-view="experiencia" hidden>
+          <div class="view-header">
+            <h1>Experiencia</h1>
+            <p>Carga la experiencia de tu empresa y la matriz de requisitos del proceso para saber si cumples, en cuatro pasos.</p>
+          </div>
+
+          <div class="steps" id="bt-expeval-steps">
+            <div class="step" data-step="1"><span class="step-circle">1</span><span class="step-label">Cargar experiencia</span></div>
+            <span class="step-sep"></span>
+            <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Cargar matriz</span></div>
+            <span class="step-sep"></span>
+            <div class="step" data-step="3"><span class="step-circle">3</span><span class="step-label">Analizar</span></div>
+            <span class="step-sep"></span>
+            <div class="step" data-step="4"><span class="step-circle">4</span><span class="step-label">Revisar resultados</span></div>
+          </div>
+
+          <div class="titleblock" id="bt-expeval-panel">
+            <div class="titleblock-head">
+              <h2>Evaluación de experiencia</h2>
+              <span>CUMPLE / NO CUMPLE / NO DETERMINABLE, con evidencia y justificación por requisito</span>
+            </div>
+
+            <div class="expeval-uploads">
+              <div class="field-label-row"><span class="step-num">1</span> Experiencia del proponente</div>
+              <div class="dropzone" id="bt-expeval-exp-upload" tabindex="0" role="button" aria-label="Cargar Excel de experiencia del proponente">
+                <div class="dropzone-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.6-2 4.5 4.5 0 0 1 1.4 8.7"/><path d="M12 21v-8"/><path d="M9 16l3-3 3 3"/></svg></div>
+                <div class="dropzone-title">Cargar experiencia del proponente</div>
+                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo</div>
+                <div class="dropzone-types">Excel</div>
+              </div>
+              <input type="file" accept=".xlsx,.xls,.csv" id="bt-expeval-exp-file" hidden>
+              <div class="saved-note" id="bt-expeval-exp-status" style="margin-top:8px;">Sin cargar.</div>
+            </div>
+
+            <div class="expeval-uploads">
+              <div class="field-label-row"><span class="step-num">2</span> Matriz de experiencia (formato de requisitos)</div>
+              <div class="dropzone" id="bt-expeval-matriz-upload" tabindex="0" role="button" aria-label="Cargar Excel de la matriz de requisitos">
+                <div class="dropzone-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.6-2 4.5 4.5 0 0 1 1.4 8.7"/><path d="M12 21v-8"/><path d="M9 16l3-3 3 3"/></svg></div>
+                <div class="dropzone-title">Cargar matriz de requisitos</div>
+                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo</div>
+                <div class="dropzone-types">Excel</div>
+              </div>
+              <input type="file" accept=".xlsx,.xls,.csv" id="bt-expeval-matriz-file" hidden>
+              <div class="saved-note" id="bt-expeval-matriz-status" style="margin-top:8px;">Sin cargar.</div>
+            </div>
+
+            <div id="bt-expeval-review"></div>
+            <div class="actions">
+              <button class="btn-primary" id="bt-expeval-run" disabled>Analizar información</button>
+              <button class="link-btn" id="bt-expeval-informe" style="display:none">Descargar informe (.txt)</button>
+              <button class="link-btn" id="bt-expeval-clear" style="display:none">Borrar lo cargado</button>
+            </div>
+            <div id="bt-expeval-out"></div>
+          </div>
+        </section>
+
+        <section class="view" id="view-evaluacion" data-view="evaluacion" hidden>
+          <div class="view-header">
+            <h1>Evaluación</h1>
+            <p>Cruza un proceso puntual con la ficha de tus perfiles de empresa y obtén un veredicto detallado.</p>
+          </div>
+
+          <div class="empty" id="bt-eval-empty">Todavía no hay procesos para evaluar. Ve a "Buscar procesos" y aplica una búsqueda primero.</div>
+
+          <div class="titleblock" id="bt-eval-panel" style="display:none">
+            <div class="titleblock-head">
+              <h2>Evaluación go / no-go</h2>
+              <span>Cruza un proceso con la matriz de capacidad de los perfiles marcados</span>
+            </div>
+            <div class="perfil-switcher">
+              <div class="field">
+                <label>Proceso a evaluar</label>
+                <select id="bt-eval-select"></select>
+              </div>
+              <button class="btn-primary" id="bt-eval-run">Evaluar</button>
+            </div>
+            <div id="bt-eval-out"></div>
+          </div>
+        </section>
+
+        <div class="footnote">
+          Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "Aplicar filtros" (una petición por cada palabra clave de Especialidades, o por el número de proceso si lo llenaste). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
+          Si llenas "Número de proceso o referencia", esa búsqueda manda: encuentra el proceso aunque no coincida con las Especialidades, el Departamento, ni con "Ocultar vencidos" / "≤30 días" / "Solo Licitación Pública" / estado / descartados — para no ocultar por accidente el proceso puntual que buscas. Vacía esa casilla para volver a la búsqueda por filtros.<br>
+          El historial de procesos revisados, los perfiles de empresa, los análisis de pliegos y la evaluación de experiencia se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfil de la empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y, orientativamente, los indicadores financieros — revísalos antes de guardar. El RUP ya NO se usa para inferir experiencia general ni específica; eso vive aparte, en "Experiencia".<br>
+          El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos" (RUP/clasificador y Capacidad K), empresa por empresa; el requisito de experiencia que detecta en el texto se muestra igual, pero si lo cumples o no sale de "Experiencia", no de este perfil. Desde el resultado puedes descargar o copiar un informe detallado.<br>
+          Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto, más el resultado de la evaluación de experiencia si ya la corriste; esto también es orientativo. Los procesos revisados que vencen en 3 días o menos se resaltan en rojo. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
+          Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes).<br>
+          Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados, más el resultado de "Experiencia" (CUMPLE/NO CUMPLE/NO DETERMINABLE), que es el mismo para cualquier perfil comparado. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist. En "Evaluación" ves el veredicto detallado por empresa con una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.<br>
+          SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
         </div>
       </div>
-      <div class="actions">
-        <button class="btn-primary" id="bt-search">APLICAR FILTROS</button>
-        <button class="btn-secondary" id="bt-demo">VER DATOS DE EJEMPLO</button>
-      </div>
-      <div class="saved-note" id="bt-data-freshness" style="margin-top:8px;"></div>
-    </div>
-
-    <div class="titleblock" id="bt-perfil-panel">
-      <div class="titleblock-head">
-        <h2>Perfiles de empresa</h2>
-        <span>Marca uno o varios para compararlos, empresa por empresa, contra los requisitos habilitantes de cada pliego</span>
-      </div>
-      <div class="perfil-switcher">
-        <div class="field">
-          <label>PERFIL EN EDICIÓN</label>
-          <select id="bt-perfil-select"></select>
-        </div>
-        <div class="field">
-          <label>NOMBRE DE LA EMPRESA</label>
-          <input id="bt-perfil-nombre" type="text" placeholder="Razón social">
-        </div>
-        <button class="btn-secondary" id="bt-perfil-nuevo">+ NUEVO</button>
-        <button class="btn-secondary" id="bt-perfil-eliminar">ELIMINAR</button>
-      </div>
-      <div class="perfil-comparar">
-        <span class="toggle-label">Comparar en el análisis de pliegos:</span>
-        <div id="bt-perfil-comparar"></div>
-      </div>
-      <div class="perfil-rup-cargar">
-        <span class="toggle-label">Autocompletar desde el RUP:</span>
-        <button class="btn-secondary" id="bt-perfil-rup-upload" type="button">CARGAR RUP (PDF)</button>
-        <input type="file" accept="application/pdf" id="bt-perfil-rup-file" hidden>
-        <span class="saved-note" id="bt-perfil-rup-status">Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa GUARDAR PERFIL).</span>
-      </div>
-      <div class="field-grid">
-        <div class="field full">
-          <label>RUP / CLASIFICADOR (códigos UNSPSC o actividades, separados por coma)</label>
-          <textarea id="bt-perfil-rup" rows="2" placeholder="ej. 72101507, 72141108, construcción de vías, alcantarillado"></textarea>
-        </div>
-        <div class="field full">
-          <label>CAPACIDAD K / FINANCIERA (texto libre; el RUP la rellena con activo/pasivo corriente, patrimonio e indicadores)</label>
-          <textarea id="bt-perfil-k" rows="2" placeholder="ej. K = 3.500.000.000 · Patrimonio = 450.000.000 · Liquidez = 1,3"></textarea>
-        </div>
-        <div class="field full">
-          <label>CAPACIDAD K RESIDUAL (texto libre)</label>
-          <input id="bt-perfil-k-residual" type="text" placeholder="ej. K residual = 1.200.000.000">
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn-secondary" id="bt-perfil-save">GUARDAR PERFIL</button>
-        <span class="saved-note" id="bt-perfil-saved"></span>
-      </div>
-      <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga y evalúa aparte, en la sección "Evaluación de experiencia" de abajo (Excel del proponente + matriz de requisitos). El RUP tampoco se usa aquí para inferir experiencia.</div>
-    </div>
-
-    <div class="titleblock" id="bt-expeval-panel">
-      <div class="titleblock-head">
-        <h2>Evaluación de experiencia</h2>
-        <span>Cruza la experiencia acreditada (Excel) contra la matriz de requisitos (Excel/Formato) — CUMPLE / NO CUMPLE / NO DETERMINABLE</span>
-      </div>
-      <div class="expeval-uploads">
-        <span class="toggle-label">1. EXPERIENCIA DEL PROPONENTE:</span>
-        <button class="btn-secondary" id="bt-expeval-exp-upload" type="button">CARGAR EXCEL</button>
-        <input type="file" accept=".xlsx,.xls,.csv" id="bt-expeval-exp-file" hidden>
-        <span class="saved-note" id="bt-expeval-exp-status">Sin cargar.</span>
-      </div>
-      <div class="expeval-uploads">
-        <span class="toggle-label">2. MATRIZ DE EXPERIENCIA (FORMATO):</span>
-        <button class="btn-secondary" id="bt-expeval-matriz-upload" type="button">CARGAR EXCEL</button>
-        <input type="file" accept=".xlsx,.xls,.csv" id="bt-expeval-matriz-file" hidden>
-        <span class="saved-note" id="bt-expeval-matriz-status">Sin cargar.</span>
-      </div>
-      <div id="bt-expeval-review"></div>
-      <div class="actions">
-        <button class="btn-primary" id="bt-expeval-run" disabled>ANALIZAR EXPERIENCIA</button>
-        <button class="link-btn" id="bt-expeval-informe" style="display:none">Descargar informe (.txt)</button>
-        <button class="link-btn" id="bt-expeval-clear" style="display:none">Borrar lo cargado</button>
-      </div>
-      <div id="bt-expeval-out"></div>
-    </div>
-
-    <div id="bt-demo-banner" style="display:none" class="demo-banner">DATOS DE EJEMPLO — no proviene de SECOP II en vivo. Úsalo solo para ver cómo luce la bitácora.</div>
-
-    <div class="status-row" id="bt-status" style="display:none">
-      <span class="count" id="bt-count"></span>
-      <div class="status-toggles">
-        <label class="toggle"><input type="checkbox" id="bt-hide-closed" checked> Ocultar vencidos</label>
-        <label class="toggle"><input type="checkbox" id="bt-hide-old" checked> Solo publicados hace ≤30 días</label>
-        <label class="toggle"><input type="checkbox" id="bt-only-licitacion" checked> Solo Licitación Pública (Obra pública)</label>
-        <label class="toggle"><input type="checkbox" id="bt-hide-discarded"> Ocultar descartados</label>
-        <label class="toggle"><input type="checkbox" id="bt-hide-nogo"> Ocultar NO-GO (shortlist)</label>
-        <button class="link-btn" id="bt-export-csv">Exportar alta prioridad (CSV)</button>
-        <button class="link-btn" id="bt-copy-summary">Copiar resumen</button>
-        <button class="link-btn" id="bt-clear-historial">Borrar historial</button>
-      </div>
-      <div class="status-toggles" id="bt-estado-toggles"></div>
-    </div>
-
-    <div id="bt-results"></div>
-
-    <div class="titleblock" id="bt-eval-panel" style="display:none">
-      <div class="titleblock-head">
-        <h2>Evaluación go / no-go</h2>
-        <span>Cruza un proceso con la matriz de capacidad de los perfiles marcados</span>
-      </div>
-      <div class="perfil-switcher">
-        <div class="field">
-          <label>PROCESO A EVALUAR</label>
-          <select id="bt-eval-select"></select>
-        </div>
-        <button class="btn-primary" id="bt-eval-run">EVALUAR</button>
-      </div>
-      <div id="bt-eval-out"></div>
-    </div>
-
-    <div class="footnote">
-      Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "APLICAR FILTROS" (una petición por cada palabra clave de Especialidades, o por el Nº de proceso si lo llenaste). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
-      Si llenas "Nº de proceso o referencia", esa búsqueda manda: encuentra el proceso aunque no coincida con las Especialidades, el Departamento, ni con "Ocultar vencidos" / "≤30 días" / "Solo Licitación Pública" / estado / descartados — para no ocultar por accidente el proceso puntual que buscas. Vacía esa casilla para volver a la búsqueda por filtros.<br>
-      El historial de "visto"/"descartado", los perfiles de empresa, los análisis de pliegos y la evaluación de experiencia se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfiles de empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y, orientativamente, los indicadores financieros — revísalos antes de guardar. El RUP ya NO se usa para inferir experiencia general ni específica; eso vive aparte, en "Evaluación de experiencia".<br>
-      El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos" (RUP/clasificador y Capacidad K), empresa por empresa; el requisito de experiencia que detecta en el texto se muestra igual, pero si lo cumples o no sale de "Evaluación de experiencia", no de este perfil. Desde el resultado puedes descargar o copiar un informe detallado.<br>
-      Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto, más el resultado de la evaluación de experiencia si ya la corriste; esto también es orientativo. Los procesos "vistos" que vencen en 3 días o menos se resaltan en naranja. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
-      Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes).<br>
-      Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados, más el resultado de "Evaluación de experiencia" (CUMPLE/NO CUMPLE/NO DETERMINABLE), que es el mismo para cualquier perfil comparado. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist. En la sección "Evaluación go / no-go" ves el veredicto detallado por empresa con una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.<br>
-      SECOP I no está incluido — si lo necesitas, descarga un CSV equivalente filtrado por SECOP I y pídele a Claude que lo agregue.
     </div>
   </div>
 </div>
@@ -836,7 +1231,7 @@
     setCampo(perfilKEl, perfil.k);
     setCampo(perfilKResidualEl, perfil.kResidual);
     if (perfilSavedEl) perfilSavedEl.textContent = '';
-    if (perfilRupStatusEl) perfilRupStatusEl.textContent = 'Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa GUARDAR PERFIL).';
+    if (perfilRupStatusEl) perfilRupStatusEl.textContent = 'Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa Guardar perfil).';
     pendingRupFile = null;
   }
 
@@ -906,13 +1301,13 @@
     if (!_eliminarArmado){
       _eliminarArmado = true;
       const original = perfilEliminarBtn.textContent;
-      perfilEliminarBtn.textContent = '¿ELIMINAR? CLIC DE NUEVO';
+      perfilEliminarBtn.textContent = '¿Eliminar? Clic de nuevo';
       _eliminarTimer = setTimeout(() => { _eliminarArmado = false; perfilEliminarBtn.textContent = original; }, 4000);
       return;
     }
     clearTimeout(_eliminarTimer);
     _eliminarArmado = false;
-    perfilEliminarBtn.textContent = 'ELIMINAR';
+    perfilEliminarBtn.textContent = 'Eliminar perfil';
     const idEliminado = perfilActivoId;
     delete perfiles[idEliminado];
     perfilesActivos = perfilesActivos.filter(id => id !== idEliminado);
@@ -1109,7 +1504,7 @@
     if (perfilSavedEl) perfilSavedEl.textContent = '';
     perfilRupStatusEl.textContent = 'RUP leído (' + pagesRead + '/' + numPages + ' págs' + (viaOcr ? ', vía OCR' : '') + '). ' +
       (partes.length ? partes.join(' · ') + '. ' : '') +
-      'La capacidad K/financiera y la capacidad residual del RUP salen de una tabla y pueden no leerse bien: revísalas contra el PDF antes de GUARDAR PERFIL.';
+      'La capacidad K/financiera y la capacidad residual del RUP salen de una tabla y pueden no leerse bien: revísalas contra el PDF antes de pulsar Guardar perfil.';
   }
 
   let analisis = {};
@@ -2221,9 +2616,17 @@
   }
 
   // Llena el desplegable de la sección de evaluación con los procesos en pantalla.
+  // Si no hay ninguno (aún no se buscó nada), se muestra un mensaje en vez de
+  // dejar la vista "Evaluación" completamente vacía.
   function poblarEvalSelect(scored){
     if (!evalSelectEl) return;
-    if (!scored || !scored.length){ evalPanelEl.style.display = 'none'; return; }
+    const emptyEl = document.getElementById('bt-eval-empty');
+    if (!scored || !scored.length){
+      evalPanelEl.style.display = 'none';
+      if (emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
     evalPanelEl.style.display = 'block';
     const prev = evalSelectEl.value;
     evalSelectEl.innerHTML = scored.map(s => {
@@ -3151,8 +3554,31 @@
     perfilNombreEl.addEventListener('input', onNombrePerfilInput);
     perfilNombreEl.addEventListener('blur', onNombrePerfilBlur);
   }
+  // Componente único de carga (RUP + los dos Excel de Experiencia): clic para
+  // elegir archivo, arrastrar y soltar, y activación por teclado (Enter/Espacio)
+  // -- son <div> con role="button", no <button> reales, así que el teclado no
+  // vendría gratis del navegador.
+  function wireDropzone(zoneEl, fileInputEl, onFile){
+    if (!zoneEl || !fileInputEl) return;
+    zoneEl.addEventListener('click', () => fileInputEl.click());
+    zoneEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInputEl.click(); }
+    });
+    ['dragenter', 'dragover'].forEach(evt => zoneEl.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation(); zoneEl.classList.add('drag-over');
+    }));
+    ['dragleave', 'dragend'].forEach(evt => zoneEl.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation(); zoneEl.classList.remove('drag-over');
+    }));
+    zoneEl.addEventListener('drop', (e) => {
+      e.preventDefault(); e.stopPropagation(); zoneEl.classList.remove('drag-over');
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file && onFile) onFile(file);
+    });
+  }
+
   if (perfilRupUploadBtn && perfilRupFileEl){
-    perfilRupUploadBtn.addEventListener('click', () => perfilRupFileEl.click());
+    wireDropzone(perfilRupUploadBtn, perfilRupFileEl, (file) => procesarRUP(file, false));
     perfilRupFileEl.addEventListener('change', async () => {
       const file = perfilRupFileEl.files && perfilRupFileEl.files[0];
       perfilRupFileEl.value = '';
@@ -3161,19 +3587,50 @@
   }
 
   // --- Evaluación de experiencia: carga de los dos Excel y ejecución -------
+  // Indicador de los 4 pasos (Cargar experiencia → Cargar matriz → Analizar →
+  // Revisar resultados): refleja en qué paso está el usuario según lo que ya
+  // haya cargado/ejecutado -- se actualiza junto con la revisión y el resultado.
+  function renderExpEvalSteps(){
+    const stepsEl = document.getElementById('bt-expeval-steps');
+    if (!stepsEl) return;
+    const s1 = !!expevalContratos, s2 = !!expevalRequisitos, s3 = !!expevalResultado;
+    const states = {
+      1: s1 ? 'is-done' : 'is-active',
+      2: s2 ? 'is-done' : (s1 ? 'is-active' : ''),
+      3: s3 ? 'is-done' : (s1 && s2 ? 'is-active' : ''),
+      4: s3 ? 'is-active' : ''
+    };
+    Object.keys(states).forEach(n => {
+      const el = stepsEl.querySelector('.step[data-step="' + n + '"]');
+      if (el) el.className = 'step' + (states[n] ? ' ' + states[n] : '');
+    });
+  }
+
   function renderExpEvalReview(){
     let html = '';
-    if (expevalContratos) html += renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length);
-    if (expevalRequisitos) html += renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length);
+    // También restaura el texto de estado bajo cada dropzone (nombre de
+    // archivo + cantidad leída) -- si no, tras recargar la página el
+    // indicador de pasos mostraba "1/2 hechos" pero el dropzone seguía
+    // diciendo "Sin cargar.", una contradicción visual confusa.
+    if (expevalContratos){
+      html += renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length);
+      expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s).';
+    }
+    if (expevalRequisitos){
+      html += renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length);
+      expevalMatrizStatusEl.textContent = (expevalMeta && expevalMeta.matrizFile ? expevalMeta.matrizFile + ' · ' : '') + expevalRequisitos.requisitos.length + ' requisito(s) leído(s).';
+    }
     expevalReviewEl.innerHTML = html;
     expevalRunBtn.disabled = !(expevalContratos && expevalRequisitos);
     expevalClearBtn.style.display = (expevalContratos || expevalRequisitos) ? '' : 'none';
+    renderExpEvalSteps();
   }
 
   function renderExpEvalResultado(){
-    if (!expevalResultado){ expevalOutEl.innerHTML = ''; expevalInformeBtn.style.display = 'none'; return; }
+    if (!expevalResultado){ expevalOutEl.innerHTML = ''; expevalInformeBtn.style.display = 'none'; renderExpEvalSteps(); return; }
     expevalOutEl.innerHTML = renderResultadoExperiencia(expevalResultado);
     expevalInformeBtn.style.display = '';
+    renderExpEvalSteps();
   }
 
   async function cargarExcelExperiencia(file){
@@ -3223,7 +3680,7 @@
   }
 
   if (expevalExpUploadBtn && expevalExpFileEl){
-    expevalExpUploadBtn.addEventListener('click', () => expevalExpFileEl.click());
+    wireDropzone(expevalExpUploadBtn, expevalExpFileEl, (file) => cargarExcelExperiencia(file));
     expevalExpFileEl.addEventListener('change', async () => {
       const file = expevalExpFileEl.files && expevalExpFileEl.files[0];
       expevalExpFileEl.value = '';
@@ -3231,7 +3688,7 @@
     });
   }
   if (expevalMatrizUploadBtn && expevalMatrizFileEl){
-    expevalMatrizUploadBtn.addEventListener('click', () => expevalMatrizFileEl.click());
+    wireDropzone(expevalMatrizUploadBtn, expevalMatrizFileEl, (file) => cargarExcelMatriz(file));
     expevalMatrizFileEl.addEventListener('change', async () => {
       const file = expevalMatrizFileEl.files && expevalMatrizFileEl.files[0];
       expevalMatrizFileEl.value = '';
@@ -3430,12 +3887,119 @@
     rerender();
   });
 
+  // ============================================================
+  // NAVEGACIÓN — sidebar con vistas (Inicio / Buscar procesos / Perfil de la
+  // empresa / Experiencia / Evaluación). Todas las vistas ya están en el HTML;
+  // esto solo muestra la que corresponde y oculta las demás -- no toca en
+  // absoluto la lógica de negocio existente (búsqueda, perfiles, análisis,
+  // evaluación de experiencia siguen funcionando exactamente igual estén o no
+  // a la vista).
+  // ============================================================
+  const VISTAS = ['dashboard', 'buscar', 'perfil', 'experiencia', 'evaluacion'];
+
+  function mostrarVista(nombre){
+    if (VISTAS.indexOf(nombre) === -1) nombre = 'dashboard';
+    VISTAS.forEach(v => {
+      const sec = document.getElementById('view-' + v);
+      if (sec) sec.hidden = (v !== nombre);
+    });
+    document.querySelectorAll('#bt-nav .nav-item').forEach(btn => {
+      const activo = btn.getAttribute('data-view') === nombre;
+      btn.classList.toggle('active', activo);
+      btn.setAttribute('aria-selected', activo ? 'true' : 'false');
+    });
+    window.scrollTo(0, 0);
+    try { localStorage.setItem('bitacora_ultima_vista', nombre); } catch(e){ /* nada */ }
+    if (nombre === 'dashboard') actualizarDashboard();
+  }
+
+  document.querySelectorAll('#bt-nav .nav-item, .quick-card[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => mostrarVista(btn.getAttribute('data-view')));
+  });
+
+  function saludoSegunHora(){
+    const h = new Date().getHours();
+    if (h < 12) return 'Buenos días';
+    if (h < 19) return 'Buenas tardes';
+    return 'Buenas noches';
+  }
+
+  // Resumen de Inicio: se recalcula cada vez que se entra a esa vista (no hace
+  // falta mantenerlo sincronizado en tiempo real mientras el usuario está en
+  // otra pantalla). Nunca inventa datos -- si algo no se ha hecho todavía, lo
+  // dice explícitamente ("Sin ejecutar", "Busca procesos para ver tu shortlist").
+  function actualizarDashboard(){
+    const greetEl = document.getElementById('bt-dash-greeting');
+    if (greetEl) greetEl.textContent = saludoSegunHora();
+
+    const perfilesEl = document.getElementById('bt-dash-perfiles');
+    if (perfilesEl) perfilesEl.textContent = Object.keys(perfiles || {}).length;
+
+    const analisisEl = document.getElementById('bt-dash-analisis');
+    if (analisisEl) analisisEl.textContent = Object.keys(analisis || {}).length;
+
+    const expEl = document.getElementById('bt-dash-experiencia');
+    const expNoteEl = document.getElementById('bt-dash-experiencia-note');
+    if (expEl){
+      if (expevalResultado){
+        expEl.textContent = expevalResultado.resultadoGlobal;
+        if (expNoteEl) expNoteEl.textContent = expevalResultado.conteo['CUMPLE'] + ' cumple · ' +
+          expevalResultado.conteo['NO CUMPLE'] + ' no cumple · ' + expevalResultado.conteo['NO DETERMINABLE'] + ' no determinable';
+      } else {
+        expEl.textContent = 'Sin ejecutar';
+        if (expNoteEl) expNoteEl.textContent = 'Carga tus documentos para evaluarla';
+      }
+    }
+
+    const altaEl = document.getElementById('bt-dash-alta');
+    const altaNoteEl = document.getElementById('bt-dash-alta-note');
+    if (altaEl){
+      const nAlta = (lastScored || []).filter(s => s.tier === 'alta').length;
+      altaEl.textContent = nAlta;
+      if (altaNoteEl) altaNoteEl.textContent = (lastScored && lastScored.length)
+        ? 'De ' + lastScored.length + ' proceso(s) en tu última búsqueda'
+        : 'Busca procesos para ver tu shortlist';
+    }
+
+    const recEl = document.getElementById('bt-dash-recientes');
+    if (recEl){
+      const entradas = Object.keys(historial || {})
+        .map(id => Object.assign({ id: id }, historial[id]))
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+        .slice(0, 6);
+      if (!entradas.length){
+        recEl.innerHTML = '<div class="empty-inline">Todavía no has revisado ningún proceso. Empieza por "Buscar procesos".</div>';
+      } else {
+        recEl.innerHTML = entradas.map(h => {
+          // Se enriquece con la última búsqueda en pantalla si el proceso sigue
+          // ahí; si no (búsqueda distinta, o recién abierta la página), se
+          // muestra igual con lo mínimo -- nunca se inventa un título.
+          const s = (lastScored || []).find(x => x.item && x.item.id === h.id);
+          const titulo = s ? ((s.item.entidad || 'Proceso') + ' — ' + truncate(s.item.objeto || '', 70)) : ('Proceso ' + h.id);
+          const estadoTxt = h.status === 'visto' ? 'Visto' : 'Descartado';
+          const veredicto = (s && s.evaluacion) ? ' · ' + s.evaluacion.mejor.veredicto : '';
+          return '<div class="recent-item"><div class="recent-item-body"><div class="recent-item-title">' + escapeHtml(titulo) + '</div>' +
+            '<div class="recent-item-sub">' + estadoTxt + escapeHtml(veredicto) + '</div></div></div>';
+        }).join('');
+      }
+    }
+  }
+
   // Restaura en pantalla la evaluación de experiencia guardada (si había Excel
   // cargados de una sesión anterior), una vez que appReady haya resuelto.
   appReady.then(() => {
     renderExpEvalReview();
     renderExpEvalResultado();
   });
+
+  // Recuerda la última vista para que un reload no te devuelva siempre a
+  // Inicio si estabas trabajando en otra sección.
+  let vistaInicial = 'dashboard';
+  try {
+    const v = localStorage.getItem('bitacora_ultima_vista');
+    if (v && VISTAS.indexOf(v) !== -1) vistaInicial = v;
+  } catch(e){ /* nada */ }
+  mostrarVista(vistaInicial);
 
   // Carga automática al abrir la página: intenta en vivo, y si falla (p.ej.
   // corriendo dentro de un artifact de Claude.ai) cae al snapshot embebido.
