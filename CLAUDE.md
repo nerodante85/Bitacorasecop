@@ -1169,3 +1169,58 @@ $33.810.000 presupuesto → conservador/competitivo iguales ($33.810.000,
 0.0%) y agresivo $13.614.356 (-59.7%), cifras reales derivadas de su
 historial real. Probado en los 3 breakpoints sin overflow ni errores de
 consola.
+
+## Fase 11 del prompt maestro: inteligencia competitiva (ficha de empresa)
+
+Del prompt maestro del usuario, puntos 18-19 ("Competencia" / "Perfil de
+empresa"). Es la misma consulta que `buscarAdjudicaciones` (Fase 2) pero
+invertida: en vez de "¿a quién le ha adjudicado esta entidad?" pregunta
+"¿con quién y cuánto ha contratado esta empresa?" -- filtra por CONTRATISTA
+(`nombre_del_proveedor` en SECOP II, `nom_razon_social_contratista` en SECOP
+I) en vez de por entidad. Se factorizó `prepararBusquedaPorNombre()` (ancla
+`$q` + coincidencia tolerante de nombre) fuera de `buscarAdjudicaciones` para
+que ambas funciones compartan el mismo criterio de matching, en vez de tener
+dos copias del mismo algoritmo.
+
+**Nueva sección de navegación** ("Competencia", 7º ítem): el prompt maestro
+pide un módulo de nivel superior, no un botón escondido dentro de otra
+vista. Con esto vino, previsiblemente, el mismo bug de overflow que ya se
+vio al agregar "Personal" (documentado arriba) -- confirmado con la misma
+técnica (`sidebar.scrollWidth - sidebar.clientWidth`, 6px de overflow a
+375px real). Arreglo más chico esta vez: bajar el padding de `.nav-item` de
+10px a 8px en el breakpoint de celular alcanzó, sin necesitar ocultar nada
+más. Lección reforzada: cada ítem de nav nuevo hay que volver a medir el
+ancho del sidebar en celular, no asumir que "cabe parecido a los anteriores".
+
+**Agregación**: `agregarFichaEmpresa()` agrupa los contratos encontrados por
+entidad (`agruparContratos`, reutilizada también para sectores) y por año de
+fecha de firma/adjudicación (descartando fechas no plausibles, mismo criterio
+`isPlausibleDate` que el resto de la app). "Sectores" usa `tipo_de_contrato`
+en SECOP II y `nombre_familia`/`nombre_grupo` en SECOP I -- se prefirió esto
+sobre el código UNSPSC (`codigo_principal_de_categoria`) de SECOP II porque
+no hay una tabla de traducción código→nombre disponible, y un código numérico
+solo no le dice nada al usuario.
+
+**Gráficos sin librería**: "Principales entidades" y "Contratos por año" se
+dibujan con barras horizontales de puro CSS (ancho proporcional vía
+`style="width:N%"` sobre un `.comp-bar-track`/`.comp-bar-fill`), no con una
+librería de charts -- coherente con que la app no tiene ninguna dependencia
+de gráficos y esto no ameritaba agregar una. `filaBarra()` recibe el `pct`
+ya calculado por el llamador (no decide él mismo contra qué normalizar cada
+serie), para poder reusarse igual entre "valor de entidad vs. máximo entre
+entidades" y "contratos de un año vs. máximo entre años" sin un hack de
+reemplazo de string (primer intento, corregido antes de probarlo en el
+navegador: ver historial de edición de este archivo si hace falta el porqué
+exacto de por qué ese primer enfoque era frágil).
+
+**Limitación real encontrada probando con datos reales**: buscar "CONSORCIO
+DSC" (nombre corto, con una sigla de 3 letras que el filtro de tokens de
+`prepararBusquedaPorNombre` descarta por ser <4 caracteres) no encontró nada
+-- el ancla de búsqueda queda en la palabra genérica "consorcio", que trae
+una muestra de cientos de consorcios distintos sin relación real. Buscar
+"ECOPETROL" (nombre distintivo, ≥4 caracteres) sí funcionó de punta a punta:
+114 contratos, 25 entidades, $1.16 billones COP, con "Principales entidades"/
+"Sectores"/"Contratos por año" todos con datos reales y coherentes. El
+mensaje de "no encontrado" se actualizó para explicar esta limitación y
+sugerir agregar una palabra más distintiva de la razón social completa, en
+vez de dejar al usuario sin ninguna pista de por qué no encontró nada.

@@ -795,6 +795,16 @@
   #bitacora-root .recent-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   #bitacora-root .empty-inline { font-size: 13px; color: var(--text-muted); padding: 12px 4px; }
 
+  /* Barras horizontales simples (ficha de empresa, "Competencia") -- ancho
+     proporcional por CSS puro, sin librería de gráficos: coherente con el
+     resto de la app (cero dependencias más allá de las 4 ya cargadas). */
+  #bitacora-root .comp-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; }
+  #bitacora-root .comp-bar-row { display: grid; grid-template-columns: 140px 1fr auto; align-items: center; gap: 10px; font-size: 12.5px; }
+  #bitacora-root .comp-bar-label { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #bitacora-root .comp-bar-track { background: var(--bg); border-radius: var(--radius-sm); height: 10px; overflow: hidden; }
+  #bitacora-root .comp-bar-fill { background: var(--accent); height: 100%; border-radius: var(--radius-sm); }
+  #bitacora-root .comp-bar-value { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
   /* Tablet (768-900px, ej. iPad en vertical): la sidebar sigue siendo una
      columna vertical al lado del contenido (NO se convierte en fila
      horizontal aquí) -- se probó una fila horizontal con marca + 5 ítems de
@@ -838,11 +848,20 @@
        */
     #bitacora-root .sidebar-brand-text { display: none; }
     #bitacora-root .sidebar-nav { flex-direction: row; gap: 4px; padding: 8px; flex: 0 0 auto; }
-    #bitacora-root .nav-item { padding: 10px; white-space: nowrap; font-size: 13.5px; }
+    /* padding 10px->8px y gap 4px->3px (ver .sidebar-nav abajo): con 7
+       secciones en el nav (desde que se agregó "Competencia") volvía a
+       desbordar por 6px a 375px real -- mismo tipo de bug que el de
+       "Personal" documentado más abajo, mismo método de detección
+       (sidebar.scrollWidth - sidebar.clientWidth), arreglo más chico esta
+       vez porque el margen que falta es menor. */
+    #bitacora-root .nav-item { padding: 8px; white-space: nowrap; font-size: 13.5px; }
     #bitacora-root .nav-item .nav-label { display: none; }
     #bitacora-root .sidebar-foot { display: none; }
     #bitacora-root .wrap { padding: 20px 14px 32px; }
     #bitacora-root .view-header h1 { font-size: 20px; }
+    /* Etiqueta más angosta para que la barra y el valor quepan sin desbordar
+       a 375px real (ficha de empresa, "Competencia"). */
+    #bitacora-root .comp-bar-row { grid-template-columns: 84px 1fr auto; gap: 6px; font-size: 11px; }
   }
 </style>
 
@@ -883,6 +902,10 @@
         <button class="nav-item" type="button" id="bt-nav-evaluacion" data-view="evaluacion" role="tab" aria-selected="false" aria-controls="view-evaluacion" title="Evaluación" aria-label="Evaluación">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
           <span class="nav-label">Evaluación</span>
+        </button>
+        <button class="nav-item" type="button" id="bt-nav-competencia" data-view="competencia" role="tab" aria-selected="false" aria-controls="view-competencia" title="Competencia" aria-label="Competencia">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="13" y="9" width="7" height="12" rx="1"/><line x1="7" y1="7" x2="7" y2="7.01"/><line x1="10" y1="7" x2="10" y2="7.01"/><line x1="7" y1="11" x2="7" y2="11.01"/><line x1="10" y1="11" x2="10" y2="11.01"/><line x1="7" y1="15" x2="7" y2="15.01"/><line x1="10" y1="15" x2="10" y2="15.01"/></svg>
+          <span class="nav-label">Competencia</span>
         </button>
       </div>
       <div class="sidebar-foot" id="bt-sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>
@@ -1274,6 +1297,30 @@
           </div>
         </section>
 
+        <section class="view" id="view-competencia" data-view="competencia" role="tabpanel" aria-labelledby="bt-nav-competencia" hidden>
+          <div class="view-header">
+            <h1>Competencia</h1>
+            <p>Ficha de una empresa que contrata con el Estado: cuánto ha contratado, con qué entidades y en qué sectores, a partir de SECOP I y SECOP II.</p>
+          </div>
+
+          <div class="titleblock">
+            <div class="titleblock-head">
+              <h2>Buscar empresa</h2>
+              <span>Nombre o razón social de la empresa competidora</span>
+            </div>
+            <div class="field">
+              <label>Nombre de la empresa</label>
+              <input id="bt-comp-nombre" type="text" placeholder="ej. Consorcio Vías del Norte, Constructora ABC S.A.S.">
+            </div>
+            <div class="actions">
+              <button class="btn-primary" id="bt-comp-buscar">Buscar</button>
+              <span class="saved-note" id="bt-comp-saved"></span>
+            </div>
+          </div>
+
+          <div id="bt-comp-out"></div>
+        </section>
+
         <div class="footnote">
           Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "Aplicar filtros" (una petición por cada palabra clave de Especialidades, o por el número de proceso si lo llenaste). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
           Si llenas "Número de proceso o referencia", esa búsqueda manda: encuentra el proceso aunque no coincida con las Especialidades, el Departamento, ni con "Ocultar vencidos" / "≤30 días" / "Solo Licitación Pública" / estado / descartados — para no ocultar por accidente el proceso puntual que buscas. Vacía esa casilla para volver a la búsqueda por filtros.<br>
@@ -1611,6 +1658,10 @@
   const alertasRevisarBtn = document.getElementById('bt-alertas-revisar');
   const alertasListEl = document.getElementById('bt-alertas-list');
   const dashAlertasEl = document.getElementById('bt-dash-alertas');
+  const compNombreEl = document.getElementById('bt-comp-nombre');
+  const compBuscarBtn = document.getElementById('bt-comp-buscar');
+  const compSavedEl = document.getElementById('bt-comp-saved');
+  const compOutEl = document.getElementById('bt-comp-out');
   const resultsEl = document.getElementById('bt-results');
   const statusEl = document.getElementById('bt-status');
   const countEl = document.getElementById('bt-count');
@@ -3470,22 +3521,31 @@
   // cubre SECOP II (que solo existe desde ~2021).
   const SECOP_I_DATASET = 'f789-7hwg';
 
-  async function buscarAdjudicaciones(entidad){
+  // Ancla de búsqueda ($q: las 2 palabras más largas del nombre -- Socrata
+  // combina las de $q con AND, así que menos palabras = más resultados; el
+  // filtro fino real lo hace `coincide`) + coincidencia de nombre tolerante
+  // (nombre completo vs sigla, ej. "INVIAS", uno contenido en el otro, o que
+  // todos los tokens del más corto estén en el más largo). Compartido entre
+  // buscar por ENTIDAD (buscarAdjudicaciones) y por CONTRATISTA/empresa
+  // (buscarFichaEmpresa) -- mismo criterio de coincidencia para los dos.
+  function prepararBusquedaPorNombre(nombre){
     const norm = s => normalizeGeo(s);
-    const objetivo = norm(entidad);
+    const objetivo = norm(nombre);
     const toks = objetivo.split(' ').filter(w => w.length >= 4);
-    // ancla $q: las 2 palabras más largas (Socrata combina las de $q con AND, así
-    // que menos palabras = más resultados). El filtro fino se hace por tokens.
     const ancla = toks.slice().sort((a, b) => b.length - a.length).slice(0, 2).join(' ') || objetivo;
-    // coincidencia de entidad tolerante: nombre completo vs sigla ("INVIAS"),
-    // uno contenido en el otro, o que todos los tokens del más corto estén en el otro.
-    const coincide = ent => {
-      if (!ent) return false;
-      if (ent === objetivo || ent.indexOf(objetivo) !== -1 || objetivo.indexOf(ent) !== -1) return true;
-      const a = ent.split(' ').filter(w => w.length >= 4), b = toks;
+    const coincide = candidato => {
+      const c = norm(candidato);
+      if (!c) return false;
+      if (c === objetivo || c.indexOf(objetivo) !== -1 || objetivo.indexOf(c) !== -1) return true;
+      const a = c.split(' ').filter(w => w.length >= 4), b = toks;
       const chico = a.length <= b.length ? a : b, grande = a.length <= b.length ? b : a;
       return chico.length >= 2 && chico.every(w => grande.indexOf(w) !== -1);
     };
+    return { ancla, coincide };
+  }
+
+  async function buscarAdjudicaciones(entidad){
+    const { ancla, coincide } = prepararBusquedaPorNombre(entidad);
 
     async function deSecopII(){
       const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?$limit=400&$q=' + encodeURIComponent(ancla);
@@ -3495,7 +3555,7 @@
       if (!Array.isArray(data)) throw new Error('respuesta inesperada');
       const out = [];
       data.forEach(r => {
-        const ent = norm(findField(r, ['entidad', 'nombre_entidad', 'entidad_compradora'], 'entidad') || '');
+        const ent = findField(r, ['entidad', 'nombre_entidad', 'entidad_compradora'], 'entidad') || '';
         if (!coincide(ent)) return;
         const adjudicado = String(findField(r, ['adjudicado'], 'adjudicad') || '').toLowerCase().trim();
         const adjValN = Number(findField(r, ['valor_total_adjudicacion', 'valor_adjudicacion', 'valor_del_contrato'], 'adjudicac'));
@@ -3531,7 +3591,7 @@
       if (!Array.isArray(data)) throw new Error('respuesta inesperada');
       const out = [];
       data.forEach(r => {
-        const ent = norm(findField(r, ['nombre_entidad', 'entidad'], 'entidad') || '');
+        const ent = findField(r, ['nombre_entidad', 'entidad'], 'entidad') || '';
         if (!coincide(ent)) return;
         let prove = findField(r, ['nom_razon_social_contratista'], 'contratista');
         prove = (prove && !/no\s+definid|no\s+aplica|^n\/?a$/i.test(String(prove))) ? String(prove) : null;
@@ -3560,6 +3620,148 @@
     // más recientes/grandes primero
     out.sort((a, b) => (b.valorAdj || 0) - (a.valorAdj || 0));
     return out;
+  }
+
+  // ==========================================================================
+  // INTELIGENCIA COMPETITIVA: FICHA DE EMPRESA -- prompt maestro del usuario,
+  // puntos 18-19 ("Competencia" / "Perfil de empresa"). Es el mismo tipo de
+  // consulta que buscarAdjudicaciones() (SECOP I+II, mismo ancla/coincide de
+  // prepararBusquedaPorNombre), solo que filtrando por CONTRATISTA en vez de
+  // por ENTIDAD -- se pregunta "¿con quién y cuánto ha contratado esta
+  // empresa?" en vez de "¿a quién le ha adjudicado esta entidad?".
+  // ==========================================================================
+  async function buscarFichaEmpresa(nombreEmpresa){
+    const { ancla, coincide } = prepararBusquedaPorNombre(nombreEmpresa);
+
+    async function deSecopII(){
+      const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?$limit=400&$q=' + encodeURIComponent(ancla) + '&$order=fecha_adjudicacion%20DESC';
+      const res = await withTimeout(fetch(url, socrataFetchOptions()), 15000, 'La consulta de competencia (SECOP II)');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+      const out = [];
+      data.forEach(r => {
+        const prove = findField(r, ['nombre_del_proveedor', 'proveedor_adjudicado', 'nombre_del_adjudicatario'], 'proveedor') || '';
+        if (!coincide(prove)) return;
+        const adjudicado = String(findField(r, ['adjudicado'], 'adjudicad') || '').toLowerCase().trim();
+        const valN = Number(findField(r, ['valor_total_adjudicacion', 'valor_adjudicacion', 'valor_del_contrato'], 'adjudicac'));
+        if (!(adjudicado === 'si' || adjudicado === 'sí') && !(valN > 0)) return; // no adjudicado / sin dato
+        const entidad = findField(r, ['entidad', 'nombre_entidad', 'entidad_compradora'], 'entidad') || 'Entidad no especificada';
+        const tipo = findField(r, ['tipo_de_contrato'], 'tipo') || null;
+        const fecha = findField(r, ['fecha_adjudicacion', 'fecha_de_publicacion_del'], 'fecha') || null;
+        out.push({ fuente: 'II', entidad: entidad, valorAdj: valN > 0 ? valN : null, tipo: tipo, fecha: fecha });
+      });
+      return out;
+    }
+
+    // Mismo esquema de SECOP I que ya usa buscarAdjudicaciones -- ver ese
+    // comentario para el porqué de "adjudicado" inferido y del $order.
+    async function deSecopI(){
+      const url = 'https://www.datos.gov.co/resource/' + SECOP_I_DATASET + '.json?$limit=400&$q=' +
+        encodeURIComponent(ancla) + '&$order=fecha_de_cargue_en_el_secop%20DESC';
+      const res = await withTimeout(fetch(url, socrataFetchOptions()), 15000, 'La consulta de competencia (SECOP I)');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+      const out = [];
+      data.forEach(r => {
+        const prove = findField(r, ['nom_razon_social_contratista'], 'contratista') || '';
+        if (!coincide(prove)) return;
+        const valN = Number(findField(r, ['valor_contrato_con_adiciones', 'cuantia_contrato'], 'contrato'));
+        const entidad = findField(r, ['nombre_entidad', 'entidad'], 'entidad') || 'Entidad no especificada';
+        const tipo = findField(r, ['nombre_familia', 'nombre_grupo'], 'familia') || null;
+        const fecha = findField(r, ['fecha_de_firma_del_contrato', 'fecha_de_cargue_en_el_secop'], 'fecha') || null;
+        out.push({ fuente: 'I', entidad: entidad, valorAdj: valN > 0 ? valN : null, tipo: tipo, fecha: fecha });
+      });
+      return out;
+    }
+
+    const [resII, resI] = await Promise.allSettled([deSecopII(), deSecopI()]);
+    if (resII.status === 'rejected') console.error('No se pudo consultar competencia en SECOP II', resII.reason);
+    if (resI.status === 'rejected') console.error('No se pudo consultar competencia en SECOP I', resI.reason);
+    return (resII.status === 'fulfilled' ? resII.value : []).concat(resI.status === 'fulfilled' ? resI.value : []);
+  }
+
+  // Agrupa contratos por un campo (entidad o tipo/sector) y ordena por valor
+  // total descendente -- para "Principales entidades"/"Sectores" de la ficha.
+  function agruparContratos(registros, campo, limite){
+    const mapa = new Map();
+    registros.forEach(r => {
+      const clave = r[campo] || 'No especificado';
+      if (!mapa.has(clave)) mapa.set(clave, { nombre: clave, contratos: 0, valor: 0 });
+      const e = mapa.get(clave);
+      e.contratos++;
+      if (r.valorAdj != null) e.valor += r.valorAdj;
+    });
+    return Array.from(mapa.values()).sort((a, b) => (b.valor - a.valor) || (b.contratos - a.contratos)).slice(0, limite);
+  }
+
+  function agregarFichaEmpresa(registros){
+    const conValor = registros.filter(r => r.valorAdj != null);
+    const valorTotal = conValor.reduce((s, r) => s + r.valorAdj, 0);
+    const porAnio = new Map();
+    registros.forEach(r => {
+      if (!r.fecha || !isPlausibleDate(r.fecha)) return; // descarta fechas basura, mismo criterio que el resto de la app
+      const anio = new Date(r.fecha).getFullYear();
+      porAnio.set(anio, (porAnio.get(anio) || 0) + 1);
+    });
+    return {
+      totalContratos: registros.length,
+      valorTotal: valorTotal,
+      entidadesDistintas: new Set(registros.map(r => r.entidad)).size,
+      porEntidad: agruparContratos(registros, 'entidad', 8),
+      porSector: agruparContratos(registros, 'tipo', 8),
+      serieAnual: Array.from(porAnio.keys()).sort().map(a => ({ anio: a, contratos: porAnio.get(a) }))
+    };
+  }
+
+  function renderFichaEmpresaHtml(nombreBuscado, registros){
+    if (!registros.length){
+      return '<div class="analysis-disclaimer">No se encontraron contratos de "' + escapeHtml(nombreBuscado) + '" en SECOP I ni SECOP II con los datos disponibles. Si el nombre incluye palabras muy genéricas ("Consorcio", "Unión Temporal") junto con una sigla corta, la búsqueda puede no anclar bien -- prueba agregando una palabra más distintiva de la razón social (ej. en vez de "Consorcio DSC", "Consorcio Desarrollo Sur Colombia" si esa es la razón social completa).</div>';
+    }
+    const f = agregarFichaEmpresa(registros);
+    const nI = registros.filter(r => r.fuente === 'I').length;
+    const nII = registros.length - nI;
+
+    // pct ya viene calculado por el llamador (según a qué se compara cada
+    // barra -- valor máximo entre entidades, contratos máximo entre años) --
+    // esta función solo dibuja, no decide contra qué normalizar cada serie.
+    const filaBarra = (nombre, etiquetaValor, pct) => {
+      const pctSeguro = Math.max(4, Math.round(pct));
+      return '<div class="comp-bar-row"><div class="comp-bar-label" title="' + escapeHtml(nombre) + '">' + escapeHtml(truncate(nombre, 40)) + '</div>' +
+        '<div class="comp-bar-track"><div class="comp-bar-fill" style="width:' + pctSeguro + '%"></div></div>' +
+        '<div class="comp-bar-value">' + etiquetaValor + '</div></div>';
+    };
+    const maxEntidadValor = Math.max(1, ...f.porEntidad.map(e => e.valor));
+    const maxAnioContratos = Math.max(1, ...f.serieAnual.map(a => a.contratos));
+
+    return '<div class="titleblock">' +
+      '<div class="titleblock-head"><h2>' + escapeHtml(nombreBuscado) + '</h2><span>' + nII + ' en SECOP II, ' + nI + ' en SECOP I</span></div>' +
+      '<div class="stat-grid" style="margin-bottom:20px;">' +
+        '<div class="stat-card"><div class="stat-card-label">Contratos encontrados</div><div class="stat-card-value">' + f.totalContratos + '</div>' +
+          '<div class="stat-card-note">' + f.entidadesDistintas + ' entidad(es) distinta(s)</div></div>' +
+        '<div class="stat-card"><div class="stat-card-label">Valor total contratado</div><div class="stat-card-value small">' + (fmtMoney(f.valorTotal) || '—') + '</div>' +
+          '<div class="stat-card-note">Suma de los contratos con valor conocido</div></div>' +
+      '</div>' +
+      '<div class="titleblock-head" style="border:none;margin-bottom:10px;padding-bottom:0;"><h2 style="font-size:14.5px;">Principales entidades</h2></div>' +
+      '<div class="comp-bars">' + (f.porEntidad.length
+        ? f.porEntidad.map(e => filaBarra(
+            e.nombre,
+            e.contratos + (e.valor ? ' · ' + (fmtMoney(e.valor) || '') : ''),
+            (e.valor / maxEntidadValor) * 100
+          )).join('')
+        : '<div class="empty-inline">Sin datos de entidad.</div>') + '</div>' +
+      '<div class="titleblock-head" style="border:none;margin:18px 0 10px;padding-bottom:0;"><h2 style="font-size:14.5px;">Sectores / tipo de contrato</h2></div>' +
+      '<ul class="analysis-list">' + (f.porSector.length
+        ? f.porSector.map(s => '<li>' + escapeHtml(s.nombre) + ' — ' + s.contratos + ' contrato(s)' + (s.valor ? ' · ' + (fmtMoney(s.valor) || '') : '') + '</li>').join('')
+        : '<li>Sin datos de sector/tipo de contrato.</li>') + '</ul>' +
+      (f.serieAnual.length ? (
+        '<div class="titleblock-head" style="border:none;margin:18px 0 10px;padding-bottom:0;"><h2 style="font-size:14.5px;">Contratos por año</h2></div>' +
+        '<div class="comp-bars">' + f.serieAnual.map(a =>
+          filaBarra(String(a.anio), String(a.contratos), (a.contratos / maxAnioContratos) * 100)
+        ).join('') + '</div>'
+      ) : '') +
+      '<div class="analysis-disclaimer">Cifras derivadas de datos abiertos de SECOP I y SECOP II filtrados por coincidencia de nombre -- pueden faltar contratos si una entidad reportó el nombre del proveedor de forma distinta, y pueden incluir falsos positivos si dos empresas tienen nombres muy parecidos. Verifica siempre contra el RUES o el expediente del proceso antes de usar esta información para decidir.</div>';
   }
 
   // Banda de "razonablemente comparable" entre valor adjudicado y precio
@@ -4775,6 +4977,28 @@
     const verBtn = e.target.closest('[data-ver-alerta-dash]');
     if (verBtn) verNuevosDeAlerta(verBtn.getAttribute('data-ver-alerta-dash'));
   });
+
+  async function runBuscarCompetencia(){
+    const nombre = compNombreEl ? compNombreEl.value.trim() : '';
+    if (!nombre){
+      if (compSavedEl) compSavedEl.textContent = 'Escribe el nombre de una empresa.';
+      return;
+    }
+    if (compSavedEl) compSavedEl.textContent = '';
+    compBuscarBtn.disabled = true;
+    compOutEl.innerHTML = '<div class="analysis-loading">Consultando SECOP I y SECOP II…</div>';
+    try {
+      const registros = await buscarFichaEmpresa(nombre);
+      compOutEl.innerHTML = renderFichaEmpresaHtml(nombre, registros);
+    } catch(err){
+      compOutEl.innerHTML = '<div class="analysis-disclaimer">No se pudo consultar (' + escapeHtml(err && err.message ? err.message : 'error') + ').</div>';
+    } finally {
+      compBuscarBtn.disabled = false;
+    }
+  }
+  if (compBuscarBtn) compBuscarBtn.addEventListener('click', runBuscarCompetencia);
+  if (compNombreEl) compNombreEl.addEventListener('keydown', function(e){ if (e.key === 'Enter') runBuscarCompetencia(); });
+
   hideClosedEl.addEventListener('change', rerender);
   hideOldEl.addEventListener('change', rerender);
   onlyLicitacionEl.addEventListener('change', rerender);
@@ -5219,7 +5443,7 @@
   // evaluación de experiencia siguen funcionando exactamente igual estén o no
   // a la vista).
   // ============================================================
-  const VISTAS = ['dashboard', 'buscar', 'perfil', 'experiencia', 'personal', 'evaluacion'];
+  const VISTAS = ['dashboard', 'buscar', 'perfil', 'experiencia', 'personal', 'evaluacion', 'competencia'];
 
   function mostrarVista(nombre){
     if (VISTAS.indexOf(nombre) === -1) nombre = 'dashboard';

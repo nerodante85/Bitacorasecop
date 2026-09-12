@@ -38,6 +38,9 @@ analiza el pliego de condiciones de un proceso puntual.
   "Buscar procesos"). Incluye una sugerencia de oferta económica (escenarios
   conservador/competitivo/agresivo) calculada a partir de ese mismo
   historial — pura aritmética transparente, sin IA.
+- **Competencia**: ficha de una empresa que contrata con el Estado (nombre o
+  razón social) — contratos totales, valor contratado, principales entidades,
+  sectores y evolución por año, combinando SECOP I y SECOP II.
 
 El flujo completo es: **Experiencia → Análisis de experiencia → Personal →
 Analizar pliego → Resultado de compatibilidad** — cada paso queda bloqueado

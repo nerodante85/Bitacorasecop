@@ -105,6 +105,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'guardarAlertaActual', 'eliminarAlerta', 'evaluarAlerta', 'revisarTodasLasAlertas',
     'verNuevosDeAlerta', 'renderAlertasList', 'renderDashAlertas',
     'descuentoComparable', 'sugerenciaOfertaEconomica', 'renderOfertaSugeridaHtml',
+    'prepararBusquedaPorNombre', 'buscarFichaEmpresa', 'agregarFichaEmpresa', 'renderFichaEmpresaHtml',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
