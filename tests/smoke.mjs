@@ -108,6 +108,8 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'prepararBusquedaPorNombre', 'buscarFichaEmpresa', 'agregarFichaEmpresa', 'renderFichaEmpresaHtml',
     'seguirEmpresa', 'dejarDeSeguirEmpresa', 'revisarEmpresaSeguida', 'revisarTodasLasEmpresasSeguidas',
     'verActividadEmpresa', 'renderEmpresasSeguidasList', 'renderDashSeguimiento',
+    'calcularSCE', 'capacidadContractualEstimada', 'renderContratosEjecucion', 'renderCapacidadEstimada',
+    'agregarContratoEjecucion', 'eliminarContratoEjecucion', 'actualizarCampoContrato',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));

@@ -20,7 +20,13 @@ analiza el pliego de condiciones de un proceso puntual.
   departamento/valor y revisa cuándo aparecen procesos nuevos que coinciden
   (dentro de la app; sin correo ni notificaciones push por ahora).
 - **Perfil de la empresa**: RUP/clasificador y capacidad financiera (K),
-  con autocompletado desde el PDF del certificado del RUP.
+  con autocompletado desde el PDF del certificado del RUP. Incluye
+  **capacidad contractual estimada**: registra los contratos de obra que la
+  empresa tiene actualmente en ejecución y descuenta su saldo pendiente
+  (prorrateado a 12 meses si el plazo restante supera ese plazo, regla de la
+  Ley 1682 de 2013 / Decreto 791 de 2014) del K residual declarado, para
+  saber cuánta capacidad le queda disponible para ofertar a un proceso
+  nuevo — una estimación orientativa, no el cálculo certificado oficial.
 - **Experiencia**: cruza dos Excel (experiencia ejecutada del proponente +
   matriz de requisitos de un proceso) y determina, requisito por requisito,
   si la empresa CUMPLE / NO CUMPLE / NO DETERMINABLE, con evidencia.

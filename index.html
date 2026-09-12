@@ -795,6 +795,19 @@
   #bitacora-root .recent-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   #bitacora-root .empty-inline { font-size: 13px; color: var(--text-muted); padding: 12px 4px; }
 
+  /* Contratos en ejecución (Perfil de la empresa, "Capacidad contractual
+     estimada") -- una fila editable por contrato. Grid de 3 columnas + botón
+     eliminar, que colapsa a 1 columna en mobile (ver @media 560px más abajo)
+     para no desbordar -- mismo criterio ya aplicado al nav y a las barras de
+     "Competencia". */
+  #bitacora-root .contrato-row {
+    display: grid; grid-template-columns: 2fr 1.3fr 1fr auto; gap: 10px; align-items: end;
+    padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface); margin-bottom: 10px;
+  }
+  #bitacora-root .contrato-row .field { margin-bottom: 0; }
+  #bitacora-root .contrato-row-del { white-space: nowrap; }
+
   /* Barras horizontales simples (ficha de empresa, "Competencia") -- ancho
      proporcional por CSS puro, sin librería de gráficos: coherente con el
      resto de la app (cero dependencias más allá de las 4 ya cargadas). */
@@ -862,6 +875,7 @@
     /* Etiqueta más angosta para que la barra y el valor quepan sin desbordar
        a 375px real (ficha de empresa, "Competencia"). */
     #bitacora-root .comp-bar-row { grid-template-columns: 84px 1fr auto; gap: 6px; font-size: 11px; }
+    #bitacora-root .contrato-row { grid-template-columns: 1fr; }
   }
 </style>
 
@@ -1154,6 +1168,16 @@
               <span class="saved-note" id="bt-perfil-saved"></span>
             </div>
             <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga y evalúa aparte, en "Experiencia" (Excel del proponente + matriz de requisitos). El RUP tampoco se usa aquí para inferir experiencia.</div>
+
+            <div class="titleblock-head" style="border:none;margin:22px 0 10px;padding-bottom:0;">
+              <h2 style="font-size:14.5px;">Capacidad contractual estimada</h2>
+              <span>Registra los contratos de obra que esta empresa tiene actualmente en ejecución, para descontar su saldo pendiente del K residual declarado arriba</span>
+            </div>
+            <div id="bt-contratos-ejecucion-list"></div>
+            <div class="actions" style="margin-top:0;">
+              <button type="button" class="btn-secondary" id="bt-contrato-nuevo">+ Agregar contrato en ejecución</button>
+            </div>
+            <div id="bt-capacidad-estimada-out"></div>
           </div>
         </section>
 
@@ -1717,6 +1741,9 @@
   const perfilNuevoBtn = document.getElementById('bt-perfil-nuevo');
   const perfilEliminarBtn = document.getElementById('bt-perfil-eliminar');
   const perfilRupUploadBtn = document.getElementById('bt-perfil-rup-upload');
+  const contratosListEl = document.getElementById('bt-contratos-ejecucion-list');
+  const contratoNuevoBtn = document.getElementById('bt-contrato-nuevo');
+  const capacidadEstimadaOutEl = document.getElementById('bt-capacidad-estimada-out');
   const perfilRupFileEl = document.getElementById('bt-perfil-rup-file');
   const perfilRupStatusEl = document.getElementById('bt-perfil-rup-status');
   const expevalExpUploadBtn = document.getElementById('bt-expeval-exp-upload');
@@ -1790,8 +1817,14 @@
   // 'experienciaGeneral'/'experienciaEspecifica' de una versión posterior), se migra
   // automáticamente -- y esos campos de experiencia se DESCARTAN, no se conservan, porque ya
   // no tienen un lugar en el perfil.
+  // `contratosEnEjecucion` NO vive en PERFIL_VACIO a propósito: un array
+  // puesto ahí sería UNA sola referencia compartida por `Object.assign`, así
+  // que cada perfil que "heredara" el default terminaría apuntando al MISMO
+  // array -- agregar un contrato a una empresa se filtraría a todas las
+  // demás. Se maneja aparte en migrarPerfil()/nuevoPerfil() (clonado o creado
+  // de cero en cada llamada) por esa razón.
   const PERFIL_VACIO = { nombre: '', rup: '', k: '', kResidual: '' };
-  let perfiles = {}; // { id: { nombre, rup, k, kResidual } }
+  let perfiles = {}; // { id: { nombre, rup, k, kResidual, contratosEnEjecucion } }
   let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
   let perfilesActivos = [];       // ids marcados para comparar contra cada pliego (varios a la vez)
   let perfil = Object.assign({}, PERFIL_VACIO); // = perfiles[perfilActivoId], el que se está editando
@@ -1806,7 +1839,11 @@
     delete p.experiencia;
     delete p.experienciaGeneral;
     delete p.experienciaEspecifica;
-    return Object.assign({}, PERFIL_VACIO, p);
+    const out = Object.assign({}, PERFIL_VACIO, p);
+    // Clonado explícito (nunca la referencia de p.contratosEnEjecucion tal
+    // cual) para que dos perfiles nunca terminen compartiendo el mismo array.
+    out.contratosEnEjecucion = Array.isArray(p.contratosEnEjecucion) ? p.contratosEnEjecucion.slice() : [];
+    return out;
   }
 
   function nuevoPerfilId(){
@@ -1912,6 +1949,7 @@
     setCampo(perfilRupEl, perfil.rup);
     setCampo(perfilKEl, perfil.k);
     setCampo(perfilKResidualEl, perfil.kResidual);
+    renderContratosEjecucion();
     if (perfilSavedEl) perfilSavedEl.textContent = '';
     if (perfilRupStatusEl) perfilRupStatusEl.textContent = 'Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa Guardar perfil).';
     pendingRupFile = null;
@@ -1919,15 +1957,22 @@
 
   async function savePerfil(){
     if (!perfilActivoId) return;
+    const anterior = perfiles[perfilActivoId] || {};
     perfiles[perfilActivoId] = {
-      nombre: getCampo(perfilNombreEl) || (perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'Sin nombre',
+      nombre: getCampo(perfilNombreEl) || anterior.nombre || 'Sin nombre',
       rup: getCampo(perfilRupEl),
       k: getCampo(perfilKEl),
-      kResidual: getCampo(perfilKResidualEl)
+      kResidual: getCampo(perfilKResidualEl),
+      // Los contratos en ejecución se gestionan aparte (agregarContratoEjecucion/
+      // eliminarContratoEjecucion/actualizarCampoContrato, con su propio
+      // autoguardado) -- si "Guardar perfil" reconstruyera el objeto sin este
+      // campo, los borraría en silencio cada vez que se guardan rup/k/kResidual.
+      contratosEnEjecucion: Array.isArray(anterior.contratosEnEjecucion) ? anterior.contratosEnEjecucion : []
     };
     perfil = perfiles[perfilActivoId];
     renderPerfilSelect();
     renderPerfilComparar();
+    renderCapacidadEstimada(); // el K residual pudo cambiar -- refleja la nueva capacidad disponible
     await persistirPerfiles();
     if (perfilSavedEl) perfilSavedEl.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   }
@@ -1938,7 +1983,7 @@
     // enfoca el campo "NOMBRE DE LA EMPRESA" para que lo edites ahí mismo.
     const n = Object.keys(perfiles).length + 1;
     const id = nuevoPerfilId();
-    perfiles[id] = Object.assign({}, PERFIL_VACIO, { nombre: 'Empresa ' + n });
+    perfiles[id] = Object.assign({}, PERFIL_VACIO, { nombre: 'Empresa ' + n, contratosEnEjecucion: [] });
     perfilActivoId = id;
     if (perfilesActivos.indexOf(id) === -1) perfilesActivos.push(id); // un perfil nuevo entra marcado para comparar
     renderPerfilSelect();
@@ -2005,6 +2050,153 @@
     perfilActivoId = perfilSelectEl.value;
     cargarPerfilActivoEnCampos();
     persistirPerfiles(); // solo persiste cuál quedó activo, no pisa los datos de los perfiles
+  }
+
+  // ============================================================================
+  // CAPACIDAD CONTRACTUAL ESTIMADA (Fase 13 del prompt maestro) -- estima
+  // cuánta capacidad K residual le queda DISPONIBLE a la empresa después de
+  // descontar lo comprometido en sus contratos de obra actualmente en
+  // ejecución. El RUP de Confecámaras no calcula esto (ver punto 11 de "Cosas
+  // aprendidas" en CLAUDE.md: la capacidad residual "la calcula cada entidad
+  // por proceso" y el campo se llena a mano) y ese valor declarado se vuelve
+  // obsoleto en cuanto la empresa firma un contrato nuevo.
+  //
+  // Esto NO reproduce la fórmula oficial completa de la Capacidad Residual de
+  // Contratación (Art. 2.2.1.1.1.6.4 del Decreto 1082 de 2015 + la guía de
+  // Colombia Compra Eficiente), que además de los saldos de contratos en
+  // ejecución exige certificar índices de experiencia, capacidad financiera,
+  // técnica y organizacional -- eso ya está reflejado (o no) en el K residual
+  // que el usuario declaró. Lo único que SÍ es una regla fija, simple y
+  // pública (no depende de esos índices certificados) es el cálculo del Saldo
+  // de los Contratos en Ejecución (SCE), de la Ley 1682 de 2013 / Decreto 791
+  // de 2014: la suma de los saldos pendientes de los contratos vigentes,
+  // prorrateados linealmente a 12 meses (360 días) cuando el plazo de
+  // ejecución restante supera ese plazo. Esa es la única parte que esta
+  // sección calcula -- el resultado se etiqueta siempre como "estimada",
+  // igual de transparente que la "Sugerencia de oferta económica" de Fase 8:
+  // pura aritmética, sin IA, y explícita sobre lo que NO cubre.
+  // ============================================================================
+
+  // SCE sobre una lista de { entidad, saldo, fechaFin } (fechaFin 'YYYY-MM-DD').
+  // Ignora entradas sin saldo numérico positivo o sin fecha de terminación
+  // válida, y las que ya vencieron (no son "en ejecución"): se listan en el
+  // detalle igual, con el motivo, para que el usuario las depure. hoyMs es
+  // inyectable para poder testear la regla del prorrateo sin depender del
+  // reloj real del sistema.
+  function calcularSCE(contratos, hoyMs){
+    hoyMs = hoyMs == null ? Date.now() : hoyMs;
+    const detalle = [];
+    let sce = 0;
+    (contratos || []).forEach(c => {
+      const saldo = parseNumCO(c.saldo);
+      const finMs = c.fechaFin ? new Date(c.fechaFin + 'T00:00:00').getTime() : NaN;
+      if (!saldo || saldo <= 0 || isNaN(finMs)){
+        detalle.push(Object.assign({}, c, { incluido: false, motivo: 'Falta saldo o fecha de terminación válida.' }));
+        return;
+      }
+      const diasRestantes = Math.ceil((finMs - hoyMs) / 86400000);
+      if (diasRestantes <= 0){
+        detalle.push(Object.assign({}, c, { incluido: false, motivo: 'Ya venció -- no cuenta como "en ejecución".' }));
+        return;
+      }
+      const factor = diasRestantes > 360 ? (360 / diasRestantes) : 1;
+      const aportado = saldo * factor;
+      sce += aportado;
+      detalle.push(Object.assign({}, c, { incluido: true, diasRestantes: diasRestantes, factor: factor, aportado: aportado }));
+    });
+    return { sce: sce, detalle: detalle };
+  }
+
+  // Capacidad disponible estimada = K residual declarado (COP) menos el SCE
+  // de los contratos en ejecución registrados. Si el K residual no está en
+  // pesos (ej. está en SMMLV) o está vacío, no hay nada confiable que restar
+  // -- se devuelve null y la UI explica por qué no puede calcularlo. Sin
+  // contratos registrados, la disponible es igual al K residual declarado
+  // (mismo comportamiento que antes de esta fase).
+  function capacidadContractualEstimada(p){
+    const kR = parseValorUnidad(p.kResidual);
+    if (!kR || kR.unidad !== 'COP') return null;
+    const contratos = Array.isArray(p.contratosEnEjecucion) ? p.contratosEnEjecucion : [];
+    if (!contratos.length) return { kResidualDeclarado: kR.valor, sce: 0, disponible: kR.valor, detalle: [], sinContratos: true };
+    const { sce, detalle } = calcularSCE(contratos);
+    return { kResidualDeclarado: kR.valor, sce: sce, disponible: kR.valor - sce, detalle: detalle, sinContratos: false };
+  }
+
+  // Fila editable por contrato en ejecución del perfil EN EDICIÓN (`perfil`,
+  // la copia de trabajo que ya usan rup/k/kResidual). Solo se redibuja al
+  // agregar/eliminar una fila o cambiar de perfil -- mientras se escribe en un
+  // campo, actualizarCampoContrato() actualiza el modelo y SOLO refresca el
+  // resumen de abajo (renderCapacidadEstimada), nunca esta lista, para no
+  // perder el foco/cursor del input a mitad de escritura.
+  function renderContratosEjecucion(){
+    if (!contratosListEl) return;
+    const contratos = (perfil && perfil.contratosEnEjecucion) || [];
+    contratosListEl.innerHTML = contratos.length ? contratos.map(c =>
+      '<div class="contrato-row" data-contrato-id="' + escapeHtml(c.id) + '">' +
+        '<div class="field"><label>Entidad / objeto (opcional)</label>' +
+          '<input type="text" data-contrato-campo="entidad" value="' + escapeHtml(c.entidad || '') + '" placeholder="ej. Alcaldía de Cúcuta — pavimentación vía..."></div>' +
+        '<div class="field"><label>Saldo pendiente por ejecutar</label>' +
+          '<input type="text" inputmode="decimal" data-contrato-campo="saldo" value="' + escapeHtml(c.saldo || '') + '" placeholder="ej. 850.000.000"></div>' +
+        '<div class="field"><label>Fecha de terminación</label>' +
+          '<input type="date" data-contrato-campo="fechaFin" value="' + escapeHtml(c.fechaFin || '') + '"></div>' +
+        '<button type="button" class="link-btn contrato-row-del" data-contrato-eliminar="' + escapeHtml(c.id) + '">Eliminar</button>' +
+      '</div>'
+    ).join('') : '<div class="empty-inline">Sin contratos en ejecución registrados — si no agregas ninguno, tu capacidad disponible es tu K residual declarado tal cual.</div>';
+    renderCapacidadEstimada();
+  }
+
+  function renderCapacidadEstimada(){
+    if (!capacidadEstimadaOutEl) return;
+    const cce = capacidadContractualEstimada(perfil || {});
+    if (!cce){
+      capacidadEstimadaOutEl.innerHTML = '<div class="saved-note" style="margin-top:10px;">Para estimar tu capacidad disponible, declara arriba la "Capacidad K residual" en pesos (ej. "K residual = 1.200.000.000") — no se puede calcular si está en SMMLV o vacía.</div>';
+      return;
+    }
+    if (cce.sinContratos){
+      capacidadEstimadaOutEl.innerHTML = '<div class="saved-note" style="margin-top:10px;">Sin contratos en ejecución registrados: tu capacidad disponible es tu K residual declarado, ' + (fmtMoney(cce.disponible) || cce.disponible) + '.</div>';
+      return;
+    }
+    capacidadEstimadaOutEl.innerHTML =
+      '<div class="stat-grid" style="margin-top:12px;margin-bottom:10px;">' +
+        '<div class="stat-card"><div class="stat-card-label">K residual declarado</div><div class="stat-card-value small">' + (fmtMoney(cce.kResidualDeclarado) || cce.kResidualDeclarado) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-card-label">Comprometido (SCE estimado)</div><div class="stat-card-value small oferta-competitivo">' + (fmtMoney(Math.round(cce.sce)) || Math.round(cce.sce)) + '</div></div>' +
+        '<div class="stat-card"><div class="stat-card-label">Capacidad disponible (estimada)</div><div class="stat-card-value small ' + (cce.disponible < 0 ? 'oferta-agresivo' : 'oferta-conservador') + '">' + (fmtMoney(Math.round(cce.disponible)) || Math.round(cce.disponible)) + '</div></div>' +
+      '</div>' +
+      (cce.disponible < 0 ? '<div class="saved-note" style="color:var(--danger);">Tus contratos en ejecución superan tu K residual declarado — revisa antes de ofertar a un proceso nuevo.</div>' : '') +
+      '<div class="analysis-disclaimer">SCE = suma de los saldos pendientes de tus contratos vigentes, prorrateados linealmente a 12 meses (360 días) cuando el plazo restante de ejecución supera ese plazo — regla de la Ley 1682 de 2013 / Decreto 791 de 2014. Es una estimación orientativa a partir de lo que declaras aquí: NO reemplaza el cálculo certificado de tu Capacidad Residual de Contratación (que en Colombia también depende de tus índices de experiencia, capacidad financiera, técnica y organizacional inscritos en el RUP).</div>';
+  }
+
+  function agregarContratoEjecucion(){
+    if (!perfilActivoId || !perfiles[perfilActivoId]) return;
+    if (!Array.isArray(perfiles[perfilActivoId].contratosEnEjecucion)) perfiles[perfilActivoId].contratosEnEjecucion = [];
+    const id = 'ce' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    perfiles[perfilActivoId].contratosEnEjecucion.push({ id: id, entidad: '', saldo: '', fechaFin: '' });
+    perfil = perfiles[perfilActivoId];
+    renderContratosEjecucion();
+    persistirPerfiles();
+  }
+
+  function eliminarContratoEjecucion(id){
+    if (!perfilActivoId || !perfiles[perfilActivoId]) return;
+    perfiles[perfilActivoId].contratosEnEjecucion = (perfiles[perfilActivoId].contratosEnEjecucion || []).filter(c => c.id !== id);
+    perfil = perfiles[perfilActivoId];
+    renderContratosEjecucion();
+    persistirPerfiles();
+  }
+
+  // Autoguardado con debounce por contrato (mismo patrón que onNombrePerfilInput):
+  // actualiza el modelo en memoria en cada tecla y solo refresca el resumen
+  // (no la lista de filas, para no robarle el foco al input activo).
+  let _contratoDebounce = {};
+  function actualizarCampoContrato(id, campo, valor){
+    if (!perfilActivoId || !perfiles[perfilActivoId]) return;
+    const c = (perfiles[perfilActivoId].contratosEnEjecucion || []).find(x => x.id === id);
+    if (!c) return;
+    c[campo] = valor;
+    perfil = perfiles[perfilActivoId];
+    renderCapacidadEstimada();
+    clearTimeout(_contratoDebounce[id]);
+    _contratoDebounce[id] = setTimeout(persistirPerfiles, 400);
   }
 
   // --- Perfiles PROFESIONALES (Personal) -- mismo patrón que Perfiles de
@@ -3341,10 +3533,21 @@
     p = migrarPerfil(Object.assign({}, p || {}));
     const kTxt = p.k || '';
     const ratio = re => { const m = kTxt.match(re); return m ? parseNumCO(m[1]) : null; };
+    // Si hay contratos en ejecución registrados, la "K residual" que entra en
+    // los gates de capacidad es la disponible ESTIMADA (declarada menos SCE),
+    // no la cruda -- ver capacidadContractualEstimada(). Sin contratos
+    // registrados, disponible === declarada (mismo comportamiento que antes
+    // de esta fase, sin cambios).
+    const capacidadEstimada = capacidadContractualEstimada(p);
+    const kResidualCrudo = parseValorUnidad(p.kResidual);
+    const kResidualParaGates = (capacidadEstimada && !capacidadEstimada.sinContratos)
+      ? Object.assign({}, kResidualCrudo, { valor: capacidadEstimada.disponible })
+      : kResidualCrudo;
     return {
       nombre: p.nombre || 'Perfil',
       codigos: (p.rup || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean),
-      kResidual: parseValorUnidad(p.kResidual),
+      kResidual: kResidualParaGates,
+      capacidadEstimada: capacidadEstimada,
       liquidez: ratio(/liquidez[^0-9\-]{0,20}(-?\d[\d.,]*)/i),
       endeudamiento: ratio(/endeudamiento[^0-9\-]{0,20}(-?\d[\d.,]*)/i),
       cobertura: ratio(/cobertura[^0-9\-]{0,20}(-?\d[\d.,]*)/i),
@@ -3426,11 +3629,14 @@
     else if (maxV && valor > maxV) g('Valor de la obra', 'revisar', fmtMoney(valor) + ' por encima de tu máximo (' + fmtMoney(maxV) + ').');
     else if (valor) g('Valor de la obra', 'ok', fmtMoney(valor) + (minV || maxV ? ' dentro de tu rango.' : '.'));
 
-    // Capacidad (K residual en COP) vs valor de la obra
+    // Capacidad (K residual en COP, o la capacidad disponible ESTIMADA si hay
+    // contratos en ejecución registrados -- ver matrizCapacidad) vs valor de la obra
     if (matriz.kResidual && matriz.kResidual.unidad === 'COP' && valor){
+      const conContratos = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
+      const etiqueta = conContratos ? 'Tu capacidad disponible estimada' : 'Tu K residual';
       if (matriz.kResidual.valor < valor)
-        g('Capacidad vs valor', 'revisar', 'Tu K residual (' + fmtMoney(matriz.kResidual.valor) + ') es menor que el valor de la obra.');
-      else g('Capacidad vs valor', 'ok', 'Tu K residual cubre el valor de la obra.');
+        g('Capacidad vs valor', 'revisar', etiqueta + ' (' + fmtMoney(matriz.kResidual.valor) + ') es menor que el valor de la obra.' + (conContratos ? ' (K residual declarado menos tus contratos en ejecución.)' : ''));
+      else g('Capacidad vs valor', 'ok', etiqueta + ' cubre el valor de la obra.');
     }
 
     // Clasificación UNSPSC (solo si hay pliego analizado y menciona códigos)
@@ -3456,9 +3662,11 @@
       cmp('Índice de endeudamiento', ex.endeudamiento, matriz.endeudamiento, '<=');
       if (ex.cobertura) cmp('Razón de cobertura', ex.cobertura, matriz.cobertura, '>=');
       if (ex.kResidual){
+        const conContratos = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
+        const etiquetaPerfil = conContratos ? 'tu capacidad disponible estimada' : 'tu perfil';
         if (matriz.kResidual && matriz.kResidual.unidad === ex.kResidual.unidad){
           const pasa = matriz.kResidual.valor >= ex.kResidual.valor;
-          g('Capacidad K residual', pasa ? 'ok' : 'fail', 'Pliego: ≥ ' + ex.kResidual.valor + ' ' + ex.kResidual.unidad + ' · tu perfil: ' + matriz.kResidual.valor + ' ' + matriz.kResidual.unidad + (pasa ? ' ✓' : ' ✗'));
+          g('Capacidad K residual', pasa ? 'ok' : 'fail', 'Pliego: ≥ ' + ex.kResidual.valor + ' ' + ex.kResidual.unidad + ' · ' + etiquetaPerfil + ': ' + matriz.kResidual.valor + ' ' + matriz.kResidual.unidad + (pasa ? ' ✓' : ' ✗'));
         } else {
           g('Capacidad K residual', 'nd', 'El pliego la exige (' + ex.kResidual.valor + ' ' + ex.kResidual.unidad + ') pero tu perfil no la tiene en esa unidad.');
         }
@@ -5296,6 +5504,28 @@
   if (perfilNombreEl){
     perfilNombreEl.addEventListener('input', onNombrePerfilInput);
     perfilNombreEl.addEventListener('blur', onNombrePerfilBlur);
+  }
+  if (contratoNuevoBtn) contratoNuevoBtn.addEventListener('click', agregarContratoEjecucion);
+  if (contratosListEl){
+    contratosListEl.addEventListener('input', (e) => {
+      const el = e.target.closest('[data-contrato-campo]');
+      const row = el && el.closest('[data-contrato-id]');
+      if (!el || !row) return;
+      actualizarCampoContrato(row.getAttribute('data-contrato-id'), el.getAttribute('data-contrato-campo'), el.value);
+    });
+    // 'change' cubre <input type="date"> en navegadores donde 'input' no
+    // dispara hasta perder el foco -- si ya se guardó vía 'input', esto solo
+    // reasigna el mismo valor (inocuo).
+    contratosListEl.addEventListener('change', (e) => {
+      const el = e.target.closest('[data-contrato-campo="fechaFin"]');
+      const row = el && el.closest('[data-contrato-id]');
+      if (!el || !row) return;
+      actualizarCampoContrato(row.getAttribute('data-contrato-id'), 'fechaFin', el.value);
+    });
+    contratosListEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-contrato-eliminar]');
+      if (btn) eliminarContratoEjecucion(btn.getAttribute('data-contrato-eliminar'));
+    });
   }
   if (personalSaveBtn) personalSaveBtn.addEventListener('click', savePersonal);
   if (personalNuevoBtn) personalNuevoBtn.addEventListener('click', nuevoPersonal);

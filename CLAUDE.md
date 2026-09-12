@@ -1280,3 +1280,111 @@ feed de 5 contratos reales (entidad, fuente, valor); "Ver" navegó a
 "Competencia", re-buscó la empresa, mostró los resultados y volvió el
 contador a cero; "Dejar de seguir" limpió la lista. Tests de humo 5/5.
 Probado en los 3 breakpoints sin overflow ni errores de consola.
+
+## Fase 13 del prompt maestro: capacidad contractual estimada
+
+Del prompt maestro del usuario, punto 24 ("Capacidad contractual estimada").
+El campo "Capacidad K residual" del perfil (ver punto 11 de "Cosas
+aprendidas": el RUP de Confecámaras NO trae ese dato, se llena a mano) es un
+valor declarado en un momento dado -- se vuelve obsoleto en cuanto la empresa
+firma un contrato de obra nuevo, y nada en la app avisaba de eso.
+
+**Investigación previa a implementar (obligatoria por el principio "no
+inventar")**: antes de tocar código se investigó la metodología oficial de
+Colombia Compra Eficiente para la Capacidad Residual de Contratación (Art.
+2.2.1.1.1.6.4 del Decreto 1082 de 2015 + la guía CCE-REC-GI-22). Esa fórmula
+completa combina factores de experiencia, capacidad financiera, técnica y
+organizacional certificados en el RUP -- reproducirla en el navegador
+significaría re-certificar de facto el RUP de la empresa, algo que ni el
+RUP mismo hace (por eso el campo se llena a mano) y que esta app no tiene
+forma de verificar. Intentar aproximarla sin esos índices habría sido
+inventar un número con apariencia oficial sin serlo.
+
+Lo que SÍ es una regla fija, pública y simple de aplicar -- no depende de
+índices certificados -- es el cálculo del **Saldo de los Contratos en
+Ejecución (SCE)**, de la Ley 1682 de 2013 / Decreto 791 de 2014: la suma de
+los saldos pendientes de los contratos de obra vigentes de la empresa,
+prorrateados linealmente a 12 meses (360 días) cuando el plazo de ejecución
+restante de un contrato supera ese plazo. Fase 13 implementa ÚNICAMENTE esa
+parte, y la etiqueta siempre como "estimada" -- mismo criterio de
+transparencia que la "Sugerencia de oferta económica" de Fase 8 (pura
+aritmética, sin IA, explícita sobre qué NO cubre).
+
+**Qué se agregó**: en "Perfil de la empresa", bajo cada perfil, una sección
+"Capacidad contractual estimada" donde se registran los contratos en
+ejecución de esa empresa (entidad/objeto opcional, saldo pendiente, fecha de
+terminación). Con eso se calcula:
+
+- `calcularSCE(contratos, hoyMs)` -- SCE por contrato, con la regla del
+  prorrateo a 360 días; ignora (y explica por qué) contratos sin saldo/fecha
+  válidos o ya vencidos. `hoyMs` es inyectable para poder testear la regla
+  del prorrateo sin depender del reloj real.
+- `capacidadContractualEstimada(perfil)` -- K residual declarado (solo si
+  está en COP; si está en SMMLV o vacío, no hay nada confiable que restar y
+  se explica en la UI) menos el SCE. Sin contratos registrados, la
+  disponible es igual a la declarada -- mismo comportamiento que antes de
+  esta fase, sin cambios para quien no usa esta sección nueva.
+
+Ese resultado se inyecta en `matrizCapacidad(p)`: si hay contratos
+registrados, el `kResidual` que entra en los gates de `evaluarProceso`
+("Capacidad vs valor" y "Capacidad K residual") pasa a ser la disponible
+ESTIMADA en vez de la cruda -- un solo punto de inyección, sin tocar la
+lógica de los gates, y los mensajes se ajustan ("tu capacidad disponible
+estimada" en vez de "tu K residual") solo cuando aplica.
+
+**Bug real evitado antes de probar (no llegó a producción)**: el patrón
+existente `Object.assign({}, PERFIL_VACIO, p)` en `migrarPerfil()` /
+`nuevoPerfil()` copia por REFERENCIA cualquier valor no primitivo de
+`PERFIL_VACIO`. Si `contratosEnEjecucion: []` se hubiera puesto ahí como en
+un primer borrador, todos los perfiles sin ese campo (todos los existentes,
+y cada perfil nuevo) habrían terminado apuntando al MISMO array -- agregar
+un contrato a una empresa se habría filtrado a todas las demás en silencio.
+Se corrigió manteniendo `contratosEnEjecucion` FUERA de `PERFIL_VACIO` y
+clonándolo/creándolo explícitamente en cada punto donde se arma un perfil
+(`migrarPerfil`, `nuevoPerfil`). Verificado con datos reales: perfil A con 2
+contratos + perfil B recién creado -> `localStorage` mostró los arrays
+completamente independientes (ver más abajo).
+
+**Segundo bug real evitado**: `savePerfil()` reconstruía
+`perfiles[perfilActivoId]` desde cero con solo `{nombre, rup, k,
+kResidual}` -- guardar el perfil (aunque sea solo para cambiar el RUP)
+habría borrado en silencio los contratos en ejecución, gestionados aparte
+con su propio autoguardado. Se corrigió preservando
+`contratosEnEjecucion` del objeto anterior en ese mismo reconstruido.
+
+**Sin perder el foco al escribir**: los campos de cada contrato (entidad,
+saldo, fecha) actualizan el modelo en memoria y hacen autoguardado con
+debounce (mismo patrón ya usado para el nombre del perfil), pero
+**redibujan solo el resumen de capacidad** (`renderCapacidadEstimada`), no
+la lista de filas -- si cada tecla regenerara el `innerHTML` de la lista
+completa, el input activo perdería el foco y el cursor a mitad de
+escritura. La lista completa solo se redibuja al agregar/eliminar una fila
+o cambiar de perfil.
+
+**Verificado con datos reales** (perfil "Empresa de prueba", K residual =
+2.000.000.000): un contrato con saldo 500.000.000 y 200 días restantes
+(factor 1) más otro con saldo 720.000.000 y ~500 días restantes (factor
+360/500 = 0,72) dieron SCE = 1.018.400.000 y disponible = 981.600.000,
+coincidiendo exactamente con el cálculo manual. Al evaluar un proceso real
+(valor base 1.850.000.000) con ese perfil marcado, el gate "Capacidad vs
+valor" mostró "⚠ Tu capacidad disponible estimada ($981.600.000) es menor
+que el valor de la obra" -- y al borrar los contratos, sobre el MISMO
+proceso volvió a "✅ Tu K residual cubre el valor de la obra" (K residual
+crudo, 2.000.000.000 >= 1.850.000.000), confirmando que el comportamiento
+sin contratos registrados es idéntico al de antes de esta fase. Se
+confirmó también el aislamiento entre perfiles (ver bug evitado arriba),
+que "Guardar perfil" no borra los contratos, que un saldo/fecha inválidos
+o vencidos se excluyen del SCE con motivo explicado, y el escenario de
+sobre-capacidad (contratos > K residual declarado) con la tarjeta en rojo y
+el aviso "Tus contratos en ejecución superan tu K residual declarado".
+Tests de humo 5/5. Probado en los 3 breakpoints (la fila de contrato
+colapsa a 1 columna en mobile) sin overflow ni errores de consola.
+
+**Nota sobre re-evaluar tras editar el perfil**: como ya pasaba con
+cualquier otro campo del perfil (K, RUP...), el veredicto de un proceso ya
+buscado en pantalla no se recalcula solo al editar el perfil en otra
+pestaña -- hay que volver a "Buscar procesos" (una nueva búsqueda, o
+cualquier cambio de filtro) y pulsar "Evaluar" de nuevo para ver el
+veredicto actualizado. No es una regresión de esta fase: es una limitación
+preexistente de cuándo se recalcula `s.evaluacion`, igual para todos los
+campos del perfil.
