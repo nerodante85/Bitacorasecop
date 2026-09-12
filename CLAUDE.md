@@ -962,3 +962,84 @@ distintos) sino algo más básico compartido por los tres.
   host literal real (`https://mfqdeqxuwnczexonhlxu.supabase.co`, que
   apareció en el código recién al activar las credenciales) -- se le agregó
   soporte para matchear por sufijo cuando la CSP declara un comodín.
+
+## Fase 4 del prompt maestro: alertas por criterios guardados
+
+Primera funcionalidad nueva sobre la base de Fase 1 (cuentas/sincronización).
+Del prompt maestro del usuario, punto 5 ("Sistema de alertas"): guardar una
+búsqueda y que avise cuando aparezcan procesos nuevos que coincidan.
+
+**Decisión de alcance, acordada explícitamente con el usuario antes de
+construir**: el prompt maestro pide correo automático aunque la app esté
+cerrada, lo cual exige infraestructura que hoy no existe -- un job programado
+(no hay backend propio; se necesitaría una Edge Function de Supabase +
+`pg_cron`) y un servicio de correo transaccional (cuenta nueva que solo el
+usuario puede crear, ej. Resend). Se optó por la versión más simple para
+empezar: **alertas solo dentro de la app, sin correo ni push** -- se revisan
+al abrir la app y bajo demanda ("↻ Revisar ahora"), nunca en segundo plano
+mientras está cerrada. El correo/job programado queda como posible fase
+futura si el usuario decide encararla (implica crear esa cuenta de correo).
+
+**Diseño de datos**: NO se creó ninguna tabla SQL nueva. Una alerta es
+`{ id, nombre, keywords, geos, minV, maxV, creadaEn, ultimaRevision,
+ultimoConteo }`, guardado bajo la clave `alertas_guardadas` con el MISMO
+`window.storage.get/set` que usa el resto de la app -- funciona igual con
+cuenta conectada (sincroniza vía `app_state` en Supabase, ver Fase 1) o sin
+ella (solo este navegador). Se agregó a `SYNCED_KEYS` para que migre al
+conectar una cuenta por primera vez, igual que los demás datos. Se prefirió
+esto sobre una tabla relacional propia porque una alerta no necesita
+consultarse desde otras filas/empresas (a diferencia de, por ejemplo, la
+futura inteligencia competitiva) -- normalizarla aparte no daría ningún
+beneficio real hoy.
+
+**Motor de evaluación**: reutiliza EXACTAMENTE la lógica de "Buscar
+procesos" -- `fetchAllForDataset` para la consulta en vivo,
+`normalize`/`matchesTerm`/`matchesGeo` para decidir si un registro coincide.
+Ninguna alerta reinterpreta por su cuenta qué es una coincidencia. "Nuevo" se
+define como: coincide con los criterios de la alerta Y su
+`fecha_de_publicacion_del` es posterior a `ultimaRevision` de esa alerta. A
+propósito NO cae al snapshot de respaldo si la consulta en vivo falla (a
+diferencia de `runSearch`) -- comparar "nuevos" contra una muestra vieja y
+estática daría un conteo falso, así que la alerta queda marcada con error en
+vez de mostrar un número que no es real.
+
+**Cuándo se revisan**: al arrancar la app (dentro del mismo `appReady.then()`
+que ya restauraba experiencia/personal), en segundo plano -- no bloquea el
+primer render, y al terminar se vuelve a dibujar sola la lista. También bajo
+demanda con el botón "↻ Revisar ahora" en "Buscar procesos". Ver "Ver
+nuevos" (por alerta, en el Dashboard o en "Buscar procesos") aplica los
+criterios guardados a los campos de búsqueda, corre `runSearch()` de
+verdad, y recién ahí marca la alerta como revisada (vuelve a 0) -- mostrar
+el número en una tarjeta no cuenta como "vista", tiene que abrirse.
+
+**Bug real encontrado al probar "Ver nuevos"**: una alerta marcaba
+correctamente "121 nuevos", pero al abrir esos resultados en "Buscar
+procesos" la pantalla mostraba "0 procesos". Causa: los checkboxes "Solo
+publicados hace ≤30 días" y "Solo Licitación Pública" (marcados por defecto,
+ver "Responsive"/flujo principal) seguían activos y no son parte de los
+criterios de una alerta -- tapaban justo los procesos que la alerta había
+encontrado. Arreglo: `verNuevosDeAlerta` desmarca esos dos filtros antes de
+correr la búsqueda (no toca "Ocultar vencidos", que sigue teniendo sentido
+igual). Verificado con datos reales: la misma alerta pasó de "0 procesos" a
+"40 procesos" tras el arreglo.
+
+**Bug real, más general, encontrado de paso (no específico de alertas)**:
+`actualizarDashboard()` solo se llamaba al ENTRAR a la vista "Inicio" por
+clic de navegación -- nunca al terminar de cargar los datos. Con
+`localStorage` esto era invisible (la carga tardaba un microtask, casi
+instantánea); con una cuenta de Supabase conectada, `window.storage.get` es
+una consulta de red real, y si "Inicio" (o "Buscar procesos") es la vista
+CON LA QUE ARRANCA LA PÁGINA, se quedaban mostrando ceros/vacío para
+siempre, porque nada los volvía a dibujar después de que los datos
+realmente llegaran. Se agregaron `actualizarDashboard()`/
+`renderFlujoStepper()`/`rerender()`/`renderAlertasList()` al bloque
+`appReady.then(...)` que ya existía (junto a `renderPersonalSelect()` y
+similares) -- llamarlas ahí es barato (son solo-render) incluso si esa vista
+no es la visible en ese momento.
+
+**UI**: panel "Alertas guardadas" dentro de "Buscar procesos" (guardar,
+listar, ver nuevos, eliminar) + resumen "Alertas" en el Dashboard (solo
+lectura + "Ver"). Reutiliza componentes existentes sin CSS nuevo de
+estructura (`.titleblock`, `.recent-list`/`.recent-item`, `.field`,
+`.link-btn`) -- solo se agregó una variante de badge, `.tag.nuevo`
+(paleta `--warning`, ya existente).

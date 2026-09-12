@@ -479,6 +479,7 @@
   #bitacora-root .row.alta .tag.priority { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
   #bitacora-root .row.media .tag.priority { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
   #bitacora-root .tag.visto { border-color: var(--border-strong); background: var(--bg); color: var(--text-muted); }
+  #bitacora-root .tag.nuevo { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
   #bitacora-root .tag.fuente { border-color: var(--border-strong); background: var(--bg); color: var(--text-muted); }
   #bitacora-root .tag.eval { font-weight: 700; }
   #bitacora-root .eval-go { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
@@ -913,6 +914,14 @@
             </div>
           </div>
 
+          <div class="titleblock" id="bt-dash-alertas-panel">
+            <div class="titleblock-head">
+              <h2>Alertas</h2>
+              <span>Procesos nuevos según tus alertas guardadas</span>
+            </div>
+            <div class="recent-list" id="bt-dash-alertas"></div>
+          </div>
+
           <div class="titleblock">
             <div class="titleblock-head">
               <h2>Actividad reciente</h2>
@@ -1006,6 +1015,27 @@
               <button class="btn-secondary" id="bt-demo">Ver datos de ejemplo</button>
             </div>
             <div class="saved-note" id="bt-data-freshness" style="margin-top:8px;"></div>
+          </div>
+
+          <!-- Alertas por criterios guardados: guarda la combinación actual de
+               Especialidades/Departamento/Valor para revisar más tarde cuántos
+               procesos NUEVOS coinciden -- ver "ALERTAS POR CRITERIOS GUARDADOS"
+               en el <script> para el alcance (solo en la app, sin correo). -->
+          <div class="titleblock" id="bt-alertas-panel">
+            <div class="titleblock-head">
+              <h2>Alertas guardadas</h2>
+              <span>Guarda esta búsqueda y revisa cuándo aparecen procesos nuevos que coinciden</span>
+            </div>
+            <div class="field">
+              <label>Nombre de la alerta (opcional)</label>
+              <input id="bt-alerta-nombre" type="text" placeholder="ej. Obras civiles Norte de Santander">
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="bt-alerta-guardar" type="button">Guardar alerta con los filtros actuales</button>
+              <button type="button" class="link-btn" id="bt-alertas-revisar">↻ Revisar ahora</button>
+              <span class="saved-note" id="bt-alerta-saved"></span>
+            </div>
+            <div class="recent-list" id="bt-alertas-list"></div>
           </div>
 
           <div id="bt-demo-banner" style="display:none" class="demo-banner">Estás viendo datos de ejemplo — no provienen de SECOP II en vivo. Úsalos solo para ver cómo luce la plataforma.</div>
@@ -1376,7 +1406,8 @@
   const SYNCED_KEYS = [
     'historial', 'perfiles_empresa', 'perfil_activo_id', 'perfiles_activos',
     'perfil_empresa', 'analisis_pliegos', 'experiencia_evaluacion',
-    'perfiles_profesionales', 'personal_activo_id', 'ultima_vista'
+    'perfiles_profesionales', 'personal_activo_id', 'ultima_vista',
+    'alertas_guardadas'
   ];
 
   // Copia UNA sola vez lo que ya hubiera en este navegador a la cuenta recién
@@ -1568,6 +1599,12 @@
   const maxInput = document.getElementById('bt-max');
   const searchBtn = document.getElementById('bt-search');
   const demoBtn = document.getElementById('bt-demo');
+  const alertaNombreEl = document.getElementById('bt-alerta-nombre');
+  const alertaGuardarBtn = document.getElementById('bt-alerta-guardar');
+  const alertaSavedEl = document.getElementById('bt-alerta-saved');
+  const alertasRevisarBtn = document.getElementById('bt-alertas-revisar');
+  const alertasListEl = document.getElementById('bt-alertas-list');
+  const dashAlertasEl = document.getElementById('bt-dash-alertas');
   const resultsEl = document.getElementById('bt-results');
   const statusEl = document.getElementById('bt-status');
   const countEl = document.getElementById('bt-count');
@@ -2272,6 +2309,79 @@
     return 'Para analizar el pliego primero debes ' + falta.join(' y ') + '.';
   }
 
+  // ==========================================================================
+  // ALERTAS POR CRITERIOS GUARDADOS -- guarda la combinación de filtros de
+  // "Buscar procesos" (especialidades, departamento, valor mín/máx) para
+  // revisar más tarde cuántos procesos NUEVOS (publicados después de la
+  // última revisión de esa alerta puntual) coinciden. Reutiliza la MISMA
+  // lógica de consulta y coincidencia que "Buscar procesos"
+  // (fetchAllForDataset/normalize/matchesTerm/matchesGeo, definidas más abajo
+  // -- las funciones declaradas con `function` quedan disponibles arriba por
+  // hoisting) en vez de reinterpretar qué es una coincidencia por su cuenta.
+  //
+  // Alcance de esta primera versión (decisión explícita con el usuario): solo
+  // dentro de la app, sin correo ni notificaciones push -- se revisan al
+  // arrancar la app y bajo demanda ("↻ Revisar ahora"), nunca en un job de
+  // fondo mientras la app está cerrada. Guardado con el mismo mecanismo
+  // storage.get/set que el resto de la app (localStorage o, con cuenta
+  // conectada, sincronizado vía Supabase -- ver SYNCED_KEYS más arriba).
+  // ==========================================================================
+  let alertas = []; // { id, nombre, keywords, geos, minV, maxV, creadaEn, ultimaRevision, ultimoConteo, revisando, error }
+
+  function nuevaAlertaId(){
+    return 'al' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  async function loadAlertas(){
+    try {
+      const r = await window.storage.get('alertas_guardadas', false);
+      alertas = (r && r.value) ? JSON.parse(r.value) : [];
+      if (!Array.isArray(alertas)) alertas = [];
+    } catch(e){
+      alertas = [];
+    }
+  }
+
+  async function persistirAlertas(){
+    try {
+      // solo los campos que tienen sentido guardar -- revisando/error son
+      // estado transitorio de la sesión actual, no algo que persistir.
+      const paraGuardar = alertas.map(a => ({
+        id: a.id, nombre: a.nombre, keywords: a.keywords, geos: a.geos,
+        minV: a.minV, maxV: a.maxV, creadaEn: a.creadaEn,
+        ultimaRevision: a.ultimaRevision, ultimoConteo: a.ultimoConteo
+      }));
+      await window.storage.set('alertas_guardadas', JSON.stringify(paraGuardar), false);
+    } catch(e){
+      console.error('No se pudo guardar la alerta', e);
+    }
+  }
+
+  function guardarAlertaActual(nombre){
+    const { keywords, geos, minV, maxV } = getInputs();
+    if (!keywords.length && !geos.length){
+      return { ok: false, error: 'Agrega al menos una especialidad o un departamento antes de guardar la alerta.' };
+    }
+    const alerta = {
+      id: nuevaAlertaId(),
+      nombre: (nombre || '').trim() || (keywords[0] || geos[0] || 'Alerta sin nombre'),
+      keywords: keywords, geos: geos, minV: minV, maxV: maxV,
+      creadaEn: new Date().toISOString(),
+      // arranca "al día": no tendría sentido mostrar como "nuevo" lo que ya se
+      // estaba viendo en pantalla justo al guardar la alerta.
+      ultimaRevision: new Date().toISOString(),
+      ultimoConteo: 0
+    };
+    alertas.push(alerta);
+    persistirAlertas();
+    return { ok: true, alerta: alerta };
+  }
+
+  function eliminarAlerta(id){
+    alertas = alertas.filter(a => a.id !== id);
+    persistirAlertas();
+  }
+
   // allSettled, no all: si un loader falla (p.ej. un getElementById que devuelve
   // null por un campo renombrado en el HTML), los otros dos igual cargan y el
   // arranque no se aborta -- antes esto dejaba la página pegada en "Cargando...".
@@ -2283,7 +2393,7 @@
   // que la cuenta no tiene datos (aunque sí los tenga).
   const appReady = bootstrapAccountSession().then(() => {
     renderSidebarFootAccount();
-    return Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval(), loadPerfilesProfesionales()]);
+    return Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval(), loadPerfilesProfesionales(), loadAlertas()]);
   });
 
   function rerender(){
@@ -4132,6 +4242,92 @@
     return deduped;
   }
 
+  // Evalúa UNA alerta contra SECOP EN VIVO: cuenta cuántos procesos coinciden
+  // con sus criterios Y se publicaron después de la última revisión de esa
+  // alerta. Misma consulta que runSearch (fetchAllForDataset con ancla por
+  // especialidad, o por departamento si no hay especialidades) y la misma
+  // coincidencia palabra-por-palabra/departamento exacto que usa render()
+  // (matchesTerm/matchesGeo) -- ninguna lógica paralela.
+  //
+  // A propósito NO cae al snapshot de respaldo si falla la consulta en vivo
+  // (a diferencia de runSearch): comparar "nuevos desde tu última revisión"
+  // contra una muestra vieja y estática daría un conteo directamente falso,
+  // peor que no mostrar nada -- se prefiere marcar la alerta con error.
+  async function evaluarAlerta(alerta){
+    const anchors = alerta.keywords.length ? alerta.keywords : alerta.geos;
+    const registros = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
+    const desde = alerta.ultimaRevision ? new Date(alerta.ultimaRevision).getTime() : 0;
+    let coincidencias = 0;
+    let nuevos = 0;
+    registros.forEach(r => {
+      const item = normalize(r);
+      if (alerta.keywords.length && !alerta.keywords.some(k => matchesTerm(item.searchable, k))) return;
+      if (alerta.geos.length && !alerta.geos.some(g => matchesGeo(item.geoSearchable, g))) return;
+      const numVal = Number(item.valor);
+      if (alerta.minV && !isNaN(numVal) && numVal > 0 && numVal < alerta.minV) return;
+      if (alerta.maxV && !isNaN(numVal) && numVal > 0 && numVal > alerta.maxV) return;
+      coincidencias++;
+      if (item.pubRaw && isPlausibleDate(item.pubRaw) && new Date(item.pubRaw).getTime() > desde) nuevos++;
+    });
+    return { totalCoincidencias: coincidencias, nuevos: nuevos };
+  }
+
+  // Revisa TODAS las alertas guardadas en paralelo y actualiza ultimoConteo de
+  // cada una -- NO actualiza ultimaRevision (eso solo pasa cuando el usuario
+  // realmente los vio, ver "Ver nuevos" en renderAlertasList). Si una alerta
+  // falla (sin conexión, límite de tasa, etc.) queda su propio error sin
+  // tumbar la revisión de las demás.
+  async function revisarTodasLasAlertas(){
+    await Promise.all(alertas.map(async (a) => {
+      a.revisando = true;
+      renderAlertasList(); renderDashAlertas();
+      try {
+        const resultado = await evaluarAlerta(a);
+        a.ultimoConteo = resultado.nuevos;
+        a.error = null;
+      } catch(e){
+        a.error = 'No se pudo revisar (' + (e && e.message ? e.message : 'error de red') + ')';
+      } finally {
+        a.revisando = false;
+      }
+    }));
+    persistirAlertas();
+    renderAlertasList();
+    renderDashAlertas();
+  }
+
+  // Aplica los criterios de una alerta a los campos de "Buscar procesos",
+  // ejecuta la búsqueda real (mismo runSearch de siempre, con snapshot de
+  // respaldo si hace falta) y marca la alerta como revisada AHORA -- el
+  // usuario ya la está viendo en pantalla, así que su contador de "nuevos"
+  // vuelve a cero desde este momento.
+  async function verNuevosDeAlerta(id){
+    const a = alertas.find(x => x.id === id);
+    if (!a) return;
+    mostrarVista('buscar');
+    kwInput.value = a.keywords.join(', ');
+    geoInput.value = a.geos.join(', ');
+    minInput.value = a.minV || '';
+    maxInput.value = a.maxV || '';
+    if (procesoInput) procesoInput.value = '';
+    // La alerta se define SOLO por especialidades/departamento/valor -- "≤30
+    // días" y "Solo Licitación Pública" son filtros adicionales de esta
+    // vista, no parte de la alerta. Si quedaban marcados de una búsqueda
+    // anterior, podían ocultar justo los procesos nuevos que la alerta
+    // encontró (bug real visto al probar: alerta con "121 nuevos" mostraba
+    // "0 procesos" en pantalla por esto). "Ocultar vencidos" sí se deja tal
+    // cual -- un proceso ya vencido no sirve aunque sea "nuevo".
+    hideOldEl.checked = false;
+    onlyLicitacionEl.checked = false;
+    await runSearch();
+    a.ultimaRevision = new Date().toISOString();
+    a.ultimoConteo = 0;
+    a.error = null;
+    persistirAlertas();
+    renderAlertasList();
+    renderDashAlertas();
+  }
+
   async function runSearch(){
     isDemo = false;
     isSnapshot = false;
@@ -4416,6 +4612,42 @@
   searchBtn.addEventListener('click', runSearch);
   if (procesoInput) procesoInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
   demoBtn.addEventListener('click', loadDemo);
+
+  if (alertaGuardarBtn) alertaGuardarBtn.addEventListener('click', () => {
+    const resultado = guardarAlertaActual(alertaNombreEl ? alertaNombreEl.value : '');
+    if (!resultado.ok){
+      if (alertaSavedEl) alertaSavedEl.textContent = resultado.error;
+      return;
+    }
+    if (alertaNombreEl) alertaNombreEl.value = '';
+    if (alertaSavedEl) alertaSavedEl.textContent = 'Alerta "' + resultado.alerta.nombre + '" guardada.';
+    renderAlertasList();
+    renderDashAlertas();
+  });
+  if (alertasRevisarBtn) alertasRevisarBtn.addEventListener('click', async () => {
+    alertasRevisarBtn.disabled = true;
+    const textoOriginal = alertasRevisarBtn.textContent;
+    alertasRevisarBtn.textContent = 'Revisando…';
+    try {
+      await revisarTodasLasAlertas();
+    } finally {
+      alertasRevisarBtn.disabled = false;
+      alertasRevisarBtn.textContent = textoOriginal;
+    }
+  });
+  // Delegación de eventos: los botones "Ver nuevos"/"Eliminar" se regeneran
+  // en cada render de la lista (ver renderAlertasList/renderDashAlertas), así
+  // que se engancha UN listener en el contenedor en vez de uno por botón.
+  if (alertasListEl) alertasListEl.addEventListener('click', (e) => {
+    const verBtn = e.target.closest('[data-ver-alerta]');
+    if (verBtn){ verNuevosDeAlerta(verBtn.getAttribute('data-ver-alerta')); return; }
+    const delBtn = e.target.closest('[data-eliminar-alerta]');
+    if (delBtn){ eliminarAlerta(delBtn.getAttribute('data-eliminar-alerta')); renderAlertasList(); renderDashAlertas(); }
+  });
+  if (dashAlertasEl) dashAlertasEl.addEventListener('click', (e) => {
+    const verBtn = e.target.closest('[data-ver-alerta-dash]');
+    if (verBtn) verNuevosDeAlerta(verBtn.getAttribute('data-ver-alerta-dash'));
+  });
   hideClosedEl.addEventListener('change', rerender);
   hideOldEl.addEventListener('change', rerender);
   onlyLicitacionEl.addEventListener('change', rerender);
@@ -4882,6 +5114,7 @@
       // "Analizar pliego" bloqueado -- sin esto, el aviso de arriba decía
       // "ya puedes analizar" pero el botón de la tarjeta seguía con el candado.
       rerender();
+      renderAlertasList();
     }
   }
 
@@ -4957,6 +5190,71 @@
     return 'Buenas noches';
   }
 
+  // Resumen de una alerta en texto plano ("pavimentación, obra civil · Norte
+  // de Santander · $0 - $500.000.000") -- se arma solo con lo que la alerta
+  // realmente tenga, sin inventar ningún criterio que no se haya guardado.
+  function resumenCriteriosAlerta(a){
+    const partes = [];
+    if (a.keywords && a.keywords.length) partes.push(a.keywords.join(', '));
+    if (a.geos && a.geos.length) partes.push(a.geos.join(', '));
+    if (a.minV || a.maxV){
+      const fmt = n => '$' + Number(n).toLocaleString('es-CO');
+      partes.push((a.minV ? fmt(a.minV) : '$0') + ' - ' + (a.maxV ? fmt(a.maxV) : 'sin tope'));
+    }
+    return partes.length ? partes.join(' · ') : 'Sin criterios';
+  }
+
+  function badgeAlerta(a){
+    if (a.revisando) return '<span class="tag">Revisando…</span>';
+    if (a.error) return '<span class="tag" title="' + escapeHtml(a.error) + '">Error al revisar</span>';
+    if (a.ultimoConteo > 0) return '<span class="tag nuevo">' + a.ultimoConteo + ' nuevo' + (a.ultimoConteo === 1 ? '' : 's') + '</span>';
+    return '<span class="tag visto">Sin novedades</span>';
+  }
+
+  // Lista completa en "Buscar procesos": nombre, criterios, estado y acciones
+  // (ver nuevos / eliminar). Delegación de eventos en el contenedor -- los
+  // botones se regeneran en cada render, así que enganchar un listener por
+  // botón se perdería en el siguiente render.
+  function renderAlertasList(){
+    if (!alertasListEl) return;
+    if (!alertas.length){
+      alertasListEl.innerHTML = '<div class="empty-inline">Todavía no has guardado ninguna alerta. Aplica unos filtros arriba y guárdalos con el botón "Guardar alerta con los filtros actuales".</div>';
+      return;
+    }
+    alertasListEl.innerHTML = alertas.map(a =>
+      '<div class="recent-item">' +
+        '<div class="recent-item-body">' +
+          '<div class="recent-item-title">' + escapeHtml(a.nombre) + '</div>' +
+          '<div class="recent-item-sub">' + escapeHtml(resumenCriteriosAlerta(a)) + '</div>' +
+        '</div>' +
+        badgeAlerta(a) +
+        (a.ultimoConteo > 0 ? ' <button type="button" class="link-btn" data-ver-alerta="' + a.id + '">Ver nuevos</button>' : '') +
+        ' <button type="button" class="link-btn" data-eliminar-alerta="' + a.id + '">Eliminar</button>' +
+      '</div>'
+    ).join('');
+  }
+
+  // Resumen compacto en el Dashboard -- mismo criterio de "Ver" (solo si hay
+  // novedades) pero sin el botón de eliminar (esa gestión vive en "Buscar
+  // procesos", no en el Inicio).
+  function renderDashAlertas(){
+    if (!dashAlertasEl) return;
+    if (!alertas.length){
+      dashAlertasEl.innerHTML = '<div class="empty-inline">No tienes alertas guardadas. Ve a "Buscar procesos", aplica unos filtros y guárdalos como alerta.</div>';
+      return;
+    }
+    dashAlertasEl.innerHTML = alertas.map(a =>
+      '<div class="recent-item">' +
+        '<div class="recent-item-body">' +
+          '<div class="recent-item-title">' + escapeHtml(a.nombre) + '</div>' +
+          '<div class="recent-item-sub">' + escapeHtml(resumenCriteriosAlerta(a)) + '</div>' +
+        '</div>' +
+        badgeAlerta(a) +
+        (a.ultimoConteo > 0 ? ' <button type="button" class="link-btn" data-ver-alerta-dash="' + a.id + '">Ver</button>' : '') +
+      '</div>'
+    ).join('');
+  }
+
   // Resumen de Inicio: se recalcula cada vez que se entra a esa vista (no hace
   // falta mantenerlo sincronizado en tiempo real mientras el usuario está en
   // otra pantalla). Nunca inventa datos -- si algo no se ha hecho todavía, lo
@@ -5016,16 +5314,39 @@
         }).join('');
       }
     }
+
+    renderDashAlertas();
   }
 
   // Restaura en pantalla la evaluación de experiencia guardada (si había Excel
   // cargados de una sesión anterior), una vez que appReady haya resuelto.
+  //
+  // actualizarDashboard()/renderFlujoStepper()/rerender()/renderAlertasList()
+  // se agregan aquí también (antes solo corrían al ENTRAR a esa vista por
+  // nav): con una cuenta de Supabase conectada, cargar los datos ya no es
+  // casi instantáneo como con localStorage -- es una consulta de red real. Si
+  // "Inicio" o "Buscar procesos" son la vista con la que arranca la página
+  // (mostrarVista(vistaInicial) más abajo corre ANTES de que esto resuelva),
+  // se quedaban mostrando ceros/vacío para siempre, porque nada los volvía a
+  // dibujar después de que los datos realmente llegaran -- bug real, antes
+  // invisible porque con localStorage la espera era de un microtask, no de
+  // una petición de red. Repetir estas llamadas aquí es barato (son funciones
+  // de solo-render) incluso si esa vista no es la que está visible.
   appReady.then(() => {
     renderExpEvalReview();
     renderExpEvalResultado();
     renderPersonalSelect();
     renderPersonalList();
     cargarPersonalActivoEnCampos();
+    actualizarDashboard();
+    renderFlujoStepper();
+    rerender();
+    renderAlertasList();
+    // Revisión de alertas en segundo plano: no bloquea el primer render (podría
+    // tardar varios segundos si hay varias alertas guardadas) -- cuando termine,
+    // se vuelve a dibujar sola tanto la lista de "Buscar procesos" como el
+    // resumen del Dashboard.
+    revisarTodasLasAlertas();
   });
 
   // Recuerda la última vista para que un reload no te devuelva siempre a

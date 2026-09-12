@@ -16,6 +16,9 @@ analiza el pliego de condiciones de un proceso puntual.
   (datos.gov.co) por palabra clave y departamento, con filtros de vigencia,
   modalidad y estado. Si la consulta en vivo falla, muestra un snapshot de
   respaldo (`snapshot.json`) con procesos reales de Norte de Santander.
+- **Alertas guardadas**: guarda una combinación de especialidades/
+  departamento/valor y revisa cuándo aparecen procesos nuevos que coinciden
+  (dentro de la app; sin correo ni notificaciones push por ahora).
 - **Perfil de la empresa**: RUP/clasificador y capacidad financiera (K),
   con autocompletado desde el PDF del certificado del RUP.
 - **Experiencia**: cruza dos Excel (experiencia ejecutada del proponente +
