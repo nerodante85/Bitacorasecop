@@ -769,8 +769,16 @@
       border-bottom: none; border-right: 1px solid rgba(255,255,255,.08); flex-shrink: 0;
       padding: 12px 12px; gap: 8px;
     }
-    #bitacora-root .sidebar-brand-text p { display: none; }
-    #bitacora-root .sidebar-brand-text h1 { font-size: 14px; }
+    /* Con 6 secciones en el nav (desde que se agregó "Personal"), el texto
+       "Bitácora" del logo + los 6 íconos ya no caben en ~360px reales sin
+       desbordar -- el último ícono ("Evaluación") quedaba cortado en el
+       borde, sin scroll visible que lo indicara (encontrado probando a
+       375px real, no en una ventana de escritorio achicada). Mismo criterio
+       ya aplicado a los ítems de nav (solo ícono, título/aria-label
+       conservan el nombre accesible): se oculta también el texto del logo,
+       dejando solo la marca "B".
+       */
+    #bitacora-root .sidebar-brand-text { display: none; }
     #bitacora-root .sidebar-nav { flex-direction: row; gap: 4px; padding: 8px; flex: 0 0 auto; }
     #bitacora-root .nav-item { padding: 10px; white-space: nowrap; font-size: 13.5px; }
     #bitacora-root .nav-item .nav-label { display: none; }

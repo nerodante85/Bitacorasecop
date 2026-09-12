@@ -674,6 +674,51 @@ igual que antes (`socrataFetchOptions()` devuelve `{}` sin token). Instrucciones
 de cómo conseguirlo y dónde pegarlo: en el propio comentario junto a la
 constante, y en el README.
 
+## Bug real de responsive encontrado al revisar en celular (post-"Personal")
+
+Al pedir "revisa cómo se ve en el celular" después de agregar la sección
+**Personal** (en una sesión anterior, ver "Flujo principal" arriba), la barra
+horizontal de íconos de `#bt-nav` (activa a ≤560px, ver "Responsive" más
+arriba) ya NO cabía completa: 6 íconos + el texto "Bitácora" del logo
+necesitan ~388px, pero un celular real de 375px de ancho solo tiene ~359px
+utilizables (16px se van en el margen por defecto del navegador, sin resetear
+-- ver nota abajo). El último ícono ("Evaluación") quedaba parcialmente
+cortado en el borde derecho, sin scroll visible que indicara que había más
+contenido -- `.sidebar { overflow-x: auto }` ya existía (para no romper si
+algún día no cabe), así que técnicamente SÍ se podía llegar arrastrando,
+pero nada en la interfaz sugería que hiciera falta.
+
+- **Cómo se detectó**: no por la captura de pantalla en sí (a simple vista
+  parecía razonable), sino midiendo en JS `sidebar.scrollWidth` vs
+  `sidebar.clientWidth` a 375px reales -- la diferencia (29px de overflow)
+  confirmó el problema antes de confiar en lo que mostraba la captura.
+  Lección reforzada de la sección "Responsive" de arriba: medir con
+  `getBoundingClientRect()`/`scrollWidth`, no solo mirar la imagen.
+- **Causa raíz**: la sección "Personal" (agregada después del último rediseño
+  responsive) subió el conteo de ítems de nav de 5 a 6, sin volver a probar
+  el breakpoint de celular con el conteo nuevo.
+- **Arreglo**: mismo criterio que ya se usaba para los ítems de nav (solo
+  ícono, sin texto, con `title`/`aria-label` para conservar el nombre
+  accesible) aplicado también al texto del logo -- `.sidebar-brand-text {
+  display: none }` a ≤560px, dejando solo la marca "B". Libera ~73px,
+  suficiente para que los 6 íconos quepan sin desbordar (0px de overflow
+  medido tras el cambio). No afecta tablet/escritorio (la regla vive dentro
+  del mismo `@media (max-width: 560px)` que ya existía).
+- **Nota aparte, no relacionada con el bug**: `body` no tiene un reset de
+  margin explícito en ningún lado del archivo -- el margen por defecto del
+  navegador (8px) se nota en las mediciones (`body.scrollWidth` = ancho de
+  viewport − 16px). No causó ningún problema visible en esta revisión (el
+  diseño ya asume ese inset), pero vale la pena tenerlo presente si algún
+  cálculo de ancho futuro no cuadra por ~16px.
+- **Lección sobre la herramienta de prueba, no la app**: al verificar la
+  navegación por teclado de las pestañas (ver "Patrón ARIA de pestañas
+  completo" más abajo) en este mismo repaso, un clic disparado por
+  coordenadas en vez de por `id` aterrizó bien (confirmado contra
+  `document.querySelector('.nav-item.active')`), pero identificar a simple
+  vista CUÁL ícono quedó resaltado en una captura de 18×18px es propenso a
+  error -- confirmar el tab activo por JS (`.nav-item.active` /
+  `data-view`), no solo por lectura visual de la captura.
+
 ## README.md y 404.html
 
 Hallazgo BAJO de la auditoría: no había ningún `README.md` (solo
