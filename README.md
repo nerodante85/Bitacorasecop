@@ -95,10 +95,18 @@ El dataset de SECOP II es público y no requiere ningún token para
 consultarlo. Sin uno, Socrata aplica un límite de tasa más estricto,
 compartido con cualquier otra app anónima del mundo. Para subir ese límite:
 
-1. Crear una cuenta gratuita en <https://dev.socrata.com/register>.
-2. Generar un App Token desde el portal de datos.gov.co / Socrata.
-3. Pegarlo en la constante `SOCRATA_APP_TOKEN` de `index.html` (búscala cerca
-   de `fetchSecopDataset`).
+1. Crear una cuenta (o iniciar sesión) directo en <https://www.datos.gov.co>
+   -- el portal de registro separado que existía antes en
+   `dev.socrata.com/register` está descontinuado desde 2021; hoy la cuenta se
+   maneja en el propio dominio de datos abiertos.
+2. En el menú de tu perfil, ir a **"Developer Settings"** → **"Create New App
+   Token"** (nombre + descripción; el nombre debe ser único entre todas las
+   apps registradas en cualquier dominio Socrata/Data & Insights).
+3. Pegar el token generado en la constante `SOCRATA_APP_TOKEN` de
+   `index.html` (búscala cerca de `fetchSecopDataset`).
+
+Instrucciones vigentes (verificadas octubre 2025):
+<https://support.socrata.com/hc/en-us/articles/210138558-Generating-App-Tokens-and-API-Keys>.
 
 No es una credencial secreta — Socrata los diseña para ir embebidos en
 código de cliente — pero mientras quede vacía, la app sigue funcionando

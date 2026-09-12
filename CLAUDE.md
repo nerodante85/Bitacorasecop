@@ -699,19 +699,32 @@ patrón -- ningún panel (`<section class="view">`) tenía `role="tabpanel"` ni
   el evento desde JS de página es más confiable que la tecla simulada de la
   herramienta de automatización.
 
-## App Token de Socrata (opcional)
+## App Token de Socrata (activado)
 
 Hallazgo BAJO de la auditoría: las consultas a datos.gov.co iban sin
-`X-App-Token`, así que comparten el límite de tasa más estricto que aplica a
+`X-App-Token`, así que compartían el límite de tasa más estricto que aplica a
 cualquier app anónima. Se agregó soporte para uno (`SOCRATA_APP_TOKEN` +
 `socrataFetchOptions()`, usado en `fetchSecopDataset`/`buscarAdjudicaciones`),
-pero la constante queda **vacía a propósito**: conseguir un token real exige
-crear una cuenta en dev.socrata.com, y eso es un paso manual que le
-corresponde a una persona, no a una herramienta automatizada actuando en su
-nombre. Mientras quede vacía, las consultas siguen funcionando exactamente
-igual que antes (`socrataFetchOptions()` devuelve `{}` sin token). Instrucciones
-de cómo conseguirlo y dónde pegarlo: en el propio comentario junto a la
-constante, y en el README.
+dejando la constante vacía en un primer momento porque conseguir un token
+real exige crear una cuenta, y ese es un paso manual que le corresponde a una
+persona, no a una herramienta automatizada actuando en su nombre. El usuario
+creó la cuenta y generó el token; ya está activado con su valor real (no es
+una credencial secreta -- Socrata los diseña para ir embebidos en código de
+cliente, igual que la anon key de Supabase). Verificado contra la API real
+(`curl` con y sin el header, ambos `200`) y con búsquedas en vivo reales en
+los 3 breakpoints antes de publicar.
+
+**Nota para el futuro**: el portal de registro que documentaba originalmente
+este paso, `dev.socrata.com/register`, está descontinuado desde el 1 de
+abril de 2021 (el usuario se topó con el aviso de cierre al intentar
+entrar). El flujo vigente (verificado contra la documentación oficial de
+Socrata/Data & Insights, actualizada octubre 2025) es: crear cuenta/iniciar
+sesión directo en el dominio de datos abiertos que se esté usando (en este
+caso, datos.gov.co) → menú de perfil → "Developer Settings" → "Create New
+App Token". Si en una fase futura hace falta regenerar o explicar esto de
+nuevo, no asumir que las instrucciones viejas del README siguen vigentes sin
+verificarlas primero -- ver
+<https://support.socrata.com/hc/en-us/articles/210138558-Generating-App-Tokens-and-API-Keys>.
 
 ## Bug real de responsive encontrado al revisar en celular (post-"Personal")
 
