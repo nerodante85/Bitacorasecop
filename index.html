@@ -672,6 +672,15 @@
   #bitacora-root .step-sep { width: 22px; height: 1px; background: var(--border-strong); flex-shrink: 0; }
   #bitacora-root .step.is-done + .step-sep { background: var(--success-border); }
 
+  /* Mensaje/CTA bajo el indicador de pasos: qué falta o qué sigue. */
+  #bitacora-root .flujo-msg {
+    border-radius: var(--radius-md); padding: 12px 14px; font-size: 13px; line-height: 1.5;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between;
+  }
+  #bitacora-root .flujo-msg.pendiente { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-border); }
+  #bitacora-root .flujo-msg.listo { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+  #bitacora-root .flujo-msg .btn-secondary, #bitacora-root .flujo-msg .btn-primary { flex-shrink: 0; }
+
   /* ============================================================
      DASHBOARD
      ============================================================ */
@@ -784,6 +793,10 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8.5 13l2 2 4.5-4.5"/></svg>
           <span class="nav-label">Experiencia</span>
         </button>
+        <button class="nav-item" type="button" data-view="personal" role="tab" aria-selected="false" title="Personal" aria-label="Personal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/></svg>
+          <span class="nav-label">Personal</span>
+        </button>
         <button class="nav-item" type="button" data-view="evaluacion" role="tab" aria-selected="false" title="Evaluación" aria-label="Evaluación">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
           <span class="nav-label">Evaluación</span>
@@ -862,6 +875,25 @@
           <div class="view-header">
             <h1>Buscar procesos</h1>
             <p>Busca licitaciones públicas abiertas en SECOP II y da seguimiento a las que te interesan.</p>
+          </div>
+
+          <div class="titleblock" id="bt-flujo-panel">
+            <div class="titleblock-head">
+              <h2>Preparación para analizar un pliego</h2>
+              <span>Estos 3 pasos se hacen una sola vez; después quedan listos para analizar cualquier pliego</span>
+            </div>
+            <div class="steps" id="bt-flujo-steps">
+              <div class="step" data-step="1"><span class="step-circle">1</span><span class="step-label">Experiencia</span></div>
+              <span class="step-sep"></span>
+              <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Análisis</span></div>
+              <span class="step-sep"></span>
+              <div class="step" data-step="3"><span class="step-circle">3</span><span class="step-label">Perfiles</span></div>
+              <span class="step-sep"></span>
+              <div class="step" data-step="4"><span class="step-circle">4</span><span class="step-label">Pliego</span></div>
+              <span class="step-sep"></span>
+              <div class="step" data-step="5"><span class="step-circle">5</span><span class="step-label">Resultado</span></div>
+            </div>
+            <div id="bt-flujo-mensaje"></div>
           </div>
 
           <div class="titleblock">
@@ -1036,6 +1068,74 @@
             </div>
             <div id="bt-expeval-out"></div>
           </div>
+          <div class="saved-note">Siguiente paso: ve a "Personal" para registrar el equipo de trabajo, y después a "Buscar procesos" para analizar el pliego que te interese.</div>
+        </section>
+
+        <section class="view" id="view-personal" data-view="personal" hidden>
+          <div class="view-header">
+            <h1>Personal</h1>
+            <p>Registra el equipo de trabajo (director de obra, residente, especialistas...) que puede acreditarse frente al personal mínimo que exige un pliego.</p>
+          </div>
+
+          <div class="titleblock" id="bt-personal-panel">
+            <div class="titleblock-head">
+              <h2>Perfiles profesionales</h2>
+              <span>Uno por cada persona que hace parte del equipo propuesto</span>
+            </div>
+            <div class="perfil-switcher">
+              <div class="field">
+                <label>Perfil en edición</label>
+                <select id="bt-personal-select"></select>
+              </div>
+              <div class="field">
+                <label>Nombre</label>
+                <input id="bt-personal-nombre" type="text" placeholder="Nombre completo">
+              </div>
+              <button class="btn-secondary" id="bt-personal-nuevo">+ Nuevo profesional</button>
+              <button class="btn-secondary" id="bt-personal-eliminar">Eliminar</button>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Cargo / rol propuesto</label>
+                <input id="bt-personal-cargo" type="text" placeholder="ej. Director de obra, Residente de obra, Especialista SST">
+              </div>
+              <div class="field">
+                <label>Años de experiencia</label>
+                <input id="bt-personal-anos" type="text" placeholder="ej. 8 años">
+              </div>
+              <div class="field full">
+                <label>Formación académica</label>
+                <textarea id="bt-personal-formacion" rows="2" placeholder="ej. Ingeniero civil, especialización en gerencia de proyectos"></textarea>
+              </div>
+              <div class="field full">
+                <label>Especializaciones y certificaciones</label>
+                <textarea id="bt-personal-especializaciones" rows="2" placeholder="ej. Especialista en estructuras, certificación PMP, curso de SST"></textarea>
+              </div>
+              <div class="field full">
+                <label>Experiencia específica (proyectos similares en los que ha participado)</label>
+                <textarea id="bt-personal-experiencia" rows="2" placeholder="ej. Interventoría de 3 proyectos de pavimentación vial urbana"></textarea>
+              </div>
+              <div class="field full">
+                <label>Competencias adicionales</label>
+                <textarea id="bt-personal-competencias" rows="2" placeholder="ej. Manejo de personal, AutoCAD, gestión de comunidades"></textarea>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="bt-personal-save">Guardar perfil profesional</button>
+              <span class="saved-note" id="bt-personal-saved"></span>
+            </div>
+          </div>
+
+          <div class="titleblock">
+            <div class="titleblock-head">
+              <h2>Equipo registrado</h2>
+              <span id="bt-personal-count">Sin profesionales registrados</span>
+            </div>
+            <div class="recent-list" id="bt-personal-list">
+              <div class="empty-inline">Todavía no has registrado ningún perfil profesional.</div>
+            </div>
+          </div>
+          <div class="saved-note">Siguiente paso: ve a "Buscar procesos" para analizar el pliego que te interese — ahí verás cuándo está todo listo.</div>
         </section>
 
         <section class="view" id="view-evaluacion" data-view="evaluacion" hidden>
@@ -1143,6 +1243,20 @@
   const expevalInformeBtn = document.getElementById('bt-expeval-informe');
   const expevalClearBtn = document.getElementById('bt-expeval-clear');
   const expevalOutEl = document.getElementById('bt-expeval-out');
+  const personalSelectEl = document.getElementById('bt-personal-select');
+  const personalNombreEl = document.getElementById('bt-personal-nombre');
+  const personalNuevoBtn = document.getElementById('bt-personal-nuevo');
+  const personalEliminarBtn = document.getElementById('bt-personal-eliminar');
+  const personalCargoEl = document.getElementById('bt-personal-cargo');
+  const personalAnosEl = document.getElementById('bt-personal-anos');
+  const personalFormacionEl = document.getElementById('bt-personal-formacion');
+  const personalEspecializacionesEl = document.getElementById('bt-personal-especializaciones');
+  const personalExperienciaEl = document.getElementById('bt-personal-experiencia');
+  const personalCompetenciasEl = document.getElementById('bt-personal-competencias');
+  const personalSaveBtn = document.getElementById('bt-personal-save');
+  const personalSavedEl = document.getElementById('bt-personal-saved');
+  const personalListEl = document.getElementById('bt-personal-list');
+  const personalCountEl = document.getElementById('bt-personal-count');
 
   let lastRecords = null;
   let isDemo = false;
@@ -1406,6 +1520,104 @@
     persistirPerfiles(); // solo persiste cuál quedó activo, no pisa los datos de los perfiles
   }
 
+  // --- Perfiles PROFESIONALES (Personal) -- mismo patrón que Perfiles de
+  // empresa, pero sin "perfilesActivos" (aquí no hay checkboxes de comparar:
+  // TODOS los perfiles registrados son candidatos al cruzar contra el
+  // personal que pida un pliego) ni mínimo de uno (se puede quedar en cero).
+  function renderPersonalSelect(){
+    if (!personalSelectEl) return;
+    const ids = Object.keys(perfilesProfesionales);
+    personalSelectEl.innerHTML = ids.length
+      ? ids.map(id => '<option value="' + id + '"' + (id === personalActivoId ? ' selected' : '') + '>' + escapeHtml(perfilesProfesionales[id].nombre || 'Sin nombre') + '</option>').join('')
+      : '<option value="">Sin perfiles todavía</option>';
+  }
+
+  function renderPersonalList(){
+    if (!personalListEl) return;
+    const ids = Object.keys(perfilesProfesionales);
+    if (personalCountEl) personalCountEl.textContent = ids.length ? (ids.length + ' registrado(s)') : 'Sin profesionales registrados';
+    if (!ids.length){
+      personalListEl.innerHTML = '<div class="empty-inline">Todavía no has registrado ningún perfil profesional.</div>';
+      return;
+    }
+    personalListEl.innerHTML = ids.map(id => {
+      const pp = perfilesProfesionales[id];
+      const sub = [pp.cargo, pp.anos ? (pp.anos + ' de experiencia') : ''].filter(Boolean).join(' · ');
+      return '<div class="recent-item"><div class="recent-item-body"><div class="recent-item-title">' + escapeHtml(pp.nombre || 'Sin nombre') + '</div>' +
+        (sub ? '<div class="recent-item-sub">' + escapeHtml(sub) + '</div>' : '') + '</div></div>';
+    }).join('');
+  }
+
+  function cargarPersonalActivoEnCampos(){
+    const pp = Object.assign({}, PERFIL_PROFESIONAL_VACIO, perfilesProfesionales[personalActivoId] || {});
+    setCampo(personalNombreEl, pp.nombre);
+    setCampo(personalCargoEl, pp.cargo);
+    setCampo(personalAnosEl, pp.anos);
+    setCampo(personalFormacionEl, pp.formacion);
+    setCampo(personalEspecializacionesEl, pp.especializaciones);
+    setCampo(personalExperienciaEl, pp.experiencia);
+    setCampo(personalCompetenciasEl, pp.competencias);
+    if (personalSavedEl) personalSavedEl.textContent = '';
+  }
+
+  async function savePersonal(){
+    if (!personalActivoId) return;
+    perfilesProfesionales[personalActivoId] = {
+      nombre: getCampo(personalNombreEl) || 'Sin nombre',
+      cargo: getCampo(personalCargoEl),
+      anos: getCampo(personalAnosEl),
+      formacion: getCampo(personalFormacionEl),
+      especializaciones: getCampo(personalEspecializacionesEl),
+      experiencia: getCampo(personalExperienciaEl),
+      competencias: getCampo(personalCompetenciasEl)
+    };
+    renderPersonalSelect();
+    renderPersonalList();
+    await persistirPerfilesProfesionales();
+    if (personalSavedEl) personalSavedEl.textContent = 'Guardado ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  async function nuevoPersonal(){
+    const n = Object.keys(perfilesProfesionales).length + 1;
+    const id = nuevoPerfilId();
+    perfilesProfesionales[id] = Object.assign({}, PERFIL_PROFESIONAL_VACIO, { nombre: 'Profesional ' + n });
+    personalActivoId = id;
+    renderPersonalSelect();
+    renderPersonalList();
+    cargarPersonalActivoEnCampos();
+    await persistirPerfilesProfesionales();
+    if (personalNombreEl){ personalNombreEl.focus(); personalNombreEl.select(); }
+  }
+
+  // Mismo patrón de confirmación en línea (doble clic) que "Eliminar perfil"
+  // de empresa -- window.confirm puede estar bloqueado en algunos entornos.
+  let _eliminarPersonalArmado = false, _eliminarPersonalTimer = null;
+  async function eliminarPersonal(){
+    if (!personalActivoId) return;
+    if (!_eliminarPersonalArmado){
+      _eliminarPersonalArmado = true;
+      const original = personalEliminarBtn.textContent;
+      personalEliminarBtn.textContent = '¿Eliminar? Clic de nuevo';
+      _eliminarPersonalTimer = setTimeout(() => { _eliminarPersonalArmado = false; personalEliminarBtn.textContent = original; }, 4000);
+      return;
+    }
+    clearTimeout(_eliminarPersonalTimer);
+    _eliminarPersonalArmado = false;
+    personalEliminarBtn.textContent = 'Eliminar';
+    delete perfilesProfesionales[personalActivoId];
+    personalActivoId = Object.keys(perfilesProfesionales)[0] || null;
+    renderPersonalSelect();
+    renderPersonalList();
+    cargarPersonalActivoEnCampos();
+    await persistirPerfilesProfesionales();
+  }
+
+  function cambiarPersonalActivo(){
+    personalActivoId = personalSelectEl.value || null;
+    cargarPersonalActivoEnCampos();
+    persistirPerfilesProfesionales();
+  }
+
   // ── Autocompletar el perfil desde el certificado del RUP ─────────────────────
   // El RUP (Cámara de Comercio) es un PDF de formato variable. Se extrae lo que
   // se puede con confianza -- códigos UNSPSC, capacidad residual, indicadores
@@ -1639,10 +1851,65 @@
     }
   }
 
+  // Perfiles PROFESIONALES (personal/equipo de trabajo) -- distinto de
+  // "Perfiles de empresa": esto es gente (director de obra, residente,
+  // especialistas...), no la ficha de la compañía. Mismo patrón de
+  // guardado que perfiles de empresa (mapa id -> registro).
+  const PERFIL_PROFESIONAL_VACIO = { nombre: '', cargo: '', formacion: '', anos: '', especializaciones: '', experiencia: '', competencias: '' };
+  let perfilesProfesionales = {};
+  let personalActivoId = null;
+
+  async function loadPerfilesProfesionales(){
+    try {
+      const r = await window.storage.get('perfiles_profesionales', false);
+      if (r && r.value) perfilesProfesionales = JSON.parse(r.value);
+    } catch(e){ /* nada guardado aún */ }
+    try {
+      const r = await window.storage.get('personal_activo_id', false);
+      if (r && r.value && perfilesProfesionales[r.value]) personalActivoId = r.value;
+    } catch(e){ /* nada */ }
+    if (!personalActivoId) personalActivoId = Object.keys(perfilesProfesionales)[0] || null;
+  }
+
+  async function persistirPerfilesProfesionales(){
+    try {
+      await window.storage.set('perfiles_profesionales', JSON.stringify(perfilesProfesionales), false);
+      await window.storage.set('personal_activo_id', personalActivoId || '', false);
+    } catch(e){
+      console.error('No se pudo guardar los perfiles profesionales', e);
+    }
+  }
+
+  // ============================================================
+  // FLUJO PRINCIPAL: Experiencia (cargada) → Análisis (hecho) → Perfiles
+  // (registrados) → Pliego → Resultado. "Analizar pliego" no se habilita
+  // hasta que los 3 primeros pasos estén completos -- pedido explícito del
+  // usuario, para que el sistema conozca la empresa antes de juzgar si
+  // puede responder a un pliego puntual.
+  // ============================================================
+  function estadoFlujoPliego(){
+    const experienciaCargada = !!(expevalContratos && expevalContratos.contratos && expevalContratos.contratos.length);
+    const experienciaAnalizada = !!expevalResultado;
+    const perfilesCargados = Object.keys(perfilesProfesionales).length > 0;
+    return {
+      experienciaCargada: experienciaCargada,
+      experienciaAnalizada: experienciaAnalizada,
+      perfilesCargados: perfilesCargados,
+      listo: experienciaCargada && experienciaAnalizada && perfilesCargados
+    };
+  }
+
+  function mensajeFlujoFaltante(flujo){
+    const falta = [];
+    if (!flujo.experienciaCargada || !flujo.experienciaAnalizada) falta.push('completar el análisis de experiencia');
+    if (!flujo.perfilesCargados) falta.push('registrar al menos un perfil profesional en "Personal"');
+    return 'Para analizar el pliego primero debes ' + falta.join(' y ') + '.';
+  }
+
   // allSettled, no all: si un loader falla (p.ej. un getElementById que devuelve
   // null por un campo renombrado en el HTML), los otros dos igual cargan y el
   // arranque no se aborta -- antes esto dejaba la página pegada en "Cargando...".
-  const appReady = Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval()]);
+  const appReady = Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval(), loadPerfilesProfesionales()]);
 
   function rerender(){
     if (lastRecords){
@@ -2207,6 +2474,11 @@
     ]},
     { categoria: 'RUP / Clasificador', triggers: [
       'rup', 'clasificador unspsc', 'registro único de proponentes'
+    ]},
+    { categoria: 'Personal / Equipo de trabajo', triggers: [
+      'equipo de trabajo', 'personal mínimo', 'personal requerido', 'personal clave',
+      'director de obra', 'residente de obra', 'equipo mínimo de trabajo',
+      'hoja de vida del personal', 'profesional requerido', 'personal propuesto'
     ]}
   ];
 
@@ -2422,6 +2694,35 @@
     return set;
   }
 
+  // Personal / equipo de trabajo exigido en el pliego vs. los perfiles
+  // profesionales registrados en "Personal" -- igual que Experiencia, es
+  // GLOBAL (no depende del perfil de empresa comparado): reutiliza la misma
+  // técnica de palabra clave distintiva que ya usa evaluarRequisito() para no
+  // duplicar lógica. Nunca afirma "no cumple" solo porque no hay coincidencia
+  // de palabras -- eso solo dice "revísalo a mano" (nd), consistente con el
+  // resto de la app.
+  function gatePersonalRequerido(hallazgos){
+    const total = Object.keys(perfilesProfesionales).length;
+    if (!total){
+      return { estado: 'nd', detalle: 'El pliego menciona personal/equipo de trabajo, pero todavía no has registrado ningún perfil profesional en "Personal".' };
+    }
+    const coincidencias = [];
+    hallazgos.forEach(h => {
+      const distintivas = palabrasClaveDe(h.snippet).filter(p => !PALABRAS_GENERICAS_OBRA.has(p));
+      Object.keys(perfilesProfesionales).forEach(pid => {
+        const pp = perfilesProfesionales[pid];
+        const texto = normHeader([pp.cargo, pp.formacion, pp.especializaciones, pp.experiencia, pp.competencias].filter(Boolean).join(' '));
+        const nombre = pp.nombre || 'Sin nombre';
+        if (distintivas.some(p => texto.indexOf(p) !== -1) && coincidencias.indexOf(nombre) === -1) coincidencias.push(nombre);
+      });
+    });
+    const snippet = truncate(hallazgos[0].snippet, 160);
+    if (coincidencias.length){
+      return { estado: 'ok', detalle: 'El pliego menciona: "' + snippet + '". Perfil(es) que podrían acreditarlo: ' + coincidencias.join(', ') + '.' };
+    }
+    return { estado: 'nd', detalle: 'El pliego menciona personal/equipo de trabajo ("' + snippet + '"), pero ningún perfil registrado en "Personal" comparte palabras clave con ese requisito -- revísalo manualmente.' };
+  }
+
   // Evalúa un proceso contra UNA matriz de capacidad.
   //   entry (análisis del pliego) opcional -> con él se evalúan indicadores
   //   financieros y experiencia exigidos; sin él, evaluación "ligera".
@@ -2492,6 +2793,13 @@
       // comparado, porque esa evaluación no distingue por empresa.
       const gExp = experienciaGateDetalle();
       g('Experiencia', gExp.estado, gExp.detalle);
+
+      // Personal / equipo de trabajo (solo si el pliego menciona algo de esto).
+      const hallazgosPersonal = ((compsDe(entry)[0] || {}).hallazgosAnotados || []).filter(h => h.categoria === 'Personal / Equipo de trabajo');
+      if (hallazgosPersonal.length){
+        const gPersonal = gatePersonalRequerido(hallazgosPersonal);
+        g('Personal / equipo de trabajo', gPersonal.estado, gPersonal.detalle);
+      }
     } else {
       g('Requisitos habilitantes', 'nd', 'Sube y analiza el pliego (PDF) para evaluar indicadores financieros y experiencia.');
     }
@@ -2754,9 +3062,65 @@
       '<div style="margin-bottom:8px;">' + escapeHtml(g.detalle) + '</div>';
   }
 
-  function renderAnalysisHtml(entry){
+  // ============================================================
+  // RESUMEN DE COMPATIBILIDAD -- paso final del flujo (Experiencia → Análisis
+  // → Perfiles → Pliego → Resultado). Reutiliza evaluarMejor()/evaluarProceso()
+  // -- el motor go/no-go ya calculaba, gate por gate, prácticamente lo mismo
+  // que pide esta "matriz de requisitos" (K/financiera, RUP, Experiencia y
+  // ahora Personal), así que no se duplica un motor de comparación paralelo.
+  // ============================================================
+  const ESTADO_COMPAT_LABEL = { ok: 'Cumple', fail: 'No cumple', revisar: 'Cumple parcialmente', nd: 'Requiere verificación' };
+  const ESTADO_COMPAT_CLASE = { ok: 'expeval-cumple', fail: 'expeval-nocumple', revisar: 'expeval-nd', nd: 'expeval-nd' };
+
+  // El % de cumplimiento se calcula solo sobre los gates que sí se pudieron
+  // evaluar (con dato) -- "Requiere verificación" no cuenta ni a favor ni en
+  // contra, para no inflar ni castigar el puntaje por falta de información.
+  function resumenCompatibilidad(gates){
+    const cumplen = gates.filter(g => g.estado === 'ok');
+    const noCumplen = gates.filter(g => g.estado === 'fail');
+    const parciales = gates.filter(g => g.estado === 'revisar');
+    const sinDato = gates.filter(g => g.estado === 'nd');
+    const evaluables = cumplen.length + noCumplen.length + parciales.length;
+    const pct = evaluables > 0 ? Math.round((cumplen.length / evaluables) * 100) : null;
+    const riesgos = parciales.map(g => g.nombre + ': ' + g.detalle);
+    if (sinDato.length) riesgos.push('Falta información para evaluar: ' + sinDato.map(g => g.nombre).join(', ') + '.');
+    return {
+      pct: pct, cumplen: cumplen, noCumplen: noCumplen, parciales: parciales, sinDato: sinDato,
+      fortalezas: cumplen.map(g => g.nombre),
+      debilidades: noCumplen.map(g => g.nombre),
+      riesgos: riesgos
+    };
+  }
+
+  // res = resultado de evaluarMejor(item, s, entry) -- el mismo que ya usa
+  // "Evaluación go/no-go". Se muestra aquí también porque el usuario pidió
+  // que el resultado de compatibilidad aparezca justo después de analizar el
+  // pliego, no obligarlo a ir a otra sección a buscar el mismo dato.
+  function renderCompatibilidadHtml(res){
+    const resumen = resumenCompatibilidad(res.mejor.gates);
+    const claseGlobal = res.mejor.veredicto === 'GO' ? 'expeval-cumple' : (res.mejor.veredicto === 'NO-GO' ? 'expeval-nocumple' : 'expeval-nd');
+    const hero = '<div class="expeval-global ' + claseGlobal + '">RESULTADO: ' + escapeHtml(res.mejor.veredicto) +
+      '<small>' + (resumen.pct != null
+        ? resumen.pct + '% de cumplimiento estimado sobre lo evaluable' + (res.porPerfil.length > 1 ? ' · mejor perfil: ' + escapeHtml(res.mejor.perfil) : '')
+        : 'No hay suficiente información todavía para estimar un porcentaje.') + '</small></div>';
+    const lista = (titulo, arr) => arr.length ? '<div class="analysis-sub">' + titulo + '</div><ul class="analysis-list">' + arr.map(x => '<li>' + escapeHtml(x) + '</li>').join('') + '</ul>' : '';
+    const filas = res.mejor.gates.map(g =>
+      '<tr><td>' + escapeHtml(g.nombre) + '</td><td><span class="expeval-badge ' + ESTADO_COMPAT_CLASE[g.estado] + '">' + escapeHtml(ESTADO_COMPAT_LABEL[g.estado] || g.estado) + '</span></td><td>' + escapeHtml(g.detalle) + '</td></tr>'
+    ).join('');
+    const tabla = '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Estado</th><th>Evidencia y observaciones</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
+    return '<div class="analysis-sub">RESUMEN DE COMPATIBILIDAD' + (res.porPerfil.length > 1 ? ' (mejor de ' + res.porPerfil.length + ' perfiles)' : '') + '</div>' +
+      hero + lista('FORTALEZAS', resumen.fortalezas) + lista('DEBILIDADES', resumen.debilidades) + lista('RIESGOS Y PENDIENTES', resumen.riesgos) + tabla;
+  }
+
+  // item/s son OPCIONALES (compatibilidad hacia atrás): cuando no se pasan
+  // (ej. una tanda de OCR que solo tiene el `entry`, no el proceso en pantalla)
+  // simplemente no se agrega el resumen de compatibilidad -- el resto del
+  // análisis se ve exactamente igual que antes.
+  function renderAnalysisHtml(entry, item, s){
     const comps = compsDe(entry);
     const primero = comps[0] || {};
+    const evalParaCompat = (item && s) ? evaluarMejor(item, s, entry) : null;
+    const compatHtml = evalParaCompat ? renderCompatibilidadHtml(evalParaCompat) : '';
 
     // Requisitos detectados en el TEXTO -- no dependen del perfil, se listan una
     // sola vez. Bajo cada uno se indica qué perfiles marcados lo cubren.
@@ -2767,7 +3131,7 @@
         .map(c => c.perfilNombre || 'Perfil');
       (porCategoria[h.categoria] = porCategoria[h.categoria] || []).push(Object.assign({}, h, { cubiertoPor: cubiertoPor }));
     });
-    const ordenCategorias = ['Capacidad K / Financiera', 'Experiencia', 'RUP / Clasificador'];
+    const ordenCategorias = ['Capacidad K / Financiera', 'Experiencia', 'RUP / Clasificador', 'Personal / Equipo de trabajo'];
     const hallazgosHtml = ordenCategorias
       .filter(cat => porCategoria[cat] && porCategoria[cat].length)
       .map(cat => {
@@ -2791,6 +3155,7 @@
 
     return '<div class="analysis-block">' +
       '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' · <span style="color:var(--warning);">vía OCR</span>' : '') + ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
+      compatHtml +
       (entry.kResidual ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(entry.kResidual) + '</div>' : '') +
       '<div class="analysis-sub">REQUISITOS HABILITANTES DETECTADOS</div>' +
       (sinHallazgos
@@ -3183,6 +3548,10 @@
       return;
     }
 
+    // Se calcula UNA vez por render, no por tarjeta -- barato, y evita
+    // recorrer perfiles/experiencia una vez por cada proceso en pantalla.
+    const flujoListoParaPliego = estadoFlujoPliego().listo;
+
     resultsEl.innerHTML = scored.map(s => {
       const it = s.item;
       const hist = historial[it.id];
@@ -3204,8 +3573,10 @@
 
       const analysisEntry = analisis[it.id];
       if (analysisEntry) analysisEntry.id = it.id; // backfill para análisis guardados antes de este cambio
-      const analysisHtml = analysisEntry ? renderAnalysisHtml(analysisEntry) : '';
-      const analizarLabel = analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)';
+      const analysisHtml = analysisEntry ? renderAnalysisHtml(analysisEntry, it, s) : '';
+      const analizarLabel = !flujoListoParaPliego
+        ? '🔒 Analizar pliego (completa Experiencia y Personal)'
+        : (analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)');
 
       const venceProto = isVisto && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
       const venceAlertHtml = venceProto
@@ -3474,7 +3845,7 @@
   // Informe detallado en texto plano de un análisis: requisitos detectados en el
   // pliego + comparación término por término contra cada empresa (lo que coincide
   // y, sobre todo, lo que NO aparece), más una valoración orientativa.
-  function informeAnalisisTexto(entry, it){
+  function informeAnalisisTexto(entry, it, s){
     const comps = compsDe(entry);
     const L = [];
     const sep = '════════════════════════════════════════════════════════';
@@ -3485,6 +3856,23 @@
     L.push('INFORME DE ANÁLISIS DE PLIEGO — Bitácora SECOP');
     L.push('Generado: ' + new Date().toLocaleString('es-CO'));
     nl();
+
+    const resCompat = (it && s) ? evaluarMejor(it, s, entry) : null;
+    if (resCompat){
+      const res = resCompat;
+      const resumen = resumenCompatibilidad(res.mejor.gates);
+      L.push('RESUMEN DE COMPATIBILIDAD');
+      L.push('  Resultado: ' + res.mejor.veredicto + (resumen.pct != null ? ' (' + resumen.pct + '% de cumplimiento estimado sobre lo evaluable)' : ' (sin suficiente información para un %)'));
+      if (resumen.fortalezas.length) L.push('  Fortalezas: ' + resumen.fortalezas.join(', '));
+      if (resumen.debilidades.length) L.push('  Debilidades: ' + resumen.debilidades.join(', '));
+      if (resumen.riesgos.length){ L.push('  Riesgos y pendientes:'); resumen.riesgos.forEach(r => L.push('    - ' + r)); }
+      nl();
+      L.push('  MATRIZ DE REQUISITOS');
+      res.mejor.gates.forEach(g => L.push('    [' + (ESTADO_COMPAT_LABEL[g.estado] || g.estado).toUpperCase() + '] ' + g.nombre + ' — ' + g.detalle));
+      nl();
+      L.push(sub);
+      nl();
+    }
 
     L.push('PROCESO');
     if (it){
@@ -3635,6 +4023,11 @@
     perfilNombreEl.addEventListener('input', onNombrePerfilInput);
     perfilNombreEl.addEventListener('blur', onNombrePerfilBlur);
   }
+  if (personalSaveBtn) personalSaveBtn.addEventListener('click', savePersonal);
+  if (personalNuevoBtn) personalNuevoBtn.addEventListener('click', nuevoPersonal);
+  if (personalEliminarBtn) personalEliminarBtn.addEventListener('click', eliminarPersonal);
+  if (personalSelectEl) personalSelectEl.addEventListener('change', cambiarPersonalActivo);
+
   // Componente único de carga (RUP + los dos Excel de Experiencia): clic para
   // elegir archivo, arrastrar y soltar, y activación por teclado (Enter/Espacio)
   // -- son <div> con role="button", no <button> reales, así que el teclado no
@@ -3806,12 +4199,29 @@
   copySummaryBtn.addEventListener('click', copyAltaPrioridadSummary);
 
   const pendingOcrFiles = {}; // { id: File } -- se guarda porque input.value se limpia después de leer, y el botón de OCR se hace clic más tarde
+  // Pliego cargado pero AÚN NO analizado (paso "cargar" separado de "analizar",
+  // pedido explícito del usuario) -- igual que pendingOcrFiles, solo vive en
+  // memoria: si se recarga la página antes de pulsar "Analizar pliego" hay que
+  // volver a cargarlo (misma limitación ya aceptada para el OCR).
+  const pendingPliegoFiles = {};
+
+  function itemYScorePara(id){
+    const s = (lastScored || []).find(x => x.item && x.item.id === id);
+    return { item: s ? s.item : null, s: s || null };
+  }
 
   // Un solo listener delegado para todos los clics dentro de la lista de
   // resultados: acciones de tarjeta (visto/descartar/analizar), y los dos
   // botones del análisis de pliegos (OCR y "seguir leyendo"). Antes eran tres
   // listeners 'click' separados sobre el mismo elemento.
   resultsEl.addEventListener('click', async function(e){
+    // 0) "Ir a Experiencia/Personal" -- del mensaje que bloquea "Analizar pliego"
+    const irABtn = e.target.closest('button[data-ir-a]');
+    if (irABtn){
+      mostrarVista(irABtn.getAttribute('data-ir-a'));
+      return;
+    }
+
     // 1) Acciones de tarjeta
     const actionBtn = e.target.closest('button[data-action]');
     if (actionBtn){
@@ -3820,8 +4230,54 @@
       if (action === 'visto' || action === 'descartar'){
         toggleStatus(id, action === 'visto' ? 'visto' : 'descartado');
       } else if (action === 'analizar'){
+        const flujo = estadoFlujoPliego();
+        if (!flujo.listo){
+          const slot = actionBtn.closest('.row').querySelector('.analysis-slot');
+          slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) +
+            ' <button class="link-btn" data-ir-a="' + (!flujo.experienciaCargada || !flujo.experienciaAnalizada ? 'experiencia' : 'personal') + '">Ir a ' +
+            (!flujo.experienciaCargada || !flujo.experienciaAnalizada ? 'Experiencia' : 'Personal') + '</button></div>';
+          return;
+        }
         const input = actionBtn.closest('.row').querySelector('input[type=file][data-analyze-id]');
         if (input) input.click();
+      }
+      return;
+    }
+
+    // 1b) "Analizar pliego" -- confirma el análisis de un pliego ya cargado
+    // (paso separado de la carga, pedido explícito del usuario).
+    const confirmarBtn = e.target.closest('.analysis-confirmar-btn');
+    if (confirmarBtn){
+      const id = confirmarBtn.getAttribute('data-confirmar-id');
+      const file = pendingPliegoFiles[id];
+      const slot = confirmarBtn.closest('.analysis-block').parentElement;
+      if (!file){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a cargar el PDF.</div>';
+        return;
+      }
+      slot.innerHTML = '<div class="analysis-loading">Leyendo PDF…</div>';
+      try {
+        await appReady;
+        const { text, numPages, pagesRead } = await extractPdfText(file);
+        if (!text || text.trim().length < 200){
+          pendingOcrFiles[id] = file;
+          const blobUrl = URL.createObjectURL(file);
+          slot.innerHTML = '<div class="analysis-block analysis-warn">Este PDF no tiene texto extraíble (probablemente está escaneado como imagen). ' +
+            '<a href="' + escapeHtml(blobUrl) + '" target="_blank" rel="noopener">Ábrelo aquí para revisarlo manualmente</a>, ' +
+            'o <button class="link-btn analysis-ocr-btn" data-ocr-id="' + escapeHtml(id) + '">intenta leerlo con OCR</button> ' +
+            '(reconocimiento de texto en imagen — puede tardar varios minutos y no siempre es exacto).</div>';
+          return;
+        }
+        const { hallazgos, kResidual, exigencias } = analizarTexto(text);
+        const { comps } = compararConPerfiles(text, hallazgos);
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, kResidual: kResidual, exigencias: exigencias, comps: comps };
+        analisis[id] = entry;
+        saveAnalisis();
+        delete pendingPliegoFiles[id];
+        const ctx = itemYScorePara(id);
+        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s);
+      } catch(err){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(err.message || 'error') + ').</div>';
       }
       return;
     }
@@ -3852,7 +4308,7 @@
         const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, kResidual: kResidual, exigencias: exigencias, comps: comps, viaOcr: true };
         analisis[id] = entry;
         saveAnalisis();
-        slot.innerHTML = renderAnalysisHtml(entry);
+        { const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
         // Solo se descarta el archivo en memoria si ya se leyó completo -- si quedan
         // páginas pendientes, "Seguir leyendo" lo necesita para continuar.
         if (pagesRead >= numPages) delete pendingOcrFiles[id];
@@ -3893,10 +4349,11 @@
         delete entry.comp; // por si venía del esquema viejo de un solo perfil
         analisis[id] = entry;
         saveAnalisis();
-        slot.innerHTML = renderAnalysisHtml(entry);
+        { const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
         if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
       } catch(err){
-        slot.innerHTML = renderAnalysisHtml(entry) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
+        const ctx = itemYScorePara(id);
+        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
       }
       return;
     }
@@ -3909,7 +4366,7 @@
       if (!entry){ alert('No se encontró el análisis para generar el informe. Vuelve a analizar el pliego.'); return; }
       const s = (lastScored || []).find(x => x.item && x.item.id === id);
       const it = s ? s.item : null;
-      const texto = informeAnalisisTexto(entry, it);
+      const texto = informeAnalisisTexto(entry, it, s);
       if (informeBtn.classList.contains('analysis-informe-copy-btn')){
         try {
           await navigator.clipboard.writeText(texto);
@@ -3927,37 +4384,30 @@
     }
   });
 
+  // Solo CARGA el pliego (paso separado de analizarlo, pedido explícito del
+  // usuario -- "la carga del documento y el análisis deben ser acciones
+  // diferentes"). No se extrae texto ni se analiza nada todavía; eso ocurre
+  // al pulsar el botón "Analizar pliego" (ver .analysis-confirmar-btn arriba).
   resultsEl.addEventListener('change', async function(e){
     const input = e.target.closest('input[type=file][data-analyze-id]');
     if (!input) return;
     const id = input.getAttribute('data-analyze-id');
     const file = input.files && input.files[0];
+    input.value = '';
     if (!file) return;
     const slot = input.closest('.row').querySelector('.analysis-slot');
-    slot.innerHTML = '<div class="analysis-loading">Leyendo PDF…</div>';
-    try {
-      await appReady;
-      const { text, numPages, pagesRead } = await extractPdfText(file);
-      if (!text || text.trim().length < 200){
-        pendingOcrFiles[id] = file;
-        const blobUrl = URL.createObjectURL(file);
-        slot.innerHTML = '<div class="analysis-block analysis-warn">Este PDF no tiene texto extraíble (probablemente está escaneado como imagen). ' +
-          '<a href="' + escapeHtml(blobUrl) + '" target="_blank" rel="noopener">Ábrelo aquí para revisarlo manualmente</a>, ' +
-          'o <button class="link-btn analysis-ocr-btn" data-ocr-id="' + escapeHtml(id) + '">intenta leerlo con OCR</button> ' +
-          '(reconocimiento de texto en imagen — puede tardar varios minutos y no siempre es exacto).</div>';
-        return;
-      }
-      const { hallazgos, kResidual, exigencias } = analizarTexto(text);
-      const { comps } = compararConPerfiles(text, hallazgos);
-      const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, kResidual: kResidual, exigencias: exigencias, comps: comps };
-      analisis[id] = entry;
-      saveAnalisis();
-      slot.innerHTML = renderAnalysisHtml(entry);
-    } catch(err){
-      slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(err.message || 'error') + ').</div>';
-    } finally {
-      input.value = '';
+    const flujo = estadoFlujoPliego();
+    if (!flujo.listo){
+      slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) + '</div>';
+      return;
     }
+    pendingPliegoFiles[id] = file;
+    const kb = Math.round(file.size / 1024);
+    slot.innerHTML = '<div class="analysis-block">' +
+      '<div class="analysis-head">✓ Pliego cargado</div>' +
+      '<div style="margin-bottom:10px;">' + escapeHtml(file.name) + ' (' + kb + ' KB). Revisa que sea el documento correcto y pulsa el botón para analizarlo.</div>' +
+      '<button class="btn-primary analysis-confirmar-btn" data-confirmar-id="' + escapeHtml(id) + '">Analizar pliego</button>' +
+    '</div>';
   });
 
   clearHistorialBtn.addEventListener('click', async function(){
@@ -3976,7 +4426,7 @@
   // evaluación de experiencia siguen funcionando exactamente igual estén o no
   // a la vista).
   // ============================================================
-  const VISTAS = ['dashboard', 'buscar', 'perfil', 'experiencia', 'evaluacion'];
+  const VISTAS = ['dashboard', 'buscar', 'perfil', 'experiencia', 'personal', 'evaluacion'];
 
   function mostrarVista(nombre){
     if (VISTAS.indexOf(nombre) === -1) nombre = 'dashboard';
@@ -3992,10 +4442,58 @@
     window.scrollTo(0, 0);
     try { localStorage.setItem('bitacora_ultima_vista', nombre); } catch(e){ /* nada */ }
     if (nombre === 'dashboard') actualizarDashboard();
+    if (nombre === 'buscar'){
+      renderFlujoStepper();
+      // Por si el flujo se completó en otra vista (Experiencia/Personal)
+      // mientras la lista de procesos ya estaba dibujada con el botón
+      // "Analizar pliego" bloqueado -- sin esto, el aviso de arriba decía
+      // "ya puedes analizar" pero el botón de la tarjeta seguía con el candado.
+      rerender();
+    }
+  }
+
+  // Indicador de los 5 pasos del flujo principal (Experiencia → Análisis →
+  // Perfiles → Pliego → Resultado), en la parte de arriba de "Buscar
+  // procesos" -- se recalcula cada vez que se entra a esa vista, igual que
+  // el dashboard. "Pliego" y "Resultado" se marcan según si YA hay al menos
+  // un pliego cargado/analizado, respectivamente (son por tarjeta, no un
+  // paso único; aquí solo informan si el usuario ya usó esa parte del flujo).
+  function renderFlujoStepper(){
+    const stepsEl = document.getElementById('bt-flujo-steps');
+    const msgEl = document.getElementById('bt-flujo-mensaje');
+    if (!stepsEl || !msgEl) return;
+    const flujo = estadoFlujoPliego();
+    const hayPliegoCargado = Object.keys(pendingPliegoFiles).length > 0;
+    const hayPliegoAnalizado = Object.keys(analisis).length > 0;
+    const estados = {
+      1: flujo.experienciaCargada ? 'is-done' : 'is-active',
+      2: flujo.experienciaAnalizada ? 'is-done' : (flujo.experienciaCargada ? 'is-active' : ''),
+      3: flujo.perfilesCargados ? 'is-done' : (flujo.experienciaAnalizada ? 'is-active' : ''),
+      4: hayPliegoAnalizado ? 'is-done' : (flujo.listo ? 'is-active' : ''),
+      5: hayPliegoAnalizado ? 'is-done' : ''
+    };
+    Object.keys(estados).forEach(n => {
+      const el = stepsEl.querySelector('.step[data-step="' + n + '"]');
+      if (el) el.className = 'step' + (estados[n] ? ' ' + estados[n] : '');
+    });
+    if (flujo.listo){
+      msgEl.innerHTML = '<div class="flujo-msg listo">✓ Ya puedes analizar cualquier pliego: baja a la lista de procesos y usa "Analizar pliego (PDF)" en la tarjeta que te interese.' +
+        (hayPliegoAnalizado ? ' Puedes repetirlo con cuantos procesos quieras.' : '') + '</div>';
+    } else {
+      const siguienteVista = (!flujo.experienciaCargada || !flujo.experienciaAnalizada) ? 'experiencia' : 'personal';
+      const siguienteLabel = siguienteVista === 'experiencia' ? 'Ir a Experiencia' : 'Ir a Personal';
+      msgEl.innerHTML = '<div class="flujo-msg pendiente"><span>' + escapeHtml(mensajeFlujoFaltante(flujo)) + '</span>' +
+        '<button class="btn-secondary" data-ir-a-flujo="' + siguienteVista + '">' + siguienteLabel + '</button></div>';
+    }
   }
 
   document.querySelectorAll('#bt-nav .nav-item, .quick-card[data-view]').forEach(btn => {
     btn.addEventListener('click', () => mostrarVista(btn.getAttribute('data-view')));
+  });
+  const flujoMensajeEl = document.getElementById('bt-flujo-mensaje');
+  if (flujoMensajeEl) flujoMensajeEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-ir-a-flujo]');
+    if (btn) mostrarVista(btn.getAttribute('data-ir-a-flujo'));
   });
 
   function saludoSegunHora(){
@@ -4071,6 +4569,9 @@
   appReady.then(() => {
     renderExpEvalReview();
     renderExpEvalResultado();
+    renderPersonalSelect();
+    renderPersonalList();
+    cargarPersonalActivoEnCampos();
   });
 
   // Recuerda la última vista para que un reload no te devuelva siempre a

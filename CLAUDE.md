@@ -17,6 +17,108 @@ publicado en GitHub Pages. Un solo archivo: `index.html`.
   array de procesos reales embebido en el propio archivo (curado a mano en
   algún momento, con fecha fija). Solo es respaldo, no la fuente principal.
 
+## Flujo principal: Experiencia → Personal → Pliego (compuerta de dependencias)
+
+Reestructuración pedida explícitamente por el usuario: "Analizar Pliego" pasó
+de ser lo primero que se hace a ser el ÚLTIMO paso de una secuencia
+obligatoria. El principio: primero se conoce la empresa (experiencia) y su
+gente (perfiles profesionales); solo entonces tiene sentido juzgar si puede
+responder a un pliego puntual.
+
+**Flujo pedido**: 1) Cargar experiencia → 2) Analizar experiencia → 3) Cargar
+perfiles → 4) Analizar pliego → 5) Resultado de compatibilidad.
+
+**Decisiones de interpretación** (el pedido original describía un flujo
+genérico tipo wizard; se adaptó a la arquitectura real sin reconstruirla,
+como pedía explícitamente el propio prompt):
+
+- **Los "perfiles" del paso 3 NO son "Perfil de la empresa"** (RUP/K
+  financiera, ya existente) — son perfiles PROFESIONALES individuales
+  (director de obra, residente, especialistas...), un concepto nuevo que no
+  existía. Se implementó como una sección nueva, **"Personal"**
+  (`view-personal`, entre Experiencia y Evaluación en la sidebar), con el
+  mismo patrón CRUD que "Perfiles de empresa" (`PERFIL_PROFESIONAL_VACIO`,
+  `perfilesProfesionales` en `perfiles_profesionales`, doble clic para
+  eliminar) pero sin el concepto de "comparar" -- TODOS los perfiles
+  profesionales registrados son candidatos al cruzar contra el personal que
+  pida un pliego, no hace falta marcarlos.
+- **"Analizar pliego" sigue siendo por TARJETA** (un botón por proceso en
+  "Buscar procesos"), no una página única de wizard -- la app es
+  fundamentalmente "navega muchos procesos, analiza el pliego del que te
+  interese", y una empresa revisa MUCHOS pliegos distintos con la MISMA
+  experiencia/personal ya preparados. Lo que se gatea es la
+  DISPONIBILIDAD del botón en todas las tarjetas, no un flujo de una sola
+  vía. `estadoFlujoPliego()` (experiencia cargada + analizada + al menos un
+  perfil profesional) se calcula una vez por render de la lista
+  (`flujoListoParaPliego`), y el label del botón cambia a "🔒 Analizar
+  pliego (completa Experiencia y Personal)" cuando falta algo -- al hacer
+  clic bloqueado, se muestra el mensaje exacto de qué falta en el
+  `.analysis-slot` de esa tarjeta, con un botón "Ir a Experiencia/Personal".
+  Un indicador de 5 pasos (`#bt-flujo-steps`, mismo componente visual
+  `.steps`/`.step` ya usado en Experiencia) vive arriba de "Buscar
+  procesos" y se recalcula (`renderFlujoStepper()`) cada vez que se entra a
+  esa vista -- junto con un `rerender()` de la lista, porque si no el aviso
+  de arriba decía "ya puedes analizar" pero los botones de las tarjetas,
+  dibujados antes de completar el flujo, seguían con el candado.
+- **La "matriz de requisitos" del pliego NO se reemplazó** por el Excel de
+  matriz que ya existía en "Experiencia" (Fuente B) -- el pedido original
+  sugería extraer los requisitos directamente del PDF del pliego para la
+  comparación final. Se mantuvo el motor de Experiencia (Excel vs Excel)
+  intacto tal cual estaba, y el pliego PDF se sigue analizando con el motor
+  de texto YA existente (`analizarTexto`/`REQUISITO_CATEGORIAS`). Motivo:
+  el pedido mismo insiste en "no dupliques lógica existente" y "no
+  reconstruyas innecesariamente" -- reemplazar el Excel-vs-Excel ya
+  construido y probado por una extracción PDF-vs-personal/experiencia
+  hubiera sido una reconstrucción, no una reorganización.
+- **"Cargar pliego" y "Analizar pliego" son ahora dos acciones distintas**
+  (pedido explícito, sección 7 del prompt). Antes, seleccionar el PDF en el
+  `<input type=file>` disparaba automáticamente `extractPdfText` +
+  `analizarTexto` + `compararConPerfiles`. Ahora:
+  1. El evento `change` del input SOLO guarda el `File` en memoria
+     (`pendingPliegoFiles[id]`, mismo patrón que `pendingOcrFiles` para el
+     OCR -- vive solo en memoria, se pierde si se recarga la página antes
+     de analizar, limitación ya aceptada para el caso de OCR) y muestra
+     "✓ Pliego cargado: nombre.pdf (KB). Revisa que sea el documento
+     correcto y pulsa el botón para analizarlo." con un botón
+     **"Analizar pliego"** (`.analysis-confirmar-btn`).
+  2. Ese botón, al pulsarse, ejecuta EXACTAMENTE la misma lógica que antes
+     corría automáticamente (extracción, fallback a OCR si no hay texto,
+     `analizarTexto`, `compararConPerfiles`, guardar en `analisis[id]`).
+  El gate (`estadoFlujoPliego().listo`) se revisa TANTO al hacer clic en
+  "Analizar pliego (PDF)" (antes de abrir el selector de archivo) COMO en
+  el evento `change` (por si el usuario ya tenía el selector abierto antes
+  de que el flujo se completara/rompiera).
+- **Resultado de compatibilidad (paso 5)**: en vez de construir un motor de
+  comparación paralelo, se reutilizó `evaluarProceso()`/`evaluarMejor()` --
+  el motor go/no-go YA calculaba, gate por gate, prácticamente la misma
+  "matriz de requisitos" que pedía el prompt (K financiera, RUP,
+  Experiencia). Solo se le agregó un gate nuevo, **"Personal / equipo de
+  trabajo"** (`gatePersonalRequerido()`, cruza los hallazgos de la nueva
+  categoría `REQUISITO_CATEGORIAS` "Personal / Equipo de trabajo" contra
+  `perfilesProfesionales` por palabra clave distintiva, reutilizando
+  `palabrasClaveDe`/`normHeader`/`PALABRAS_GENERICAS_OBRA` del módulo de
+  Experiencia -- nunca afirma "no cumple" solo por falta de coincidencia,
+  eso es "Requiere verificación"). `renderCompatibilidadHtml()` /
+  `resumenCompatibilidad()` traducen los gates (`ok/fail/revisar/nd`) al
+  vocabulario pedido (Cumple / No cumple / Cumple parcialmente / Requiere
+  verificación) con un % de cumplimiento (solo sobre gates evaluables, sin
+  contar "Requiere verificación" ni a favor ni en contra) y listas de
+  fortalezas/debilidades/riesgos. Este resumen aparece **inline, arriba del
+  análisis del pliego** en la propia tarjeta (`renderAnalysisHtml(entry,
+  item, s)` ahora recibe el proceso y su score para poder llamar a
+  `evaluarMejor` -- `item`/`s` son opcionales, así que los llamados viejos
+  sin ese contexto, como una tanda de OCR reabierta días después, siguen
+  funcionando igual, solo sin el resumen). Como beneficio gratis: la vista
+  separada "Evaluación" (go/no-go) también muestra el gate de Personal sin
+  tocarle una línea, porque ya usaba el mismo `evaluarProceso()`.
+- **Estados y recuperación**: todo el estado del flujo se DERIVA de datos ya
+  persistidos (`expevalContratos`/`expevalResultado`/`perfilesProfesionales`),
+  no hay una "máquina de estados" nueva que sincronizar -- si el usuario
+  cierra el navegador a medias, al volver `estadoFlujoPliego()` simplemente
+  refleja lo que sí quedó guardado. La única excepción es "pliego cargado
+  pero no analizado" (`pendingPliegoFiles`), que es memoria pura y se pierde
+  al recargar -- aceptado porque el mismo límite ya existía para OCR.
+
 ## Diseño de interfaz
 
 Rediseño integral (pedido explícito del usuario): de una estética "bitácora de
@@ -309,9 +411,16 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
 
 ## Funcionalidad actual
 
-- Navegación por sidebar con 5 secciones: Inicio (dashboard con resumen y
-  actividad reciente), Buscar procesos, Perfil de la empresa, Experiencia y
-  Evaluación (ver "Diseño de interfaz" arriba).
+- Navegación por sidebar con 6 secciones: Inicio (dashboard con resumen y
+  actividad reciente), Buscar procesos, Perfil de la empresa, Experiencia,
+  **Personal** (perfiles profesionales del equipo de trabajo) y Evaluación
+  (ver "Diseño de interfaz" y "Flujo principal" arriba).
+- "Analizar pliego" (por tarjeta, en Buscar procesos) está gateado: no se
+  habilita hasta cargar y analizar la experiencia Y registrar al menos un
+  perfil profesional en Personal. Cargar el PDF y analizarlo son dos clics
+  separados (revisar antes de analizar). El resultado incluye un "Resumen de
+  compatibilidad" (% de cumplimiento, fortalezas/debilidades/riesgos y una
+  matriz de requisitos) antes del detalle de siempre.
 - Búsqueda en vivo anclada por palabra clave (Especialidades), con
   departamento aplicado como filtro después de traer los resultados.
 - Filtros: ocultar vencidos, solo publicados hace ≤30 días, solo Licitación
