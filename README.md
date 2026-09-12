@@ -40,7 +40,9 @@ analiza el pliego de condiciones de un proceso puntual.
   historial — pura aritmética transparente, sin IA.
 - **Competencia**: ficha de una empresa que contrata con el Estado (nombre o
   razón social) — contratos totales, valor contratado, principales entidades,
-  sectores y evolución por año, combinando SECOP I y SECOP II.
+  sectores y evolución por año, combinando SECOP I y SECOP II. Puedes
+  **seguir** una empresa y recibir aviso (dentro de la app, con un feed de
+  actividad) cuando aparece como contratista en un contrato nuevo.
 
 El flujo completo es: **Experiencia → Análisis de experiencia → Personal →
 Analizar pliego → Resultado de compatibilidad** — cada paso queda bloqueado

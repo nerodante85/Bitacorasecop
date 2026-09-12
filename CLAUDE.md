@@ -1224,3 +1224,59 @@ una muestra de cientos de consorcios distintos sin relación real. Buscar
 mensaje de "no encontrado" se actualizó para explicar esta limitación y
 sugerir agregar una palabra más distintiva de la razón social completa, en
 vez de dejar al usuario sin ninguna pista de por qué no encontró nada.
+
+## Fase 12 del prompt maestro: seguimiento de empresas
+
+Del prompt maestro del usuario, punto 21 ("Seguimiento de empresas"). Se
+construye directo encima de la Fase 11 (ficha de empresa) recién hecha:
+"seguir" una empresa guarda su nombre y compara, contra el mismo
+`buscarFichaEmpresa()` de la ficha manual, qué contratos tienen fecha
+posterior a la última revisión -- arquitectura casi idéntica a "Alertas
+guardadas" (Fase 4: misma clave de almacenamiento genérica vía
+`window.storage`, mismo patrón revisar-en-el-arranque + botón "Revisar
+ahora", mismo "ver = marcar como revisado").
+
+**Alcance recortado a propósito, distinto del ejemplo del prompt maestro**:
+el prompt maestro pide avisar cuando una empresa aparece como "proponente,
+adjudicatario, contratista, o posible competidor" en un proceso -- pero el
+dataset abierto de SECOP no publica la lista de proponentes/oferentes por
+proceso (solo conteos agregados como `proveedores_unicos_con`), así que es
+IMPOSIBLE saber con estos datos cuándo una empresa "se presentó" sin ganar.
+Se avisa únicamente de lo que sí se puede verificar: cuándo aparece como
+CONTRATISTA en un contrato nuevo. Inventar la actividad de "proponente" sin
+poder verificarla habría violado el principio ya establecido en toda la app
+("no inventar", puntos 32-33 del prompt maestro).
+
+**Feed real, no solo un contador**: a diferencia de las alertas (que solo
+muestran "N nuevos"), aquí se guarda además `feedReciente` (hasta 5 items:
+entidad, fuente, fecha, valor) para poder mostrar líneas de actividad
+legibles tipo "Apareció como contratista en un contrato con [entidad]
+(SECOP [I/II])" -- más cercano al ejemplo del prompt maestro ("Empresa XYZ
+ganó el proceso DEF") que un simple badge numérico. Se decidió persistir
+este feed pequeño (no es texto largo) para que el Dashboard pueda mostrar
+actividad real sin tener que re-consultar SECOP en cada carga.
+
+**Botón "Seguir/Dejar de seguir"** integrado directo en `renderFichaEmpresaHtml`
+(Fase 11) en vez de un flujo aparte -- el usuario ya está viendo la ficha de
+la empresa que le interesa, seguirla desde ahí es el punto natural. El botón
+cambia de estado sin repetir la consulta a SECOP: se guarda el último
+resultado de `buscarFichaEmpresa` en `ultimosRegistrosCompetencia` y se
+vuelve a dibujar solo la ficha (`renderFichaEmpresaHtml`) con los mismos
+datos ya en memoria.
+
+**Bug de secuencia de prueba (no del código) detectado al verificar**: al
+probar manualmente forzando una `ultimaRevision` vieja vía
+`localStorage.setItem` directo, un primer intento pareció no funcionar --
+la causa real fue de la prueba, no de la app: haber hecho clic en "Revisar
+ahora" ANTES de recargar la página dejó que `persistirEmpresasSeguidas()`
+sobreescribiera el cambio manual con el estado en memoria (todavía con la
+fecha original). Lección para probar esta clase de función en el futuro:
+editar `localStorage` y recargar la página ANTES de disparar cualquier
+acción que persista, nunca al revés.
+
+**Verificado con datos reales**: seguir "ECOPETROL", forzar una revisión
+"desde 2020", y "Revisar ahora" mostró correctamente "109 nuevo(s)" con un
+feed de 5 contratos reales (entidad, fuente, valor); "Ver" navegó a
+"Competencia", re-buscó la empresa, mostró los resultados y volvió el
+contador a cero; "Dejar de seguir" limpió la lista. Tests de humo 5/5.
+Probado en los 3 breakpoints sin overflow ni errores de consola.

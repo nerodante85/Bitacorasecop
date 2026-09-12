@@ -951,6 +951,14 @@
             <div class="recent-list" id="bt-dash-alertas"></div>
           </div>
 
+          <div class="titleblock" id="bt-dash-seguimiento-panel">
+            <div class="titleblock-head">
+              <h2>Actividad de empresas seguidas</h2>
+              <span>Nuevos contratos de las empresas que sigues</span>
+            </div>
+            <div class="recent-list" id="bt-dash-seguimiento"></div>
+          </div>
+
           <div class="titleblock">
             <div class="titleblock-head">
               <h2>Actividad reciente</h2>
@@ -1319,6 +1327,22 @@
           </div>
 
           <div id="bt-comp-out"></div>
+
+          <!-- Seguimiento de empresas: prompt maestro punto 21. Alcance real
+               (ver CLAUDE.md): avisa cuando una empresa seguida aparece como
+               CONTRATISTA en un contrato nuevo (SECOP I/II) -- el dataset no
+               trae la lista de proponentes/oferentes por proceso, solo
+               conteos, así que no se puede saber quién SE PRESENTÓ sin ganar. -->
+          <div class="titleblock" id="bt-seguimiento-panel">
+            <div class="titleblock-head">
+              <h2>Empresas seguidas</h2>
+              <span>Avisa cuando aparecen como contratistas en un contrato nuevo</span>
+            </div>
+            <div class="actions" style="margin-bottom:10px;">
+              <button type="button" class="link-btn" id="bt-seguimiento-revisar">↻ Revisar ahora</button>
+            </div>
+            <div class="recent-list" id="bt-seguimiento-list"></div>
+          </div>
         </section>
 
         <div class="footnote">
@@ -1460,7 +1484,7 @@
     'historial', 'perfiles_empresa', 'perfil_activo_id', 'perfiles_activos',
     'perfil_empresa', 'analisis_pliegos', 'experiencia_evaluacion',
     'perfiles_profesionales', 'personal_activo_id', 'ultima_vista',
-    'alertas_guardadas'
+    'alertas_guardadas', 'empresas_seguidas'
   ];
 
   // Copia UNA sola vez lo que ya hubiera en este navegador a la cuenta recién
@@ -1662,6 +1686,9 @@
   const compBuscarBtn = document.getElementById('bt-comp-buscar');
   const compSavedEl = document.getElementById('bt-comp-saved');
   const compOutEl = document.getElementById('bt-comp-out');
+  const seguimientoListEl = document.getElementById('bt-seguimiento-list');
+  const seguimientoRevisarBtn = document.getElementById('bt-seguimiento-revisar');
+  const dashSeguimientoEl = document.getElementById('bt-dash-seguimiento');
   const resultsEl = document.getElementById('bt-results');
   const statusEl = document.getElementById('bt-status');
   const countEl = document.getElementById('bt-count');
@@ -2439,6 +2466,76 @@
     persistirAlertas();
   }
 
+  // ==========================================================================
+  // SEGUIMIENTO DE EMPRESAS -- prompt maestro del usuario, punto 21. Avisa
+  // cuando una empresa seguida aparece como CONTRATISTA en un contrato NUEVO
+  // (SECOP I/II) desde la última revisión -- mismo criterio de "nuevo" que
+  // las alertas guardadas (Fase 4), pero comparando contra
+  // buscarFichaEmpresa() en vez de una búsqueda de procesos.
+  //
+  // Alcance real, más acotado que el ejemplo del prompt maestro: el dataset
+  // abierto de SECOP no trae la lista de proponentes/oferentes por proceso
+  // (solo conteos agregados, ej. "proveedores_unicos_con"), así que NO se
+  // puede saber cuándo una empresa "se presentó" a un proceso sin ganarlo --
+  // solo cuándo aparece como contratista/adjudicatario. Se avisa solo de eso,
+  // en vez de inventar actividad de "proponente" que no se puede verificar.
+  // ==========================================================================
+  let empresasSeguidas = []; // { id, nombre, creadaEn, ultimaRevision, ultimoConteo, feedReciente, revisando, error }
+
+  function nuevaEmpresaSeguidaId(){
+    return 'emp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  async function loadEmpresasSeguidas(){
+    try {
+      const r = await window.storage.get('empresas_seguidas', false);
+      empresasSeguidas = (r && r.value) ? JSON.parse(r.value) : [];
+      if (!Array.isArray(empresasSeguidas)) empresasSeguidas = [];
+    } catch(e){
+      empresasSeguidas = [];
+    }
+  }
+
+  async function persistirEmpresasSeguidas(){
+    try {
+      const paraGuardar = empresasSeguidas.map(e => ({
+        id: e.id, nombre: e.nombre, creadaEn: e.creadaEn,
+        ultimaRevision: e.ultimaRevision, ultimoConteo: e.ultimoConteo,
+        feedReciente: e.feedReciente || []
+      }));
+      await window.storage.set('empresas_seguidas', JSON.stringify(paraGuardar), false);
+    } catch(e){
+      console.error('No se pudo guardar la empresa seguida', e);
+    }
+  }
+
+  // Comparación simple (normalizeGeo ya quita acentos/mayúsculas/puntuación,
+  // reutilizada aquí igual que para departamentos) -- no hace falta la
+  // coincidencia tolerante de prepararBusquedaPorNombre para esto: es solo
+  // para saber si YA se sigue exactamente este nombre, no para machear contra
+  // el dataset.
+  function empresaSeguidaPorNombre(nombre){
+    const n = normalizeGeo(nombre);
+    return empresasSeguidas.find(e => normalizeGeo(e.nombre) === n) || null;
+  }
+
+  function seguirEmpresa(nombre){
+    if (empresaSeguidaPorNombre(nombre)) return; // ya se sigue, no duplicar
+    empresasSeguidas.push({
+      id: nuevaEmpresaSeguidaId(), nombre: nombre.trim(),
+      creadaEn: new Date().toISOString(),
+      // arranca "al día" -- lo que ya se vio en la búsqueda que la disparó no cuenta como "nuevo"
+      ultimaRevision: new Date().toISOString(),
+      ultimoConteo: 0, feedReciente: []
+    });
+    persistirEmpresasSeguidas();
+  }
+
+  function dejarDeSeguirEmpresa(id){
+    empresasSeguidas = empresasSeguidas.filter(e => e.id !== id);
+    persistirEmpresasSeguidas();
+  }
+
   // allSettled, no all: si un loader falla (p.ej. un getElementById que devuelve
   // null por un campo renombrado en el HTML), los otros dos igual cargan y el
   // arranque no se aborta -- antes esto dejaba la página pegada en "Cargando...".
@@ -2450,7 +2547,7 @@
   // que la cuenta no tiene datos (aunque sí los tenga).
   const appReady = bootstrapAccountSession().then(() => {
     renderSidebarFootAccount();
-    return Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval(), loadPerfilesProfesionales(), loadAlertas()]);
+    return Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval(), loadPerfilesProfesionales(), loadAlertas(), loadEmpresasSeguidas()]);
   });
 
   function rerender(){
@@ -3735,8 +3832,14 @@
     const maxEntidadValor = Math.max(1, ...f.porEntidad.map(e => e.valor));
     const maxAnioContratos = Math.max(1, ...f.serieAnual.map(a => a.contratos));
 
+    const seguida = empresaSeguidaPorNombre(nombreBuscado);
     return '<div class="titleblock">' +
       '<div class="titleblock-head"><h2>' + escapeHtml(nombreBuscado) + '</h2><span>' + nII + ' en SECOP II, ' + nI + ' en SECOP I</span></div>' +
+      '<div class="actions" style="margin:-8px 0 16px;">' +
+        (seguida
+          ? '<button type="button" class="btn-secondary" data-dejar-seguir="' + escapeHtml(seguida.id) + '">✓ Siguiendo esta empresa — dejar de seguir</button>'
+          : '<button type="button" class="btn-secondary" data-seguir-empresa="' + escapeHtml(nombreBuscado) + '">+ Seguir esta empresa</button>') +
+      '</div>' +
       '<div class="stat-grid" style="margin-bottom:20px;">' +
         '<div class="stat-card"><div class="stat-card-label">Contratos encontrados</div><div class="stat-card-value">' + f.totalContratos + '</div>' +
           '<div class="stat-card-note">' + f.entidadesDistintas + ' entidad(es) distinta(s)</div></div>' +
@@ -3762,6 +3865,117 @@
         ).join('') + '</div>'
       ) : '') +
       '<div class="analysis-disclaimer">Cifras derivadas de datos abiertos de SECOP I y SECOP II filtrados por coincidencia de nombre -- pueden faltar contratos si una entidad reportó el nombre del proveedor de forma distinta, y pueden incluir falsos positivos si dos empresas tienen nombres muy parecidos. Verifica siempre contra el RUES o el expediente del proceso antes de usar esta información para decidir.</div>';
+  }
+
+  // Revisa UNA empresa seguida: reconsulta buscarFichaEmpresa (misma fuente
+  // que la ficha manual) y arma un feed de los contratos con fecha posterior
+  // a la última revisión -- igual que evaluarAlerta, pero contra contratos de
+  // una empresa en vez de procesos que coincidan con criterios guardados.
+  const SEGUIMIENTO_FEED_MAX = 5;
+
+  async function revisarEmpresaSeguida(empresa){
+    const registros = await buscarFichaEmpresa(empresa.nombre);
+    const desde = empresa.ultimaRevision ? new Date(empresa.ultimaRevision).getTime() : 0;
+    const nuevos = registros
+      .filter(r => r.fecha && isPlausibleDate(r.fecha) && new Date(r.fecha).getTime() > desde)
+      .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+    empresa.ultimoConteo = nuevos.length;
+    empresa.feedReciente = nuevos.slice(0, SEGUIMIENTO_FEED_MAX).map(r => ({
+      entidad: r.entidad, fuente: r.fuente, fecha: r.fecha, valorAdj: r.valorAdj
+    }));
+  }
+
+  // Revisa TODAS las empresas seguidas en paralelo -- mismo criterio que
+  // revisarTodasLasAlertas (allSettled implícito vía try/catch por empresa,
+  // no actualiza ultimaRevision -- eso solo pasa al ver la actividad).
+  async function revisarTodasLasEmpresasSeguidas(){
+    await Promise.all(empresasSeguidas.map(async (e) => {
+      e.revisando = true;
+      renderEmpresasSeguidasList(); renderDashSeguimiento();
+      try {
+        await revisarEmpresaSeguida(e);
+        e.error = null;
+      } catch(err){
+        e.error = 'No se pudo revisar (' + (err && err.message ? err.message : 'error de red') + ')';
+      } finally {
+        e.revisando = false;
+      }
+    }));
+    persistirEmpresasSeguidas();
+    renderEmpresasSeguidasList();
+    renderDashSeguimiento();
+  }
+
+  // Lleva al usuario a ver la ficha completa de la empresa (misma búsqueda
+  // manual de siempre) y marca la actividad como vista -- el contador vuelve
+  // a cero desde este momento, igual que "Ver nuevos" en las alertas.
+  async function verActividadEmpresa(id){
+    const e = empresasSeguidas.find(x => x.id === id);
+    if (!e) return;
+    mostrarVista('competencia');
+    if (compNombreEl) compNombreEl.value = e.nombre;
+    await runBuscarCompetencia();
+    e.ultimaRevision = new Date().toISOString();
+    e.ultimoConteo = 0;
+    e.feedReciente = [];
+    e.error = null;
+    persistirEmpresasSeguidas();
+    renderEmpresasSeguidasList();
+    renderDashSeguimiento();
+  }
+
+  function badgeSeguimiento(e){
+    if (e.revisando) return '<span class="tag">Revisando…</span>';
+    if (e.error) return '<span class="tag" title="' + escapeHtml(e.error) + '">Error al revisar</span>';
+    if (e.ultimoConteo > 0) return '<span class="tag nuevo">' + e.ultimoConteo + ' nuevo(s)</span>';
+    return '<span class="tag visto">Sin novedades</span>';
+  }
+
+  // Lista completa en "Competencia": nombre, estado, y el feed de contratos
+  // nuevos si los hay (una línea por contrato, formato similar al ejemplo del
+  // prompt maestro: "apareció como contratista en un contrato con X").
+  function renderEmpresasSeguidasList(){
+    if (!seguimientoListEl) return;
+    if (!empresasSeguidas.length){
+      seguimientoListEl.innerHTML = '<div class="empty-inline">Todavía no sigues ninguna empresa. Busca una arriba y usa "+ Seguir esta empresa".</div>';
+      return;
+    }
+    seguimientoListEl.innerHTML = empresasSeguidas.map(e => {
+      const feedHtml = (e.feedReciente || []).length
+        ? '<div class="recent-item-sub">' + e.feedReciente.map(f =>
+            'Apareció como contratista en un contrato con ' + escapeHtml(f.entidad) +
+            ' (SECOP ' + escapeHtml(f.fuente) + (f.valorAdj ? ', ' + (fmtMoney(f.valorAdj) || '') : '') + ')'
+          ).join('<br>') + '</div>'
+        : '<div class="recent-item-sub">Se sigue desde ' + (fmtDate(e.creadaEn) || e.creadaEn) + '</div>';
+      return '<div class="recent-item"><div class="recent-item-body">' +
+        '<div class="recent-item-title">' + escapeHtml(e.nombre) + '</div>' + feedHtml +
+        '</div>' + badgeSeguimiento(e) +
+        (e.ultimoConteo > 0 ? ' <button type="button" class="link-btn" data-ver-actividad="' + e.id + '">Ver</button>' : '') +
+        ' <button type="button" class="link-btn" data-dejar-seguir-lista="' + e.id + '">Dejar de seguir</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  // Resumen en el Dashboard -- mismo feed, sin el botón de "dejar de seguir"
+  // (esa gestión vive en "Competencia").
+  function renderDashSeguimiento(){
+    if (!dashSeguimientoEl) return;
+    if (!empresasSeguidas.length){
+      dashSeguimientoEl.innerHTML = '<div class="empty-inline">No sigues ninguna empresa todavía. Ve a "Competencia", busca una y usa "Seguir esta empresa".</div>';
+      return;
+    }
+    dashSeguimientoEl.innerHTML = empresasSeguidas.map(e => {
+      const feedHtml = (e.feedReciente || []).length
+        ? '<div class="recent-item-sub">' + e.feedReciente.slice(0, 2).map(f =>
+            'Contratista en un contrato con ' + escapeHtml(f.entidad) + ' (SECOP ' + escapeHtml(f.fuente) + ')'
+          ).join('<br>') + '</div>'
+        : '<div class="recent-item-sub">Sin novedades</div>';
+      return '<div class="recent-item"><div class="recent-item-body">' +
+        '<div class="recent-item-title">' + escapeHtml(e.nombre) + '</div>' + feedHtml +
+        '</div>' + badgeSeguimiento(e) +
+        (e.ultimoConteo > 0 ? ' <button type="button" class="link-btn" data-ver-actividad-dash="' + e.id + '">Ver</button>' : '') +
+        '</div>';
+    }).join('');
   }
 
   // Banda de "razonablemente comparable" entre valor adjudicado y precio
@@ -4978,6 +5192,8 @@
     if (verBtn) verNuevosDeAlerta(verBtn.getAttribute('data-ver-alerta-dash'));
   });
 
+  let ultimosRegistrosCompetencia = []; // último resultado de buscarFichaEmpresa -- para redibujar el botón "Seguir" sin repetir la consulta
+
   async function runBuscarCompetencia(){
     const nombre = compNombreEl ? compNombreEl.value.trim() : '';
     if (!nombre){
@@ -4989,6 +5205,7 @@
     compOutEl.innerHTML = '<div class="analysis-loading">Consultando SECOP I y SECOP II…</div>';
     try {
       const registros = await buscarFichaEmpresa(nombre);
+      ultimosRegistrosCompetencia = registros;
       compOutEl.innerHTML = renderFichaEmpresaHtml(nombre, registros);
     } catch(err){
       compOutEl.innerHTML = '<div class="analysis-disclaimer">No se pudo consultar (' + escapeHtml(err && err.message ? err.message : 'error') + ').</div>';
@@ -4998,6 +5215,46 @@
   }
   if (compBuscarBtn) compBuscarBtn.addEventListener('click', runBuscarCompetencia);
   if (compNombreEl) compNombreEl.addEventListener('keydown', function(e){ if (e.key === 'Enter') runBuscarCompetencia(); });
+
+  // Delegación: el botón "Seguir/Dejar de seguir" se regenera cada vez que
+  // se busca (renderFichaEmpresaHtml lo dibuja según el estado actual).
+  if (compOutEl) compOutEl.addEventListener('click', (e) => {
+    const seguirBtn = e.target.closest('[data-seguir-empresa]');
+    if (seguirBtn){
+      seguirEmpresa(seguirBtn.getAttribute('data-seguir-empresa'));
+      renderEmpresasSeguidasList();
+      // Redibuja la ficha ya visible para que el botón cambie a "Siguiendo…" sin recargar la búsqueda.
+      compOutEl.innerHTML = renderFichaEmpresaHtml(compNombreEl.value.trim(), ultimosRegistrosCompetencia);
+      return;
+    }
+    const dejarBtn = e.target.closest('[data-dejar-seguir]');
+    if (dejarBtn){
+      dejarDeSeguirEmpresa(dejarBtn.getAttribute('data-dejar-seguir'));
+      renderEmpresasSeguidasList();
+      compOutEl.innerHTML = renderFichaEmpresaHtml(compNombreEl.value.trim(), ultimosRegistrosCompetencia);
+    }
+  });
+  if (seguimientoListEl) seguimientoListEl.addEventListener('click', (e) => {
+    const verBtn = e.target.closest('[data-ver-actividad]');
+    if (verBtn){ verActividadEmpresa(verBtn.getAttribute('data-ver-actividad')); return; }
+    const delBtn = e.target.closest('[data-dejar-seguir-lista]');
+    if (delBtn){ dejarDeSeguirEmpresa(delBtn.getAttribute('data-dejar-seguir-lista')); renderEmpresasSeguidasList(); renderDashSeguimiento(); }
+  });
+  if (dashSeguimientoEl) dashSeguimientoEl.addEventListener('click', (e) => {
+    const verBtn = e.target.closest('[data-ver-actividad-dash]');
+    if (verBtn) verActividadEmpresa(verBtn.getAttribute('data-ver-actividad-dash'));
+  });
+  if (seguimientoRevisarBtn) seguimientoRevisarBtn.addEventListener('click', async () => {
+    seguimientoRevisarBtn.disabled = true;
+    const textoOriginal = seguimientoRevisarBtn.textContent;
+    seguimientoRevisarBtn.textContent = 'Revisando…';
+    try {
+      await revisarTodasLasEmpresasSeguidas();
+    } finally {
+      seguimientoRevisarBtn.disabled = false;
+      seguimientoRevisarBtn.textContent = textoOriginal;
+    }
+  });
 
   hideClosedEl.addEventListener('change', rerender);
   hideOldEl.addEventListener('change', rerender);
@@ -5468,6 +5725,7 @@
       rerender();
       renderAlertasList();
     }
+    if (nombre === 'competencia') renderEmpresasSeguidasList();
   }
 
   // Indicador de los 5 pasos del flujo principal (Experiencia → Análisis →
@@ -5668,6 +5926,7 @@
     }
 
     renderDashAlertas();
+    renderDashSeguimiento();
   }
 
   // Restaura en pantalla la evaluación de experiencia guardada (si había Excel
@@ -5694,11 +5953,13 @@
     renderFlujoStepper();
     rerender();
     renderAlertasList();
-    // Revisión de alertas en segundo plano: no bloquea el primer render (podría
-    // tardar varios segundos si hay varias alertas guardadas) -- cuando termine,
-    // se vuelve a dibujar sola tanto la lista de "Buscar procesos" como el
-    // resumen del Dashboard.
+    renderEmpresasSeguidasList();
+    // Revisión de alertas/empresas seguidas en segundo plano: no bloquea el
+    // primer render (podría tardar varios segundos si hay varias guardadas)
+    // -- cuando terminen, se vuelven a dibujar solas las listas correspondientes
+    // tanto en su vista como en el resumen del Dashboard.
     revisarTodasLasAlertas();
+    revisarTodasLasEmpresasSeguidas();
   });
 
   // Recuerda la última vista para que un reload no te devuelva siempre a
