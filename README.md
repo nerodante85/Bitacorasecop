@@ -1,0 +1,120 @@
+# Bitácora SECOP
+
+Rastreador de licitaciones **SECOP II** (Sistema Electrónico de Contratación
+Pública de Colombia) para una empresa constructora en Norte de Santander.
+Busca procesos de contratación abiertos, evalúa si la empresa está en
+condiciones de participar (experiencia, capacidad financiera, personal) y
+analiza el pliego de condiciones de un proceso puntual.
+
+**En vivo:** https://nerodante85.github.io/Bitacorasecop/
+
+[![Tests de humo](https://github.com/nerodante85/Bitacorasecop/actions/workflows/smoke.yml/badge.svg)](https://github.com/nerodante85/Bitacorasecop/actions/workflows/smoke.yml)
+
+## Qué hace
+
+- **Buscar procesos**: consulta en vivo el dataset abierto de SECOP II
+  (datos.gov.co) por palabra clave y departamento, con filtros de vigencia,
+  modalidad y estado. Si la consulta en vivo falla, muestra un snapshot de
+  respaldo (`snapshot.json`) con procesos reales de Norte de Santander.
+- **Perfil de la empresa**: RUP/clasificador y capacidad financiera (K),
+  con autocompletado desde el PDF del certificado del RUP.
+- **Experiencia**: cruza dos Excel (experiencia ejecutada del proponente +
+  matriz de requisitos de un proceso) y determina, requisito por requisito,
+  si la empresa CUMPLE / NO CUMPLE / NO DETERMINABLE, con evidencia.
+- **Personal**: registro de los perfiles profesionales del equipo de trabajo
+  (director de obra, residente, especialistas...).
+- **Analizar pliego**: una vez completados Experiencia y Personal, extrae el
+  texto de un pliego en PDF (con respaldo de OCR para escaneos), detecta
+  requisitos habilitantes y muestra un resumen de compatibilidad (%
+  estimado, fortalezas, debilidades, riesgos) además del semáforo GO / NO-GO
+  / REVISAR.
+
+El flujo completo es: **Experiencia → Análisis de experiencia → Personal →
+Analizar pliego → Resultado de compatibilidad** — cada paso queda bloqueado
+hasta completar el anterior, con un indicador visible de en qué punto está.
+
+## Arquitectura
+
+Un solo archivo (`index.html`): HTML + CSS + JavaScript, sin backend, sin
+base de datos, sin build step ni `npm install`. Corre entero en el navegador
+del usuario y se publica tal cual con **GitHub Pages**.
+
+- **Persistencia**: `localStorage` del navegador. No hay servidor ni cuenta
+  de usuario — los datos (perfiles, experiencia, personal, historial) viven
+  solo en el navegador donde se usó la app.
+- **Datos**: dataset abierto "Procesos de Contratación — SECOP II"
+  (datos.gov.co / Socrata, dataset `p6dx-8zbt`), consultado en vivo desde el
+  propio navegador.
+- **Análisis**: reglas y coincidencia de palabras clave (sin LLM/NLP real
+  corriendo en el navegador) — se muestra siempre como orientativo, no
+  reemplaza revisión humana del pliego completo.
+- **Librerías de terceros** (cargadas solo cuando se usan, desde CDN, con
+  verificación de integridad — ver más abajo): [pdf.js](https://mozilla.github.io/pdf.js/)
+  (lectura de PDF), [Tesseract.js](https://tesseract.projectnaptha.com/) (OCR
+  de PDFs escaneados), [SheetJS/xlsx](https://sheetjs.com/) (lectura de Excel).
+
+El porqué de cada decisión de arquitectura (por qué no hay backend, cómo se
+llegó al diseño actual, bugs reales encontrados y cómo se corrigieron) está
+documentado en [`CLAUDE.md`](CLAUDE.md) — pensado como contexto para quien
+(persona o asistente de IA) retome el proyecto más adelante.
+
+## Desarrollo local
+
+No hay build step: para probar cambios alcanza con abrir `index.html`
+directamente en el navegador, o servirlo con cualquier servidor estático:
+
+```bash
+python -m http.server 8123
+# abrir http://localhost:8123/index.html
+```
+
+### Tests de humo
+
+```bash
+node tests/smoke.mjs
+```
+
+Corre automáticamente en cada push/PR a `main` (ver
+[`.github/workflows/smoke.yml`](.github/workflows/smoke.yml)). Sin
+dependencias — usa solo el propio Node. Verifica sintaxis del script
+principal, integridad de los `id` referenciados, existencia de las funciones
+clave del flujo, cobertura de la política de seguridad (CSP) y que los
+hashes de integridad (SRI) de las librerías de terceros sigan coincidiendo
+con el archivo real de cada CDN.
+
+Este workflow es una alarma temprana, no un gate: GitHub Pages publica el
+cambio igual, sin esperar a que termine.
+
+### App Token de Socrata (opcional)
+
+El dataset de SECOP II es público y no requiere ningún token para
+consultarlo. Sin uno, Socrata aplica un límite de tasa más estricto,
+compartido con cualquier otra app anónima del mundo. Para subir ese límite:
+
+1. Crear una cuenta gratuita en <https://dev.socrata.com/register>.
+2. Generar un App Token desde el portal de datos.gov.co / Socrata.
+3. Pegarlo en la constante `SOCRATA_APP_TOKEN` de `index.html` (búscala cerca
+   de `fetchSecopDataset`).
+
+No es una credencial secreta — Socrata los diseña para ir embebidos en
+código de cliente — pero mientras quede vacía, la app sigue funcionando
+igual, solo sin ese margen extra.
+
+## Seguridad
+
+- **CSP** (`<meta http-equiv="Content-Security-Policy">`) restringe a qué
+  orígenes puede hablar la página (los 2 CDN usados, Google Fonts,
+  datos.gov.co) — pensada especialmente para que ningún script pueda
+  exfiltrar lo guardado en `localStorage` a un servidor ajeno.
+- **SRI** (`integrity`/`crossorigin`) en los 3 scripts de terceros: el
+  navegador verifica que el archivo servido por el CDN sea exactamente el
+  esperado antes de ejecutarlo.
+- Todo el HTML dinámico se escapa antes de insertarse en la página
+  (`escapeHtml`), y los enlaces externos se validan contra `http(s)://`
+  antes de usarse como `href`.
+
+Detalle completo de estas decisiones en `CLAUDE.md`.
+
+## Licencia
+
+Proyecto interno de uso privado — sin licencia de código abierto declarada.
