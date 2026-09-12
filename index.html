@@ -761,6 +761,12 @@
   #bitacora-root .stat-card-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
   #bitacora-root .stat-card-value { font-size: 28px; font-weight: 700; color: var(--text-heading); line-height: 1; }
   #bitacora-root .stat-card-value.small { font-size: 17px; }
+  /* Escenarios de oferta sugerida -- mismo degradado semántico que el resto
+     de la app (verde=seguro, ámbar=intermedio, rojo=riesgo), aplicado aquí a
+     "qué tan agresivo es el descuento", no a un veredicto GO/NO-GO. */
+  #bitacora-root .stat-card-value.oferta-conservador { color: var(--success); }
+  #bitacora-root .stat-card-value.oferta-competitivo { color: var(--warning); }
+  #bitacora-root .stat-card-value.oferta-agresivo { color: var(--danger); }
   #bitacora-root .stat-card-note { font-size: 12px; color: var(--text-faint); margin-top: 6px; }
 
   #bitacora-root .quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -3556,21 +3562,25 @@
     return out;
   }
 
+  // Banda de "razonablemente comparable" entre valor adjudicado y precio
+  // base -- fuera de esto son casos multi-lote/acuerdo marco donde la
+  // relación se dispara y no dice nada real sobre el % de descuento de la
+  // entidad. UN SOLO lugar para este umbral: lo usan tanto el listado (columna
+  // "vs base") como la sugerencia de oferta económica (que promedia estos
+  // mismos descuentos) -- si algún día se ajusta el umbral, se ajusta una vez.
+  function descuentoComparable(a){
+    if (a.valorAdj == null || !a.precioBase) return null;
+    const ratio = a.valorAdj / a.precioBase;
+    if (ratio < 0.3 || ratio > 1.3) return null;
+    return ratio - 1; // negativo = por debajo del presupuesto
+  }
+
   function renderAdjudicacionesHtml(lista){
     if (!lista.length) return '<div class="analysis-disclaimer">No se encontraron procesos adjudicados de esta entidad en la consulta (el dato de adjudicación en SECOP abierto es irregular; revisa el expediente en SECOP II).</div>';
     const conDato = lista.filter(a => a.adjudicatario || a.valorAdj != null);
     const filas = lista.slice(0, 25).map(a => {
-      // El % solo tiene sentido si valor adjudicado y precio base son de la misma
-      // cosa; en procesos multi-lote / acuerdos marco la relación se dispara, así
-      // que fuera de una banda razonable se marca "n/c" (no comparable).
-      let pctTxt = '—';
-      if (a.valorAdj != null && a.precioBase){
-        const ratio = a.valorAdj / a.precioBase;
-        if (ratio >= 0.3 && ratio <= 1.3){
-          const pct = (ratio - 1) * 100;
-          pctTxt = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
-        } else pctTxt = 'n/c';
-      }
+      const d = descuentoComparable(a);
+      const pctTxt = d === null ? (a.valorAdj != null && a.precioBase ? 'n/c' : '—') : ((d * 100 >= 0 ? '+' : '') + (d * 100).toFixed(1) + '%');
       return '<li><span class="tag fuente">SECOP ' + escapeHtml(a.fuente || 'II') + '</span> <b>' + escapeHtml(truncate(a.objeto || a.referencia || '(sin objeto)', 110)) + '</b><br>' +
         'Adjudicatario: ' + escapeHtml(a.adjudicatario || 'no publicado') +
         ' · Valor adj.: ' + (a.valorAdj != null ? (fmtMoney(a.valorAdj) || a.valorAdj) : '—') +
@@ -3582,6 +3592,65 @@
     return '<div class="analysis-sub">ADJUDICACIONES DE LA ENTIDAD (' + conDato.length + ' con dato, de ' + lista.length + ' encontradas — ' + nII + ' en SECOP II, ' + nI + ' en SECOP I)</div>' +
       '<ul class="analysis-list">' + filas + '</ul>' +
       '<div class="analysis-disclaimer">"vs base" = valor adjudicado / precio base − 1 (negativo = por debajo del presupuesto oficial). "n/c" = valor y presupuesto no comparables (proceso multi-lote, acuerdo marco…). SECOP I cubre historial anterior a SECOP II (desde 2018); su dato de adjudicación se infiere de si el registro trae contratista o valor de contrato, no de un campo explícito. Dato de adjudicación en SECOP abierto de completitud variable — confírmalo en el expediente.</div>';
+  }
+
+  // ==========================================================================
+  // ANÁLISIS ECONÓMICO / OFERTA SUGERIDA -- prompt maestro del usuario, punto
+  // 15 ("Preparar oferta económica"). Pura aritmética sobre el MISMO historial
+  // de adjudicaciones que ya trae "Ver adjudicaciones de esta entidad" -- nada
+  // de IA, nada inventado: si no hay suficientes adjudicaciones comparables de
+  // esta entidad, se dice explícitamente en vez de arriesgar un número sin
+  // base real (mandato explícito del prompt maestro: mostrarlo como
+  // "estimación/referencia", nunca como garantía de adjudicación).
+  //
+  // Método: de las adjudicaciones comparables (misma banda 0.3-1.3 que ya usa
+  // el listado, ver descuentoComparable), se toman el descuento más suave
+  // visto (escenario "conservador"), la mediana (escenario "competitivo") y
+  // el descuento más fuerte visto (escenario "agresivo"), y se aplican al
+  // presupuesto oficial del proceso actual. Cada escenario queda topado al
+  // presupuesto oficial -- ofertar por encima de él descalifica la propuesta
+  // en la mayoría de modalidades, así que nunca tendría sentido sugerirlo.
+  // ==========================================================================
+  const OFERTA_MIN_MUESTRA = 3; // menos que esto no alcanza para hablar de "patrón" de la entidad
+
+  function sugerenciaOfertaEconomica(lista, presupuestoOficial){
+    const presupuesto = Number(presupuestoOficial);
+    if (!presupuesto || presupuesto <= 0) return { aplica: false, motivo: 'Este proceso no tiene un presupuesto oficial detectado para comparar.' };
+    const descuentos = lista.map(descuentoComparable).filter(d => d !== null).sort((a, b) => a - b);
+    if (descuentos.length < OFERTA_MIN_MUESTRA){
+      return { aplica: false, motivo: 'Solo ' + descuentos.length + ' adjudicación(es) comparable(s) de esta entidad -- muy pocas para sugerir un patrón (mínimo ' + OFERTA_MIN_MUESTRA + ').' };
+    }
+    const mediana = descuentos[Math.floor(descuentos.length / 2)];
+    const masSuave = descuentos[descuentos.length - 1];  // el descuento más leve visto (el menos negativo)
+    const masFuerte = descuentos[0];                     // el descuento más fuerte visto (el más negativo)
+    const escenario = d => Math.min(presupuesto, Math.round(presupuesto * (1 + d)));
+    return {
+      aplica: true, muestra: descuentos.length, presupuestoOficial: presupuesto,
+      conservador: { valor: escenario(masSuave), pct: masSuave * 100 },
+      competitivo: { valor: escenario(mediana), pct: mediana * 100 },
+      agresivo: { valor: escenario(masFuerte), pct: masFuerte * 100 }
+    };
+  }
+
+  function renderOfertaSugeridaHtml(sug){
+    if (!sug.aplica){
+      return '<div class="analysis-sub">SUGERENCIA DE OFERTA ECONÓMICA</div>' +
+        '<div class="analysis-disclaimer">' + escapeHtml(sug.motivo) + '</div>';
+    }
+    const tarjeta = (clase, label, esc) =>
+      '<div class="stat-card"><div class="stat-card-label">' + label + '</div>' +
+      '<div class="stat-card-value small ' + clase + '">' + (fmtMoney(esc.valor) || esc.valor) + '</div>' +
+      '<div class="stat-card-note">' + esc.pct.toFixed(1) + '% vs. presupuesto oficial</div></div>';
+    return '<div class="analysis-sub">SUGERENCIA DE OFERTA ECONÓMICA (estimación orientativa, no garantiza adjudicación)</div>' +
+      '<div class="stat-grid" style="margin-bottom:10px;">' +
+        '<div class="stat-card"><div class="stat-card-label">Presupuesto oficial</div>' +
+        '<div class="stat-card-value small">' + (fmtMoney(sug.presupuestoOficial) || sug.presupuestoOficial) + '</div>' +
+        '<div class="stat-card-note">Del proceso actual</div></div>' +
+        tarjeta('oferta-conservador', 'Conservador', sug.conservador) +
+        tarjeta('oferta-competitivo', 'Competitivo', sug.competitivo) +
+        tarjeta('oferta-agresivo', 'Agresivo', sug.agresivo) +
+      '</div>' +
+      '<div class="analysis-disclaimer">Basado en ' + sug.muestra + ' adjudicación(es) comparables de esta entidad (SECOP I+II): "conservador" = el descuento más leve que esta entidad ha aplicado sobre su presupuesto oficial; "competitivo" = la mediana; "agresivo" = el descuento más fuerte visto. Es una referencia estadística sobre el comportamiento HISTÓRICO de la entidad, no una predicción ni garantía de adjudicación -- verifica siempre las condiciones específicas del pliego (fórmula de evaluación económica, causales de rechazo por oferta artificialmente baja, presupuesto oficial exacto) antes de decidir cuánto ofertar.</div>';
   }
 
   // Llena el desplegable de la sección de evaluación con los procesos en pantalla.
@@ -4731,7 +4800,8 @@
       slot.innerHTML = '<div class="analysis-loading">Consultando adjudicaciones de la entidad…</div>';
       try {
         const lista = await buscarAdjudicaciones(s.item.entidad);
-        slot.innerHTML = renderAdjudicacionesHtml(lista);
+        const sugerencia = sugerenciaOfertaEconomica(lista, s.item.valor);
+        slot.innerHTML = renderOfertaSugeridaHtml(sugerencia) + renderAdjudicacionesHtml(lista);
       } catch(err){
         slot.innerHTML = '<div class="analysis-disclaimer">No se pudo consultar (' + escapeHtml(err && err.message ? err.message : 'error') + ').</div>';
       }

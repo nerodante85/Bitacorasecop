@@ -1111,3 +1111,61 @@ manifestaciones de interés', 'Expresión de Interés', 'Lista Corta')` --
 procesos viejos que solo se actualizaron en el sistema, no publicaciones
 recientes reales) -- valdría la pena cruzar también contra una fecha
 reciente antes de mostrarlo como "oportunidad abierta".
+
+## LLM para lenguaje natural: diseñado, NO implementado (pospuesto por el usuario)
+
+El usuario pidió avanzar con esto, se le presentó el diseño completo (por
+qué la app NO puede llamar a la API de Anthropic directo desde el navegador
+-- a diferencia de la anon key de Supabase o el App Token de Socrata, una
+API key de Anthropic es un secreto real y facturable, así que hace falta una
+Edge Function de Supabase como intermediario; costo estimado con Claude
+Haiku 4.5, ~$0.001 USD por consulta según el pricing oficial verificado en
+[claude.com/pricing](https://claude.com/pricing); tabla `llm_usage` sin
+policies de RLS -- a propósito, para que ni el dueño de la cuenta pueda
+resetear su propio contador de límite diario) y el usuario decidió
+posponerlo para después. Si se retoma, el diseño completo (código de la
+Edge Function incluido) quedó en el historial de la conversación -- pedirle
+al usuario que lo comparta de nuevo o reconstruirlo desde cero con el mismo
+criterio (proxy server-side obligatorio, nunca la API key en `index.html`).
+
+## Fase 8 del prompt maestro: sugerencia de oferta económica
+
+Del prompt maestro del usuario, punto 15 ("Preparar oferta económica").
+Elegida como siguiente paso (en vez del LLM, pospuesto) porque no necesita
+ninguna cuenta nueva ni tiene costo: es aritmética pura sobre el MISMO
+historial de adjudicaciones que ya trae "Ver adjudicaciones de esta entidad"
+(Fase 2, SECOP I+II) -- se construye directamente encima de ese trabajo.
+
+**Método**: de las adjudicaciones "comparables" de la entidad (misma banda
+0.3-1.3 entre valor adjudicado y precio base que ya usaba el listado --
+factorizada a `descuentoComparable()` para no repetir el umbral en dos
+lugares), se calculan tres escenarios aplicando al presupuesto oficial del
+proceso actual:
+- **Conservador** = el descuento más leve que la entidad ha aplicado en su historial.
+- **Competitivo** = la mediana de sus descuentos históricos.
+- **Agresivo** = el descuento más fuerte visto.
+
+Cada escenario queda topado al presupuesto oficial (ofertar por encima lo
+descalifica en la mayoría de modalidades). Si hay menos de 3 adjudicaciones
+comparables (`OFERTA_MIN_MUESTRA`), se dice explícitamente que no alcanza
+para hablar de un patrón -- **nunca se inventa un número sin base real**,
+mandato explícito del punto 15 del prompt maestro ("no presentar el valor
+sugerido como garantía de adjudicación... mostrarlo como estimación/
+referencia").
+
+**UI**: se integró donde ya se pedían las adjudicaciones (`.eval-adj-btn`,
+en "Evaluación"), no como una sección nueva aparte -- el análisis económico
+depende de los mismos datos que esa consulta ya trae, así que agregarlo ahí
+evita una segunda consulta y mantiene el flujo en un solo clic. Reutiliza
+`.stat-grid`/`.stat-card` (el mismo componente de las 4 tarjetas del
+Dashboard) en vez de CSS nuevo; solo se agregaron 3 modificadores de color
+semántico (`.oferta-conservador/-competitivo/-agresivo`, verde/ámbar/rojo,
+tokens ya existentes) para distinguir los escenarios de un vistazo.
+
+**Verificado con datos reales**: entidad con historial insuficiente (0
+adjudicaciones comparables) mostró el mensaje explícito correctamente, sin
+inventar nada; una Gobernación con 41 adjudicaciones comparables mostró
+$33.810.000 presupuesto → conservador/competitivo iguales ($33.810.000,
+0.0%) y agresivo $13.614.356 (-59.7%), cifras reales derivadas de su
+historial real. Probado en los 3 breakpoints sin overflow ni errores de
+consola.

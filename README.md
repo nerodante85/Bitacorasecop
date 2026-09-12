@@ -35,7 +35,9 @@ analiza el pliego de condiciones de un proceso puntual.
   de contratos adjudicados por la entidad, combinando SECOP II y SECOP I
   (SECOP I amplía el historial más atrás de 2021, ya que es casi todo
   archivo histórico y no oportunidades abiertas — por eso no se usa en
-  "Buscar procesos").
+  "Buscar procesos"). Incluye una sugerencia de oferta económica (escenarios
+  conservador/competitivo/agresivo) calculada a partir de ese mismo
+  historial — pura aritmética transparente, sin IA.
 
 El flujo completo es: **Experiencia → Análisis de experiencia → Personal →
 Analizar pliego → Resultado de compatibilidad** — cada paso queda bloqueado
