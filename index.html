@@ -167,6 +167,13 @@
     position: fixed; inset: 0; background: rgba(20, 22, 18, .55);
     display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px;
   }
+  /* Bug real encontrado probando el login: una regla de autor con `display`
+     le gana SIEMPRE a la regla por defecto del navegador para `[hidden]`
+     (`[hidden]{display:none}`), sin importar especificidad -- así que sin
+     esta línea el atributo `hidden` no hacía nada y el modal quedaba visible
+     desde que cargaba la página, aunque `el.hidden` sí decía `true`. Mismo
+     patrón que ya usaba `.view[hidden]` más arriba para esto mismo. */
+  #bitacora-root .account-modal-backdrop[hidden] { display: none; }
   #bitacora-root .account-modal {
     background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
     width: 100%; max-width: 360px; padding: 26px; position: relative;
@@ -1319,8 +1326,8 @@
   // empresa (ver supabase/schema.sql) -- espeja 1:1 las claves que ya vivían
   // en localStorage bajo 'bitacora_<key>'.
   // ==========================================================================
-  const SUPABASE_URL = '';
-  const SUPABASE_ANON_KEY = '';
+  const SUPABASE_URL = 'https://mfqdeqxuwnczexonhlxu.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mcWRlcXh1d25jemV4b25obHh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkyMzE3NTEsImV4cCI6MjEwNDgwNzc1MX0.HkRsW4Q2_M8lR26U8SBA2jrLyxbVf-RcFVr2jTfPViQ';
   const SUPABASE_ENABLED = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 
   function loadSupabaseJs(){

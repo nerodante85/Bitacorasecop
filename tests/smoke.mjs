@@ -130,12 +130,21 @@ await check('todo host https:// usado en el código aparece en la política CSP'
   const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/);
   assert(cspMatch, 'no se encontró el <meta> de Content-Security-Policy');
   const csp = cspMatch[1].toLowerCase();
+  // Comodines tipo https://*.supabase.co (para el proyecto de Supabase de
+  // cada quien, cuyo subdominio no es un literal fijo en el código) -- un
+  // `includes()` de texto plano no los entiende, así que se extraen aparte y
+  // se matchean por sufijo. Ej: '*.supabase.co' cubre 'xyz.supabase.co'.
+  const wildcardSuffixes = [...csp.matchAll(/https:\/\/\*\.([a-z0-9.-]+)/g)].map(m => m[1]);
   const scriptBody = extractMainScript();
   const hosts = new Set(
     [...scriptBody.matchAll(/https:\/\/([a-z0-9.-]+)/gi)].map(m => m[1].toLowerCase())
   );
   assert(hosts.size > 0, 'no se encontró ningún host https:// en el script -- ¿cambió el patrón de código?');
-  const missing = [...hosts].filter(h => !csp.includes(h) && !NAVIGATION_ONLY_HOSTS.has(h));
+  const missing = [...hosts].filter(h =>
+    !csp.includes(h) &&
+    !NAVIGATION_ONLY_HOSTS.has(h) &&
+    !wildcardSuffixes.some(suffix => h === suffix || h.endsWith('.' + suffix))
+  );
   assert(missing.length === 0, 'host(s) usados en el código pero ausentes de la CSP: ' + missing.join(', '));
 });
 

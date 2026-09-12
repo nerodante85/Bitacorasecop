@@ -894,3 +894,58 @@ decida encarar): recuperar contraseña, invitar miembros a una empresa
 (aunque el esquema ya lo permite), cualquier LLM/RAG, alertas, SECOP I,
 inteligencia competitiva, generación de documentos, planes de suscripción con
 límites reales.
+
+**Activación real, verificada de punta a punta**: el usuario creó su propio
+proyecto de Supabase, corrió `supabase/schema.sql`, y `SUPABASE_URL`/
+`SUPABASE_ANON_KEY` ya llevan sus valores reales (no vacíos) -- son datos
+diseñados por Supabase para ir embebidos en código de cliente, protegidos por
+RLS y no por secretismo, igual que se documenta arriba. Antes de publicar se
+probó el flujo completo real (no solo local/simulado): registro, login,
+guardar un dato desde "Perfil de la empresa" y confirmar que sobrevive un
+recargue de página -- y, por separado, que sin sesión (`curl` con la sola
+anon key) las tres tablas siguen devolviendo `[]`, confirmando que RLS aísla
+la cuenta real igual que aislaba cuando la cuenta no existía.
+
+## Bug real encontrado activando Fase 1: el modal de cuenta no cerraba
+
+Al probar el login real con el usuario, el popup de "Iniciar sesión" se
+quedaba en pantalla sin importar qué se hiciera -- ni el botón ✕, ni clic en
+el fondo oscuro, ni la tecla Escape lo cerraban. Los tres mecanismos de
+cierre fallando A LA VEZ, sin ningún error en consola ni en Network, fue la
+pista de que no era un problema de lógica (los tres usan funciones/casos
+distintos) sino algo más básico compartido por los tres.
+
+- **Causa raíz**: la regla `#bitacora-root .account-modal-backdrop {
+  display: flex; ... }` es una regla de AUTOR (mía), y una regla de autor con
+  `display` le gana SIEMPRE a la regla por defecto del navegador para
+  `[hidden]` (`[hidden] { display: none }`) -- sin importar especificidad,
+  el origen de la regla decide primero. Resultado: `elemento.hidden = true`
+  seguía poniendo el atributo `hidden` correctamente (confirmado por JS), pero
+  visualmente no cambiaba nada -- `getComputedStyle(el).display` daba
+  `"flex"` tanto con `hidden` en `true` como en `false`. El modal quedaba
+  visible desde el momento en que cargaba la página (con las credenciales de
+  Supabase ya configuradas), no solo después de abrirlo.
+- **Por qué no se detectó al construirlo**: cada vez que "probé" el cierre
+  (en esta sesión y en la anterior), verifiqué el ATRIBUTO `hidden` vía JS
+  (`document.getElementById(...).hidden === true`), que sí cambiaba
+  correctamente -- nunca hasta ahora verifiqué el ESTILO COMPUTADO
+  (`getComputedStyle(...).display`) ni tomé una captura de pantalla de una
+  carga nueva de la página SIN tocar nada. Es la misma lección que ya dejó
+  el bug de overflow de celular más arriba ("medir con `scrollWidth`, no
+  solo mirar"), aplicada aquí al revés: medí el estado de JS en vez del
+  render real, cuando el render real era justamente lo que estaba roto.
+- **Arreglo**: agregar `#bitacora-root .account-modal-backdrop[hidden] {
+  display: none; }` -- mismo patrón que el código ya usaba para
+  `.view[hidden]` más arriba en el archivo (una regla de autor MÁS
+  específica, todavía de autor, que si gana por especificidad normal dentro
+  del mismo origen). Verificado con clics/eventos reales (no solo
+  manipulación directa del atributo) que los tres mecanismos de cierre
+  funcionan, en una carga de página con caché evitada (`?v=N` en la URL --
+  la navegación normal de la herramienta de prueba a veces reusaba una
+  versión cacheada del CSS entre ediciones, lo que casi hizo parecer que el
+  arreglo no funcionaba).
+- **Efecto colateral al arreglarlo**: el chequeo de CSP de `tests/smoke.mjs`
+  (#4) no entendía comodines (`https://*.supabase.co`) al comparar contra un
+  host literal real (`https://mfqdeqxuwnczexonhlxu.supabase.co`, que
+  apareció en el código recién al activar las credenciales) -- se le agregó
+  soporte para matchear por sufijo cuando la CSP declara un comodín.
