@@ -31,6 +31,11 @@ analiza el pliego de condiciones de un proceso puntual.
   requisitos habilitantes y muestra un resumen de compatibilidad (%
   estimado, fortalezas, debilidades, riesgos) además del semáforo GO / NO-GO
   / REVISAR.
+- **Ver adjudicaciones de esta entidad** (dentro de "Evaluación"): historial
+  de contratos adjudicados por la entidad, combinando SECOP II y SECOP I
+  (SECOP I amplía el historial más atrás de 2021, ya que es casi todo
+  archivo histórico y no oportunidades abiertas — por eso no se usa en
+  "Buscar procesos").
 
 El flujo completo es: **Experiencia → Análisis de experiencia → Personal →
 Analizar pliego → Resultado de compatibilidad** — cada paso queda bloqueado

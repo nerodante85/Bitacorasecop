@@ -1043,3 +1043,71 @@ lectura + "Ver"). Reutiliza componentes existentes sin CSS nuevo de
 estructura (`.titleblock`, `.recent-list`/`.recent-item`, `.field`,
 `.link-btn`) -- solo se agregó una variante de badge, `.tag.nuevo`
 (paleta `--warning`, ya existente).
+
+## Fase 2 del prompt maestro: SECOP I (solo en adjudicaciones, no en búsqueda)
+
+**Investigación antes de construir**: el prompt maestro pide "SECOP I +
+SECOP II" en el buscador centralizado. Antes de agregarlo a ciegas se
+consultó el dataset real -- "SECOP I - Procesos de Compra Pública" (Colombia
+Compra Eficiente, dataset `f789-7hwg` en datos.gov.co) -- y resultó tener
+6.4 millones de filas, de las cuales la enorme mayoría son historial ya
+cerrado, no oportunidades abiertas:
+
+```text
+Celebrado (contrato firmado)      3.9M
+Liquidado                         1.7M
+Convocado                         474K
+Terminado sin liquidar            191K
+Borrador / convocatoria abierta /
+  lista corta / expresión interés  ~2,700   <- lo único parecido a "abierto"
+```
+
+Esto tiene sentido: desde 2021 los procesos NUEVOS se publican en SECOP II;
+SECOP I quedó como archivo histórico (más algunos procesos residuales de
+entidades pequeñas). El esquema de columnas también es completamente
+distinto al de SECOP II (`nombre_entidad`, `objeto_a_contratar`,
+`cuantia_contrato`, `nom_razon_social_contratista`... en vez de `entidad`,
+`objeto_del_proceso`, `precio_base`...), y el registro ya junta proceso +
+contrato (no hay un campo `adjudicado` sí/no separado como en SECOP II).
+
+**Decisión, presentada y acordada con el usuario antes de implementar**: NO
+agregarlo a "Buscar procesos" (el universo de ~2,700 realmente abiertos, de
+6.4M, no justificaba el riesgo de mezclar contratos ya cerrados con
+oportunidades reales). SÍ usarlo para ampliar **"Ver adjudicaciones de esta
+entidad"** (dentro de la Evaluación go/no-go) -- ahí el histórico adicional
+es puro valor: ver el comportamiento de contratación de una entidad más
+atrás de 2021, que es justo lo que SECOP II no puede mostrar por sí solo.
+
+**Implementación**: `buscarAdjudicaciones(entidad)` ahora consulta SECOP II
+y SECOP I EN PARALELO (`Promise.allSettled` -- si una tabla falla o tarda
+demasiado, la otra igual muestra sus resultados; con 6.4M de filas en SECOP
+I, un timeout ahí no debía tumbar lo que sí llegó de SECOP II). Cada fuente
+tiene su propia función de extracción (`deSecopII`/`deSecopI`, dentro de
+`buscarAdjudicaciones`) porque el criterio de "está adjudicado" es distinto
+en cada una:
+- SECOP II: campo `adjudicado` = "Si"/"Sí", o un valor de adjudicación > 0.
+- SECOP I: no existe ese campo -- se infiere adjudicado si el registro trae
+  contratista (`nom_razon_social_contratista`) o un valor de contrato
+  (`valor_contrato_con_adiciones`/`cuantia_contrato`) mayor a 0.
+
+Ambas comparten el mismo `ancla`/`coincide` (misma entidad buscada) y se
+mezclan y ordenan juntas por valor adjudicado. Cada fila de la lista muestra
+de qué fuente viene (`<span class="tag fuente">SECOP I/II</span>`, mismo
+componente que ya usaban las tarjetas de "Buscar procesos"). Se agregó
+`$order=fecha_de_cargue_en_el_secop DESC` a la consulta de SECOP I -- sin
+orden, `$limit=400` sobre una tabla de 6.4M filas podría devolver una
+muestra vieja y no representativa.
+
+**Verificado con una entidad real (INVIAS)**: 216 adjudicaciones combinadas
+(170 de SECOP II, 46 de SECOP I), ordenadas correctamente por valor, cada
+una con su etiqueta de fuente. Probado en los 3 breakpoints sin overflow ni
+errores de consola.
+
+**Nota para el futuro**: si alguna vez se reconsidera agregar SECOP I a
+"Buscar procesos", filtrar estrictamente por
+`estado_del_proceso in ('Borrador', 'Convocado', 'Publicación para
+manifestaciones de interés', 'Expresión de Interés', 'Lista Corta')` --
+"Convocado" por sí solo no basta (474K filas, probablemente incluye
+procesos viejos que solo se actualizaron en el sistema, no publicaciones
+recientes reales) -- valdría la pena cruzar también contra una fecha
+reciente antes de mostrarlo como "oportunidad abierta".
