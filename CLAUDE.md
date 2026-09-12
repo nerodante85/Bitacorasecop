@@ -486,3 +486,68 @@ Nunca se pudo probar la carga real de pdf.js/Tesseract.js desde una CDN en
 este entorno de desarrollo (sin acceso de red a cdnjs/jsDelivr) — esas partes
 solo se validan con mocks de `window.pdfjsLib`/`window.Tesseract`, o
 directamente en producción con el usuario.
+
+**Actualización:** en la sesión de la auditoría (ver punto siguiente) sí hubo
+acceso de red saliente a cdnjs/jsDelivr/datos.gov.co desde el entorno de
+desarrollo -- se pudo servir `index.html` con `python -m http.server`,
+navegarlo de verdad, e inyectar archivos reales (`DataTransfer` + `fetch` de
+un archivo copiado a la misma carpeta servida, mismo patrón que el punto 11)
+en los `<input type=file>` para confirmar pdf.js/xlsx/Tesseract+OCR y el fetch
+en vivo a Socrata funcionando de punta a punta. Puede que dependa del entorno
+(sandbox/red de esa sesión en particular) -- si una sesión futura no tiene
+salida a red, sigue aplicando el punto anterior (mocks / probar en producción).
+
+## Auditoría full-stack (seguridad de scripts de terceros)
+
+Se auditó el proyecto contra un checklist genérico de seguridad/calidad para
+apps full-stack (backend, BD, auth, etc. -- explícitamente NO APLICAN aquí,
+es 100% cliente). De ahí salieron 3 cambios reales, aplicados y probados:
+
+- **SRI (`integrity`/`crossorigin`) en los 3 `<script>` de terceros** (pdf.js,
+  Tesseract.js, xlsx) -- sin esto, el navegador ejecuta lo que sea que cdnjs/
+  jsDelivr sirvan en ese momento sin verificar que sea el código esperado.
+  Los hashes (`sha384-...`) se calcularon descargando el archivo real sobre
+  el que apunta cada URL pinneada y sacando su SHA-384 en base64
+  (`openssl dgst -sha384 -binary archivo | openssl base64 -A`) -- si algún
+  día se sube de versión cualquiera de las 3 librerías, hay que recalcular el
+  hash contra el archivo nuevo o la carga falla (el navegador la bloquea).
+- **Tesseract.js pasó de `@5` (parche flotante) a `@5.1.1` (fijo)** -- un
+  hash SRI solo puede verificar un archivo exacto, y `@5` puede resolver a un
+  parche distinto en cualquier momento. Se fijó a la versión que `@5` resuelve
+  HOY (confirmado contra la API de jsDelivr: `data.jsdelivr.com/v1/packages/
+  npm/tesseract.js/resolved?specifier=5`). Sigue siendo v5 -- el patrón que
+  funciona, según el punto 9 de arriba -- solo que ya no flota. La lección del
+  punto 9 (v4.1.1 fijo fallaba) fue sobre esa versión puntual, no sobre fijar
+  parches en general; se confirmó en la práctica (ver abajo) que pinnear
+  5.1.1 no reintroduce ese problema.
+- **Meta `Content-Security-Policy`** restringiendo script/estilo/fuente/
+  conexión/worker a `'self'` + los orígenes realmente usados (cdnjs,
+  jsDelivr, fonts.googleapis.com/fonts.gstatic.com, www.datos.gov.co).
+  `script-src` incluye `'unsafe-inline'` a propósito: todo el JS de la app
+  vive en un único `<script>` inline (sin build no hay forma de usar nonce, y
+  un hash de script inline habría que recalcularlo en cada edición futura del
+  archivo -- inviable). El valor real de esta CSP no es bloquear ese inline,
+  sino impedir que cualquier script (inyectado o no) hable con un origen que
+  no sea uno de los permitidos -- en particular `connect-src` cierra la vía
+  de exfiltrar `localStorage` (perfiles, RUP, personal) a un servidor ajeno.
+  `worker-src`/`'wasm-unsafe-eval'`/`connect-src data:` existen específicamente
+  por Tesseract.js: crea Workers, corre WASM, y en al menos una ruta interna
+  hace `fetch()` de un `data:` URI -- las tres cosas las bloquea una CSP
+  estricta si no se permiten explícitamente, y el bloqueo NO tira un error
+  obvio de "Tesseract no carga", sino un error de CSP suelto en consola
+  mientras el OCR simplemente no reconoce texto.
+- **Cómo se probó (importante, no se puede dar por buena a ciegas)**: server
+  local + navegador real, con los 3 `<input type=file>` recibiendo archivos
+  reales (RUP → dispara pdf.js real; Excel de experiencia → dispara xlsx.js
+  real) inyectados vía `DataTransfer`, más una prueba directa de Tesseract.js
+  (cargar el script con el mismo `integrity`, crear un worker, correr
+  `recognize()` sobre un canvas con texto) para confirmar el camino de OCR
+  (el más frágil bajo CSP: Worker + WASM + `data:`) de punta a punta. La
+  primera versión de la CSP SÍ rompía algo real y silencioso: Tesseract
+  cargaba y creaba el worker bien, pero un `fetch()` interno a un `data:` URI
+  (parte de cómo entrega el núcleo WASM) quedaba bloqueado por `connect-src`
+  sin permitir `data:` -- se detectó por un error de CSP en consola, no por
+  ningún mensaje de error propio de la app. Lección: probar CSP nueva
+  significa correr el camino MÁS profundo de cada librería (para Tesseract,
+  eso es el OCR real, no solo que el `<script>` cargue), no solo confirmar
+  que el `onload` del script se dispara.

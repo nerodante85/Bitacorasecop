@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html lang="es">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Bitácora — Consultoría en contratación pública</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- CSP de defensa en profundidad -- limita a qué orígenes puede hablar la app
+     (script/estilo/fuente/conexión/worker) aunque no bloquea script inline
+     ('unsafe-inline' en script-src): todo el JS de esta app vive en un único
+     <script> inline en el body (sin build step no hay forma de usar nonce ni
+     hash sin recalcularlo en cada edición), así que el valor real de esta CSP
+     no es impedir que corra JS inline, sino impedir que ese JS (inyectado o no)
+     hable con cualquier origen que no sea www.datos.gov.co + los 2 CDN ya
+     usados -- en particular, connect-src cierra la vía más dañina: exfiltrar
+     lo guardado en localStorage (perfiles, RUP, personal) a un servidor ajeno.
+     worker-src/'wasm-unsafe-eval' existen por Tesseract.js (OCR): crea workers
+     y corre WASM, ambos bloqueados por una CSP estricta si no se permiten. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
+<title>Bitácora — Consultoría en contratación pública</title></head>
 <body>
 <style>
   /* ============================================================
@@ -1951,8 +1964,18 @@
     window.__bitacoraPdfjsPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      // SRI: hash calculado contra el archivo real servido por cdnjs para esta
+      // versión exacta (3.11.174) -- si cdnjs alguna vez sirve algo distinto bajo
+      // esa misma URL, el navegador se niega a ejecutarlo en vez de correrlo a
+      // ciegas. crossorigin="anonymous" es obligatorio para que integrity aplique.
+      script.integrity = 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e';
+      script.crossOrigin = 'anonymous';
       script.onload = () => {
         try {
+          // El worker de pdf.js lo crea la propia librería con `new Worker(...)`,
+          // no un <script> nuestro -- ahí no se le puede poner integrity (el atributo
+          // no existe para Worker()); queda cubierto por la CSP (worker-src) en vez
+          // de por SRI.
           window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
           resolve(window.pdfjsLib);
         } catch(e){ reject(e); }
@@ -1983,7 +2006,16 @@
       // internas (worker/núcleo WASM) fallaba con 404 encadenados aunque se
       // sirviera desde jsDelivr. La v5 sin pin de parche es el patrón que el
       // propio proyecto documenta y prueba activamente.
-      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      // EXCEPCIÓN, agregada al sumar SRI: un hash de integridad solo puede
+      // verificar un archivo EXACTO -- "@5" es una etiqueta flotante que jsDelivr
+      // puede resolver a un parche distinto en cualquier momento, lo que rompería
+      // la carga en cuanto el hash dejara de coincidir. Se fija aquí la versión
+      // que "@5" resuelve HOY (5.1.1, confirmado contra la API de jsDelivr) --
+      // sigue siendo v5 (el patrón que funciona), solo que ya no flota. Si en el
+      // futuro hace falta subir de parche, hay que repetir el cálculo del hash.
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+      script.integrity = 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F';
+      script.crossOrigin = 'anonymous';
       script.onload = () => resolve(window.Tesseract);
       script.onerror = () => reject(new Error('no se pudo cargar el lector OCR (revisa tu conexión)'));
       document.head.appendChild(script);
@@ -2060,6 +2092,8 @@
     window.__bitacoraXlsxPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.integrity = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
+      script.crossOrigin = 'anonymous';
       script.onload = () => resolve(window.XLSX);
       script.onerror = () => reject(new Error('no se pudo cargar el lector de Excel (revisa tu conexión)'));
       document.head.appendChild(script);
