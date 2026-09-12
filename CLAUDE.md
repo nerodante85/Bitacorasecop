@@ -551,3 +551,56 @@ es 100% cliente). De ahí salieron 3 cambios reales, aplicados y probados:
   significa correr el camino MÁS profundo de cada librería (para Tesseract,
   eso es el OCR real, no solo que el `<script>` cargue), no solo confirmar
   que el `onload` del script se dispara.
+
+## Tests de humo (`tests/smoke.mjs`) + CI (`.github/workflows/smoke.yml`)
+
+Hallazgos MEDIO de la auditoría: no había ninguna prueba automatizada
+versionada (todo dependía de verificación manual sesión a sesión) ni ningún
+gate antes de que GitHub Pages sirviera un cambio. Se agregaron los dos,
+sin introducir build step ni dependencias nuevas:
+
+- **`tests/smoke.mjs`**: Node puro (`node:fs`, `node:child_process`,
+  `node:crypto`, `fetch` global), sin `npm install`. 5 chequeos, todos por
+  análisis estático del propio `index.html` (no simulan clics ni DOM real --
+  eso sigue siendo el método de "Cómo probar cambios sin desplegar" de
+  arriba, para cambios grandes):
+  1. El `<script>` principal es JS válido (`node --check` sobre el cuerpo
+     extraído).
+  2. Todo `getElementById('...')` referenciado existe como `id="..."` en
+     algún lugar del archivo (cubre tanto HTML estático como ids escritos a
+     mano dentro de strings de JS que generan HTML dinámico).
+  3. Una lista de funciones clave del flujo principal sigue existiendo por
+     nombre (detecta un renombre/borrado accidental sin actualizar a quien
+     la llama).
+  4. Todo host `https://` mencionado en el script aparece en algún lado de
+     la política CSP -- con una lista explícita de excepciones
+     (`NAVIGATION_ONLY_HOSTS`) para los hosts que solo son destino de un
+     `<a href>` o dato de ejemplo del snapshot embebido, que no necesitan
+     estar en la CSP (una navegación de nivel superior no está sujeta a
+     `script-src`/`connect-src`).
+  5. El SRI embebido de pdf.js/xlsx/Tesseract.js sigue coincidiendo con el
+     archivo real que sirve hoy cada CDN (requiere red -- si algún día se
+     sube de versión sin recalcular el hash, este test avisa antes que un
+     usuario real se quede con esa librería bloqueada en silencio).
+- **Extracción del `<script>` principal**: por posición de la etiqueta EN SU
+  PROPIA LÍNEA (`/^<script>$/m`), no por la primera aparición del texto
+  "`<script>`" en el archivo -- el propio archivo lo menciona dentro de dos
+  comentarios (explicando por qué la CSP necesita `'unsafe-inline'`), y un
+  regex ingenuo capturaría HTML/CSS como si fuera JS.
+- **Cómo se validó `smoke.mjs` sin tener Node en este entorno de
+  desarrollo** (ver nota de arriba: sí hubo red, pero Node no estaba
+  instalado): se reimplementó la misma lógica de cada chequeo en JS de
+  navegador (`fetch` + regex idénticos + `crypto.subtle.digest('SHA-384',
+  ...)` en vez de `createHash('sha384')` de Node) y se corrió contra el
+  `index.html` real servido en local, confirmando los 5 resultados a mano
+  antes de confiar en el script. La validación de sintaxis (`node --check`)
+  se aproximó con `new Function(cuerpoDelScript)` en una pestaña SIN la CSP
+  de la propia app (la CSP real bloquea `new Function`/`eval` a propósito --
+  confirma que ese bloqueo funciona, pero impide usarlo ahí mismo para
+  probarse a sí mismo).
+- **`.github/workflows/smoke.yml`**: corre en push/PR a `main` y manualmente
+  (`workflow_dispatch`). `actions/setup-node@v4` con Node 20 fijo -- sin
+  `npm install`, porque `smoke.mjs` no tiene dependencias. Es un gate
+  informativo, NO bloquea el despliegue: GitHub Pages publica en cuanto
+  llega el push a `main`, sin esperar a que termine este workflow (no está
+  configurado como el mecanismo de deploy, solo corre en paralelo).

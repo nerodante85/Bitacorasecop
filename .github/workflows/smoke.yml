@@ -1,0 +1,25 @@
+name: Tests de humo
+
+# Gate mínimo antes de que GitHub Pages sirva un cambio: NO bloquea el
+# despliegue (GitHub Pages publica igual en cuanto se hace push a main, sin
+# esperar a que este workflow termine) -- es solo una alarma temprana, para
+# enterarse de un error de sintaxis o de una CDN que dejó de coincidir con su
+# hash SRI sin tener que esperar a que un usuario real lo note.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Sin `npm install`: tests/smoke.mjs no usa dependencias externas a
+      # propósito (el proyecto no tiene package.json ni build step).
+      - run: node tests/smoke.mjs
