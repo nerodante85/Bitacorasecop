@@ -30,35 +30,51 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
   Toda la hoja de estilos referencia estas variables — para ajustar la
   paleta completa basta con cambiar los tokens, no cada regla (esto se
   aprovechó literalmente para el reskin violeta "Wiza", ver más abajo).
-- **Paleta actual: "Wiza" (violeta/lavanda)**, aplicada desde un archivo de
-  guía de estilo (`DESIGN (3).md`) que el usuario pidió replicar
-  literalmente. Mapeo de sus tokens a los nuestros:
-  `--deep-iris #26114A` (marca/sidebar/botón lleno/títulos grandes),
-  `--plum-velvet #312747` (títulos de tarjeta, texto secundario de marca),
-  `--royal-amethyst #3E0079` (`--accent`: enlaces, foco, iconos — NUNCA el
-  fondo del botón lleno, que usa Deep Iris vía `--accent-button`),
-  `--mist-violet #EDECFF` (`--accent-soft`), `--canvas #FFFFFF` (`--surface`),
-  `--paper #F6F7FA` (`--bg`), `--mist`/`--smoke` (`--border`/`--border-strong`),
-  `--charcoal #333333` (`--text`, cuerpo), `--slate`/`--ash`
-  (`--text-muted`/`--text-faint`). Radios unificados a 8px (`--radius-sm/md/lg`
-  ahora los tres valen 8px — la guía es explícita: "8px es la firma, no 4 ni
-  12px"); los `.tag`/`.expeval-badge`/pills de navegación siguen en 999px
-  (radio de cápsula, reservado solo para píldoras según la guía).
-  Tipografía de encabezados: Britti Sans (de marca, no disponible en Google
-  Fonts) sustituida por **Plus Jakarta Sans 500** — la propia guía la nombra
-  como sustituto más cercano — aplicada SOLO en `.view-header h1` (24px,
-  cae en su rango de uso 24-64px) con `line-height:1` exacto; el resto de
-  la UI se queda en Inter, tal como pide la guía ("Inter 12-16px para todo
-  el texto de UI, señal de producto denso en datos").
-  **Excepción deliberada**: la guía es monocromática-violeta ("no introducir
-  colores fuera de la familia violeta"), pero esta app depende de
-  rojo/verde/ámbar para comunicar CUMPLE/NO CUMPLE/NO DETERMINABLE y
-  GO/NO-GO/REVISAR — son señales funcionales de cumplimiento, no
-  decoración de marca. Se mantuvieron los `--success/--danger/--warning`
-  tal como estaban del rediseño anterior; el violeta se aplicó a todo lo
-  demás (marca, botones, enlaces, tarjetas, tipografía, sombras). Esto no
-  se le preguntó al usuario porque es la lectura obvia de "aplica el
-  diseño" para una herramienta de cumplimiento, no una ambigüedad real.
+- **Historial de paletas** (todas sobre el mismo sistema de tokens de
+  `#bitacora-root` — cambiar de una a otra es básicamente redefinir el
+  bloque `#bitacora-root { ... }`, casi nada más):
+  1. Azul/slate corporativo (rediseño original).
+  2. "Wiza" (violeta/lavanda) — pedida replicando un archivo de guía de
+     estilo externo (`DESIGN (3).md`) casi literal.
+  3. **Actual: "Teal y coral"** — el usuario pidió algo "más moderno y
+     divertido sin perder el toque profesional" y se le ofrecieron 4
+     paletas para elegir (vía pregunta con opciones); escogió esta.
+  Mapeo de la paleta actual: `--teal-800 #115E59` (sidebar/marca),
+  `--teal-600 #0D9488` (`--accent`: botón lleno, enlaces, foco, títulos de
+  página), `--teal-soft #CCFBF1` (`--accent-soft`, glow de foco),
+  `--coral #FB7185` (acento de energía — SOLO en el ítem de navegación
+  activo y el degradado del logo, nunca en texto largo ni en badges de
+  estado), fondo cálido `--warm-paper #FAF7F2` en vez del gris frío
+  anterior, bordes/texto en grises cálidos (`--warm-mist/-smoke/-ash/-slate/-charcoal`).
+  Títulos de tarjeta (`.row-ent`, `.titleblock-head h2`, `.quick-card-title`,
+  etc.) en `--teal-800`, cuerpo de texto en `--warm-charcoal`. Radios un poco
+  más suaves que en la paleta Wiza (`--radius-md:10px`, `--radius-lg:14px`,
+  `--radius-sm:8px` para botones/inputs) — un toque más redondeado ayuda a
+  la sensación "divertida" pedida. Plus Jakarta Sans se conserva para
+  `.view-header h1` (no era parte de lo que cambió esta vez).
+  **La misma excepción de siempre**: los colores de estado
+  (`--success/--danger/--warning`, CUMPLE/NO CUMPLE/NO DETERMINABLE,
+  GO/NO-GO/REVISAR) NUNCA cambian con la paleta de marca — son señal
+  funcional de cumplimiento, no decoración.
+- **Bug real encontrado durante el reskin a "Teal y coral" (llevaba ahí
+  desde el primer rediseño profesional, sin que nadie lo notara)**: varias
+  cadenas HTML generadas por JS (`renderResultadoExperiencia`,
+  `evalDetalleHtml`, `renderAnalysisHtml`) tenían `style="color:var(--good)"`,
+  `var(--orange)`, `var(--grey)`, `var(--navy-line)` — nombres de variable
+  del tema ORIGINAL (antes de cualquier rediseño) que ya no existían. Al
+  redefinir el bloque de tokens la primera vez, esas 4 referencias sueltas
+  (dentro de `style="..."` inline, no en el `<style>` central) quedaron
+  huérfanas — no rompían nada visualmente de forma obvia (el navegador
+  simplemente ignora una `var()` que no resuelve y hereda el color del
+  padre), así que pasaron desapercibidas en todas las pruebas anteriores.
+  Se encontraron con un audit sistemático: extraer todos los `var(--x)`
+  usados en el archivo y compararlos contra los definidos en
+  `#bitacora-root { ... }`. Corregidas a sus equivalentes semánticos
+  correctos (`--success`, `--danger`, `--warning`, `--text-muted`).
+  **Lección**: después de redefinir el bloque de tokens, correr ese mismo
+  audit (`grep -oE '\-\-[a-zA-Z0-9-]+' index.html | sort -u` contra las
+  variables definidas) — los estilos inline dentro de strings de JS no
+  aparecen en una búsqueda normal de la hoja de estilos.
 - **Tipografía**: Inter (pesos 400–800) para toda la UI, más Plus Jakarta
   Sans 500 solo para el título de página (ver reskin "Wiza" arriba). Se
   quitaron Barlow Condensed (encabezados condensados) e IBM Plex Mono (para

@@ -10,52 +10,53 @@
      "centraliza estilos, usa variables/tokens de diseño").
      ============================================================ */
   #bitacora-root {
-    /* Paleta "Wiza" (violeta/lavanda) pedida por el usuario -- valores
-       tomados literalmente de DESIGN (3).md. Los colores de estado
-       (success/danger/warning) NO están en esa guía a propósito: es una
-       paleta mono-cromática violeta pensada para un sitio de marca, y este
-       es un panel de cumplimiento (CUMPLE/NO CUMPLE/NO DETERMINABLE,
-       GO/NO-GO) donde el color es la señal de triaje más rápida -- se
-       conservan rojo/verde/ámbar por accesibilidad y se deja el violeta
-       para todo lo demás (marca, botones, enlaces, tarjetas, tipografía).
-       Ver nota en CLAUDE.md. */
-    --deep-iris: #26114A;      /* texto de marca, encabezados, botón lleno */
-    --plum-velvet: #312747;    /* texto secundario de marca */
-    --royal-amethyst: #3E0079; /* enlaces, foco, iconos de acento */
-    --mist-violet: #EDECFF;    /* fondo tintado suave */
-    --canvas: #FFFFFF;
-    --paper: #F6F7FA;
-    --mist: #E6E2E3;
-    --smoke: #C1C7CF;
-    --ash: #9491A1;
-    --slate: #615E6E;
-    --charcoal: #333333;
+    /* Paleta "Teal y coral" -- elegida por el usuario entre 4 opciones
+       (pidió explícitamente algo "más moderno y divertido sin perder el
+       toque profesional"). Teal como color de marca (serio, confiable,
+       típico de fintech/consultoría) + coral como acento puntual de
+       energía (nav activo, logo, algún detalle) -- nunca en texto largo ni
+       en los badges de estado, que se quedan en rojo/verde/ámbar semántico
+       por accesibilidad (ver nota más abajo). Fondo cálido neutro en vez
+       del gris frío anterior. */
+    --teal-900: #042F2E;
+    --teal-800: #115E59;     /* sidebar / marca */
+    --teal-700: #0F766E;
+    --teal-600: #0D9488;     /* color principal: botón lleno, títulos, iconos */
+    --teal-soft: #CCFBF1;    /* fondo tintado suave (foco, highlights) */
+    --coral: #FB7185;        /* acento de energía: nav activo, logo, detalles puntuales */
+    --coral-soft: #FFE4E6;
 
-    --brand-900: #1A0C33;
-    --brand-800: var(--deep-iris);   /* sidebar / marca */
-    --brand-700: #331659;
-    --brand-600: var(--royal-amethyst); /* hover sobre marca */
-    --accent: var(--royal-amethyst);    /* acción principal, foco, enlaces */
-    --accent-hover: #2F0161;
-    --accent-soft: var(--mist-violet);
-    --accent-button: var(--deep-iris);  /* fondo de botón lleno (distinto del acento de enlaces, según la guía) */
-    --bg: var(--paper);        /* lienzo de la aplicación */
-    --surface: var(--canvas);  /* tarjetas / paneles */
-    --border: var(--mist);
-    --border-strong: var(--smoke);
-    --text: var(--charcoal);
-    --text-heading: var(--deep-iris); /* solo para títulos -- la guía pide NO usarlo en texto de cuerpo */
-    --text-muted: var(--slate);
-    --text-faint: var(--ash);
+    --canvas: #FFFFFF;
+    --warm-paper: #FAF7F2;
+    --warm-mist: #EDE6DC;
+    --warm-smoke: #D8CDBC;
+    --warm-ash: #A69C8D;
+    --warm-slate: #756B5C;
+    --warm-charcoal: #332E28;
+
+    --brand-900: #08211F;
+    --brand-800: var(--teal-800);   /* sidebar / marca */
+    --brand-700: var(--teal-700);
+    --brand-600: var(--teal-600);   /* hover sobre marca */
+    --accent: var(--teal-600);      /* acción principal, foco, enlaces */
+    --accent-hover: var(--teal-700);
+    --accent-soft: var(--teal-soft);
+    --accent-button: var(--teal-600);
+    --bg: var(--warm-paper);        /* lienzo de la aplicación */
+    --surface: var(--canvas);       /* tarjetas / paneles */
+    --border: var(--warm-mist);
+    --border-strong: var(--warm-smoke);
+    --text: var(--warm-charcoal);
+    --text-heading: var(--teal-800); /* solo para títulos, no texto de cuerpo */
+    --text-muted: var(--warm-slate);
+    --text-faint: var(--warm-ash);
     --success: #067647; --success-bg: #ECFDF3; --success-border: #ABEFC6;
     --danger:  #B42318; --danger-bg:  #FEF3F2; --danger-border:  #FECDCA;
     --warning: #B54708; --warning-bg: #FFFAEB; --warning-border: #FEDF89;
-    --neutral: var(--slate); --neutral-bg: var(--paper); --neutral-border: var(--smoke);
-    /* La guía es explícita: 8px es la firma visual, no 4/12/14px -- se aplica
-       a tarjetas, botones e inputs por igual (--radius-sm/md/lg unificados). */
-    --radius-sm: 8px; --radius-md: 8px; --radius-lg: 8px;
-    --shadow-sm: rgba(18,55,105,.08) 0 2px 4px 0, rgba(18,55,105,.04) 0 1px 1px 0, rgba(18,55,105,.08) 0 0 0 1px;
-    --shadow-md: rgba(14,59,101,.06) 0 32px 24px -12px, rgba(14,59,101,.01) 0 11px 4px 0, rgba(14,59,101,.02) 0 6px 4px 0, rgba(14,59,101,.03) 0 3px 3px 0, rgba(14,59,101,.04) 0 1px 1px 0;
+    --neutral: var(--warm-slate); --neutral-bg: var(--warm-paper); --neutral-border: var(--warm-smoke);
+    --radius-sm: 8px; --radius-md: 10px; --radius-lg: 14px;
+    --shadow-sm: rgba(15,118,110,.10) 0 2px 4px 0, rgba(15,118,110,.05) 0 1px 1px 0, rgba(15,118,110,.08) 0 0 0 1px;
+    --shadow-md: rgba(15,118,110,.10) 0 20px 30px -14px, rgba(15,118,110,.06) 0 8px 12px -4px, rgba(15,118,110,.05) 0 2px 4px 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--text);
     background: var(--bg);
@@ -87,7 +88,7 @@
   #bitacora-root .sidebar {
     width: 264px; flex-shrink: 0;
     background: var(--brand-800);
-    color: #C7B8E0;
+    color: #B8DDD7;
     display: flex; flex-direction: column;
     position: sticky; top: 0; height: 100vh; overflow-y: auto;
   }
@@ -99,7 +100,7 @@
   #bitacora-root .brand-mark {
     width: 34px; height: 34px; border-radius: var(--radius-sm); flex-shrink: 0;
     /* Gradiente de marca de la guía ("Logo Lockup": #b99aff -> #7d43ff) */
-    background: linear-gradient(135deg, #B99AFF, #7D43FF);
+    background: linear-gradient(135deg, #14B8A6, #FB7185);
     color: #fff; font-weight: 800; font-size: 16px;
     display: flex; align-items: center; justify-content: center;
   }
@@ -107,7 +108,7 @@
     margin: 0; font-size: 15.5px; font-weight: 700; color: #fff; line-height: 1.2;
   }
   #bitacora-root .sidebar-brand-text p {
-    margin: 2px 0 0; font-size: 11.5px; color: #A997C9; line-height: 1.3;
+    margin: 2px 0 0; font-size: 11.5px; color: #8FBFB7; line-height: 1.3;
   }
   #bitacora-root .sidebar-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
   /* Pill Navigation Button: la guía reserva el radio de píldora (999px)
@@ -116,16 +117,19 @@
   #bitacora-root .nav-item {
     display: flex; align-items: center; gap: 11px;
     padding: 10px 14px; border-radius: 999px;
-    font-size: 13.5px; font-weight: 500; color: #C7B8E0;
+    font-size: 13.5px; font-weight: 500; color: #B8DDD7;
     background: transparent; border: none; cursor: pointer; text-align: left; width: 100%;
     transition: background .12s ease, color .12s ease;
   }
   #bitacora-root .nav-item svg { flex-shrink: 0; opacity: .85; }
   #bitacora-root .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
-  #bitacora-root .nav-item.active { background: var(--royal-amethyst); color: #fff; }
+  /* Acento coral en el ítem activo -- contraste puntual de energía contra el
+     sidebar teal, el toque "divertido" que pidió el usuario sin tocar el
+     resto de la navegación. */
+  #bitacora-root .nav-item.active { background: var(--coral); color: #fff; }
   #bitacora-root .nav-item.active svg { opacity: 1; }
   #bitacora-root .sidebar-foot {
-    padding: 14px 20px 18px; font-size: 11px; color: #8C7BA8; line-height: 1.5;
+    padding: 14px 20px 18px; font-size: 11px; color: #6FA69B; line-height: 1.5;
     border-top: 1px solid rgba(255,255,255,.08);
   }
 
@@ -176,7 +180,7 @@
     font-size: 16.5px;
     font-weight: 700;
     margin: 0;
-    color: var(--plum-velvet); /* "card titles" es exactamente el rol que la guía le da a Plum Velvet */
+    color: var(--teal-800); /* "card titles" es exactamente el rol que la guía le da a Plum Velvet */
   }
   #bitacora-root .titleblock-head span {
     font-size: 12.5px;
@@ -285,7 +289,7 @@
   #bitacora-root .btn-primary { background: var(--accent-button); color: #fff; box-shadow: var(--shadow-sm); }
   #bitacora-root .btn-primary:hover { background: var(--brand-700); }
   #bitacora-root .btn-secondary { background: var(--surface); color: var(--accent-button); border: 1px solid var(--accent-button); }
-  #bitacora-root .btn-secondary:hover { background: var(--mist-violet); }
+  #bitacora-root .btn-secondary:hover { background: var(--teal-soft); }
   #bitacora-root button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   #bitacora-root .saved-note { font-size: 12.5px; color: var(--text-muted); }
 
@@ -385,7 +389,7 @@
     font-weight: 700;
     font-size: 15.5px;
     line-height: 1.3;
-    color: var(--plum-velvet);
+    color: var(--teal-800);
   }
   #bitacora-root .row-head-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 
@@ -502,7 +506,7 @@
   #bitacora-root .analysis-head {
     font-weight: 700;
     font-size: 14.5px;
-    color: var(--plum-velvet);
+    color: var(--teal-800);
     margin-bottom: 8px;
   }
   #bitacora-root .analysis-sub {
@@ -564,7 +568,7 @@
     display: flex; align-items: center; justify-content: center; color: var(--accent);
     margin-bottom: 2px;
   }
-  #bitacora-root .dropzone-title { font-size: 14px; font-weight: 600; color: var(--plum-velvet); }
+  #bitacora-root .dropzone-title { font-size: 14px; font-weight: 600; color: var(--teal-800); }
   #bitacora-root .dropzone-sub { font-size: 12.5px; color: var(--text-muted); }
   #bitacora-root .dropzone-types { font-size: 11px; color: var(--text-faint); letter-spacing: .3px; text-transform: uppercase; margin-top: 2px; }
 
@@ -691,7 +695,7 @@
     width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent);
     display: flex; align-items: center; justify-content: center;
   }
-  #bitacora-root .quick-card-title { font-size: 14.5px; font-weight: 700; color: var(--plum-velvet); }
+  #bitacora-root .quick-card-title { font-size: 14.5px; font-weight: 700; color: var(--teal-800); }
   #bitacora-root .quick-card-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
 
   #bitacora-root .recent-list { display: flex; flex-direction: column; gap: 1px; }
@@ -701,7 +705,7 @@
   }
   #bitacora-root .recent-item:last-child { border-bottom: none; }
   #bitacora-root .recent-item-body { flex: 1; min-width: 0; }
-  #bitacora-root .recent-item-title { font-size: 13.5px; font-weight: 600; color: var(--plum-velvet); }
+  #bitacora-root .recent-item-title { font-size: 13.5px; font-weight: 600; color: var(--teal-800); }
   #bitacora-root .recent-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   #bitacora-root .empty-inline { font-size: 13px; color: var(--text-muted); padding: 12px 4px; }
 
@@ -2109,9 +2113,9 @@
       ' (de ' + (rc.total || 0) + ' contrato(s) en total). El CUMPLE/NO CUMPLE de cada requisito de abajo es el que decide si la experiencia acreditada satisface la matriz.</div>';
     const resumen = '<div class="expeval-summary">' +
       '<div class="stat">' + ev.resultados.length + '<span>REQUISITOS EVALUADOS</span></div>' +
-      '<div class="stat" style="color:var(--good)">' + ev.conteo['CUMPLE'] + '<span>CUMPLE</span></div>' +
-      '<div class="stat" style="color:var(--orange)">' + ev.conteo['NO CUMPLE'] + '<span>NO CUMPLE</span></div>' +
-      '<div class="stat" style="color:#8A6A1C">' + ev.conteo['NO DETERMINABLE'] + '<span>NO DETERMINABLE</span></div>' +
+      '<div class="stat" style="color:var(--success)">' + ev.conteo['CUMPLE'] + '<span>CUMPLE</span></div>' +
+      '<div class="stat" style="color:var(--danger)">' + ev.conteo['NO CUMPLE'] + '<span>NO CUMPLE</span></div>' +
+      '<div class="stat" style="color:var(--warning)">' + ev.conteo['NO DETERMINABLE'] + '<span>NO DETERMINABLE</span></div>' +
       '</div>';
     const claseGlobal = ev.resultadoGlobal === 'CUMPLE' ? 'expeval-cumple' : (ev.resultadoGlobal === 'NO CUMPLE' ? 'expeval-nocumple' : 'expeval-nd');
     const global = '<div class="expeval-global ' + claseGlobal + '">RESULTADO GLOBAL: ' + escapeHtml(ev.resultadoGlobal) +
@@ -2557,7 +2561,7 @@
       ).join('');
       const cls = r.veredicto === 'GO' ? 'eval-go' : r.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
       return '<div class="analysis-sub">' + escapeHtml(r.perfil) + ' — <span class="eval-verdict ' + cls + '">' + r.veredicto + '</span>' +
-        (r.conPliego ? '' : ' <span style="color:var(--grey);font-weight:400;">(evaluación ligera — sin pliego analizado)</span>') + '</div>' +
+        (r.conPliego ? '' : ' <span style="color:var(--text-muted);font-weight:400;">(evaluación ligera — sin pliego analizado)</span>') + '</div>' +
         '<ul class="analysis-list">' + filas + '</ul>';
     };
     const notas = notasParticipacion(entry);
@@ -2568,7 +2572,7 @@
     return '<div class="analysis-block' + (res.mejor.veredicto === 'NO-GO' ? ' analysis-warn' : '') + '">' +
       '<div class="analysis-head">' + escapeHtml(truncate(item.entidad, 90)) + ' — veredicto: ' +
         '<span class="eval-verdict ' + (res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar') + '">' + res.mejor.veredicto + '</span>' +
-        (res.porPerfil.length > 1 ? ' <span style="color:var(--grey);font-weight:400;">(mejor de ' + res.porPerfil.length + ' perfiles)</span>' : '') + '</div>' +
+        (res.porPerfil.length > 1 ? ' <span style="color:var(--text-muted);font-weight:400;">(mejor de ' + res.porPerfil.length + ' perfiles)</span>' : '') + '</div>' +
       '<div class="analysis-sub">RECOMENDACIÓN</div><div style="margin-bottom:8px;">' + escapeHtml(resumenEjecutivo(res)) + '</div>' +
       notasHtml +
       res.porPerfil.map(bloquePerfil).join('') +
@@ -2767,7 +2771,7 @@
       .map(cat => {
         const items = porCategoria[cat].map(h =>
           '<li><b>' + escapeHtml(h.trigger) + ':</b> ' + escapeHtml(h.snippet) +
-          (h.cubiertoPor.length ? ' <span style="color:var(--navy-line);">— cubierto por: ' + escapeHtml(h.cubiertoPor.join(', ')) + '</span>' : '') +
+          (h.cubiertoPor.length ? ' <span style="color:var(--text-muted);">— cubierto por: ' + escapeHtml(h.cubiertoPor.join(', ')) + '</span>' : '') +
           '</li>'
         ).join('');
         return '<div class="analysis-sub">' + escapeHtml(cat.toUpperCase()) + '</div><ul class="analysis-list">' + items + '</ul>';
@@ -2784,7 +2788,7 @@
       : '<ul class="analysis-list"><li>No hay perfiles marcados para comparar. Marca al menos uno en “Comparar en el análisis de pliegos” y vuelve a analizar.</li></ul>';
 
     return '<div class="analysis-block">' +
-      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' · <span style="color:var(--orange);">vía OCR</span>' : '') + ' <span style="color:var(--grey);font-weight:400;">· ' + fecha + '</span></div>' +
+      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' · <span style="color:var(--warning);">vía OCR</span>' : '') + ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
       (entry.kResidual ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(entry.kResidual) + '</div>' : '') +
       '<div class="analysis-sub">REQUISITOS HABILITANTES DETECTADOS</div>' +
       (sinHallazgos
