@@ -1388,3 +1388,83 @@ cualquier cambio de filtro) y pulsar "Evaluar" de nuevo para ver el
 veredicto actualizado. No es una regresión de esta fase: es una limitación
 preexistente de cuándo se recalcula `s.evaluacion`, igual para todos los
 campos del perfil.
+
+## Fase 9 del prompt maestro: buscar socios (consorcios)
+
+Del prompt maestro del usuario, punto 9 ("Buscar socios para consorcios").
+Presentado al usuario con 3 alcances posibles antes de construir (mismo
+patrón de confirmación que el resto de fases): (1) un directorio por
+sector/clasificación, independiente; (2) sugerencia automática enganchada a
+las brechas que detecta el análisis de un pliego; (3) ambas. Se eligió la
+(1) -- el directorio es la pieza base que la (2) necesitaría de todos modos,
+y enganchar automáticamente el análisis de pliego es un alcance mayor y
+distinto (tocar `evaluarProceso`/`renderCompatibilidadHtml`) que puede
+pedirse después si hace falta.
+
+**Qué hace**: en "Competencia", una nueva búsqueda "Buscar socios
+(consorcios)" -- mismos campos que "Buscar procesos" (especialidades +
+departamento) pero en vez de listar procesos ABIERTOS, agrega qué EMPRESAS
+ya han sido CONTRATISTAS (SECOP I+II) en procesos que coinciden con esos
+criterios, ordenadas por valor total contratado -- un directorio de
+candidatas a consorcio/unión temporal con experiencia verificable en el
+sector, no una función de "empresas buscando socio" (eso no existe en datos
+abiertos; sería inventarlo).
+
+**Reutilización máxima, cero motor de búsqueda nuevo**: el ancla de consulta
+es literalmente la misma de "Buscar procesos" (`fetchAllForDataset` +
+`normalize`/`matchesTerm`/`matchesGeo` para filtrar por especialidad/
+departamento), la fuente combinada SECOP I+II con `Promise.allSettled` es la
+misma que `buscarAdjudicaciones`/`buscarFichaEmpresa`, y el criterio de "es
+un contrato adjudicado real" (SECOP II: `adjudicado=sí` + proveedor; SECOP I:
+cualquier registro con contratista) es el mismo que ya usan esas dos
+funciones. Lo único nuevo es agregar por EMPRESA en vez de por entidad/nombre
+buscado (`agruparPorEmpresa`, mismo patrón que `agruparContratos`).
+
+**Se excluyen los propios perfiles del usuario** (`esPerfilPropio`,
+reutilizando `prepararBusquedaPorNombre().coincide()`): sin este filtro, si
+la empresa del usuario ya tiene contratos en el sector buscado, aparecería
+en su propia lista de "candidatos a socio" -- una empresa no es candidata a
+consorcio de sí misma.
+
+**Integración con "Competencia" existente**: cada resultado trae un botón
+"Ver ficha" (`verFichaDeSocio`) que llena el campo de "Buscar empresa" con
+ese nombre y corre `runBuscarCompetencia()` tal cual -- cero renderizado
+duplicado, la ficha completa (Fase 11) se reutiliza sin cambios.
+
+**Bug real de eficiencia encontrado y corregido antes de probar en el
+navegador**: `fetchSecopDataset` siempre intentaba primero `$order=
+fecha_de_publicacion_del DESC` (la columna real de SECOP II) y solo
+reintentaba sin orden si fallaba -- correcto para SECOP II, pero esta fase es
+la PRIMERA que le pasa el dataset de SECOP I a esta función genérica (antes,
+`buscarAdjudicaciones`/`buscarFichaEmpresa` construían su URL de SECOP I a
+mano, con su propia columna). Sin arreglarlo, cada búsqueda de socios habría
+disparado un 400 garantizado por cada ancla contra SECOP I, seguido del
+reintento -- funciona igual para el usuario, pero duplica cada solicitud y
+llena la consola de errores. Se agregó un parámetro `ordenCol` opcional a
+`fetchSecopDataset`/`fetchAllForDataset` (por defecto la columna de SECOP II,
+así que ningún llamador existente cambia de comportamiento) y
+`buscarSociosPorSector` le pasa `fecha_de_cargue_en_el_secop` para SECOP I.
+Verificado con una pestaña nueva del navegador (consola limpia desde cero):
+0 errores, contra 4 errores 400 reproducibles antes del fix.
+
+**Alcance recortado a propósito**: búsqueda por PALABRA CLAVE contra el
+objeto del contrato, no por código UNSPSC estructurado -- a diferencia del
+RUP (que si trae clasificación UNSPSC por empresa, ver Fase 11), SECOP no
+expone de forma confiable el código UNSPSC de cada adjudicación individual;
+estructurarlo habría aparentado una precisión que los datos no tienen. Si el
+usuario escribe un código, igual puede coincidir si aparece literal en el
+texto del objeto, pero no es el mecanismo principal.
+
+**Verificado con datos reales**: "pavimentación" + "Norte de Santander"
+encontró 7-8 empresas reales (consorcios y uniones temporales reales,
+ej. "CONSORCIO EL CARMEN 2018", "UNION TEMPORAL ALCANTARILLADO RG CACOTA"),
+con conteo de contratos, valor total, entidades distintas y fuente (I/II)
+correctos. "Ver ficha" navegó a Competencia, precargó el nombre y mostró la
+ficha completa real (100 contratos, $208.193.598.977, 31 entidades). Se
+verificó la exclusión de perfiles propios sembrando un perfil con el mismo
+nombre de un resultado real y confirmando que desaparecía de la lista en la
+siguiente búsqueda. Mensajes de validación probados: sin especialidad ni
+departamento ("Escribe al menos..."), y sin resultados con una palabra sin
+sentido (sugerencia de término más genérico). Tests de humo 5/5. Probado en
+los 3 breakpoints sin overflow ni errores de consola (ver el bug de
+eficiencia arriba).

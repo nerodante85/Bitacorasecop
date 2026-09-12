@@ -1352,6 +1352,34 @@
 
           <div id="bt-comp-out"></div>
 
+          <!-- Buscar socios (consorcios): prompt maestro punto 9. Directorio
+               por sector/clasificación -- mismas especialidades/departamento
+               de "Buscar procesos", pero en vez de listar PROCESOS abiertos,
+               agrega qué EMPRESAS ya han sido contratistas en esa
+               clasificación (SECOP I+II), para explorar candidatos a
+               consorcio o unión temporal. -->
+          <div class="titleblock" id="bt-socios-panel">
+            <div class="titleblock-head">
+              <h2>Buscar socios (consorcios)</h2>
+              <span>Empresas que ya han contratado en un sector/especialidad — candidatas a consorcio o unión temporal</span>
+            </div>
+            <div class="field-grid">
+              <div class="field full">
+                <label>Especialidades (palabra clave o código UNSPSC)</label>
+                <input id="bt-socios-especialidades" type="text" placeholder="ej. pavimentación, alcantarillado, obra civil">
+              </div>
+              <div class="field full">
+                <label>Departamento (opcional)</label>
+                <input id="bt-socios-departamento" type="text" placeholder="ej. Norte de Santander">
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn-primary" id="bt-socios-buscar">Buscar</button>
+              <span class="saved-note" id="bt-socios-saved"></span>
+            </div>
+            <div id="bt-socios-out"></div>
+          </div>
+
           <!-- Seguimiento de empresas: prompt maestro punto 21. Alcance real
                (ver CLAUDE.md): avisa cuando una empresa seguida aparece como
                CONTRATISTA en un contrato nuevo (SECOP I/II) -- el dataset no
@@ -1710,6 +1738,11 @@
   const compBuscarBtn = document.getElementById('bt-comp-buscar');
   const compSavedEl = document.getElementById('bt-comp-saved');
   const compOutEl = document.getElementById('bt-comp-out');
+  const sociosEspecialidadesEl = document.getElementById('bt-socios-especialidades');
+  const sociosDepartamentoEl = document.getElementById('bt-socios-departamento');
+  const sociosBuscarBtn = document.getElementById('bt-socios-buscar');
+  const sociosSavedEl = document.getElementById('bt-socios-saved');
+  const sociosOutEl = document.getElementById('bt-socios-out');
   const seguimientoListEl = document.getElementById('bt-seguimiento-list');
   const seguimientoRevisarBtn = document.getElementById('bt-seguimiento-revisar');
   const dashSeguimientoEl = document.getElementById('bt-dash-seguimiento');
@@ -4075,6 +4108,148 @@
       '<div class="analysis-disclaimer">Cifras derivadas de datos abiertos de SECOP I y SECOP II filtrados por coincidencia de nombre -- pueden faltar contratos si una entidad reportó el nombre del proveedor de forma distinta, y pueden incluir falsos positivos si dos empresas tienen nombres muy parecidos. Verifica siempre contra el RUES o el expediente del proceso antes de usar esta información para decidir.</div>';
   }
 
+  // ==========================================================================
+  // BUSCAR SOCIOS (CONSORCIOS) -- prompt maestro del usuario, punto 9. A
+  // diferencia de "Competencia" (buscarFichaEmpresa: ¿quién es ESTA empresa?),
+  // aquí se busca por SECTOR/ESPECIALIDAD -- mismo ancla de "Buscar procesos"
+  // (fetchAllForDataset + normalize/matchesTerm/matchesGeo, ambos ya
+  // compartidos con esa vista) -- pero en vez de listar PROCESOS abiertos, se
+  // agregan los contratos ADJUDICADOS que calzan (SECOP I+II) por EMPRESA
+  // contratista, para armar un directorio de candidatos a consorcio/unión
+  // temporal en ese sector. Alcance deliberado (ver CLAUDE.md): búsqueda por
+  // palabra clave contra el objeto del contrato, no por código UNSPSC
+  // estructurado -- SECOP no expone de forma confiable la clasificación
+  // UNSPSC de cada adjudicación (a diferencia del RUP, que sí la trae por
+  // empresa), así que estructurarlo habría sido aparentar una precisión que
+  // los datos no tienen.
+  // ==========================================================================
+
+  // true si `nombre` coincide (mismo criterio de prepararBusquedaPorNombre)
+  // con alguno de los perfiles de empresa YA guardados -- para no sugerir a la
+  // propia empresa del usuario como "candidata a socio" de sí misma.
+  function esPerfilPropio(nombre){
+    return Object.keys(perfiles).some(id => {
+      const p = perfiles[id];
+      return p && p.nombre && prepararBusquedaPorNombre(p.nombre).coincide(nombre);
+    });
+  }
+
+  async function buscarSociosPorSector(keywords, geos){
+    const anchors = keywords.length ? keywords : geos;
+    if (!anchors.length) return [];
+
+    // Mismo criterio de "adjudicado" que ya usan buscarAdjudicaciones/
+    // buscarFichaEmpresa para cada dataset -- no se duplica lógica nueva,
+    // solo se reutiliza sobre resultados anclados por sector en vez de por
+    // nombre de entidad/empresa.
+    function adjudicatarioDe(r, fuente){
+      if (fuente === 'II'){
+        const adjudicado = String(findField(r, ['adjudicado'], 'adjudicad') || '').toLowerCase().trim();
+        if (adjudicado !== 'si' && adjudicado !== 'sí') return null;
+        const prove = findField(r, ['nombre_del_proveedor', 'proveedor_adjudicado', 'nombre_del_adjudicatario'], 'proveedor');
+        return (prove && !/no\s+definid|no\s+aplica|^n\/?a$/i.test(String(prove))) ? String(prove) : null;
+      }
+      const prove = findField(r, ['nom_razon_social_contratista'], 'contratista');
+      return (prove && !/no\s+definid|no\s+aplica|^n\/?a$/i.test(String(prove))) ? String(prove) : null;
+    }
+    function valorDe(r, fuente){
+      const n = fuente === 'II'
+        ? Number(findField(r, ['valor_total_adjudicacion', 'valor_adjudicacion', 'valor_del_contrato'], 'adjudicac'))
+        : Number(findField(r, ['valor_contrato_con_adiciones', 'cuantia_contrato'], 'contrato'));
+      return n > 0 ? n : null;
+    }
+
+    // allSettled, no all: si una fuente falla, la otra igual aporta resultados
+    // (mismo criterio que buscarAdjudicaciones/buscarFichaEmpresa).
+    const [resII, resI] = await Promise.allSettled([
+      fetchAllForDataset('p6dx-8zbt', anchors, 'II'),
+      fetchAllForDataset(SECOP_I_DATASET, anchors, 'I', 'fecha_de_cargue_en_el_secop')
+    ]);
+    if (resII.status === 'rejected') console.error('No se pudo consultar socios en SECOP II', resII.reason);
+    if (resI.status === 'rejected') console.error('No se pudo consultar socios en SECOP I', resI.reason);
+    const crudos = (resII.status === 'fulfilled' ? resII.value : []).concat(resI.status === 'fulfilled' ? resI.value : []);
+
+    const out = [];
+    crudos.forEach(r => {
+      const item = normalize(r); // reutiliza el mismo objeto/departamento/searchable que "Buscar procesos"
+      if (keywords.length && !keywords.some(k => matchesTerm(item.searchable, k))) return;
+      if (geos.length && !geos.some(g => matchesGeo(item.geoSearchable, g))) return;
+      const adjudicatario = adjudicatarioDe(r, item.fuente);
+      if (!adjudicatario || esPerfilPropio(adjudicatario)) return;
+      out.push({ adjudicatario: adjudicatario, entidad: item.entidad, objeto: item.objeto, valorAdj: valorDe(r, item.fuente), fuente: item.fuente });
+    });
+    return out;
+  }
+
+  const SOCIOS_LIMITE = 25;
+
+  // Agrupa por EMPRESA (adjudicatario) -- mismo patrón que agruparContratos,
+  // pero además cuenta entidades distintas y fuentes (I/II), que aquí sí
+  // importan para valorar a un candidato a socio.
+  function agruparPorEmpresa(registros, limite){
+    const mapa = new Map();
+    registros.forEach(r => {
+      if (!mapa.has(r.adjudicatario)) mapa.set(r.adjudicatario, { nombre: r.adjudicatario, contratos: 0, valor: 0, entidades: new Set(), fuentes: new Set() });
+      const e = mapa.get(r.adjudicatario);
+      e.contratos++;
+      if (r.valorAdj != null) e.valor += r.valorAdj;
+      if (r.entidad) e.entidades.add(r.entidad);
+      e.fuentes.add(r.fuente);
+    });
+    return Array.from(mapa.values())
+      .map(e => ({ nombre: e.nombre, contratos: e.contratos, valor: e.valor, entidadesDistintas: e.entidades.size, fuentes: Array.from(e.fuentes).sort() }))
+      .sort((a, b) => (b.valor - a.valor) || (b.contratos - a.contratos))
+      .slice(0, limite);
+  }
+
+  function renderSociosHtml(keywords, geos, registros){
+    const criterios = keywords.concat(geos).map(c => '"' + c + '"').join(', ') || 'los criterios ingresados';
+    if (!registros.length){
+      return '<div class="analysis-disclaimer">No se encontraron empresas contratistas para ' + escapeHtml(criterios) + ' en SECOP I ni SECOP II. Prueba con una palabra más genérica (ej. "obra civil" en vez de "box culvert"), o solo con el departamento.</div>';
+    }
+    const empresas = agruparPorEmpresa(registros, SOCIOS_LIMITE);
+    const nI = registros.filter(r => r.fuente === 'I').length;
+    const nII = registros.length - nI;
+    const filas = empresas.map(e => '<div class="recent-item"><div class="recent-item-body">' +
+      '<div class="recent-item-title">' + escapeHtml(e.nombre) + '</div>' +
+      '<div class="recent-item-sub">' + e.contratos + ' contrato(s) · ' + (fmtMoney(e.valor) || 'valor no publicado') +
+      ' · ' + e.entidadesDistintas + ' entidad(es) distinta(s) · SECOP ' + e.fuentes.join('/') + '</div>' +
+      '</div><button type="button" class="link-btn" data-ver-ficha-socio="' + escapeHtml(e.nombre) + '">Ver ficha</button></div>'
+    ).join('');
+    return '<div class="analysis-sub">EMPRESAS CONTRATISTAS ENCONTRADAS (' + empresas.length + ' de ' + registros.length + ' contratos — ' + nII + ' en SECOP II, ' + nI + ' en SECOP I)</div>' +
+      '<div class="recent-list">' + filas + '</div>' +
+      '<div class="analysis-disclaimer">Empresas que ya han sido CONTRATISTAS (no solo proponentes) en procesos que coinciden con ' + escapeHtml(criterios) + ', ordenadas por valor total contratado. No implica que estén buscando socio ni que acepten conformar un consorcio -- es un punto de partida para identificar candidatas con experiencia verificable en el sector, a contactar por tu cuenta. Se excluyen tus propios perfiles de empresa guardados. Verifica siempre en el RUES antes de proponer una alianza.</div>';
+  }
+
+  async function runBuscarSocios(){
+    const keywords = sociosEspecialidadesEl ? sociosEspecialidadesEl.value.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const geos = sociosDepartamentoEl ? sociosDepartamentoEl.value.split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (!keywords.length && !geos.length){
+      if (sociosSavedEl) sociosSavedEl.textContent = 'Escribe al menos una especialidad o un departamento.';
+      return;
+    }
+    if (sociosSavedEl) sociosSavedEl.textContent = '';
+    if (sociosBuscarBtn) sociosBuscarBtn.disabled = true;
+    if (sociosOutEl) sociosOutEl.innerHTML = '<div class="analysis-loading">Consultando SECOP I y SECOP II…</div>';
+    try {
+      const registros = await buscarSociosPorSector(keywords, geos);
+      if (sociosOutEl) sociosOutEl.innerHTML = renderSociosHtml(keywords, geos, registros);
+    } catch(err){
+      if (sociosOutEl) sociosOutEl.innerHTML = '<div class="analysis-disclaimer">No se pudo consultar (' + escapeHtml(err && err.message ? err.message : 'error') + ').</div>';
+    } finally {
+      if (sociosBuscarBtn) sociosBuscarBtn.disabled = false;
+    }
+  }
+
+  // Salta a "Buscar empresa" (ficha completa) con este nombre ya cargado --
+  // reutiliza runBuscarCompetencia tal cual, sin duplicar el renderizado de
+  // la ficha.
+  async function verFichaDeSocio(nombre){
+    if (compNombreEl) compNombreEl.value = nombre;
+    await runBuscarCompetencia();
+    if (compOutEl && compOutEl.scrollIntoView) compOutEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   // Revisa UNA empresa seguida: reconsulta buscarFichaEmpresa (misma fuente
   // que la ficha manual) y arma un feed de los contratos con fecha posterior
   // a la última revisión -- igual que evaluarAlerta, pero contra contratos de
@@ -4952,7 +5127,16 @@
     return SOCRATA_APP_TOKEN ? { headers: { 'X-App-Token': SOCRATA_APP_TOKEN } } : {};
   }
 
-  async function fetchSecopDataset(datasetId, qTerm, fuente){
+  // `ordenCol` es opcional y por defecto es la columna de SECOP II
+  // (fecha_de_publicacion_del) -- comportamiento IDÉNTICO al de siempre para
+  // cualquier llamador que no la pase. SECOP I tiene un esquema de columnas
+  // distinto (fecha_de_cargue_en_el_secop, ver buscarAdjudicaciones/
+  // buscarFichaEmpresa): sin pasarla explícita, cada consulta a SECOP I
+  // fallaría el intento con orden (columna inexistente) ANTES de reintentar
+  // sin orden -- funciona igual, pero duplica cada solicitud y llena la
+  // consola de errores 400 en cada búsqueda (encontrado probando "Buscar
+  // socios", el primer llamador que le pasa SECOP_I_DATASET a esta función).
+  async function fetchSecopDataset(datasetId, qTerm, fuente, ordenCol){
     const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' +
       (qTerm ? ('&$q=' + encodeURIComponent(qTerm)) : '');
     // Socrata no garantiza ningún orden por defecto. Con $limit=300 y palabras
@@ -4972,7 +5156,7 @@
     }
     let data;
     try {
-      data = await intentar(base + '&$order=fecha_de_publicacion_del%20DESC');
+      data = await intentar(base + '&$order=' + (ordenCol || 'fecha_de_publicacion_del') + '%20DESC');
     } catch(e){
       data = await intentar(base);
     }
@@ -4980,9 +5164,9 @@
     return data;
   }
 
-  async function fetchAllForDataset(datasetId, anchors, fuente){
+  async function fetchAllForDataset(datasetId, anchors, fuente, ordenCol){
     const list = anchors.length ? anchors : [null];
-    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente)));
+    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente, ordenCol)));
     const merged = [].concat(...batches);
     const seen = new Set();
     const deduped = [];
@@ -5423,6 +5607,14 @@
   }
   if (compBuscarBtn) compBuscarBtn.addEventListener('click', runBuscarCompetencia);
   if (compNombreEl) compNombreEl.addEventListener('keydown', function(e){ if (e.key === 'Enter') runBuscarCompetencia(); });
+  if (sociosBuscarBtn) sociosBuscarBtn.addEventListener('click', runBuscarSocios);
+  [sociosEspecialidadesEl, sociosDepartamentoEl].forEach(el => {
+    if (el) el.addEventListener('keydown', function(e){ if (e.key === 'Enter') runBuscarSocios(); });
+  });
+  if (sociosOutEl) sociosOutEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-ver-ficha-socio]');
+    if (btn) verFichaDeSocio(btn.getAttribute('data-ver-ficha-socio'));
+  });
 
   // Delegación: el botón "Seguir/Dejar de seguir" se regenera cada vez que
   // se busca (renderFichaEmpresaHtml lo dibuja según el estado actual).
