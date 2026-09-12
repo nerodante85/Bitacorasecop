@@ -101,6 +101,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'resumenCompatibilidad', 'renderCompatibilidadHtml',
     'parsearExcelExperiencia', 'parsearMatrizExperiencia', 'evaluarExperienciaCompleta',
     'loadPdfJs', 'loadTesseractJs', 'loadXlsxLib', 'extractPdfText', 'ocrPdfPages',
+    'loadSupabaseJs', 'bootstrapAccountSession',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -138,17 +139,17 @@ await check('todo host https:// usado en el código aparece en la política CSP'
   assert(missing.length === 0, 'host(s) usados en el código pero ausentes de la CSP: ' + missing.join(', '));
 });
 
-// 5) El SRI de los 3 scripts de terceros sigue coincidiendo con el CDN -----
+// 5) El SRI de los 4 scripts de terceros sigue coincidiendo con el CDN -----
 // Requiere red (GitHub Actions la tiene). Si algún día se sube de versión
-// pdf.js/xlsx/Tesseract.js sin recalcular el hash, este test lo detecta
-// ANTES de que un usuario real se quede con esa librería sin cargar (la CSP
-// + SRI la bloquean en silencio, ver commit que las agregó).
-await check('el SRI embebido de pdf.js/xlsx/Tesseract.js coincide con el archivo real del CDN', async () => {
+// pdf.js/xlsx/Tesseract.js/supabase-js sin recalcular el hash, este test lo
+// detecta ANTES de que un usuario real se quede con esa librería sin cargar
+// (la CSP + SRI la bloquean en silencio, ver commit que las agregó).
+await check('el SRI embebido de pdf.js/xlsx/Tesseract.js/supabase-js coincide con el archivo real del CDN', async () => {
   const scriptBody = extractMainScript();
   const pairs = [...scriptBody.matchAll(
     /\.src\s*=\s*'(https:\/\/(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/[^']+)';[\s\S]*?\.integrity\s*=\s*'(sha384-[^']+)';/g
   )].map(m => ({ url: m[1], integrity: m[2] }));
-  assert(pairs.length === 3, 'se esperaban 3 scripts CDN con integrity (pdf.js, xlsx, Tesseract.js), se encontraron ' + pairs.length);
+  assert(pairs.length === 4, 'se esperaban 4 scripts CDN con integrity (pdf.js, xlsx, Tesseract.js, supabase-js), se encontraron ' + pairs.length);
   for (const { url, integrity } of pairs) {
     const res = await fetch(url);
     assert(res.ok, 'HTTP ' + res.status + ' al descargar ' + url);

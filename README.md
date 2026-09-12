@@ -39,9 +39,11 @@ Un solo archivo (`index.html`): HTML + CSS + JavaScript, sin backend, sin
 base de datos, sin build step ni `npm install`. Corre entero en el navegador
 del usuario y se publica tal cual con **GitHub Pages**.
 
-- **Persistencia**: `localStorage` del navegador. No hay servidor ni cuenta
-  de usuario — los datos (perfiles, experiencia, personal, historial) viven
-  solo en el navegador donde se usó la app.
+- **Persistencia**: `localStorage` del navegador por defecto — sin servidor
+  ni cuenta, los datos (perfiles, experiencia, personal, historial) viven
+  solo en el navegador donde se usó la app. Opcionalmente, con una cuenta
+  conectada (ver "Cuenta y sincronización" abajo), esos mismos datos se
+  sincronizan entre dispositivos vía Supabase.
 - **Datos**: dataset abierto "Procesos de Contratación — SECOP II"
   (datos.gov.co / Socrata, dataset `p6dx-8zbt`), consultado en vivo desde el
   propio navegador.
@@ -51,7 +53,9 @@ del usuario y se publica tal cual con **GitHub Pages**.
 - **Librerías de terceros** (cargadas solo cuando se usan, desde CDN, con
   verificación de integridad — ver más abajo): [pdf.js](https://mozilla.github.io/pdf.js/)
   (lectura de PDF), [Tesseract.js](https://tesseract.projectnaptha.com/) (OCR
-  de PDFs escaneados), [SheetJS/xlsx](https://sheetjs.com/) (lectura de Excel).
+  de PDFs escaneados), [SheetJS/xlsx](https://sheetjs.com/) (lectura de
+  Excel), [Supabase](https://supabase.com/) (cuenta y sincronización,
+  opcional, cargada solo si se configura — ver abajo).
 
 El porqué de cada decisión de arquitectura (por qué no hay backend, cómo se
 llegó al diseño actual, bugs reales encontrados y cómo se corrigieron) está
@@ -100,15 +104,35 @@ No es una credencial secreta — Socrata los diseña para ir embebidos en
 código de cliente — pero mientras quede vacía, la app sigue funcionando
 igual, solo sin ese margen extra.
 
+### Cuenta y sincronización (Supabase, opcional)
+
+Por defecto no hace falta cuenta: todo funciona igual que siempre, solo en
+este navegador. Para sincronizar perfiles/experiencia/análisis entre
+dispositivos:
+
+1. Crear un proyecto gratuito en [supabase.com](https://supabase.com).
+2. Correr `supabase/schema.sql` en el SQL Editor del proyecto (una sola vez).
+3. Copiar el "Project URL" y la "anon public key" desde Project Settings →
+   API (**nunca** la "service_role key" — esa habilita saltarse todos los
+   permisos y no debe salir del panel de Supabase).
+4. Pegarlos en las constantes `SUPABASE_URL` / `SUPABASE_ANON_KEY` al
+   principio del `<script>` de `index.html`.
+
+Detalle de diseño (modelo de datos, seguridad por fila, qué se sincroniza y
+qué no) en `CLAUDE.md`, sección "Fase 1: cuentas y sincronización".
+
 ## Seguridad
 
 - **CSP** (`<meta http-equiv="Content-Security-Policy">`) restringe a qué
   orígenes puede hablar la página (los 2 CDN usados, Google Fonts,
   datos.gov.co) — pensada especialmente para que ningún script pueda
   exfiltrar lo guardado en `localStorage` a un servidor ajeno.
-- **SRI** (`integrity`/`crossorigin`) en los 3 scripts de terceros: el
+- **SRI** (`integrity`/`crossorigin`) en los 4 scripts de terceros: el
   navegador verifica que el archivo servido por el CDN sea exactamente el
   esperado antes de ejecutarlo.
+- **Row Level Security** en Postgres si se activa la cuenta opcional: cada
+  empresa solo puede leer/escribir sus propios datos, exigido por la base de
+  datos, no por el frontend.
 - Todo el HTML dinámico se escapa antes de insertarse en la página
   (`escapeHtml`), y los enlaces externos se validan contra `http(s)://`
   antes de usarse como `href`.

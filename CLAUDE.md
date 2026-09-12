@@ -768,3 +768,129 @@ colores/tipografía de la paleta actual en una página mínima e independiente
 (no reutiliza `#bitacora-root` ni el `<style>` completo de `index.html` --
 sería la única otra página del sitio, no vale la pena duplicar todo el
 sistema de diseño para una pantalla de error).
+
+## Fase 1: cuentas y sincronización (Supabase, opcional)
+
+Origen: el usuario compartió un "prompt maestro" pidiendo evolucionar la app
+hacia una plataforma completa de contratación estatal (descubrimiento,
+inteligencia de proceso, preparación de oferta, inteligencia competitiva --
+25 entidades de datos, IA/RAG, jobs, planes de suscripción). Auditoría previa
+a implementar: la app es 100% estática (un solo `index.html`, sin backend, sin
+base de datos, sin auth -- todo el "modelo de datos" de hoy son ~9 claves en
+`localStorage`, ver más abajo) alojada en GitHub Pages, así que el roadmap
+completo no es una extensión, es construir infraestructura nueva desde cero.
+Decisiones tomadas junto con el usuario antes de escribir código: (1) empezar
+solo por la Fase 1 (arquitectura + modelo de datos), no comprometerse al
+roadmap de 14 fases de una vez; (2) Supabase (Postgres + Auth) como backend,
+en vez de Firebase o un backend propio -- gestionado, gratis para empezar, y
+el modelo relacional de la plataforma completa encaja mejor en SQL que en
+NoSQL; (3) posponer cualquier LLM real (búsqueda en lenguaje natural, resumen
+ejecutivo, chat con citaciones, red flags) para una fase posterior, porque
+tiene costo por uso y no es necesario para tener cuentas + sincronización
+funcionando.
+
+**Qué hace esta fase, en concreto**: agrega cuentas de usuario y
+sincronización de datos entre dispositivos, opcional y con cero regresión si
+no se activa. NO agrega ningún LLM, ningún buscador en lenguaje natural, ni
+ninguna de las funcionalidades de las fases 2 en adelante del prompt
+maestro -- esas siguen pendientes y deliberadamente fuera de esta fase.
+
+**El "modelo de datos" real de hoy, antes de esta fase**: toda la persistencia
+de la app pasa por una única interfaz `window.storage.get(key)` /
+`window.storage.set(key, value)` (un shim que usa `localStorage.getItem/
+setItem('bitacora_' + key, ...)` cuando corre como sitio independiente). Las
+claves usadas hoy son: `historial`, `perfiles_empresa`, `perfil_activo_id`,
+`perfiles_activos`, `perfil_empresa` (legado, se migra), `analisis_pliegos`,
+`experiencia_evaluacion`, `perfiles_profesionales`, `personal_activo_id`,
+`ultima_vista`. Cada valor es texto (JSON.stringify de lo que haga falta), no
+hay ninguna tabla ni relación -- es la razón por la que el diseño de abajo usa
+una tabla clave-valor genérica en vez de normalizar cada cosa por separado.
+
+**Diseño elegido**: en vez de reescribir `loadHistorial`/`loadPerfiles`/etc.
+para hablar con tablas específicas, se mantiene exactamente la misma interfaz
+`get(key)`/`set(key, value)` y se le agrega un backend remoto detrás -- así
+CERO lógica de negocio existente se toca. El respaldo real es una tabla
+genérica `app_state(company_id, key, value)` con Row Level Security por
+empresa (`supabase/schema.sql`), que espeja 1:1 esas mismas 10 claves. Cuando
+una fase futura necesite de verdad cruzar filas entre empresas (ej.
+inteligencia competitiva) o consultar relacionalmente sobre alguno de estos
+datos, ESA clave puntual se normaliza a su propia tabla entonces -- no hace
+falta normalizar todo de una vez ("no reescritura masiva sin justificarla",
+regla explícita del prompt maestro del usuario).
+
+**Modelo de tenant**: `companies` (la empresa) + `company_members` (usuario
+↔ empresa, con `role`). En esta fase, 1 usuario = 1 empresa, creada
+automáticamente por un trigger de Postgres (`handle_new_user`, `security
+definer`) al registrarse -- el frontend nunca crea la empresa por su cuenta
+(ni podría: sin la fila de `company_members` previa, las políticas de RLS le
+niegan el insert). `company_members` ya deja la puerta abierta a varios
+usuarios por empresa (plan Enterprise) sin migrar el esquema más adelante.
+
+**Aislamiento entre empresas (punto de seguridad explícito del prompt
+maestro: "un usuario nunca debe poder ver información de otra empresa")**: se
+hace cumplir con Row Level Security de Postgres, NO en el frontend -- la app
+es 100% cliente (llama a Supabase directo desde el navegador, sin backend
+propio de por medio), así que RLS es la única barrera real, no una
+conveniencia. Cada política de `app_state`/`companies` exige que
+`company_id` esté en la lista de empresas de las que el usuario autenticado
+(`auth.uid()`) es miembro.
+
+**Cero regresión mientras no se active**: `SUPABASE_URL`/`SUPABASE_ANON_KEY`
+(constantes al principio del `<script>`, mismo patrón que
+`SOCRATA_APP_TOKEN`) empiezan vacías. Con ellas vacías, `SUPABASE_ENABLED` es
+`false` y todo el bloque de cuenta queda inerte: no se toca `.sidebar-foot`,
+no se agrega ningún listener al modal, `window.storage.get/set` se comportan
+exactamente como el shim original. Ningún usuario ve un cambio hasta que se
+completen las dos constantes.
+
+**CSP**: se agregó `https://*.supabase.co` a `connect-src` DE ANTEMANO,
+aunque las constantes empiecen vacías -- mismo error que ya se vio una vez
+con Tesseract.js (CSP bloqueando en silencio, sin que la app muestre error
+propio): mejor dejarlo listo ahora que olvidarlo el día que se completen las
+credenciales. `script-src` no necesitó tocarse: supabase-js se sirve desde
+`cdn.jsdelivr.net`, ya permitido para los otros 3 scripts de terceros.
+
+**SRI**: igual que pdf.js/Tesseract.js/xlsx, `supabase-js` se carga con
+versión exacta pineada (`2.116.0`, no `@2` flotante) + hash `integrity`
+calculado contra el archivo real de jsDelivr para esa versión -- `tests/
+smoke.mjs` ahora espera 4 pares script/integrity en vez de 3.
+
+**Migración de datos existentes**: al iniciar sesión por primera vez en una
+cuenta, si esa cuenta todavía no tiene NINGÚN dato en `app_state`, se copian
+de una vez las claves que ya hubiera en `localStorage` de ese navegador --
+para que un usuario que ya venía usando la app sin cuenta no "pierda" sus
+perfiles/experiencia al crear una. Si la cuenta YA tenía datos (otro
+dispositivo sincronizó primero), no se pisan -- se asume que los datos de la
+nube son los vigentes.
+
+**Cómo activar esto (para el usuario, no para un futuro yo)**:
+1. Crear un proyecto en [supabase.com](https://supabase.com) (plan gratuito
+   alcanza para empezar) -- esto requiere una cuenta, que un asistente de IA
+   no puede crear en nombre de nadie.
+2. En el SQL Editor del proyecto, pegar y correr todo `supabase/schema.sql`.
+3. En Project Settings → API, copiar el "Project URL" y la "anon public key"
+   (la "service_role key" NUNCA debe pegarse en el frontend -- puede
+   saltarse RLS por completo; esta arquitectura no la necesita en ningún
+   momento, porque el navegador habla con Supabase directo y RLS es la
+   barrera).
+4. Pegar esos dos valores en las constantes `SUPABASE_URL`/`SUPABASE_ANON_KEY`
+   al principio del `<script>` de `index.html`.
+5. Opcional: en Authentication → Providers → Email, decidir si se exige
+   confirmación por correo antes de poder iniciar sesión (activado por
+   defecto en Supabase) -- no es una decisión que competa cambiar sin que el
+   usuario lo pida.
+
+**Limitación conocida, a propósito**: el punto de entrada al modal de cuenta
+vive en `.sidebar-foot`, que ya se ocultaba en celular (≤560px) desde antes de
+esta fase (ver "Bug real de responsive..." arriba) -- por alcance de Fase 1
+(y para no arriesgar reintroducir el overflow de 6 íconos que se arregló en
+esa misma sección), la gestión de cuenta es de escritorio/tablet por ahora.
+Si el uso real de cuentas despega, vale la pena agregar un punto de entrada
+específico para celular en una fase posterior.
+
+**Qué NO se implementó a propósito, por ahora** (todo esto sigue en el
+prompt maestro del usuario, pendiente para fases futuras que el usuario
+decida encarar): recuperar contraseña, invitar miembros a una empresa
+(aunque el esquema ya lo permite), cualquier LLM/RAG, alertas, SECOP I,
+inteligencia competitiva, generación de documentos, planes de suscripción con
+límites reales.

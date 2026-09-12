@@ -7,12 +7,19 @@
      <script> inline en el body (sin build step no hay forma de usar nonce ni
      hash sin recalcularlo en cada edición), así que el valor real de esta CSP
      no es impedir que corra JS inline, sino impedir que ese JS (inyectado o no)
-     hable con cualquier origen que no sea www.datos.gov.co + los 2 CDN ya
-     usados -- en particular, connect-src cierra la vía más dañina: exfiltrar
-     lo guardado en localStorage (perfiles, RUP, personal) a un servidor ajeno.
+     hable con cualquier origen que no sea www.datos.gov.co + los CDN ya
+     usados + (opcional) tu propio proyecto de Supabase -- en particular,
+     connect-src cierra la vía más dañina: exfiltrar lo guardado en
+     localStorage (perfiles, RUP, personal) a un servidor ajeno.
      worker-src/'wasm-unsafe-eval' existen por Tesseract.js (OCR): crea workers
-     y corre WASM, ambos bloqueados por una CSP estricta si no se permiten. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
+     y corre WASM, ambos bloqueados por una CSP estricta si no se permiten.
+     https://*.supabase.co en connect-src es para la sincronización opcional
+     por cuenta (ver "Fase 1: cuentas y sincronización" en CLAUDE.md) -- está
+     agregado de antemano aunque SUPABASE_URL/SUPABASE_ANON_KEY empiecen
+     vacíos, porque olvidar esto es exactamente el tipo de bug silencioso que
+     ya se vio antes con Tesseract.js: la CSP bloquea la llamada sin que la
+     app muestre error propio, solo un mensaje suelto en la consola. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
 <title>Bitácora — Consultoría en contratación pública</title></head>
 <body>
 <style>
@@ -145,6 +152,43 @@
   #bitacora-root .sidebar-foot {
     padding: 14px 20px 18px; font-size: 11px; color: #7E9078; line-height: 1.5;
     border-top: 1px solid rgba(255,255,255,.08);
+  }
+  #bitacora-root .sidebar-foot .link-btn { color: #C4D0BF; text-decoration: underline; font-size: 11px; padding: 0; }
+  #bitacora-root .sidebar-foot .link-btn:hover { color: #fff; }
+
+  /* Modal de cuenta (Supabase, opcional) -- solo se usa/muestra cuando
+     SUPABASE_URL/SUPABASE_ANON_KEY están configurados; ver renderAccountUI().
+     Vive fuera del flujo de .app-shell (position: fixed) así que su CSS no
+     interfiere con el layout responsive del resto de la app. Por alcance de
+     Fase 1, el punto de entrada (en .sidebar-foot) solo es visible en tablet/
+     escritorio -- igual que el resto de .sidebar-foot ya se ocultaba en
+     celular antes de este cambio. */
+  #bitacora-root .account-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(20, 22, 18, .55);
+    display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  #bitacora-root .account-modal {
+    background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-md);
+    width: 100%; max-width: 360px; padding: 26px; position: relative;
+  }
+  #bitacora-root .account-modal h2 {
+    margin: 0 0 4px; font-family: 'Fraunces', 'Public Sans', serif; font-weight: 700;
+    font-size: 20px; line-height: 1.1; color: var(--forest-800);
+  }
+  #bitacora-root .account-modal p.sub { margin: 0 0 18px; font-size: 12.5px; color: var(--text-muted); }
+  #bitacora-root .account-modal .close-btn {
+    position: absolute; top: 12px; right: 12px; background: none; padding: 6px; color: var(--text-muted);
+  }
+  #bitacora-root .account-modal .close-btn:hover { color: var(--text); }
+  #bitacora-root .account-modal .field { margin-bottom: 14px; }
+  #bitacora-root .account-error {
+    background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger);
+    border-radius: var(--radius-sm); padding: 8px 12px; font-size: 12.5px; margin-bottom: 14px;
+  }
+  #bitacora-root .account-toggle-mode { margin-top: 16px; font-size: 12.5px; color: var(--text-muted); text-align: center; }
+  #bitacora-root .account-toggle-mode button {
+    background: none; border: none; padding: 0; color: var(--accent); font-weight: 600;
+    cursor: pointer; text-decoration: underline;
   }
 
   #bitacora-root .main { flex: 1; min-width: 0; }
@@ -827,7 +871,7 @@
           <span class="nav-label">Evaluación</span>
         </button>
       </div>
-      <div class="sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>
+      <div class="sidebar-foot" id="bt-sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>
     </nav>
 
     <div class="main">
@@ -1200,6 +1244,45 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal de cuenta (Supabase, opcional) -- oculto por defecto (`hidden`) y
+       lo abre/cierra JS (ver openAccountModal/closeAccountModal). Vive dentro
+       de #bitacora-root para heredar los tokens de diseño (.field, botones),
+       pero fuera de .app-shell porque es position:fixed. -->
+  <div class="account-modal-backdrop" id="bt-account-backdrop" hidden>
+    <div class="account-modal" role="dialog" aria-modal="true" aria-labelledby="bt-account-title">
+      <button type="button" class="close-btn" id="bt-account-close" aria-label="Cerrar">✕</button>
+
+      <div id="bt-account-logged-out">
+        <h2 id="bt-account-title">Iniciar sesión</h2>
+        <p class="sub">Sincroniza tus perfiles, experiencia y análisis entre dispositivos.</p>
+        <div class="account-error" id="bt-account-error" hidden></div>
+        <div class="field">
+          <label for="bt-account-email">Correo</label>
+          <input type="email" id="bt-account-email" autocomplete="email" placeholder="tucorreo@empresa.com">
+        </div>
+        <div class="field">
+          <label for="bt-account-password">Contraseña</label>
+          <input type="password" id="bt-account-password" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="bt-account-submit" type="button">Iniciar sesión</button>
+        </div>
+        <div class="account-toggle-mode">
+          <span id="bt-account-toggle-text">¿No tienes cuenta?</span>
+          <button type="button" id="bt-account-toggle-btn">Crear una</button>
+        </div>
+      </div>
+
+      <div id="bt-account-logged-in" hidden>
+        <h2>Tu cuenta</h2>
+        <p class="sub">Conectado como <strong id="bt-account-email-display"></strong>. Tus datos se sincronizan entre dispositivos.</p>
+        <div class="actions">
+          <button class="btn-secondary" id="bt-account-logout" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1219,6 +1302,257 @@
       }
     };
   }
+
+  // ==========================================================================
+  // CUENTA Y SINCRONIZACIÓN (Supabase, opcional) -- Fase 1 del roadmap hacia
+  // una plataforma multiempresa (ver "Fase 1: cuentas y sincronización" en
+  // CLAUDE.md). Mientras SUPABASE_URL/SUPABASE_ANON_KEY estén vacíos -- el
+  // valor por defecto, y el de hoy -- todo este bloque queda inerte y la app
+  // se comporta EXACTAMENTE igual que antes (todo en localStorage de este
+  // navegador, sin cuenta, sin ningún control de cuenta visible).
+  //
+  // Diseño: en vez de reescribir cada `loadX`/`persistirX` para hablar con una
+  // tabla propia por función, se envuelve la MISMA interfaz get(key)/set(key,
+  // value) que ya usa todo el código de arriba -- así ninguna lógica de
+  // negocio (perfiles, experiencia, análisis, historial) se toca. El respaldo
+  // real es una tabla genérica `app_state(company_id, key, value)` con RLS por
+  // empresa (ver supabase/schema.sql) -- espeja 1:1 las claves que ya vivían
+  // en localStorage bajo 'bitacora_<key>'.
+  // ==========================================================================
+  const SUPABASE_URL = '';
+  const SUPABASE_ANON_KEY = '';
+  const SUPABASE_ENABLED = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+  function loadSupabaseJs(){
+    if (window.supabase) return Promise.resolve(window.supabase);
+    if (window.__bitacoraSupabasePromise) return window.__bitacoraSupabasePromise;
+    window.__bitacoraSupabasePromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      // Versión exacta (no "@2" flotante) para que integrity pueda verificarla --
+      // mismo motivo que con Tesseract.js más abajo en este archivo.
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js';
+      script.integrity = 'sha384-JBR+x8blGwjDRO63aHCGiZMD4VNiTR4ZUGA+N6ZKLf3zNt1fK8IBpcgPaMrxqWBp';
+      script.crossOrigin = 'anonymous';
+      script.onload = () => resolve(window.supabase);
+      script.onerror = () => reject(new Error('no se pudo cargar el módulo de cuenta (revisa tu conexión)'));
+      document.head.appendChild(script);
+    });
+    return window.__bitacoraSupabasePromise;
+  }
+
+  let sbClient = null;
+  let sbSession = null;   // sesión activa de Supabase Auth, o null si no hay cuenta conectada
+  let sbCompanyId = null; // empresa del usuario logueado (ver company_members en el esquema)
+
+  async function getSupabaseClient(){
+    if (!SUPABASE_ENABLED) return null;
+    if (sbClient) return sbClient;
+    const { createClient } = await loadSupabaseJs();
+    sbClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return sbClient;
+  }
+
+  // El trigger `handle_new_user` (ver supabase/schema.sql) crea la fila de
+  // company_members en el momento del registro, así que para cualquier sesión
+  // válida ya debería existir -- si no aparece nada es que el esquema no se
+  // corrió, no un estado normal a tolerar en silencio.
+  async function resolveCompanyId(){
+    const client = await getSupabaseClient();
+    if (!client || !sbSession) return null;
+    const { data, error } = await client.from('company_members').select('company_id').limit(1).maybeSingle();
+    if (error || !data) return null;
+    return data.company_id;
+  }
+
+  // Claves que hoy vive bajo 'bitacora_<key>' en este navegador -- mismo
+  // listado que los storage.get/set repartidos en el resto del archivo.
+  const SYNCED_KEYS = [
+    'historial', 'perfiles_empresa', 'perfil_activo_id', 'perfiles_activos',
+    'perfil_empresa', 'analisis_pliegos', 'experiencia_evaluacion',
+    'perfiles_profesionales', 'personal_activo_id', 'ultima_vista'
+  ];
+
+  // Copia UNA sola vez lo que ya hubiera en este navegador a la cuenta recién
+  // conectada -- solo si la cuenta todavía no tiene NINGÚN dato guardado, para
+  // no pisar información que ya viniera sincronizada desde otro dispositivo.
+  async function migrarLocalASupabaseSiVacio(companyId){
+    const client = await getSupabaseClient();
+    const { data: existentes, error } = await client.from('app_state').select('key').eq('company_id', companyId).limit(1);
+    if (error || (existentes && existentes.length)) return;
+    const filas = [];
+    SYNCED_KEYS.forEach(key => {
+      const raw = localStorage.getItem('bitacora_' + key);
+      if (raw !== null) filas.push({ company_id: companyId, key, value: raw });
+    });
+    if (filas.length) await client.from('app_state').upsert(filas, { onConflict: 'company_id,key' });
+  }
+
+  // Se restaura al arrancar (sesión persistida por supabase-js) y también tras
+  // iniciar/cerrar sesión desde el modal -- en ambos casos se recarga la
+  // página (ver los manejadores del modal más abajo) para que las ~5 llamadas
+  // loadX() de más abajo vuelvan a correr ya con storage.get apuntando a la
+  // cuenta correcta, en vez de tener que re-disparar a mano cada render.
+  async function bootstrapAccountSession(){
+    if (!SUPABASE_ENABLED) return;
+    try {
+      const client = await getSupabaseClient();
+      const { data } = await client.auth.getSession();
+      if (data && data.session){
+        sbSession = data.session;
+        sbCompanyId = await resolveCompanyId();
+        if (sbCompanyId) await migrarLocalASupabaseSiVacio(sbCompanyId);
+      }
+    } catch(e){
+      console.error('No se pudo restaurar la sesión de cuenta, se sigue en modo local (solo este navegador)', e);
+      sbSession = null; sbCompanyId = null;
+    }
+  }
+
+  // Envuelve la interfaz get/set del shim de arriba: con cuenta conectada,
+  // lee/escribe en Supabase (app_state); siempre además escribe en
+  // localStorage como respaldo/caché, así que si una escritura remota falla
+  // por conexión no se pierde el dato, solo se avisa por consola que quedó
+  // sin sincronizar.
+  const localBackend = { get: window.storage.get, set: window.storage.set };
+  window.storage.get = async function(key){
+    if (sbSession && sbCompanyId){
+      try {
+        const client = await getSupabaseClient();
+        const { data, error } = await client.from('app_state').select('value').eq('company_id', sbCompanyId).eq('key', key).maybeSingle();
+        if (error) throw error;
+        if (data) return { key, value: data.value };
+      } catch(e){
+        console.error('No se pudo leer "' + key + '" de la cuenta, se usa lo guardado en este navegador', e);
+      }
+    }
+    return localBackend.get(key);
+  };
+  window.storage.set = async function(key, value){
+    await localBackend.set(key, value);
+    if (sbSession && sbCompanyId){
+      try {
+        const client = await getSupabaseClient();
+        const { error } = await client.from('app_state').upsert(
+          { company_id: sbCompanyId, key, value, updated_at: new Date().toISOString() },
+          { onConflict: 'company_id,key' }
+        );
+        if (error) throw error;
+      } catch(e){
+        console.error('No se pudo sincronizar "' + key + '" con la cuenta (se guardó solo en este navegador)', e);
+      }
+    }
+    return { key, value };
+  };
+
+  // -- UI del modal de cuenta -----------------------------------------------
+  let accountModalMode = 'login'; // 'login' | 'signup'
+
+  function renderSidebarFootAccount(){
+    if (!SUPABASE_ENABLED) return; // deja el texto original de .sidebar-foot intacto
+    const el = document.getElementById('bt-sidebar-foot');
+    if (!el) return;
+    if (sbSession){
+      el.innerHTML = 'Sincronizado como <strong>' + escapeHtml(sbSession.user.email || '') +
+        '</strong>. <button type="button" class="link-btn" id="bt-account-open">Cuenta</button>';
+    } else {
+      el.innerHTML = 'Sin sincronizar en este navegador. ' +
+        '<button type="button" class="link-btn" id="bt-account-open">Iniciar sesión</button>';
+    }
+    const openBtn = document.getElementById('bt-account-open');
+    if (openBtn) openBtn.addEventListener('click', openAccountModal);
+  }
+
+  function setAccountModalMode(mode){
+    accountModalMode = mode;
+    document.getElementById('bt-account-title').textContent = mode === 'signup' ? 'Crear cuenta' : 'Iniciar sesión';
+    document.getElementById('bt-account-submit').textContent = mode === 'signup' ? 'Crear cuenta' : 'Iniciar sesión';
+    document.getElementById('bt-account-toggle-text').textContent = mode === 'signup' ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?';
+    document.getElementById('bt-account-toggle-btn').textContent = mode === 'signup' ? 'Iniciar sesión' : 'Crear una';
+    document.getElementById('bt-account-error').hidden = true;
+  }
+
+  function openAccountModal(){
+    const loggedOutEl = document.getElementById('bt-account-logged-out');
+    const loggedInEl = document.getElementById('bt-account-logged-in');
+    if (sbSession){
+      loggedOutEl.hidden = true;
+      loggedInEl.hidden = false;
+      document.getElementById('bt-account-email-display').textContent = sbSession.user.email || '';
+    } else {
+      loggedOutEl.hidden = false;
+      loggedInEl.hidden = true;
+      setAccountModalMode('login');
+    }
+    document.getElementById('bt-account-backdrop').hidden = false;
+    document.getElementById('bt-account-email').focus();
+  }
+
+  function closeAccountModal(){
+    document.getElementById('bt-account-backdrop').hidden = true;
+  }
+
+  function showAccountError(msg){
+    const el = document.getElementById('bt-account-error');
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  async function handleAccountSubmit(){
+    const email = document.getElementById('bt-account-email').value.trim();
+    const password = document.getElementById('bt-account-password').value;
+    if (!email || !password){
+      showAccountError('Completa correo y contraseña.');
+      return;
+    }
+    const submitBtn = document.getElementById('bt-account-submit');
+    submitBtn.disabled = true;
+    try {
+      const client = await getSupabaseClient();
+      if (accountModalMode === 'signup'){
+        const { data, error } = await client.auth.signUp({ email, password });
+        if (error) throw error;
+        if (!data.session){
+          showAccountError('Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.');
+          setAccountModalMode('login');
+          return;
+        }
+      } else {
+        const { error } = await client.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+      location.reload(); // vuelve a arrancar con storage.get ya apuntando a la cuenta
+    } catch(e){
+      showAccountError((e && e.message) || 'No se pudo completar la operación. Intenta de nuevo.');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  }
+
+  async function handleAccountLogout(){
+    try {
+      const client = await getSupabaseClient();
+      await client.auth.signOut();
+    } catch(e){
+      console.error('Error cerrando sesión', e);
+    }
+    location.reload();
+  }
+
+  if (SUPABASE_ENABLED){
+    document.getElementById('bt-account-close').addEventListener('click', closeAccountModal);
+    document.getElementById('bt-account-backdrop').addEventListener('click', (e) => {
+      if (e.target.id === 'bt-account-backdrop') closeAccountModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !document.getElementById('bt-account-backdrop').hidden) closeAccountModal();
+    });
+    document.getElementById('bt-account-toggle-btn').addEventListener('click', () => {
+      setAccountModalMode(accountModalMode === 'signup' ? 'login' : 'signup');
+    });
+    document.getElementById('bt-account-submit').addEventListener('click', handleAccountSubmit);
+    document.getElementById('bt-account-logout').addEventListener('click', handleAccountLogout);
+  }
+
   const root = document.getElementById('bitacora-root');
   const procesoInput = document.getElementById('bt-proceso');
   const kwInput = document.getElementById('bt-kw');
@@ -1934,7 +2268,16 @@
   // allSettled, no all: si un loader falla (p.ej. un getElementById que devuelve
   // null por un campo renombrado en el HTML), los otros dos igual cargan y el
   // arranque no se aborta -- antes esto dejaba la página pegada en "Cargando...".
-  const appReady = Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval(), loadPerfilesProfesionales()]);
+  //
+  // bootstrapAccountSession() va ANTES de los loadX(): si hay una sesión de
+  // cuenta guardada, storage.get debe apuntar a Supabase desde la primera
+  // lectura de cada loader, no después -- si no, cada loadX() leería vacío de
+  // localStorage antes de que la cuenta terminara de resolverse, y parecería
+  // que la cuenta no tiene datos (aunque sí los tenga).
+  const appReady = bootstrapAccountSession().then(() => {
+    renderSidebarFootAccount();
+    return Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval(), loadPerfilesProfesionales()]);
+  });
 
   function rerender(){
     if (lastRecords){
