@@ -604,3 +604,83 @@ sin introducir build step ni dependencias nuevas:
   informativo, NO bloquea el despliegue: GitHub Pages publica en cuanto
   llega el push a `main`, sin esperar a que termine este workflow (no está
   configurado como el mecanismo de deploy, solo corre en paralelo).
+
+## Snapshot de respaldo en archivo aparte (`snapshot.json`)
+
+Hallazgo MEDIO de la auditoría: `EMBEDDED_RECORDS_II` (el array de respaldo
+para cuando falla la consulta en vivo) pesaba ~317 KB de los ~562 KB totales
+del archivo -- más de la mitad -- y se descargaba SIEMPRE, en cada carga de
+la página, aunque casi nunca se usa (solo si falla `fetchAllForDataset`).
+
+- El array se movió tal cual (mismo contenido JSON, verificado con
+  `json.loads`/`JSON.parse` antes y después) a `snapshot.json`, al lado de
+  `index.html`. `loadEmbeddedSnapshot()` lo trae con `fetch('snapshot.json')`
+  SOLO dentro del `catch` de `runSearch()` -- si la consulta en vivo funciona
+  (el caso normal), `snapshot.json` nunca se pide. Se cachea en
+  `cachedSnapshot` para no repetir la descarga si el usuario reintenta
+  "Aplicar filtros" varias veces seguidas sin conexión.
+- No hace falta tocar la CSP: `fetch('snapshot.json')` es mismo-origen,
+  cubierto por `connect-src 'self'`.
+- `loadDemo()` ("Ver datos de ejemplo") es un array chico e independiente,
+  ficticio, escrito a mano dentro del propio `index.html` -- no tiene
+  relación con `EMBEDDED_RECORDS_II`/`snapshot.json` y no se tocó.
+- **Probado** sirviendo `index.html` en local y forzando el fallo de la
+  consulta en vivo desde la consola (parchando `window.fetch` para que
+  rechace cualquier URL con `datos.gov.co`, dejando pasar todo lo demás):
+  el mensaje de `#bt-data-freshness` mostró correctamente "457 procesos,
+  actualizado el 03 de sept de 2026" -- mismo comportamiento que antes de
+  mover el array, ahora cargado desde `snapshot.json`.
+
+## Patrón ARIA de pestañas completo
+
+Hallazgo MEDIO de la auditoría: `#bt-nav` ya tenía `role="tablist"` +
+`role="tab"`/`aria-selected` por botón, pero le faltaba la otra mitad del
+patrón -- ningún panel (`<section class="view">`) tenía `role="tabpanel"` ni
+`aria-labelledby`, y no había navegación por flechas entre pestañas (solo
+`Tab` secuencial).
+
+- Cada botón de `#bt-nav` ahora tiene `id="bt-nav-<vista>"` +
+  `aria-controls="view-<vista>"`; cada `<section class="view">` tiene
+  `role="tabpanel"` + `aria-labelledby="bt-nav-<vista>"` -- enlace en ambos
+  sentidos entre pestaña y panel.
+- Navegación por teclado (flechas ←/→/↑/↓, Home, End, con vuelta al principio/
+  final) agregada como un solo `keydown` en `#bt-nav` (delegación, no un
+  listener por botón), con activación automática (mover el foco ya cambia de
+  vista -- coherente con que un clic también cambia al instante).
+- **Trampa al probarlo**: la herramienta de automatización de este entorno
+  (tecla sintética vía protocolo de depuración remota) NO preserva el cambio
+  de foco hecho por el propio código dentro del manejador del evento --
+  `document.activeElement` después de "apretar" la flecha seguía mostrando el
+  botón anterior, aunque la vista sí cambiaba (prueba de que el manejador SÍ
+  corrió y SÍ llamó a `.focus()`). Se confirmó que era un artefacto de la
+  herramienta, no un bug real, disparando el mismo `KeyboardEvent` desde
+  dentro de la página (`element.dispatchEvent(new KeyboardEvent(...))`) en
+  vez de por la tecla sintética externa -- ahí el foco sí se mueve
+  correctamente. Lección: para probar foco/teclado en este entorno, disparar
+  el evento desde JS de página es más confiable que la tecla simulada de la
+  herramienta de automatización.
+
+## App Token de Socrata (opcional)
+
+Hallazgo BAJO de la auditoría: las consultas a datos.gov.co iban sin
+`X-App-Token`, así que comparten el límite de tasa más estricto que aplica a
+cualquier app anónima. Se agregó soporte para uno (`SOCRATA_APP_TOKEN` +
+`socrataFetchOptions()`, usado en `fetchSecopDataset`/`buscarAdjudicaciones`),
+pero la constante queda **vacía a propósito**: conseguir un token real exige
+crear una cuenta en dev.socrata.com, y eso es un paso manual que le
+corresponde a una persona, no a una herramienta automatizada actuando en su
+nombre. Mientras quede vacía, las consultas siguen funcionando exactamente
+igual que antes (`socrataFetchOptions()` devuelve `{}` sin token). Instrucciones
+de cómo conseguirlo y dónde pegarlo: en el propio comentario junto a la
+constante, y en el README.
+
+## README.md y 404.html
+
+Hallazgo BAJO de la auditoría: no había ningún `README.md` (solo
+`CLAUDE.md`, que es contexto para asistentes de IA, no documentación de
+producto) ni una página 404 personalizada -- un enlace roto caía en la 404
+genérica de GitHub Pages. Se agregaron ambos; `404.html` reutiliza los
+colores/tipografía de la paleta actual en una página mínima e independiente
+(no reutiliza `#bitacora-root` ni el `<style>` completo de `index.html` --
+sería la única otra página del sitio, no vale la pena duplicar todo el
+sistema de diseño para una pantalla de error).

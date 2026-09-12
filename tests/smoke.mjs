@@ -124,6 +124,7 @@ await check('todo host https:// usado en el código aparece en la política CSP'
   const NAVIGATION_ONLY_HOSTS = new Set([
     'community.secop.gov.co',    // enlaces "Abrir expediente"/"Buscar en SECOP II" + dato de ejemplo urlproceso
     'www.colombiacompra.gov.co', // enlace de respaldo "Buscar en SECOP I"
+    'dev.socrata.com',           // mencionado solo en un comentario (cómo conseguir un App Token), no se usa en ningún fetch()
   ]);
   const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/);
   assert(cspMatch, 'no se encontró el <meta> de Content-Security-Policy');
