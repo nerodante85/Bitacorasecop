@@ -142,31 +142,55 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
      perder el toque profesional"; se le ofrecieron 4 paletas por texto
      (pregunta con opciones) y escogió esta, pero al verla aplicada en vivo
      no le gustó ("no me gustaron los colores").
-  4. **Actual: "Cobalt & Marigold"**, elegida desde un Artifact con 6
-     paletas nuevas -- esta vez no solo con hex sueltos, sino con una
-     réplica en miniatura del sidebar/tarjeta/badges reales para cada una
-     (`sendPrompt` en el botón "Elegir esta paleta" mandó el mensaje con el
-     nombre exacto). Lección: para color, mejor mostrar un preview en
-     contexto que describir con palabras -- la ronda anterior eligió a
-     ciegas y no le convenció el resultado real.
-  Mapeo de la paleta actual: `--cobalt-800 #16234A` (sidebar/marca),
-  `--cobalt-600 #2A46B8` (`--accent`: botón lleno, enlaces, foco, títulos de
-  página), `--cobalt-soft #E7EBFA` (`--accent-soft`, glow de foco),
-  `--marigold #F2A93B` (acento de energía — SOLO en el ítem de navegación
-  activo y el degradado del logo, nunca en texto largo ni en badges de
-  estado; como es un dorado claro, el texto encima usa `--marigold-ink
-  #1A1206`, no blanco, o no hay contraste suficiente), fondo frío
-  `--cool-paper #F7F8FC` con bordes/texto en grises azulados
-  (`--cool-mist/-smoke/-ash/-slate/-charcoal`). Títulos de tarjeta
-  (`.row-ent`, `.titleblock-head h2`, `.quick-card-title`, etc.) en
-  `--cobalt-800`, cuerpo de texto en `--cool-charcoal`. Mismos radios que la
-  paleta anterior (`--radius-sm:8px`, `--radius-md:10px`, `--radius-lg:14px`)
-  y Plus Jakarta Sans en `.view-header h1` -- no eran parte de lo que
-  cambió esta vez, solo el color.
+  4. "Cobalt & Marigold" -- elegida desde un Artifact con 6 paletas nuevas
+     -- esta vez no solo con hex sueltos, sino con una réplica en miniatura
+     del sidebar/tarjeta/badges reales para cada una (`sendPrompt` en el
+     botón "Elegir esta paleta" mandó el mensaje con el nombre exacto).
+     Lección: para color, mejor mostrar un preview en contexto que
+     describir con palabras -- la ronda anterior eligió a ciegas y no le
+     convenció el resultado real.
+  5. **Actual: "Registro Catastral"**, pedida como REDISEÑO COMPLETO (no
+     solo color) vía el skill `frontend-design`. Escalón más allá de la
+     lección del punto 4: el preview esta vez mostró 3 DIRECCIONES enteras
+     (tipografía + color + forma + textura, cada una con su propio nombre y
+     mundo de referencia -- Registro Catastral/ledger público, Plano de
+     Obra/blueprint técnico, Gaceta/boletín oficial), no solo variaciones
+     de paleta sobre el mismo esqueleto tipográfico/de forma. El usuario
+     aclaró primero, vía pregunta, que quería "profesional con más
+     carácter" (no "bold/poco convencional") antes de construir el
+     preview -- evitó gastar el ciclo de diseño en una dirección que se
+     alejara demasiado del uso empresarial real de la app.
+  Mapeo de la paleta actual: `--forest-800 #2E4F32` (sidebar/marca/títulos
+  de tarjeta), `--forest-600 #3D6B3F` (`--accent`: botón lleno, enlaces,
+  foco), `--forest-soft #E3EAE0` (`--accent-soft`, glow de foco), `--brass
+  #B98A34` (acento de energía — SOLO en el ítem de navegación activo y el
+  degradado del logo, nunca en texto largo ni en badges de estado; como es
+  un dorado claro, el texto encima usa `--brass-ink #241C0D`, no blanco),
+  fondo cálido `--parchment #F3ECDD` con tarjetas en `--paper #FBF8F0` y
+  bordes/texto en tonos tierra (`--parch-mist/-tan/-ash`, `--ink-slate`,
+  `--ink`). Títulos de tarjeta (`.row-ent`, `.titleblock-head h2`,
+  `.quick-card-title`, etc.) en `--forest-800`, cuerpo de texto en `--ink`.
+  **Lo que sí cambió esta vez, a diferencia de los reskins anteriores (que
+  fueron ~100% color)**:
+  - Radios MUCHO más chicos (`--radius-sm:3px/--radius-md:5px/--radius-lg:8px`,
+    antes 8/10/14) -- de "tarjeta de SaaS moderno" a "ficha/folio de
+    archivo". Los badges/botones-píldora (`.tag`, `.eval-verdict`,
+    `.btn-mini`, `.expeval-badge`) tenían `border-radius: 999px` HARDCODEADO
+    (no vía token) en 4 lugares -- se cambiaron a `var(--radius-sm)` a mano;
+    no bastaba con tocar el bloque de tokens.
+  - Tipografía: Fraunces (serif con optical sizing, "tallada a mano" en
+    tamaños grandes) reemplaza a Plus Jakarta Sans para encabezados/
+    `.display-font`; Public Sans reemplaza a Inter para el cuerpo; Spline
+    Sans Mono reemplaza a la pila de monoespaciadas del sistema en `.mono`
+    (sin uso real en el HTML actual, pero se mantiene consistente).
   **La misma excepción de siempre**: los colores de estado
   (`--success/--danger/--warning`, CUMPLE/NO CUMPLE/NO DETERMINABLE,
   GO/NO-GO/REVISAR) NUNCA cambian con la paleta de marca — son señal
-  funcional de cumplimiento, no decoración.
+  funcional de cumplimiento, no decoración. Esta vez había un riesgo real
+  de confusión porque la marca AHORA es verde: se eligió `--success
+  #1E7A45` (verde más saturado/brillante, "confirmación") deliberadamente
+  distinto de `--forest-800 #2E4F32` (verde apagado/oscuro de marca) para
+  que un badge "GO"/"CUMPLE" no se lea como decoración de marca.
 - **Bug real encontrado durante el reskin a "Teal y coral" (llevaba ahí
   desde el primer rediseño profesional, sin que nadie lo notara)**: varias
   cadenas HTML generadas por JS (`renderResultadoExperiencia`,
@@ -186,11 +210,26 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
   audit (`grep -oE '\-\-[a-zA-Z0-9-]+' index.html | sort -u` contra las
   variables definidas) — los estilos inline dentro de strings de JS no
   aparecen en una búsqueda normal de la hoja de estilos.
-- **Tipografía**: Inter (pesos 400–800) para toda la UI, más Plus Jakarta
-  Sans 500 solo para el título de página (ver reskin "Wiza" arriba). Se
-  quitaron Barlow Condensed (encabezados condensados) e IBM Plex Mono (para
-  todo lo demás) — `.mono` ahora usa una pila de monoespaciadas del sistema,
-  sin dependencia externa extra, reservada para códigos/referencias.
+- **Tipografía actual**: Public Sans (pesos 400–700) para toda la UI, más
+  Fraunces 700-900 solo para encabezados/`.display-font` (ver "Historial de
+  paletas" arriba), y Spline Sans Mono en `.mono`. Antes de "Registro
+  Catastral" fue Inter + Plus Jakarta Sans; antes de eso, Barlow Condensed
+  (encabezados condensados) + IBM Plex Mono.
+- **Bug real encontrado al aplicar "Registro Catastral" (llevaba ahí desde
+  que se quitó Barlow Condensed, sin que nadie lo notara)**: el mensaje "SIN
+  RESULTADOS" de `render()` (cuando una búsqueda no trae nada) tenía
+  `font-family:'Barlow Condensed'` HARDCODEADO dentro de un `style="..."`
+  inline en el string de JS -- invisible en cualquier revisión de la hoja de
+  estilos central porque, igual que el bug de las variables CSS huérfanas
+  (ver más abajo), vivía dentro de un string, no en el `<style>`. Al no
+  estar la fuente cargada, degradaba en silencio a sans-serif del sistema
+  sin ningún error visible -- se notó recién al hacer un pase de tipografía
+  completo (no solo de color) y buscar "Barlow"/"Jakarta"/"'Inter'" en todo
+  el archivo. Corregido a Fraunces (el nuevo `.display-font`). **Lección**:
+  cualquier auditoría de tipografía (no solo de color) debe incluir el mismo
+  tipo de grep sobre TODO el archivo, no solo sobre el bloque `<style>` --
+  las fuentes hardcodeadas en `style="..."` inline de JS son tan invisibles
+  como las variables CSS huérfanas del bug anterior.
 - **Navegación tipo SPA sin router real**: 5 `<section class="view" id="view-*">`
   (`dashboard`, `buscar`, `perfil`, `experiencia`, `evaluacion`) viven TODAS en
   el DOM desde el arranque; `mostrarVista(nombre)` solo alterna el atributo
