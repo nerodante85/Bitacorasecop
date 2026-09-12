@@ -10,53 +10,54 @@
      "centraliza estilos, usa variables/tokens de diseño").
      ============================================================ */
   #bitacora-root {
-    /* Paleta "Teal y coral" -- elegida por el usuario entre 4 opciones
-       (pidió explícitamente algo "más moderno y divertido sin perder el
-       toque profesional"). Teal como color de marca (serio, confiable,
-       típico de fintech/consultoría) + coral como acento puntual de
-       energía (nav activo, logo, algún detalle) -- nunca en texto largo ni
-       en los badges de estado, que se quedan en rojo/verde/ámbar semántico
-       por accesibilidad (ver nota más abajo). Fondo cálido neutro en vez
-       del gris frío anterior. */
-    --teal-900: #042F2E;
-    --teal-800: #115E59;     /* sidebar / marca */
-    --teal-700: #0F766E;
-    --teal-600: #0D9488;     /* color principal: botón lleno, títulos, iconos */
-    --teal-soft: #CCFBF1;    /* fondo tintado suave (foco, highlights) */
-    --coral: #FB7185;        /* acento de energía: nav activo, logo, detalles puntuales */
-    --coral-soft: #FFE4E6;
+    /* Paleta "Cobalt & Marigold" -- elegida por el usuario a partir de un
+       preview con 6 opciones (mockups reales, no solo códigos de color).
+       Azul cobalto de marca (serio, tipo banca/consultoría) + dorado
+       marigold como acento puntual de energía (nav activo, logo) -- nunca
+       en texto largo ni en los badges de estado, que se quedan en
+       rojo/verde/ámbar semántico por accesibilidad (ver nota más abajo).
+       Fondo neutro con un ligero sesgo frío/azulado en vez del cálido de
+       la paleta anterior, a tono con el cobalto. */
+    --cobalt-900: #0E1830;
+    --cobalt-800: #16234A;   /* sidebar / marca */
+    --cobalt-700: #1F2F5C;
+    --cobalt-600: #2A46B8;   /* color principal: botón lleno, enlaces, foco */
+    --cobalt-soft: #E7EBFA;  /* fondo tintado suave (foco, highlights) */
+    --marigold: #F2A93B;     /* acento de energía: nav activo, logo, detalles puntuales */
+    --marigold-ink: #1A1206; /* texto oscuro sobre marigold -- el dorado es muy claro para texto blanco */
+    --marigold-soft: #FDECD1;
 
     --canvas: #FFFFFF;
-    --warm-paper: #FAF7F2;
-    --warm-mist: #EDE6DC;
-    --warm-smoke: #D8CDBC;
-    --warm-ash: #A69C8D;
-    --warm-slate: #756B5C;
-    --warm-charcoal: #332E28;
+    --cool-paper: #F7F8FC;
+    --cool-mist: #E4E8F2;
+    --cool-smoke: #C7CEDE;
+    --cool-ash: #98A0B5;
+    --cool-slate: #5C6478;
+    --cool-charcoal: #262B3A;
 
-    --brand-900: #08211F;
-    --brand-800: var(--teal-800);   /* sidebar / marca */
-    --brand-700: var(--teal-700);
-    --brand-600: var(--teal-600);   /* hover sobre marca */
-    --accent: var(--teal-600);      /* acción principal, foco, enlaces */
-    --accent-hover: var(--teal-700);
-    --accent-soft: var(--teal-soft);
-    --accent-button: var(--teal-600);
-    --bg: var(--warm-paper);        /* lienzo de la aplicación */
-    --surface: var(--canvas);       /* tarjetas / paneles */
-    --border: var(--warm-mist);
-    --border-strong: var(--warm-smoke);
-    --text: var(--warm-charcoal);
-    --text-heading: var(--teal-800); /* solo para títulos, no texto de cuerpo */
-    --text-muted: var(--warm-slate);
-    --text-faint: var(--warm-ash);
+    --brand-900: #081023;
+    --brand-800: var(--cobalt-800);   /* sidebar / marca */
+    --brand-700: var(--cobalt-700);
+    --brand-600: var(--cobalt-600);   /* hover sobre marca */
+    --accent: var(--cobalt-600);      /* acción principal, foco, enlaces */
+    --accent-hover: var(--cobalt-700);
+    --accent-soft: var(--cobalt-soft);
+    --accent-button: var(--cobalt-600);
+    --bg: var(--cool-paper);          /* lienzo de la aplicación */
+    --surface: var(--canvas);         /* tarjetas / paneles */
+    --border: var(--cool-mist);
+    --border-strong: var(--cool-smoke);
+    --text: var(--cool-charcoal);
+    --text-heading: var(--cobalt-800); /* solo para títulos, no texto de cuerpo */
+    --text-muted: var(--cool-slate);
+    --text-faint: var(--cool-ash);
     --success: #067647; --success-bg: #ECFDF3; --success-border: #ABEFC6;
     --danger:  #B42318; --danger-bg:  #FEF3F2; --danger-border:  #FECDCA;
     --warning: #B54708; --warning-bg: #FFFAEB; --warning-border: #FEDF89;
-    --neutral: var(--warm-slate); --neutral-bg: var(--warm-paper); --neutral-border: var(--warm-smoke);
+    --neutral: var(--cool-slate); --neutral-bg: var(--cool-paper); --neutral-border: var(--cool-smoke);
     --radius-sm: 8px; --radius-md: 10px; --radius-lg: 14px;
-    --shadow-sm: rgba(15,118,110,.10) 0 2px 4px 0, rgba(15,118,110,.05) 0 1px 1px 0, rgba(15,118,110,.08) 0 0 0 1px;
-    --shadow-md: rgba(15,118,110,.10) 0 20px 30px -14px, rgba(15,118,110,.06) 0 8px 12px -4px, rgba(15,118,110,.05) 0 2px 4px 0;
+    --shadow-sm: rgba(22,35,74,.10) 0 2px 4px 0, rgba(22,35,74,.05) 0 1px 1px 0, rgba(22,35,74,.08) 0 0 0 1px;
+    --shadow-md: rgba(22,35,74,.10) 0 20px 30px -14px, rgba(22,35,74,.06) 0 8px 12px -4px, rgba(22,35,74,.05) 0 2px 4px 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--text);
     background: var(--bg);
@@ -88,7 +89,7 @@
   #bitacora-root .sidebar {
     width: 264px; flex-shrink: 0;
     background: var(--brand-800);
-    color: #B8DDD7;
+    color: #AEB8DE;
     display: flex; flex-direction: column;
     position: sticky; top: 0; height: 100vh; overflow-y: auto;
   }
@@ -100,7 +101,7 @@
   #bitacora-root .brand-mark {
     width: 34px; height: 34px; border-radius: var(--radius-sm); flex-shrink: 0;
     /* Gradiente de marca de la guía ("Logo Lockup": #b99aff -> #7d43ff) */
-    background: linear-gradient(135deg, #14B8A6, #FB7185);
+    background: linear-gradient(135deg, #3F5FD6, #F2A93B);
     color: #fff; font-weight: 800; font-size: 16px;
     display: flex; align-items: center; justify-content: center;
   }
@@ -108,7 +109,7 @@
     margin: 0; font-size: 15.5px; font-weight: 700; color: #fff; line-height: 1.2;
   }
   #bitacora-root .sidebar-brand-text p {
-    margin: 2px 0 0; font-size: 11.5px; color: #8FBFB7; line-height: 1.3;
+    margin: 2px 0 0; font-size: 11.5px; color: #8B96C4; line-height: 1.3;
   }
   #bitacora-root .sidebar-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
   /* Pill Navigation Button: la guía reserva el radio de píldora (999px)
@@ -117,7 +118,7 @@
   #bitacora-root .nav-item {
     display: flex; align-items: center; gap: 11px;
     padding: 10px 14px; border-radius: 999px;
-    font-size: 13.5px; font-weight: 500; color: #B8DDD7;
+    font-size: 13.5px; font-weight: 500; color: #AEB8DE;
     background: transparent; border: none; cursor: pointer; text-align: left; width: 100%;
     transition: background .12s ease, color .12s ease;
   }
@@ -126,10 +127,11 @@
   /* Acento coral en el ítem activo -- contraste puntual de energía contra el
      sidebar teal, el toque "divertido" que pidió el usuario sin tocar el
      resto de la navegación. */
-  #bitacora-root .nav-item.active { background: var(--coral); color: #fff; }
+  /* Texto oscuro sobre marigold: el dorado es demasiado claro para blanco. */
+  #bitacora-root .nav-item.active { background: var(--marigold); color: var(--marigold-ink); }
   #bitacora-root .nav-item.active svg { opacity: 1; }
   #bitacora-root .sidebar-foot {
-    padding: 14px 20px 18px; font-size: 11px; color: #6FA69B; line-height: 1.5;
+    padding: 14px 20px 18px; font-size: 11px; color: #6D7AAE; line-height: 1.5;
     border-top: 1px solid rgba(255,255,255,.08);
   }
 
@@ -180,7 +182,7 @@
     font-size: 16.5px;
     font-weight: 700;
     margin: 0;
-    color: var(--teal-800); /* "card titles" es exactamente el rol que la guía le da a Plum Velvet */
+    color: var(--cobalt-800); /* "card titles" es exactamente el rol que la guía le da a Plum Velvet */
   }
   #bitacora-root .titleblock-head span {
     font-size: 12.5px;
@@ -289,7 +291,7 @@
   #bitacora-root .btn-primary { background: var(--accent-button); color: #fff; box-shadow: var(--shadow-sm); }
   #bitacora-root .btn-primary:hover { background: var(--brand-700); }
   #bitacora-root .btn-secondary { background: var(--surface); color: var(--accent-button); border: 1px solid var(--accent-button); }
-  #bitacora-root .btn-secondary:hover { background: var(--teal-soft); }
+  #bitacora-root .btn-secondary:hover { background: var(--cobalt-soft); }
   #bitacora-root button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   #bitacora-root .saved-note { font-size: 12.5px; color: var(--text-muted); }
 
@@ -389,7 +391,7 @@
     font-weight: 700;
     font-size: 15.5px;
     line-height: 1.3;
-    color: var(--teal-800);
+    color: var(--cobalt-800);
   }
   #bitacora-root .row-head-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 
@@ -506,7 +508,7 @@
   #bitacora-root .analysis-head {
     font-weight: 700;
     font-size: 14.5px;
-    color: var(--teal-800);
+    color: var(--cobalt-800);
     margin-bottom: 8px;
   }
   #bitacora-root .analysis-sub {
@@ -568,7 +570,7 @@
     display: flex; align-items: center; justify-content: center; color: var(--accent);
     margin-bottom: 2px;
   }
-  #bitacora-root .dropzone-title { font-size: 14px; font-weight: 600; color: var(--teal-800); }
+  #bitacora-root .dropzone-title { font-size: 14px; font-weight: 600; color: var(--cobalt-800); }
   #bitacora-root .dropzone-sub { font-size: 12.5px; color: var(--text-muted); }
   #bitacora-root .dropzone-types { font-size: 11px; color: var(--text-faint); letter-spacing: .3px; text-transform: uppercase; margin-top: 2px; }
 
@@ -695,7 +697,7 @@
     width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent);
     display: flex; align-items: center; justify-content: center;
   }
-  #bitacora-root .quick-card-title { font-size: 14.5px; font-weight: 700; color: var(--teal-800); }
+  #bitacora-root .quick-card-title { font-size: 14.5px; font-weight: 700; color: var(--cobalt-800); }
   #bitacora-root .quick-card-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
 
   #bitacora-root .recent-list { display: flex; flex-direction: column; gap: 1px; }
@@ -705,7 +707,7 @@
   }
   #bitacora-root .recent-item:last-child { border-bottom: none; }
   #bitacora-root .recent-item-body { flex: 1; min-width: 0; }
-  #bitacora-root .recent-item-title { font-size: 13.5px; font-weight: 600; color: var(--teal-800); }
+  #bitacora-root .recent-item-title { font-size: 13.5px; font-weight: 600; color: var(--cobalt-800); }
   #bitacora-root .recent-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   #bitacora-root .empty-inline { font-size: 13px; color: var(--text-muted); padding: 12px 4px; }
 

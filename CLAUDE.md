@@ -36,22 +36,31 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
   1. Azul/slate corporativo (rediseño original).
   2. "Wiza" (violeta/lavanda) — pedida replicando un archivo de guía de
      estilo externo (`DESIGN (3).md`) casi literal.
-  3. **Actual: "Teal y coral"** — el usuario pidió algo "más moderno y
-     divertido sin perder el toque profesional" y se le ofrecieron 4
-     paletas para elegir (vía pregunta con opciones); escogió esta.
-  Mapeo de la paleta actual: `--teal-800 #115E59` (sidebar/marca),
-  `--teal-600 #0D9488` (`--accent`: botón lleno, enlaces, foco, títulos de
-  página), `--teal-soft #CCFBF1` (`--accent-soft`, glow de foco),
-  `--coral #FB7185` (acento de energía — SOLO en el ítem de navegación
+  3. "Teal y coral" — el usuario pidió algo "más moderno y divertido sin
+     perder el toque profesional"; se le ofrecieron 4 paletas por texto
+     (pregunta con opciones) y escogió esta, pero al verla aplicada en vivo
+     no le gustó ("no me gustaron los colores").
+  4. **Actual: "Cobalt & Marigold"**, elegida desde un Artifact con 6
+     paletas nuevas -- esta vez no solo con hex sueltos, sino con una
+     réplica en miniatura del sidebar/tarjeta/badges reales para cada una
+     (`sendPrompt` en el botón "Elegir esta paleta" mandó el mensaje con el
+     nombre exacto). Lección: para color, mejor mostrar un preview en
+     contexto que describir con palabras -- la ronda anterior eligió a
+     ciegas y no le convenció el resultado real.
+  Mapeo de la paleta actual: `--cobalt-800 #16234A` (sidebar/marca),
+  `--cobalt-600 #2A46B8` (`--accent`: botón lleno, enlaces, foco, títulos de
+  página), `--cobalt-soft #E7EBFA` (`--accent-soft`, glow de foco),
+  `--marigold #F2A93B` (acento de energía — SOLO en el ítem de navegación
   activo y el degradado del logo, nunca en texto largo ni en badges de
-  estado), fondo cálido `--warm-paper #FAF7F2` en vez del gris frío
-  anterior, bordes/texto en grises cálidos (`--warm-mist/-smoke/-ash/-slate/-charcoal`).
-  Títulos de tarjeta (`.row-ent`, `.titleblock-head h2`, `.quick-card-title`,
-  etc.) en `--teal-800`, cuerpo de texto en `--warm-charcoal`. Radios un poco
-  más suaves que en la paleta Wiza (`--radius-md:10px`, `--radius-lg:14px`,
-  `--radius-sm:8px` para botones/inputs) — un toque más redondeado ayuda a
-  la sensación "divertida" pedida. Plus Jakarta Sans se conserva para
-  `.view-header h1` (no era parte de lo que cambió esta vez).
+  estado; como es un dorado claro, el texto encima usa `--marigold-ink
+  #1A1206`, no blanco, o no hay contraste suficiente), fondo frío
+  `--cool-paper #F7F8FC` con bordes/texto en grises azulados
+  (`--cool-mist/-smoke/-ash/-slate/-charcoal`). Títulos de tarjeta
+  (`.row-ent`, `.titleblock-head h2`, `.quick-card-title`, etc.) en
+  `--cobalt-800`, cuerpo de texto en `--cool-charcoal`. Mismos radios que la
+  paleta anterior (`--radius-sm:8px`, `--radius-md:10px`, `--radius-lg:14px`)
+  y Plus Jakarta Sans en `.view-header h1` -- no eran parte de lo que
+  cambió esta vez, solo el color.
   **La misma excepción de siempre**: los colores de estado
   (`--success/--danger/--warning`, CUMPLE/NO CUMPLE/NO DETERMINABLE,
   GO/NO-GO/REVISAR) NUNCA cambian con la paleta de marca — son señal
