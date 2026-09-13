@@ -19,7 +19,7 @@
      vacíos, porque olvidar esto es exactamente el tipo de bug silencioso que
      ya se vio antes con Tesseract.js: la CSP bloquea la llamada sin que la
      app muestre error propio, solo un mensaje suelto en la consola. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.supabase.co https://*.functions.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
 <title>Bitácora — Consultoría en contratación pública</title></head>
 <body>
 <style>
@@ -1032,6 +1032,25 @@
             <div id="bt-flujo-mensaje"></div>
           </div>
 
+          <!-- Búsqueda en lenguaje natural (LLM): opcional, requiere cuenta
+               conectada -- ver "LLM para lenguaje natural" en CLAUDE.md.
+               Solo LLENA los campos de abajo y corre la MISMA runSearch() de
+               siempre; no agrega un motor de búsqueda paralelo. -->
+          <div class="titleblock" id="bt-nl-panel">
+            <div class="titleblock-head">
+              <h2>Buscar en lenguaje natural</h2>
+              <span>Describe lo que buscas y una IA completa los filtros de abajo (requiere cuenta, límite diario de consultas)</span>
+            </div>
+            <div class="field full">
+              <label>Descripción</label>
+              <textarea id="bt-nl-query" rows="2" placeholder="ej. obras de pavimentación en Norte de Santander de más de 500 millones"></textarea>
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="bt-nl-buscar" type="button">✨ Interpretar y llenar filtros</button>
+              <span class="saved-note" id="bt-nl-saved"></span>
+            </div>
+          </div>
+
           <div class="titleblock">
             <div class="titleblock-head">
               <h2>Filtros de búsqueda</h2>
@@ -1778,6 +1797,9 @@
   const geoInput = document.getElementById('bt-geo');
   const minInput = document.getElementById('bt-min');
   const maxInput = document.getElementById('bt-max');
+  const nlQueryEl = document.getElementById('bt-nl-query');
+  const nlBuscarBtn = document.getElementById('bt-nl-buscar');
+  const nlSavedEl = document.getElementById('bt-nl-saved');
   const searchBtn = document.getElementById('bt-search');
   const demoBtn = document.getElementById('bt-demo');
   const alertaNombreEl = document.getElementById('bt-alerta-nombre');
@@ -5449,6 +5471,69 @@
     renderDashAlertas();
   }
 
+  // ============================================================================
+  // BÚSQUEDA EN LENGUAJE NATURAL (LLM) -- diseñado originalmente y pospuesto
+  // por el usuario, retomado después. A diferencia de Socrata/Supabase (cuyas
+  // credenciales son públicas por diseño), una API key de Anthropic es un
+  // secreto real y FACTURABLE por uso -- nunca puede vivir en index.html.
+  // Por eso esta función NO llama a la API de Anthropic directo: llama a una
+  // Edge Function propia (supabase/functions/nl-search) que guarda esa key
+  // como secret y aplica un límite diario por empresa (tabla `llm_usage`,
+  // ver supabase/schema.sql -- deliberadamente SIN RLS/policies, para que ni
+  // el dueño de la cuenta pueda resetear su propio contador).
+  //
+  // Requiere cuenta conectada: el límite diario es POR EMPRESA, y la única
+  // forma de saber de forma confiable (no falseable desde el cliente) a qué
+  // empresa pertenece la consulta es que la Edge Function valide el JWT de
+  // sesión ella misma -- sin cuenta no hay JWT que mandar.
+  //
+  // Esta función solo LLENA los mismos campos de "Filtros de búsqueda" y
+  // corre runSearch() -- cero motor de búsqueda paralelo, cero forma nueva
+  // de interpretar SECOP: la IA solo traduce texto libre a los mismos 4
+  // campos (especialidades/departamento/valor mínimo/valor máximo) que ya
+  // existían.
+  // ============================================================================
+  function nlSearchFunctionUrl(){
+    // https://<ref>.supabase.co -> https://<ref>.functions.supabase.co/nl-search
+    return SUPABASE_URL.replace('.supabase.co', '.functions.supabase.co') + '/nl-search';
+  }
+
+  async function runBusquedaNatural(){
+    if (!nlQueryEl || !nlSavedEl) return;
+    const texto = nlQueryEl.value.trim();
+    if (!texto){ nlSavedEl.textContent = 'Escribe una descripción primero.'; return; }
+    if (!SUPABASE_ENABLED || !sbSession){
+      nlSavedEl.textContent = 'Inicia sesión para usar esta función (necesario para aplicar el límite diario de consultas).';
+      return;
+    }
+    nlBuscarBtn.disabled = true;
+    nlSavedEl.textContent = 'Interpretando…';
+    try {
+      const client = await getSupabaseClient();
+      const { data: sessionData } = await client.auth.getSession();
+      const token = sessionData && sessionData.session ? sessionData.session.access_token : null;
+      if (!token) throw new Error('No hay una sesión activa -- vuelve a iniciar sesión.');
+      const res = await withTimeout(fetch(nlSearchFunctionUrl(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ texto })
+      }), 20000, 'La búsqueda en lenguaje natural');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+      const f = data.filtros || {};
+      kwInput.value = Array.isArray(f.keywords) ? f.keywords.join(', ') : '';
+      geoInput.value = f.departamento || '';
+      minInput.value = f.valorMinimo ? String(f.valorMinimo) : '';
+      maxInput.value = f.valorMaximo ? String(f.valorMaximo) : '';
+      nlSavedEl.textContent = 'Filtros completados (' + (data.usados != null ? data.usados : '?') + '/' + (data.limite != null ? data.limite : '?') + ' consultas hoy).';
+      await runSearch();
+    } catch(err){
+      nlSavedEl.textContent = 'No se pudo interpretar: ' + (err && err.message ? err.message : 'error de red') + '.';
+    } finally {
+      nlBuscarBtn.disabled = false;
+    }
+  }
+
   async function runSearch(){
     isDemo = false;
     isSnapshot = false;
@@ -5731,6 +5816,7 @@
   }
 
   searchBtn.addEventListener('click', runSearch);
+  if (nlBuscarBtn) nlBuscarBtn.addEventListener('click', runBusquedaNatural);
   if (procesoInput) procesoInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
   demoBtn.addEventListener('click', loadDemo);
 

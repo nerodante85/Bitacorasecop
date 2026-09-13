@@ -120,3 +120,23 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ============================================================================
+-- Búsqueda en lenguaje natural (LLM) -- contador de uso diario por empresa.
+-- A diferencia de TODAS las demás tablas de este esquema, esta NO tiene
+-- ninguna policy de RLS a propósito -- ver supabase/functions/nl-search/
+-- index.ts para el porqué completo: con RLS habilitado y CERO policies,
+-- ningún rol (ni siquiera el dueño autenticado de la empresa, con su propio
+-- JWT) puede leer ni escribir aquí -- solo la service_role key (que solo
+-- usa esa Edge Function, nunca el navegador) se salta RLS por diseño de
+-- Postgres/Supabase. Así el límite diario de consultas no se puede
+-- resetear ni falsear desde el cliente bajo ninguna circunstancia.
+-- ============================================================================
+create table if not exists public.llm_usage (
+  company_id uuid not null references public.companies(id) on delete cascade,
+  day date not null,
+  count integer not null default 0,
+  primary key (company_id, day)
+);
+alter table public.llm_usage enable row level security;
+-- (sin ninguna policy -- ver el comentario de arriba, es intencional)

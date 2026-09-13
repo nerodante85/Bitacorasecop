@@ -1112,21 +1112,82 @@ procesos viejos que solo se actualizaron en el sistema, no publicaciones
 recientes reales) -- valdría la pena cruzar también contra una fecha
 reciente antes de mostrarlo como "oportunidad abierta".
 
-## LLM para lenguaje natural: diseñado, NO implementado (pospuesto por el usuario)
+## LLM para lenguaje natural: implementado
 
-El usuario pidió avanzar con esto, se le presentó el diseño completo (por
-qué la app NO puede llamar a la API de Anthropic directo desde el navegador
--- a diferencia de la anon key de Supabase o el App Token de Socrata, una
-API key de Anthropic es un secreto real y facturable, así que hace falta una
-Edge Function de Supabase como intermediario; costo estimado con Claude
-Haiku 4.5, ~$0.001 USD por consulta según el pricing oficial verificado en
-[claude.com/pricing](https://claude.com/pricing); tabla `llm_usage` sin
-policies de RLS -- a propósito, para que ni el dueño de la cuenta pueda
-resetear su propio contador de límite diario) y el usuario decidió
-posponerlo para después. Si se retoma, el diseño completo (código de la
-Edge Function incluido) quedó en el historial de la conversación -- pedirle
-al usuario que lo comparta de nuevo o reconstruirlo desde cero con el mismo
-criterio (proxy server-side obligatorio, nunca la API key en `index.html`).
+El usuario pidió avanzar con esto, se le presentó el diseño completo, decidió
+posponerlo ("Dejemos el implemento del LLM para después") mientras se
+construían otras fases, y después pidió retomarlo ("Sigamos con eso"). El
+diseño no cambió respecto a lo ya acordado entonces -- proxy server-side
+obligatorio, nunca la API key en `index.html`, límite diario por empresa,
+costo estimado ~$0.001 USD/consulta con Claude Haiku 4.5 según
+[claude.com/pricing](https://claude.com/pricing) -- esta sección documenta
+cómo quedó construido.
+
+**Por qué necesita su propia Edge Function** (mismo criterio que
+`daily-digest`, Fase 6): una API key de Anthropic es un secreto real y
+FACTURABLE por cada uso -- a diferencia de la anon key de Supabase o el App
+Token de Socrata (públicas por diseño), nunca puede vivir en código de
+cliente. `supabase/functions/nl-search/index.ts` es el único lugar donde
+existe esa key (`ANTHROPIC_API_KEY`, un Supabase secret).
+
+**Qué hace y qué NO**: traduce una descripción en lenguaje natural ("obras
+de pavimentación en Norte de Santander de más de 500 millones") a los
+MISMOS 4 campos que ya tenía "Filtros de búsqueda" (especialidades,
+departamento, valor mínimo, valor máximo) -- el navegador los llena y corre
+`runSearch()` tal cual. Cero motor de búsqueda paralelo, cero interpretación
+de SECOP nueva: la IA solo hace la traducción texto→campos estructurados.
+Se usa `tool_choice` forzado (Anthropic devuelve el input de una tool
+`extraer_filtros`, nunca texto libre) para no tener que parsear la
+respuesta del modelo a mano -- evita la clase de bug de "el modelo no
+contestó exactamente en el formato esperado".
+
+**Requiere cuenta conectada, a diferencia de casi todo el resto de la
+app**: el límite diario es POR EMPRESA, y la única forma de saber de forma
+confiable (no falseable desde el cliente) a qué empresa pertenece cada
+consulta es que la Edge Function valide el JWT de sesión ella misma -- sin
+cuenta no hay JWT que mandar. Es la primera función de la app que exige
+login por diseño, no solo para sincronizar -- se avisa explícitamente en la
+UI ("requiere cuenta") en vez de fallar en silencio.
+
+**Tabla `llm_usage` sin RLS, a propósito** (ver comentario largo en
+`supabase/schema.sql` y en el propio `index.ts`): con RLS habilitado y CERO
+policies, ningún rol -- ni siquiera el dueño autenticado de la empresa, con
+su propio JWT -- puede leer ni escribir ahí; solo la service_role key
+(que solo usa esta Edge Function, nunca el navegador) se salta RLS. Así el
+contador de uso diario no se puede resetear ni falsear desde el cliente
+bajo ninguna circunstancia. Es la ÚNICA tabla del esquema sin ninguna
+policy -- todas las demás si tienen (ver Fase 1).
+
+**`verify_jwt` se deja en su valor por defecto (true) para esta función**,
+a diferencia de `daily-digest` (que lo desactiva en `supabase/config.toml`
+porque la invoca un cron sin usuario detrás). Aquí SÍ hay un usuario
+logueado detrás de cada llamada, así que la plataforma de Supabase
+rechazando un JWT inválido ANTES de que corra el código es exactamente el
+comportamiento deseado -- no hace falta duplicar esa verificación a mano.
+
+**Límite diario**: `LIMITE_DIARIO = 20` por empresa (constante en
+`index.ts`, ajustable) -- a ese costo por consulta, el peor caso (una
+empresa agotando el límite todos los días) es menos de $0.60 USD/mes. El
+contador SOLO se incrementa si la llamada a Anthropic (la parte que cuesta
+dinero) realmente se hizo -- una sesión inválida, el límite ya alcanzado o
+un texto vacío no consumen cupo.
+
+**"No inventar" aplicado al prompt del sistema**: la instrucción a Claude
+incluye explícitamente "nunca inventes un departamento, valor o palabra
+clave que el texto no mencione -- si algo no se menciona, se deja
+vacío/cero" -- mismo principio ya aplicado en toda la app (alertas,
+sugerencia de oferta, capacidad contractual) llevado al prompt del LLM.
+
+**Verificado en este entorno (sin API key de Anthropic ni CLI de Supabase
+desplegando esta función específica todavía)**: sintaxis de la Edge
+Function con `tsc --noEmit` (0 errores reales, solo los esperables por
+faltar tipos de Deno); UI en el navegador -- el campo nuevo en "Buscar
+procesos", el mensaje "Inicia sesión para usar esta función" sin sesión
+activa, el mensaje "Escribe una descripción primero" con el campo vacío,
+sin overflow en los 3 breakpoints ni errores de consola. El envío real a
+Anthropic y el límite diario en producción quedan para verificar cuando el
+usuario despliegue esta función (mismo patrón que Fase 6: build completo,
+activación de credenciales real después) -- ver README.md.
 
 ## Fase 8 del prompt maestro: sugerencia de oferta económica
 
@@ -1563,9 +1624,10 @@ quien la tenga puede enviar correos en nombre de la cuenta de Resend del
 usuario. Por eso NUNCA se pega en `index.html` ni en ningún archivo del
 repo -- vive únicamente como *Supabase secret* (`RESEND_API_KEY`,
 configurado con `supabase secrets set`, nunca visible en el navegador ni en
-git). Mismo criterio ya anotado en CLAUDE.md para un hipotético caso similar
-("LLM para lenguaje natural: diseñado, NO implementado") -- este es el
-primero que en realidad se construyó.
+git). Mismo criterio ya anotado en CLAUDE.md para un caso entonces todavía
+sin construir ("LLM para lenguaje natural") -- este (`RESEND_API_KEY`) es
+el primero que en realidad se desplegó; el de Anthropic se construyó
+después, ver "LLM para lenguaje natural: implementado" más abajo.
 
 **La Edge Function está protegida con un secreto compartido
 (`CRON_SECRET`), no abierta al público**: una función desplegada en

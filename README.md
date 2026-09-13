@@ -16,9 +16,14 @@ analiza el pliego de condiciones de un proceso puntual.
   (datos.gov.co) por palabra clave y departamento, con filtros de vigencia,
   modalidad y estado. Si la consulta en vivo falla, muestra un snapshot de
   respaldo (`snapshot.json`) con procesos reales de Norte de Santander.
+  También puedes **describir lo que buscas en lenguaje natural** (ej. "obras
+  de pavimentación en Norte de Santander de más de 500 millones") y una IA
+  completa los filtros por ti — requiere cuenta conectada y tiene un límite
+  diario de consultas.
 - **Alertas guardadas**: guarda una combinación de especialidades/
-  departamento/valor y revisa cuándo aparecen procesos nuevos que coinciden
-  (dentro de la app; sin correo ni notificaciones push por ahora).
+  departamento/valor y revisa cuándo aparecen procesos nuevos que coinciden,
+  dentro de la app o por un resumen diario por correo (opcional, requiere
+  cuenta y configurar el envío — ver más abajo).
 - **Perfil de la empresa**: RUP/clasificador y capacidad financiera (K),
   con autocompletado desde el PDF del certificado del RUP. Incluye
   **capacidad contractual estimada**: registra los contratos de obra que la
@@ -205,6 +210,39 @@ GitHub Pages):
 Detalle completo (por qué hace falta una Edge Function separada, qué hace
 exactamente, los dos bugs reales encontrados al desplegarla y cómo se
 corrigieron) en `CLAUDE.md`, sección "Fase 6: correo/job de alertas".
+
+### Búsqueda en lenguaje natural (opcional, requiere cuenta)
+
+Otra Edge Function separada (`nl-search`), esta vez llamada directo desde el
+navegador cuando escribes una descripción en "Buscar procesos". Pasos
+(asumiendo que ya hiciste `supabase login` / `link` de la sección anterior):
+
+1. Crear una cuenta en [console.anthropic.com](https://console.anthropic.com),
+   cargar crédito (el costo real es mínimo: ~$0.001 USD por consulta con
+   Claude Haiku 4.5) y generar una API key.
+2. Agregar la tabla nueva al esquema -- en el SQL Editor de tu proyecto,
+   corre solo esta parte (no repitas todo `schema.sql`: las políticas que ya
+   creaste la primera vez darían error de "ya existe" si se repiten):
+   ```sql
+   create table if not exists public.llm_usage (
+     company_id uuid not null references public.companies(id) on delete cascade,
+     day date not null,
+     count integer not null default 0,
+     primary key (company_id, day)
+   );
+   alter table public.llm_usage enable row level security;
+   ```
+3. Configurar el secret (sin `<` `>`, valor real después del `=`):
+   ```bash
+   supabase secrets set ANTHROPIC_API_KEY=sk-ant-tu-key-real
+   ```
+4. Desplegar: `supabase functions deploy nl-search`. A diferencia de
+   `daily-digest`, esta función SÍ exige un usuario logueado (no lleva
+   `--no-verify-jwt`) -- no hace falta ningún flag ni tocar `config.toml`.
+
+Límite diario de 20 consultas por empresa (ajustable en `LIMITE_DIARIO`
+dentro de `supabase/functions/nl-search/index.ts`). Detalle completo en
+`CLAUDE.md`, sección "LLM para lenguaje natural: implementado".
 
 ## Seguridad
 
