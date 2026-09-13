@@ -30,56 +30,74 @@
      "centraliza estilos, usa variables/tokens de diseño").
      ============================================================ */
   #bitacora-root {
-    /* Paleta "Registro Catastral" -- elegida por el usuario a partir de un
-       preview con 3 direcciones completas (no solo color: tipografía,
-       forma, textura), cada una mostrada sobre el mismo sidebar y la misma
-       tarjeta de proceso reales. El lenguaje es el del archivo público:
-       verde institucional + papel color hueso, como un libro de actas o un
-       folio con número de radicado -- nunca en los badges de estado, que
+    /* Paleta "Meridiano" -- elegida por el usuario a partir de un preview
+       con 3 direcciones completas ("Andamiaje"/industrial-oscura,
+       "Terracota"/cálida, "Meridiano"/consultoría técnica), cada una
+       mostrada sobre el mismo sidebar y la misma tarjeta de proceso reales
+       (ver "Historial de paletas" en CLAUDE.md). Reemplaza a "Registro
+       Catastral" (verde/dorado sobre papel) -- el pedido esta vez fue
+       explícito: "se ve muy simple y poco llamativo", "moderno y
+       atractivo". El lenguaje de Meridiano es el de una consultoría
+       técnica seria pero con energía: grises azulados fríos (sidebar en
+       azul marino profundo, no negro) + ámbar como único acento cálido,
+       con Instrument Serif itálica en los títulos de página para darle
+       carácter sin perder seriedad -- nunca en los badges de estado, que
        se quedan en rojo/verde/ámbar semántico por accesibilidad (ver nota
-       más abajo; el verde de marca es deliberadamente más apagado/oscuro
-       que el verde de "CUMPLE" para que no se confundan). */
-    --forest-900: #16231A;
-    --forest-800: #2E4F32;   /* sidebar / marca */
-    --forest-700: #253F29;
-    --forest-600: #3D6B3F;   /* color principal: botón lleno, enlaces, foco */
-    --forest-soft: #E3EAE0;  /* fondo tintado suave (foco, highlights) */
-    --brass: #B98A34;        /* acento de energía: nav activo, detalles puntuales -- como un sello/filete dorado */
-    --brass-ink: #241C0D;    /* texto oscuro sobre brass -- el dorado es muy claro para texto blanco */
-    --brass-soft: #F3E6C8;
+       más abajo).
+       IMPORTANTE -- por qué --accent NO es el ámbar vivo del logo/botones:
+       --accent se usa como COLOR DE TEXTO en ~10 lugares (enlaces, iconos,
+       bordes de foco) sobre fondo claro -- un ámbar vivo (#F2A93C) ahí
+       falla el contraste AA como texto (¬3.4:1, hace falta ≥4.5:1). Se
+       separó en dos: --accent (bronce, #A6660A, SÍ pasa AA como texto) y
+       --accent-button (ámbar vivo, SOLO como relleno de fondo, siempre con
+       --accent-ink oscuro encima, nunca blanco -- mismo problema que ya
+       resolvió --brass-ink en la paleta anterior, aquí es aún más extendido
+       porque --accent se usa como texto en muchos más sitios que --brass). */
+    --navy-950: #0A0D15;
+    --navy-900: #12182A;    /* sidebar / marca */
+    --navy-800: #1B2233;
+    --ink-900: #171B26;     /* texto de cuerpo y de encabezado (Meridiano no colorea los títulos, los distingue por tipografía/peso) */
+    --ink-mute: #6B7488;
+    --ink-faint: #98A0B2;
 
-    --paper: #FBF8F0;
-    --parchment: #F3ECDD;
-    --parch-mist: #E9E0C9;
-    --parch-tan: #D8CBA8;
-    --parch-ash: #A79A7A;
-    --ink-slate: #6B6250;
-    --ink: #2A2317;
+    --paper: #FFFFFF;
+    --canvas: #EEF1F6;      /* lienzo de la aplicación -- gris azulado frío, no blanco puro */
+    --line: #D7DEEA;
+    --line-strong: #C1CBDD;
 
-    --brand-900: #100A05;
-    --brand-800: var(--forest-800);   /* sidebar / marca */
-    --brand-700: var(--forest-700);
-    --brand-600: var(--forest-600);   /* hover sobre marca */
-    --accent: var(--forest-600);      /* acción principal, foco, enlaces */
-    --accent-hover: var(--forest-700);
-    --accent-soft: var(--forest-soft);
-    --accent-button: var(--forest-600);
-    --bg: var(--parchment);           /* lienzo de la aplicación */
-    --surface: var(--paper);          /* tarjetas / paneles */
-    --border: var(--parch-mist);
-    --border-strong: var(--parch-tan);
-    --text: var(--ink);
-    --text-heading: var(--forest-800); /* solo para títulos, no texto de cuerpo */
-    --text-muted: var(--ink-slate);
-    --text-faint: var(--parch-ash);
+    --amber: #A6660A;        /* bronce -- color principal como TEXTO: enlaces, iconos, foco (pasa AA sobre fondo claro) */
+    --amber-hover: #7E4E08;
+    --amber-soft: #FCEBD0;   /* fondo tintado suave (foco, hover, highlights) */
+    --amber-fill: #F2A93C;   /* ámbar vivo -- SOLO relleno de fondo (botón lleno, paso activo, barra de progreso) */
+    --amber-fill-hover: #DB9020;
+    --amber-ink: #241300;    /* texto oscuro sobre --amber-fill -- el ámbar vivo es muy claro para texto blanco */
+
+    --brand-900: var(--navy-950);
+    --brand-800: var(--navy-900);   /* sidebar / marca */
+    --brand-700: var(--navy-800);
+    --brand-600: var(--navy-800);
+    --accent: var(--amber);         /* acción principal como texto: enlaces, foco, iconos */
+    --accent-hover: var(--amber-hover);
+    --accent-soft: var(--amber-soft);
+    --accent-button: var(--amber-fill);       /* acción principal como fondo de botón/relleno */
+    --accent-button-hover: var(--amber-fill-hover);
+    --accent-ink: var(--amber-ink);
+    --bg: var(--canvas);           /* lienzo de la aplicación */
+    --surface: var(--paper);       /* tarjetas / paneles */
+    --border: var(--line);
+    --border-strong: var(--line-strong);
+    --text: var(--ink-900);
+    --text-heading: var(--ink-900); /* Meridiano no colorea los títulos de tarjeta -- misma tinta que el cuerpo, distinguidos por peso/tipografía */
+    --text-muted: var(--ink-mute);
+    --text-faint: var(--ink-faint);
     --success: #1E7A45; --success-bg: #E4F2E9; --success-border: #B9DDC5;
     --danger:  #9B2C20; --danger-bg:  #F3E1DC; --danger-border:  #E0B8AC;
     --warning: #A6722A; --warning-bg: #F6EAD3; --warning-border: #E3C88F;
-    --neutral: var(--ink-slate); --neutral-bg: var(--parchment); --neutral-border: var(--parch-tan);
-    --radius-sm: 3px; --radius-md: 5px; --radius-lg: 8px;
-    --shadow-sm: rgba(42,35,23,.10) 0 2px 4px 0, rgba(42,35,23,.05) 0 1px 1px 0, rgba(42,35,23,.10) 0 0 0 1px;
-    --shadow-md: rgba(42,35,23,.12) 0 20px 30px -14px, rgba(42,35,23,.07) 0 8px 12px -4px, rgba(42,35,23,.06) 0 2px 4px 0;
-    font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --neutral: var(--ink-mute); --neutral-bg: var(--canvas); --neutral-border: var(--line-strong);
+    --radius-sm: 5px; --radius-md: 9px; --radius-lg: 14px;
+    --shadow-sm: rgba(15,19,30,.10) 0 2px 4px 0, rgba(15,19,30,.05) 0 1px 1px 0, rgba(15,19,30,.10) 0 0 0 1px;
+    --shadow-md: rgba(15,19,30,.14) 0 20px 30px -14px, rgba(15,19,30,.08) 0 8px 12px -4px, rgba(15,19,30,.06) 0 2px 4px 0;
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--text);
     background: var(--bg);
     min-height: 100%;
@@ -87,13 +105,20 @@
   }
   #bitacora-root * { box-sizing: border-box; }
   #bitacora-root .mono {
-    font-family: 'Spline Sans Mono', ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-family: 'Fira Code', ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    /* Fira Code trae ligaduras tipográficas (->, !=, etc. se dibujan como un
+       solo glifo) -- apagadas a propósito: esta clase muestra datos (valores
+       en pesos, fechas, radicados), no código, y una ligadura ahí alteraría
+       cómo se lee un carácter real sin que el usuario lo note. */
+    font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0;
   }
-  /* Fraunces: serif con optical sizing propio (más "tallada a mano" cuanto
-     más grande), el opuesto deliberado de una sans-serif corporativa
-     genérica -- se usa SOLO en encabezados (nunca en texto de cuerpo), para
-     que cada título se lea como el encabezado de un folio, no como un botón. */
-  #bitacora-root .display-font { font-family: 'Fraunces', 'Public Sans', serif; font-weight: 700; line-height: 1.05; }
+  /* Instrument Serif: itálica de carácter (su rasgo de diseño central --
+     esta familia trae UN solo peso, 400, así que el "peso visual" del
+     título lo da el itálico + el tamaño, no negrita) -- se usa SOLO en
+     encabezados de página reales (nunca en texto de cuerpo ni en títulos de
+     tarjeta, que se quedan en IBM Plex Sans -- ver --text-heading arriba),
+     para que un título de página se lea distinto a un botón sin gritar. */
+  #bitacora-root .display-font { font-family: 'Instrument Serif', 'IBM Plex Sans', serif; font-weight: 400; font-style: italic; line-height: 1.08; }
   #bitacora-root a { color: var(--accent); }
   #bitacora-root :focus-visible {
     outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
@@ -110,7 +135,7 @@
   #bitacora-root .sidebar {
     width: 264px; flex-shrink: 0;
     background: var(--brand-800);
-    color: #C4D0BF;
+    color: #A6B2C9;
     display: flex; flex-direction: column;
     position: sticky; top: 0; height: 100vh; overflow-y: auto;
   }
@@ -121,8 +146,9 @@
   }
   #bitacora-root .brand-mark {
     width: 34px; height: 34px; border-radius: var(--radius-sm); flex-shrink: 0;
-    /* Verde de marca -> brass, como un sello de tinta sobre el logo. */
-    background: linear-gradient(135deg, #3D6B3F, #B98A34);
+    /* Marino a ámbar -- como un horizonte/meridiano al atardecer, el mismo
+       gesto de "sello de tinta sobre el logo" que tenía la paleta anterior. */
+    background: linear-gradient(135deg, var(--navy-900), var(--amber-fill));
     color: #fff; font-weight: 800; font-size: 16px;
     display: flex; align-items: center; justify-content: center;
   }
@@ -130,7 +156,7 @@
     margin: 0; font-size: 15.5px; font-weight: 700; color: #fff; line-height: 1.2;
   }
   #bitacora-root .sidebar-brand-text p {
-    margin: 2px 0 0; font-size: 11.5px; color: #A9B9A2; line-height: 1.3;
+    margin: 2px 0 0; font-size: 11.5px; color: #8089A3; line-height: 1.3;
   }
   #bitacora-root .sidebar-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
   /* Ítem de nav con esquina de ficha/índice, no de píldora -- radio chico
@@ -139,21 +165,21 @@
   #bitacora-root .nav-item {
     display: flex; align-items: center; gap: 11px;
     padding: 10px 14px; border-radius: var(--radius-sm);
-    font-size: 13.5px; font-weight: 500; color: #C4D0BF;
+    font-size: 13.5px; font-weight: 500; color: #A6B2C9;
     background: transparent; border: none; cursor: pointer; text-align: left; width: 100%;
     transition: background .12s ease, color .12s ease;
   }
   #bitacora-root .nav-item svg { flex-shrink: 0; opacity: .85; }
   #bitacora-root .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
-  /* Ítem activo en brass (el acento de energía) -- texto oscuro encima
-     porque el dorado es demasiado claro para blanco. */
-  #bitacora-root .nav-item.active { background: var(--brass); color: var(--brass-ink); }
+  /* Ítem activo en ámbar vivo (el acento de energía) -- texto oscuro encima
+     porque el ámbar es demasiado claro para blanco. */
+  #bitacora-root .nav-item.active { background: var(--accent-button); color: var(--accent-ink); }
   #bitacora-root .nav-item.active svg { opacity: 1; }
   #bitacora-root .sidebar-foot {
-    padding: 14px 20px 18px; font-size: 11px; color: #7E9078; line-height: 1.5;
+    padding: 14px 20px 18px; font-size: 11px; color: #626C82; line-height: 1.5;
     border-top: 1px solid rgba(255,255,255,.08);
   }
-  #bitacora-root .sidebar-foot .link-btn { color: #C4D0BF; text-decoration: underline; font-size: 11px; padding: 0; }
+  #bitacora-root .sidebar-foot .link-btn { color: #A6B2C9; text-decoration: underline; font-size: 11px; padding: 0; }
   #bitacora-root .sidebar-foot .link-btn:hover { color: #fff; }
 
   /* Modal de cuenta (Supabase, opcional) -- solo se usa/muestra cuando
@@ -164,7 +190,7 @@
      escritorio -- igual que el resto de .sidebar-foot ya se ocultaba en
      celular antes de este cambio. */
   #bitacora-root .account-modal-backdrop {
-    position: fixed; inset: 0; background: rgba(20, 22, 18, .55);
+    position: fixed; inset: 0; background: rgba(10, 13, 21, .55);
     display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px;
   }
   /* Bug real encontrado probando el login: una regla de autor con `display`
@@ -179,8 +205,8 @@
     width: 100%; max-width: 360px; padding: 26px; position: relative;
   }
   #bitacora-root .account-modal h2 {
-    margin: 0 0 4px; font-family: 'Fraunces', 'Public Sans', serif; font-weight: 700;
-    font-size: 20px; line-height: 1.1; color: var(--forest-800);
+    margin: 0 0 4px; font-family: 'Instrument Serif', 'IBM Plex Sans', serif; font-weight: 400; font-style: italic;
+    font-size: 22px; line-height: 1.1; color: var(--text-heading);
   }
   #bitacora-root .account-modal p.sub { margin: 0 0 18px; font-size: 12.5px; color: var(--text-muted); }
   #bitacora-root .account-modal .close-btn {
@@ -202,12 +228,12 @@
   #bitacora-root .wrap { padding: 32px 36px 56px; max-width: 1040px; margin: 0 auto; }
   #bitacora-root .view[hidden] { display: none; }
   #bitacora-root .view-header { margin-bottom: 22px; }
-  /* Fraunces solo aquí: es el único título de página real ("folio"). El
-     resto de encabezados (título de tarjeta, etc.) se quedan en Public
-     Sans -- son de UI, no "display". */
+  /* Instrument Serif itálica solo aquí: es el único título de página real
+     ("folio"). El resto de encabezados (título de tarjeta, etc.) se quedan
+     en IBM Plex Sans -- son de UI, no "display". */
   #bitacora-root .view-header h1 {
-    margin: 0 0 5px; font-size: 25px; letter-spacing: 0;
-    font-family: 'Fraunces', 'Public Sans', serif; font-weight: 700; line-height: 1.05;
+    margin: 0 0 5px; font-size: 28px; letter-spacing: 0;
+    font-family: 'Instrument Serif', 'IBM Plex Sans', serif; font-weight: 400; font-style: italic; line-height: 1.05;
     color: var(--text-heading);
   }
   #bitacora-root .view-header p { margin: 0; font-size: 14px; color: var(--text-muted); max-width: 640px; line-height: 1.5; }
@@ -244,7 +270,7 @@
     font-size: 16.5px;
     font-weight: 700;
     margin: 0;
-    color: var(--forest-800); /* "card titles" -- mismo verde que la marca, como en un folio */
+    color: var(--text-heading); /* "card titles" -- misma tinta que el título de página */
   }
   #bitacora-root .titleblock-head span {
     font-size: 12.5px;
@@ -350,10 +376,13 @@
      lleno usa Deep Iris (--accent-button), no el violeta de enlaces/foco
      (--accent) -- la guía distingue ambos a propósito. El ghost usa el
      mismo Deep Iris en borde y texto, sin relleno. */
-  #bitacora-root .btn-primary { background: var(--accent-button); color: #fff; box-shadow: var(--shadow-sm); }
-  #bitacora-root .btn-primary:hover { background: var(--brand-700); }
+  /* color: --accent-ink (oscuro), no blanco -- --accent-button es ámbar
+     vivo, demasiado claro para texto blanco (ver nota en el bloque de
+     tokens de arriba). */
+  #bitacora-root .btn-primary { background: var(--accent-button); color: var(--accent-ink); box-shadow: var(--shadow-sm); }
+  #bitacora-root .btn-primary:hover { background: var(--accent-button-hover); }
   #bitacora-root .btn-secondary { background: var(--surface); color: var(--accent-button); border: 1px solid var(--accent-button); }
-  #bitacora-root .btn-secondary:hover { background: var(--forest-soft); }
+  #bitacora-root .btn-secondary:hover { background: var(--accent-soft); }
   #bitacora-root button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   #bitacora-root .saved-note { font-size: 12.5px; color: var(--text-muted); }
 
@@ -453,7 +482,7 @@
     font-weight: 700;
     font-size: 15.5px;
     line-height: 1.3;
-    color: var(--forest-800);
+    color: var(--text-heading);
   }
   #bitacora-root .row-head-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 
@@ -573,7 +602,7 @@
   #bitacora-root .analysis-head {
     font-weight: 700;
     font-size: 14.5px;
-    color: var(--forest-800);
+    color: var(--text-heading);
     margin-bottom: 8px;
   }
   #bitacora-root .analysis-sub {
@@ -639,7 +668,7 @@
     display: flex; align-items: center; justify-content: center; color: var(--accent);
     margin-bottom: 2px;
   }
-  #bitacora-root .dropzone-title { font-size: 14px; font-weight: 600; color: var(--forest-800); }
+  #bitacora-root .dropzone-title { font-size: 14px; font-weight: 600; color: var(--text-heading); }
   #bitacora-root .dropzone-sub { font-size: 12.5px; color: var(--text-muted); }
   #bitacora-root .dropzone-types { font-size: 11px; color: var(--text-faint); letter-spacing: .3px; text-transform: uppercase; margin-top: 2px; }
 
@@ -734,7 +763,7 @@
     font-size: 12px; font-weight: 700;
     background: var(--neutral-bg); color: var(--text-muted); border: 1px solid var(--border-strong);
   }
-  #bitacora-root .step.is-active .step-circle { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #bitacora-root .step.is-active .step-circle { background: var(--accent-button); color: var(--accent-ink); border-color: var(--accent-button); }
   #bitacora-root .step.is-done .step-circle { background: var(--success); color: #fff; border-color: var(--success); }
   #bitacora-root .step-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
   #bitacora-root .step.is-active .step-label, #bitacora-root .step.is-done .step-label { color: var(--text); }
@@ -781,7 +810,7 @@
     width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent);
     display: flex; align-items: center; justify-content: center;
   }
-  #bitacora-root .quick-card-title { font-size: 14.5px; font-weight: 700; color: var(--forest-800); }
+  #bitacora-root .quick-card-title { font-size: 14.5px; font-weight: 700; color: var(--text-heading); }
   #bitacora-root .quick-card-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
 
   #bitacora-root .recent-list { display: flex; flex-direction: column; gap: 1px; }
@@ -791,7 +820,7 @@
   }
   #bitacora-root .recent-item:last-child { border-bottom: none; }
   #bitacora-root .recent-item-body { flex: 1; min-width: 0; }
-  #bitacora-root .recent-item-title { font-size: 13.5px; font-weight: 600; color: var(--forest-800); }
+  #bitacora-root .recent-item-title { font-size: 13.5px; font-weight: 600; color: var(--text-heading); }
   #bitacora-root .recent-item-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
   #bitacora-root .empty-inline { font-size: 13px; color: var(--text-muted); padding: 12px 4px; }
 
@@ -871,7 +900,7 @@
     #bitacora-root .nav-item .nav-label { display: none; }
     #bitacora-root .sidebar-foot { display: none; }
     #bitacora-root .wrap { padding: 20px 14px 32px; }
-    #bitacora-root .view-header h1 { font-size: 20px; }
+    #bitacora-root .view-header h1 { font-size: 22px; }
     /* Etiqueta más angosta para que la barra y el valor quepan sin desbordar
        a 375px real (ficha de empresa, "Competencia"). */
     #bitacora-root .comp-bar-row { grid-template-columns: 84px 1fr auto; gap: 6px; font-size: 11px; }
@@ -880,7 +909,7 @@
 </style>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800;9..144,900&family=Public+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600;700&family=Fira+Code:wght@500;600&display=swap" rel="stylesheet">
 
 <div id="bitacora-root">
   <div class="app-shell">
@@ -5203,7 +5232,7 @@
       const sugerencia = buscandoProceso
         ? 'No apareció ningún proceso con ese número/referencia entre los datos consultados. Revisa que esté bien escrito, o prueba solo con una parte (por ejemplo, sin el año).'
         : 'Prueba con menos palabras clave, quita el filtro de departamento, o desmarca "Solo Licitación Pública" / "Solo publicados hace ≤30 días" / vencidos / descartados.';
-      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Fraunces\',serif;font-weight:700;font-size:18px;margin-bottom:6px;">SIN RESULTADOS</strong>' + sugerencia + '</div>';
+      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Instrument Serif\',serif;font-style:italic;font-weight:400;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + sugerencia + '</div>';
       return;
     }
 

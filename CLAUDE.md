@@ -149,48 +149,70 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
      Lección: para color, mejor mostrar un preview en contexto que
      describir con palabras -- la ronda anterior eligió a ciegas y no le
      convenció el resultado real.
-  5. **Actual: "Registro Catastral"**, pedida como REDISEÑO COMPLETO (no
-     solo color) vía el skill `frontend-design`. Escalón más allá de la
-     lección del punto 4: el preview esta vez mostró 3 DIRECCIONES enteras
-     (tipografía + color + forma + textura, cada una con su propio nombre y
-     mundo de referencia -- Registro Catastral/ledger público, Plano de
-     Obra/blueprint técnico, Gaceta/boletín oficial), no solo variaciones
-     de paleta sobre el mismo esqueleto tipográfico/de forma. El usuario
+  5. "Registro Catastral" (verde bosque + dorado latón sobre papel/
+     pergamino, Fraunces serif), pedida como REDISEÑO COMPLETO (no solo
+     color) vía el skill `frontend-design`. Escalón más allá de la lección
+     del punto 4: el preview mostró 3 DIRECCIONES enteras (tipografía +
+     color + forma + textura, cada una con su propio nombre y mundo de
+     referencia -- Registro Catastral/ledger público, Plano de Obra/
+     blueprint técnico, Gaceta/boletín oficial), no solo variaciones de
+     paleta sobre el mismo esqueleto tipográfico/de forma. El usuario
      aclaró primero, vía pregunta, que quería "profesional con más
-     carácter" (no "bold/poco convencional") antes de construir el
-     preview -- evitó gastar el ciclo de diseño en una dirección que se
-     alejara demasiado del uso empresarial real de la app.
-  Mapeo de la paleta actual: `--forest-800 #2E4F32` (sidebar/marca/títulos
-  de tarjeta), `--forest-600 #3D6B3F` (`--accent`: botón lleno, enlaces,
-  foco), `--forest-soft #E3EAE0` (`--accent-soft`, glow de foco), `--brass
-  #B98A34` (acento de energía — SOLO en el ítem de navegación activo y el
-  degradado del logo, nunca en texto largo ni en badges de estado; como es
-  un dorado claro, el texto encima usa `--brass-ink #241C0D`, no blanco),
-  fondo cálido `--parchment #F3ECDD` con tarjetas en `--paper #FBF8F0` y
-  bordes/texto en tonos tierra (`--parch-mist/-tan/-ash`, `--ink-slate`,
-  `--ink`). Títulos de tarjeta (`.row-ent`, `.titleblock-head h2`,
-  `.quick-card-title`, etc.) en `--forest-800`, cuerpo de texto en `--ink`.
-  **Lo que sí cambió esta vez, a diferencia de los reskins anteriores (que
-  fueron ~100% color)**:
-  - Radios MUCHO más chicos (`--radius-sm:3px/--radius-md:5px/--radius-lg:8px`,
-    antes 8/10/14) -- de "tarjeta de SaaS moderno" a "ficha/folio de
-    archivo". Los badges/botones-píldora (`.tag`, `.eval-verdict`,
-    `.btn-mini`, `.expeval-badge`) tenían `border-radius: 999px` HARDCODEADO
-    (no vía token) en 4 lugares -- se cambiaron a `var(--radius-sm)` a mano;
-    no bastaba con tocar el bloque de tokens.
-  - Tipografía: Fraunces (serif con optical sizing, "tallada a mano" en
-    tamaños grandes) reemplaza a Plus Jakarta Sans para encabezados/
-    `.display-font`; Public Sans reemplaza a Inter para el cuerpo; Spline
-    Sans Mono reemplaza a la pila de monoespaciadas del sistema en `.mono`
-    (sin uso real en el HTML actual, pero se mantiene consistente).
+     carácter" (no "bold/poco convencional") antes de construir el preview
+     -- evitó gastar el ciclo de diseño en una dirección que se alejara
+     demasiado del uso empresarial real de la app.
+  6. **Actual: "Meridiano"**, vía `frontend-design` de nuevo -- el usuario
+     encontró "Registro Catastral" simple/poco llamativo apenas unos días
+     después de adoptarlo y pidió algo "moderno y atractivo". Misma
+     mecánica de preview que el punto 5 (3 direcciones completas con
+     réplica real de sidebar/tarjeta/badges), pero esta vez con una
+     pregunta previa de dos ejes -- qué tan lejos ir ("moderno y vibrante"
+     vs. "refinado con más punch" vs. "muéstrame 3 direcciones") y base
+     clara/oscura (el usuario delegó la base a la dirección elegida) --
+     antes de construir el preview. Eligió "Meridiano" de las 3: gris
+     azulado frío + ámbar, sidebar en azul marino, Instrument Serif
+     itálica para encabezados de página.
+  Mapeo de la paleta actual: `--navy-900 #12182A` (sidebar/marca),
+  `--ink-900 #171B26` (texto de cuerpo Y de encabezado -- a diferencia de
+  "Registro Catastral", Meridiano NO colorea los títulos de tarjeta con el
+  color de marca; los distingue por tipografía/peso, ver `--text-heading`).
+  `--amber #A6660A` es `--accent` (color de TEXTO: enlaces, iconos, borde
+  de foco) -- deliberadamente un ámbar oscurecido/"bronce", NO el ámbar
+  vivo del logo/botones, porque `--accent` se usa como `color:` sobre fondo
+  claro en ~10 lugares y un ámbar vivo (`#F2A93C`) ahí falla el contraste
+  AA como texto (¬3.4:1 contra ¬4.5:1 exigido). Ese ámbar vivo vive aparte
+  en `--accent-button #F2A93C`, SOLO como relleno de fondo (botón lleno,
+  paso activo del stepper, nav activo, barra de progreso), siempre con
+  `--accent-ink #241300` (oscuro) encima, nunca blanco -- mismo problema
+  que ya había resuelto `--brass-ink` en la paleta anterior, aquí más
+  extendido porque `--accent` se usa como texto en muchos más sitios que
+  `--brass`. Fondo `--canvas #EEF1F6` (gris azulado frío, no blanco puro)
+  con tarjetas en `--paper #FFFFFF` y bordes en `--line/-strong` (azulados
+  fríos también).
+  **Lo que sí cambió esta vez, a diferencia de un reskin solo de color**:
+  - Radios más grandes (`--radius-sm:5px/--radius-md:9px/--radius-lg:14px`,
+    antes 3/5/8) -- de "ficha/folio de archivo" a algo más cercano a un
+    dashboard SaaS moderno, sin llegar a `border-radius:999px` (esa
+    lección de la ronda anterior -- radios de píldora vía token, nunca
+    hardcodeados -- ya estaba resuelta y se mantuvo).
+  - Tipografía: Instrument Serif (SOLO 1 peso, 400 -- su "peso visual" lo
+    da el itálico + el tamaño, no negrita; hubo que revisar cada uso de
+    `font-weight:700` sobre Fraunces y bajarlo a 400+italic, y subir el
+    tamaño del `<h1>` de vista de 25px a 28px para compensar la falta de
+    negrita) reemplaza a Fraunces para encabezados/`.display-font`; IBM
+    Plex Sans reemplaza a Public Sans para el cuerpo; Fira Code reemplaza a
+    Spline Sans Mono en `.mono` (con `font-feature-settings:"liga" 0,"calt"
+    0` -- Fira Code trae ligaduras tipográficas que alterarían cómo se lee
+    un valor en pesos o una fecha si no se apagan).
   **La misma excepción de siempre**: los colores de estado
   (`--success/--danger/--warning`, CUMPLE/NO CUMPLE/NO DETERMINABLE,
   GO/NO-GO/REVISAR) NUNCA cambian con la paleta de marca — son señal
-  funcional de cumplimiento, no decoración. Esta vez había un riesgo real
-  de confusión porque la marca AHORA es verde: se eligió `--success
-  #1E7A45` (verde más saturado/brillante, "confirmación") deliberadamente
-  distinto de `--forest-800 #2E4F32` (verde apagado/oscuro de marca) para
-  que un badge "GO"/"CUMPLE" no se lea como decoración de marca.
+  funcional de cumplimiento, no decoración. Esta vez se REUTILIZARON
+  literalmente los mismos hex de "Registro Catastral" (`--success #1E7A45`,
+  `--danger #9B2C20`, `--warning #A6722A`) en vez de elegir unos nuevos --
+  ya estaban probados en producción y son suficientemente distintos de
+  navy/ámbar (la familia de marca cambió de verde a azul/ámbar, así que ni
+  siquiera hacía falta re-verificar que no se confundieran con la marca).
 - **Bug real encontrado durante el reskin a "Teal y coral" (llevaba ahí
   desde el primer rediseño profesional, sin que nadie lo notara)**: varias
   cadenas HTML generadas por JS (`renderResultadoExperiencia`,
@@ -210,11 +232,12 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
   audit (`grep -oE '\-\-[a-zA-Z0-9-]+' index.html | sort -u` contra las
   variables definidas) — los estilos inline dentro de strings de JS no
   aparecen en una búsqueda normal de la hoja de estilos.
-- **Tipografía actual**: Public Sans (pesos 400–700) para toda la UI, más
-  Fraunces 700-900 solo para encabezados/`.display-font` (ver "Historial de
-  paletas" arriba), y Spline Sans Mono en `.mono`. Antes de "Registro
-  Catastral" fue Inter + Plus Jakarta Sans; antes de eso, Barlow Condensed
-  (encabezados condensados) + IBM Plex Mono.
+- **Tipografía actual**: IBM Plex Sans (pesos 400–700) para toda la UI, más
+  Instrument Serif itálica 400 solo para encabezados/`.display-font` (ver
+  "Historial de paletas" arriba), y Fira Code en `.mono`. Antes de
+  "Meridiano" fue Fraunces + Public Sans + Spline Sans Mono ("Registro
+  Catastral"); antes de eso Inter + Plus Jakarta Sans; antes de eso, Barlow
+  Condensed (encabezados condensados) + IBM Plex Mono.
 - **Bug real encontrado al aplicar "Registro Catastral" (llevaba ahí desde
   que se quitó Barlow Condensed, sin que nadie lo notara)**: el mensaje "SIN
   RESULTADOS" de `render()` (cuando una búsqueda no trae nada) tenía
