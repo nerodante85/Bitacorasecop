@@ -599,10 +599,11 @@ gate antes de que GitHub Pages sirviera un cambio. Se agregaron los dos,
 sin introducir build step ni dependencias nuevas:
 
 - **`tests/smoke.mjs`**: Node puro (`node:fs`, `node:child_process`,
-  `node:crypto`, `fetch` global), sin `npm install`. 5 chequeos, todos por
-  análisis estático del propio `index.html` (no simulan clics ni DOM real --
-  eso sigue siendo el método de "Cómo probar cambios sin desplegar" de
-  arriba, para cambios grandes):
+  `node:crypto`, `fetch` global), sin `npm install`. Los primeros 5 chequeos
+  son análisis estático del propio `index.html` (no simulan clics ni DOM real
+  -- eso sigue siendo el método de "Cómo probar cambios sin desplegar" de
+  arriba, para cambios grandes); del 6 en adelante SÍ ejecutan código real
+  (ver más abajo):
   1. El `<script>` principal es JS válido (`node --check` sobre el cuerpo
      extraído).
   2. Todo `getElementById('...')` referenciado existe como `id="..."` en
@@ -621,6 +622,29 @@ sin introducir build step ni dependencias nuevas:
      archivo real que sirve hoy cada CDN (requiere red -- si algún día se
      sube de versión sin recalcular el hash, este test avisa antes que un
      usuario real se quede con esa librería bloqueada en silencio).
+- **Checks 6-14 -- motor de "Evaluación de experiencia" ejecutado de verdad,
+  no solo verificado por nombre**: surgió de revisar el archivo adjunto por
+  el usuario ["Prompt maestro — Módulo de evaluación de experiencia del
+  proponente.md"] contra lo ya construido (ver esa sección más abajo) -- el
+  check 3 solo comprueba que `evaluarExperienciaCompleta` etc. EXISTAN, no
+  que decidan bien; nada atrapaba una regresión silenciosa en la lógica más
+  crítica de la app. Se agregó `extractExperienceEngine()`: extrae por
+  anclas de texto (mismo espíritu que la extracción del `<script>` principal)
+  el bloque `normHeader..evaluarExperienciaCompleta` y el bloque
+  `parseNumCO..parseValorUnidad`, y los ejecuta con `new Function` inyectando
+  un `window.XLSX` falso (`sheet_to_json` devuelve el array de filas tal
+  cual) -- evita instalar la librería xlsx real solo para testear. Cubre,
+  con datos Excel sintéticos armados a mano, los 8 escenarios obligatorios de
+  la sección 17 del prompt maestro (cumple todo, falla un obligatorio,
+  información insuficiente, ambigüedad -- el mismo ejemplo textual de la
+  sección 13 del pedido --, acumulación entre varios contratos, falso
+  positivo por palabra genérica -- el mismo ejemplo de la sección 12 --,
+  Excel con columnas distintas a las habituales, y varios requisitos con
+  distinta obligatoriedad en la matriz). **Verificado que de verdad
+  detectan una regresión y no pasan por casualidad**: se mutó a propósito
+  `evaluarRequisito` (un contrato con solo palabra genérica compartida pasó a
+  contar como "relevante") y los 3 casos que dependen de esa protección
+  (4, 6 y 8) fallaron como se esperaba; se revirtió la mutación después.
 - **Extracción del `<script>` principal**: por posición de la etiqueta EN SU
   PROPIA LÍNEA (`/^<script>$/m`), no por la primera aparición del texto
   "`<script>`" en el archivo -- el propio archivo lo menciona dentro de dos

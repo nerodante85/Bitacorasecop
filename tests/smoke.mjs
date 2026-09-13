@@ -183,5 +183,192 @@ await check('el SRI embebido de pdf.js/xlsx/Tesseract.js/supabase-js coincide co
   }
 });
 
+// 6) Motor de "Evaluación de experiencia": los 8 escenarios obligatorios del
+// prompt maestro (sección 17, "Prompt maestro — Módulo de evaluación de
+// experiencia del proponente.md") -------------------------------------------
+// A diferencia de los checks de arriba (sintaxis, ids, hosts, SRI), esto
+// prueba COMPORTAMIENTO real del motor (parsearExcelExperiencia,
+// parsearMatrizExperiencia, evaluarExperienciaCompleta) contra Excel
+// sintéticos -- el check 3 de arriba solo verifica que estas funciones
+// EXISTAN, no que decidan CUMPLE/NO CUMPLE/NO DETERMINABLE correctamente.
+// Sin esto, un cambio futuro podría romper en silencio la lógica más crítica
+// de la app (el propio prompt maestro: "un error en esta sección puede
+// provocar que una empresa sea incorrectamente considerada CUMPLE o NO
+// CUMPLE") sin que ningún test lo atrape.
+//
+// Cómo se ejecuta sin DOM/navegador: se extrae el bloque de funciones
+// (normHeader..evaluarExperienciaCompleta y parseNumCO..parseValorUnidad) del
+// <script> principal por anclas de texto (mismo espíritu que extractMainScript
+// de arriba) y se corre con `new Function`, inyectando un `window.XLSX` falso
+// cuyo `sheet_to_json` simplemente devuelve el array de filas tal cual se le
+// pasó -- evita instalar la librería xlsx real solo para testear, y de paso
+// prueba que `leerHojaComoFilas`/`detectarColumnas` funcionan con estructuras
+// de Excel variadas (Caso 7).
+function extractExperienceEngine() {
+  const scriptBody = extractMainScript();
+  const startA = 'function normHeader(s){';
+  const endA = 'const ETIQUETAS_CONTRATO';
+  const iA0 = scriptBody.indexOf(startA);
+  const iA1 = scriptBody.indexOf(endA, iA0);
+  assert(iA0 !== -1 && iA1 !== -1 && iA1 > iA0,
+    'no se encontraron las anclas del bloque normHeader..evaluarExperienciaCompleta -- ¿se movió o renombró algo?');
+  const blockA = scriptBody.slice(iA0, iA1);
+
+  const startB = 'function parseNumCO(s){';
+  const endB = 'function extraerExigencias(text){';
+  const iB0 = scriptBody.indexOf(startB);
+  const iB1 = scriptBody.indexOf(endB, iB0);
+  assert(iB0 !== -1 && iB1 !== -1 && iB1 > iB0,
+    'no se encontraron las anclas del bloque parseNumCO..parseValorUnidad -- ¿se movió o renombró algo?');
+  const blockB = scriptBody.slice(iB0, iB1);
+
+  const source = blockA + '\n' + blockB +
+    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta };';
+  const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
+  const factory = new Function('window', source);
+  return factory(fakeWindow);
+}
+
+// headers + filas -> "workbook" falso con la misma forma que espera
+// leerHojaComoFilas (workbook.SheetNames[0], workbook.Sheets[nombre]), donde
+// la "hoja" ya es el array de filas que sheet_to_json({header:1}) devolvería.
+function fakeWorkbook(headers, rows) {
+  return { SheetNames: ['Hoja1'], Sheets: { Hoja1: [headers, ...rows] } };
+}
+
+let expEngine = null;
+
+await check('motor de "Evaluación de experiencia": se extrae y ejecuta en aislamiento (sin DOM)', () => {
+  expEngine = extractExperienceEngine();
+  assert(typeof expEngine.parsearExcelExperiencia === 'function', 'parsearExcelExperiencia no quedó expuesta');
+  assert(typeof expEngine.parsearMatrizExperiencia === 'function', 'parsearMatrizExperiencia no quedó expuesta');
+  assert(typeof expEngine.evaluarExperienciaCompleta === 'function', 'evaluarExperienciaCompleta no quedó expuesta');
+});
+
+function evaluar(matrizHeaders, matrizRows, expHeaders, expRows) {
+  assert(expEngine, 'el motor no se pudo extraer (ver check anterior) -- no se puede continuar con este caso');
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(expHeaders, expRows));
+  const requisitos = expEngine.parsearMatrizExperiencia(fakeWorkbook(matrizHeaders, matrizRows));
+  return Object.assign({ contratos, requisitos }, expEngine.evaluarExperienciaCompleta(contratos.contratos, requisitos.requisitos));
+}
+
+await check('Caso 1 (cumple todos los requisitos obligatorios) -> CUMPLE', () => {
+  const ev = evaluar(
+    ['Requisito', 'Número mínimo de contratos', 'Obligatoriedad'],
+    [['Experiencia específica en construcción de puentes vehiculares', '1', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de puentes vehiculares sobre el río Pamplonita', 'Alcaldía de Cúcuta', '500000000']]
+  );
+  assert(ev.resultados[0].resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + ev.resultados[0].resultado);
+  assert(ev.resultadoGlobal === 'CUMPLE', 'resultado global: se esperaba CUMPLE, fue ' + ev.resultadoGlobal);
+});
+
+await check('Caso 2 (no cumple un requisito obligatorio) -> NO CUMPLE', () => {
+  // Solo 1 contrato relevante encontrado, la matriz exige mínimo 2 -- hay
+  // coincidencia de objeto (por eso NO es NO DETERMINABLE) pero no alcanza el
+  // mínimo numérico exigido.
+  const ev = evaluar(
+    ['Requisito', 'Número mínimo de contratos', 'Obligatoriedad'],
+    [['Experiencia específica en pavimentación de vías urbanas', '2', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Pavimentación de vías urbanas en el municipio de Los Patios', 'Alcaldía de Los Patios', '300000000']]
+  );
+  assert(ev.resultados[0].resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE, fue ' + ev.resultados[0].resultado);
+  assert(ev.resultadoGlobal === 'NO CUMPLE', 'resultado global: se esperaba NO CUMPLE, fue ' + ev.resultadoGlobal);
+});
+
+await check('Caso 3 (información insuficiente, sin ningún contrato relacionado) -> NO DETERMINABLE', () => {
+  const ev = evaluar(
+    ['Requisito', 'Número mínimo de contratos', 'Obligatoriedad'],
+    [['Experiencia específica en construcción de plantas de tratamiento de aguas residuales', '1', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Suministro de mobiliario escolar para instituciones educativas', 'Secretaría de Educación', '80000000']]
+  );
+  assert(ev.resultados[0].resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + ev.resultados[0].resultado);
+  // La regla más importante del prompt maestro (sección 6): NO DETERMINABLE
+  // nunca debe convertirse en NO CUMPLE por sí solo.
+  assert(ev.resultadoGlobal !== 'NO CUMPLE', 'un único requisito NO DETERMINABLE no debería arrastrar el global a NO CUMPLE, fue ' + ev.resultadoGlobal);
+});
+
+await check('Caso 4 (información ambigua -- ejemplo textual de la sección 13 del prompt maestro) -> NO DETERMINABLE', () => {
+  const ev = evaluar(
+    ['Requisito', 'Número mínimo de contratos', 'Obligatoriedad'],
+    [['Experiencia específica en construcción de puentes peatonales', '1', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción y adecuación de infraestructura municipal', 'Alcaldía de Cúcuta', '200000000']]
+  );
+  assert(ev.resultados[0].resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + ev.resultados[0].resultado);
+  assert(/gen[ée]ric/i.test(ev.resultados[0].justificacion), 'la justificación debería explicar la ambigüedad (solo palabras genéricas compartidas), fue: ' + ev.resultados[0].justificacion);
+});
+
+await check('Caso 5 (varios contratos que conjuntamente acreditan experiencia, acumulable) -> CUMPLE', () => {
+  const ev = evaluar(
+    ['Requisito', 'Valor mínimo', 'Acumulable', 'Obligatoriedad'],
+    [['Experiencia específica en interventoría de obras de acueducto', '1000', 'Sí, acumulable', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [
+      ['Interventoría de obras de acueducto rural fase 1', 'Empresa de Acueducto', '600'],
+      ['Interventoría de obras de acueducto urbano fase 2', 'Empresa de Acueducto', '700'],
+    ]
+  );
+  // Ningún contrato individual llega a 1000 (600 y 700) -- solo la SUMA
+  // (1300) alcanza el mínimo. Si el motor comparara por mejor valor
+  // individual en vez de sumar, este caso fallaría.
+  assert(ev.resultados[0].resultado === 'CUMPLE', 'se esperaba CUMPLE (por acumulación), fue ' + ev.resultados[0].resultado);
+});
+
+await check('Caso 6 (palabra clave genérica compartida pero el contrato NO satisface el requisito) -> NO DETERMINABLE, nunca CUMPLE', () => {
+  // Mismo ejemplo de la sección 12 del prompt maestro: "construcción" solo no
+  // basta para que "construcción de un edificio administrativo" cumpla
+  // "construcción de vías terciarias".
+  const ev = evaluar(
+    ['Requisito', 'Número mínimo de contratos', 'Obligatoriedad'],
+    [['Experiencia específica en construcción de vías terciarias', '1', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de un edificio administrativo municipal', 'Alcaldía', '150000000']]
+  );
+  assert(ev.resultados[0].resultado !== 'CUMPLE', 'un falso positivo por palabra genérica NUNCA debe marcar CUMPLE, fue ' + ev.resultados[0].resultado);
+  assert(ev.resultados[0].resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + ev.resultados[0].resultado);
+});
+
+await check('Caso 7 (Excel con columnas/encabezados distintos a los habituales) -> las columnas igual se detectan y evalúan bien', () => {
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(
+    ['Descripción del contrato', 'Entidad', 'Valor ejecutado', 'Fecha de inicio', 'Fecha de terminación'],
+    [['Mantenimiento de redes de alcantarillado sanitario y pluvial', 'EMPAS S.A. E.S.P.', '420000000', '01/03/2022', '15/11/2022']]
+  ));
+  const requisitos = expEngine.parsearMatrizExperiencia(fakeWorkbook(
+    ['Descripción del requisito', 'Cantidad mínima de contratos', 'Caracter'],
+    [['Experiencia específica en mantenimiento de redes de alcantarillado', '1', 'Obligatorio']]
+  ));
+  assert(contratos.cols.objeto != null, '"Descripción del contrato" no se reconoció como columna de objeto');
+  assert(contratos.cols.contratante != null, '"Entidad" no se reconoció como columna de contratante');
+  assert(contratos.cols.valor != null, '"Valor ejecutado" no se reconoció como columna de valor');
+  assert(requisitos.cols.criterio != null, '"Descripción del requisito" no se reconoció como columna de criterio');
+  assert(requisitos.cols.minContratos != null, '"Cantidad mínima de contratos" no se reconoció como columna de mínimo de contratos');
+  assert(requisitos.cols.obligatoriedad != null, '"Caracter" no se reconoció como columna de obligatoriedad');
+  const ev = expEngine.evaluarExperienciaCompleta(contratos.contratos, requisitos.requisitos);
+  assert(ev.resultadoGlobal === 'CUMPLE', 'con columnas reconocidas correctamente se esperaba CUMPLE, fue ' + ev.resultadoGlobal);
+});
+
+await check('Caso 8 (la matriz trae varios requisitos de experiencia específica, con distinta obligatoriedad) -> el global solo lo deciden los obligatorios', () => {
+  const ev = evaluar(
+    ['Requisito', 'Número mínimo de contratos', 'Obligatoriedad'],
+    [
+      ['Experiencia específica en construcción de escuelas', '1', 'Obligatorio'],
+      ['Experiencia específica en construcción de puestos de salud', '1', 'Opcional'],
+      ['Experiencia específica en construcción de parques recreativos', '1', 'Complementario'],
+    ],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de escuelas rurales en el corregimiento', 'Alcaldía', '250000000']]
+  );
+  assert(ev.resultados.length === 3, 'se esperaban 3 requisitos evaluados, fueron ' + ev.resultados.length);
+  assert(ev.totalObligatorios === 1, 'se esperaba 1 requisito obligatorio, fueron ' + ev.totalObligatorios);
+  assert(ev.conteo['CUMPLE'] === 1, 'se esperaba 1 CUMPLE (escuelas), fueron ' + ev.conteo['CUMPLE']);
+  assert(ev.conteo['NO DETERMINABLE'] === 2, 'se esperaban 2 NO DETERMINABLE (puestos de salud y parques, sin contrato relacionado), fueron ' + ev.conteo['NO DETERMINABLE']);
+  // El único obligatorio (escuelas) CUMPLE -- los opcionales/complementarios
+  // NO DETERMINABLE no deben arrastrar el resultado global.
+  assert(ev.resultadoGlobal === 'CUMPLE', 'el global debería depender solo del obligatorio (CUMPLE), fue ' + ev.resultadoGlobal);
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
