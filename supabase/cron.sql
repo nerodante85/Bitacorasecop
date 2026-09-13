@@ -14,20 +14,23 @@
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- Reemplaza los dos placeholders antes de correr esto:
---   <PROJECT_REF>   -- el ID de tu proyecto (está en la URL del panel de
---                       Supabase: https://supabase.com/dashboard/project/<PROJECT_REF>)
---   <CRON_SECRET>   -- el MISMO valor que le pusiste al secret CRON_SECRET
---                       de la Edge Function (supabase secrets set CRON_SECRET=...)
---                       -- sin que coincidan, la función responde 401 y no
---                       envía nada (ver el checkeo al inicio de index.ts).
+-- Reemplaza los dos placeholders antes de correr esto (escribe el valor
+-- real directo, SIN los símbolos < > -- dejarlos causa un error de sintaxis
+-- distinto, no relacionado con este cron; es un error real que ya pasó
+-- probando esto, ver CLAUDE.md):
+--   TU_PROJECT_REF     -- el ID de tu proyecto (está en la URL del panel de
+--                          Supabase: https://supabase.com/dashboard/project/TU_PROJECT_REF)
+--   TU_CRON_SECRET     -- el MISMO valor que le pusiste al secret CRON_SECRET
+--                          de la Edge Function (supabase secrets set CRON_SECRET=...)
+--                          -- sin que coincidan, la función responde 401 y no
+--                          envía nada (ver el checkeo al inicio de index.ts).
 select cron.schedule(
   'bitacora-secop-daily-digest',
   '0 13 * * *', -- 13:00 UTC = 8:00 a.m. en Colombia (UTC-5) -- ajusta si quieres otra hora
   $$
   select net.http_post(
-    url := 'https://<PROJECT_REF>.functions.supabase.co/daily-digest',
-    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', '<CRON_SECRET>'),
+    url := 'https://TU_PROJECT_REF.functions.supabase.co/daily-digest',
+    headers := jsonb_build_object('Content-Type', 'application/json', 'x-cron-secret', 'TU_CRON_SECRET'),
     body := '{}'::jsonb
   );
   $$

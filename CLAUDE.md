@@ -1590,24 +1590,85 @@ si esa lógica cambia ahí. Se verificaron con un test desechable de Node
 nombre completo) -- los 7 casos pasaron antes de dar la lógica portada por
 buena.
 
-**Qué SÍ se pudo probar en este entorno, y qué NO**:
-- SÍ: el checkbox nuevo en "Tu cuenta" ("Recibir un resumen diario...")
-  -- render, que no desborda el modal (`max-width:360px`) ni en 375px,
-  que persiste con `window.storage.set('correo_digest_activo', ...)` y que
-  se recarga correctamente al reabrir el modal.
-- SÍ: sintaxis del archivo TypeScript de la Edge Function, con `tsc
-  --noEmit` (sin Deno instalado en este entorno) -- cero errores de
-  sintaxis; los únicos errores reportados son los esperables por faltar los
-  tipos de Deno (`Deno.*`, `npm:` specifier), no problemas reales.
-- SÍ: la lógica pura de coincidencia (ver test desechable arriba).
-- NO se pudo probar en este entorno (sin CLI de Supabase ni cuenta de
-  Resend a mano): el despliegue real de la función, la consulta con
-  `service_role` a `app_state`/`company_members`/Auth Admin API, ni el
-  envío real de un correo. Eso lo verifica el usuario tras desplegar,
-  siguiendo los pasos de `README.md` -- se puede invocar la función a mano
-  con `curl` (con el header `x-cron-secret` correcto) para probar sin
-  esperar al cron diario, y `select * from cron.job_run_details` en el SQL
-  Editor muestra las ejecuciones programadas una vez armado el cron.
+**Qué SÍ se pudo probar en este entorno antes del despliegue real**:
+- El checkbox nuevo en "Tu cuenta" ("Recibir un resumen diario...") --
+  render, que no desborda el modal (`max-width:360px`) ni en 375px, que
+  persiste con `window.storage.set('correo_digest_activo', ...)` y que se
+  recarga correctamente al reabrir el modal.
+- Sintaxis del archivo TypeScript de la Edge Function, con `tsc --noEmit`
+  (sin Deno instalado en este entorno) -- cero errores de sintaxis; los
+  únicos errores reportados son los esperables por faltar los tipos de Deno
+  (`Deno.*`, `npm:` specifier), no problemas reales.
+- La lógica pura de coincidencia (ver test desechable arriba).
+
+**Despliegue real, hecho en esta misma sesión (a diferencia de la primera
+redacción de esta fase) -- con el usuario autorizando explícitamente
+ejecutar los comandos de instalación/CLI**: login (`supabase login`, hecho
+por el usuario en su propia terminal -- el entorno de comandos no tiene TTY
+para el flujo interactivo), `link --project-ref`, `functions deploy`, y los
+dos secrets (`RESEND_API_KEY`/`CRON_SECRET`) puestos por el usuario mismo en
+su terminal, nunca pegados en el chat -- ver "Cómo se manejaron los
+secretos" más abajo.
+
+**Dos bugs reales encontrados y corregidos SOLO probando el despliegue de
+verdad** (ninguno de los dos era detectable sin desplegar contra un
+proyecto real):
+1. **La plataforma de Supabase exige su propio JWT en cada Edge Function
+   por defecto**, antes incluso de que corra el código de la función -- la
+   protección con `CRON_SECRET` que ya tenía el código nunca llegaba a
+   ejecutarse, así que TODA solicitud (con o sin el secret correcto) recibía
+   401 de la plataforma misma. Se corrigió desplegando con
+   `--no-verify-jwt` y agregando `supabase/config.toml`
+   (`[functions.daily-digest] verify_jwt = false`) para que quede así en
+   futuros despliegues sin tener que acordarse del flag. Diagnosticado
+   comparando: si `CRON_SECRET` no estuviera seteado del todo, el código
+   propio NUNCA devuelve 401 (`if (cronSecret && ...)`) -- que SIEMPRE diera
+   401 apuntaba a una capa anterior al código.
+2. **Sin visibilidad de qué pasaba dentro de la función** (sin `supabase
+   functions logs` disponible en esta versión del CLI), un fallo real de
+   Resend ("API key is invalid" -- la key configurada la primera vez no era
+   válida) quedaba atrapado en silencio por el `catch` que evita que un
+   error de una empresa tumbe la revisión de las demás. Se agregó un modo
+   `?debug=1` (o header `x-digest-debug: 1`) a la función: sin tocar el
+   comportamiento normal del cron, devuelve el conteo crudo por alerta/
+   empresa y cualquier error atrapado en cada paso (contar, buscar
+   miembros, resolver el correo del usuario, enviar el correo) -- así se
+   pudo ver el error real de Resend sin adivinar. Se deja permanente (no es
+   throwaway): sirve para depurar sin esperar al cron diario ni tener
+   acceso a logs.
+
+**Verificado de punta a punta con datos y cuenta reales**: alerta real
+("Obras civiles Norte de Santander", forzando `ultimaRevision` a 2020 vía
+`supabase db query --linked` para simular "hace tiempo que no se revisa")
+contó 100+ procesos nuevos reales contra SECOP en vivo; encontró al usuario
+dueño de la empresa vía el Admin API de Auth; y el correo llegó de verdad a
+la bandeja de entrada. Cron confirmado activo (`select * from cron.job`).
+Después de la prueba, la alerta de prueba se borró (`update app_state set
+value = '[]' where key = 'alertas_guardadas'`) para no dejar el conteo
+"pisado" en 2020 esperando al cron real de mañana.
+
+**Cómo se manejaron los secretos durante el despliegue**: ninguno de los
+dos secretos reales (`RESEND_API_KEY`, `CRON_SECRET`) se pidió ni se aceptó
+en el chat -- el usuario los generó y configuró él mismo, en su propia
+terminal, con `supabase secrets set`. Para verificar sin verlos, se usó
+`supabase secrets list` (que solo devuelve un hash + fecha de actualización,
+nunca el valor) y, para confirmar CUÁL valor estaba activo sin pedirlo de
+nuevo, se compararon hashes SHA-256 calculados localmente contra candidatos
+que YA habían quedado expuestos por accidente (ver el punto siguiente) --
+nunca contra un valor pedido a propósito.
+
+**Incidente real durante el despliegue, y cómo se corrigió**: al escribir
+`CRON_SECRET=<valor>` literalmente CON los símbolos `<` `>` (confundiendo la
+notación de placeholder de la instrucción con sintaxis real), el comando
+falló en PowerShell -- y el intento (con el valor real adentro) quedó
+visible en el historial de la terminal, que se leyó para diagnosticar el
+error. Esto expuso el valor sin querer. Se trató como comprometido de
+inmediato: se pidió rotar el secret (generar uno nuevo y volver a
+`supabase secrets set`) antes de seguir, en vez de reutilizar el valor
+visto. Lección para instrucciones futuras: nunca usar `<algo>` como
+notación de placeholder en un comando que el usuario vaya a copiar/pegar
+literal -- preferir una palabra sin símbolos especiales (`TU_VALOR_AQUI`) o
+aclarar explícitamente "sin los símbolos < >".
 
 **Cero regresión mientras no se active**: el checkbox nuevo empieza sin
 marcar y el flujo `window.storage.get/set` de siempre sigue funcionando

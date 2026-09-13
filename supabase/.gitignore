@@ -1,0 +1,4 @@
+# Metadata local del CLI de Supabase (project ref cacheado, versión de
+# Postgres, URL del pooler...) -- se regenera solo con `supabase link`, no
+# es parte del código del proyecto y varía por máquina.
+.temp

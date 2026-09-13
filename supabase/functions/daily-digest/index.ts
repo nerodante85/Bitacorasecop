@@ -254,6 +254,14 @@ Deno.serve(async (req: Request) => {
   if (cronSecret && req.headers.get('x-cron-secret') !== cronSecret) {
     return new Response('No autorizado', { status: 401 });
   }
+  // ?debug=1 (o header x-digest-debug: 1): agrega detalle diagnóstico a la
+  // respuesta (conteo crudo por alerta/empresa, y cualquier error atrapado)
+  // -- pensado para invocar la función a mano y confirmar que la lógica de
+  // conteo funciona, sin esperar al cron diario ni revisar logs aparte.
+  // Nunca cambia si se envía o no un correo, solo qué tan detallada es la
+  // respuesta JSON.
+  const debug = new URL(req.url).searchParams.get('debug') === '1' || req.headers.get('x-digest-debug') === '1';
+  const debugInfo: Record<string, unknown>[] = [];
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -290,12 +298,16 @@ Deno.serve(async (req: Request) => {
     try {
       const lineasAlertas: string[] = [];
       for (const a of datos.alertas) {
-        const n = await contarNuevosDeAlerta(a);
+        let n = 0, err: string | null = null;
+        try { n = await contarNuevosDeAlerta(a); } catch (e) { err = e instanceof Error ? e.message : String(e); }
+        if (debug) debugInfo.push({ companyId, tipo: 'alerta', nombre: a.nombre, keywords: a.keywords, geos: a.geos, ultimaRevision: a.ultimaRevision, nuevos: n, error: err });
         if (n > 0) lineasAlertas.push('- "' + a.nombre + '": ' + n + ' proceso(s) nuevo(s)');
       }
       const lineasEmpresas: string[] = [];
       for (const emp of datos.empresas) {
-        const n = await contarNuevosDeEmpresa(emp);
+        let n = 0, err: string | null = null;
+        try { n = await contarNuevosDeEmpresa(emp); } catch (e) { err = e instanceof Error ? e.message : String(e); }
+        if (debug) debugInfo.push({ companyId, tipo: 'empresa', nombre: emp.nombre, ultimaRevision: emp.ultimaRevision, nuevos: n, error: err });
         if (n > 0) lineasEmpresas.push('- ' + emp.nombre + ': ' + n + ' contrato(s) nuevo(s)');
       }
       if (!lineasAlertas.length && !lineasEmpresas.length) continue;
@@ -303,9 +315,11 @@ Deno.serve(async (req: Request) => {
       // Miembros de la empresa (normalmente uno solo, ver Fase 1) -- el
       // correo de cada uno sale del Admin API de Auth (service_role), no de
       // una columna propia: no se duplica el email en ningún lado nuevo.
-      const { data: miembros } = await admin.from('company_members').select('user_id').eq('company_id', companyId);
+      const { data: miembros, error: miembrosErr } = await admin.from('company_members').select('user_id').eq('company_id', companyId);
+      if (debug) debugInfo.push({ companyId, tipo: 'miembros', cantidad: (miembros || []).length, error: miembrosErr ? miembrosErr.message : null });
       for (const m of miembros || []) {
         const { data: userData, error: userErr } = await admin.auth.admin.getUserById(m.user_id);
+        if (debug) debugInfo.push({ companyId, tipo: 'usuario', userId: m.user_id, tieneEmail: !!(userData && userData.user && userData.user.email), error: userErr ? userErr.message : null });
         if (userErr || !userData || !userData.user || !userData.user.email) continue;
         const totalNuevos = lineasAlertas.length + lineasEmpresas.length;
         const cuerpo = [
@@ -316,16 +330,24 @@ Deno.serve(async (req: Request) => {
           'Abre la app para ver el detalle: ' + appUrl, '',
           '— Bitácora SECOP (resumen automático diario)',
         ].join('\n');
-        await enviarCorreo(userData.user.email, 'Bitácora SECOP: ' + totalNuevos + ' novedad(es) hoy', cuerpo);
+        try {
+          await enviarCorreo(userData.user.email, 'Bitácora SECOP: ' + totalNuevos + ' novedad(es) hoy', cuerpo);
+        } catch (mailErr) {
+          if (debug) debugInfo.push({ companyId, tipo: 'envio_correo', error: mailErr instanceof Error ? mailErr.message : String(mailErr) });
+          continue;
+        }
         correosEnviados++;
         detalles.push(userData.user.email + ': ' + totalNuevos + ' novedad(es)');
       }
     } catch (e) {
       console.error('daily-digest: falló la empresa ' + companyId, e);
+      if (debug) debugInfo.push({ companyId, tipo: 'error_empresa', error: e instanceof Error ? e.message : String(e) });
     }
   }
 
-  return new Response(JSON.stringify({ empresasRevisadas: porEmpresa.size, correosEnviados, detalles }), {
+  const body: Record<string, unknown> = { empresasRevisadas: porEmpresa.size, correosEnviados, detalles };
+  if (debug) body.debug = debugInfo;
+  return new Response(JSON.stringify(body), {
     headers: { 'Content-Type': 'application/json' },
   });
 });

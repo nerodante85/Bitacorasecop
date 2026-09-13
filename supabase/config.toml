@@ -1,0 +1,13 @@
+# ============================================================================
+# Bitácora SECOP — config del proyecto de Supabase (Fase 6: correo/job de
+# alertas). Sin este archivo, `supabase functions deploy` exige por defecto
+# un JWT válido de Supabase Auth en cada request a la función -- pero
+# `daily-digest` la invoca un cron de Postgres (pg_cron/pg_net), no un
+# usuario logueado, así que no tiene ningún JWT que mandar. La función ya
+# trae su propia protección (compara el header `x-cron-secret` contra el
+# secret CRON_SECRET, ver index.ts) -- por eso se desactiva la verificación
+# de JWT de la plataforma para esta función puntual, no para todo el
+# proyecto.
+# ============================================================================
+[functions.daily-digest]
+verify_jwt = false

@@ -172,25 +172,39 @@ sola con `git push` (a diferencia de `index.html`, que sí publica solo vía
 GitHub Pages):
 
 1. Crear una cuenta gratis en [resend.com](https://resend.com) y generar una
-   API key (Dashboard → API Keys).
-2. Instalar la [CLI de Supabase](https://supabase.com/docs/guides/cli) y
-   correr, desde la raíz del repo: `supabase login`, luego
-   `supabase link --project-ref <tu-project-ref>` (el ref está en la URL del
+   API key (Dashboard → API Keys, empieza con `re_`).
+2. Instalar la [CLI de Supabase](https://supabase.com/docs/guides/cli) (o
+   usar `npx supabase@latest` sin instalarla) y correr, desde la raíz del
+   repo: `supabase login` (necesita una terminal real/TTY -- no funciona
+   dentro de un entorno sin ella), luego
+   `supabase link --project-ref TU_PROJECT_REF` (el ref está en la URL del
    panel de tu proyecto).
 3. Configurar los secrets de la función (nunca se pegan en `index.html` ni
-   en ningún archivo del repo):
+   en ningún archivo del repo -- escribe el valor real después del `=`, sin
+   ningún símbolo `<` `>` alrededor):
    ```bash
-   supabase secrets set RESEND_API_KEY=re_xxx
-   supabase secrets set CRON_SECRET=<inventa-una-cadena-larga-al-azar>
+   supabase secrets set RESEND_API_KEY=re_tu_key_real
+   supabase secrets set CRON_SECRET=inventa-una-cadena-larga-al-azar-sin-signos
    ```
-4. Desplegar la función: `supabase functions deploy daily-digest`.
+4. Desplegar la función: `supabase functions deploy daily-digest`. El
+   `supabase/config.toml` del repo ya desactiva la verificación de JWT de la
+   plataforma para esta función (necesario porque la invoca un cron, no un
+   usuario logueado; la función se protege sola con `CRON_SECRET`) -- no
+   hace falta agregar ningún flag a mano.
 5. Correr `supabase/cron.sql` en el SQL Editor del proyecto (reemplazando
-   `<PROJECT_REF>` y `<CRON_SECRET>` por los valores reales) para programar
-   el envío diario.
+   el project ref en la URL y el `CRON_SECRET` por los valores reales, sin
+   `<` `>`) para programar el envío diario.
+6. Para probarlo sin esperar al cron diario, invoca la función a mano
+   agregando `?debug=1` a la URL (devuelve el conteo crudo por alerta/
+   empresa y cualquier error atrapado, sin afectar si se envía o no un
+   correo real):
+   ```powershell
+   Invoke-RestMethod -Method Post -Uri "https://TU_PROJECT_REF.functions.supabase.co/daily-digest?debug=1" -Headers @{ "x-cron-secret" = "TU_CRON_SECRET" } -ContentType "application/json" -Body "{}"
+   ```
 
 Detalle completo (por qué hace falta una Edge Function separada, qué hace
-exactamente, cómo depurarla) en `CLAUDE.md`, sección "Fase 6: correo/job de
-alertas".
+exactamente, los dos bugs reales encontrados al desplegarla y cómo se
+corrigieron) en `CLAUDE.md`, sección "Fase 6: correo/job de alertas".
 
 ## Seguridad
 
