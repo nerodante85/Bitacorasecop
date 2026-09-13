@@ -335,6 +335,61 @@ plataforma de consultoría empresarial profesional. Decisiones clave:
   también dónde el JS reescribe `textContent` de ese mismo elemento** —
   quedan fácilmente desincronizados.
 
+## Logo: monograma B
+
+El usuario diseñó el logo aparte en Claude Design (no en esta sesión) y pidió
+"Implementa: Logo Bitácora.dc.html" -- un documento de exploración de marca
+con dos rondas: Turno 1 (tres direcciones -- 1a "Registro" con líneas de
+renglón, 1b "Sello" circular apto/no apto, 1c "Monograma B" modular) y Turno
+2 (2a, la dirección elegida: 1c desarrollada a fondo -- lockup completo,
+favicon, ícono de app, avatar, negativo, prueba de reducción a 32/20/14px).
+
+**Import bloqueado en esta sesión**: `DesignSync` (el MCP de Claude Design)
+pide `/design-login`, que no puede correr en una sesión no interactiva. El
+usuario resolvió pasando el `.zip` exportado directamente (`Logo Bitácora.dc
+.html` + `support.js`, este último es solo el runtime de renderizado del
+canvas -- ningún contenido de diseño ahí). Si una sesión futura necesita
+releer el proyecto original: `https://claude.ai/design/p/7e862cf6-2dfa-415a
+-9b3f-02903872465d`.
+
+**Paleta del logo, deliberadamente separada de "Meridiano"**: tinta
+`#14181C` + verde `#51825B` (= `oklch(0.56 0.08 150)` del archivo original,
+convertido a sRGB). Se le preguntó explícitamente al usuario si adaptar el
+logo a los tokens de Meridiano (navy/ámbar) o dejarlo con su propia paleta
+tal cual venía diseñado -- eligió lo segundo. Por eso `.brand-mark` en
+`index.html` usa `#14181C`/`#F7F7F4`/`#51825B` como literales, NO
+`var(--navy-900)`/`var(--accent-button)` -- es intencional, no un olvido del
+audit de tokens.
+
+**Cómo se construyó el SVG**: el archivo `.dc.html` define el monograma con
+divs CSS (`border` + `border-left:none` + `border-radius` asimétrico -- una
+barra vertical más dos "corchetes" abiertos a la izquierda y redondeados a
+la derecha, apilados, que juntos leen como una "B"). Se tradujo a un `path`
+SVG reproduciendo esa misma geometría a mano (un script en Python generó
+las coordenadas exactas de cada corchete abierto, ver el commit) en vez de
+dejarlo como divs, porque un favicon necesita ser una imagen real -- no se
+puede usar CSS ahí. El mismo `path` se reutiliza en dos sitios:
+- `.brand-mark` en el sidebar (SVG inline, 34×34, fondo tinta, tal como
+  el tratamiento "ICONO APP" del documento original).
+- El favicon (`<link rel="icon">`, SVG en `data:` base64 en el `<head>` --
+  no hace falta un archivo aparte en el repo; `data:` ya estaba permitido
+  por `img-src` en la CSP, no hizo falta tocarla).
+
+**Tipografía del wordmark**: Space Grotesk 500, `letter-spacing:0.06em`,
+SOLO en `.sidebar-brand-text h1` (el lockup del logo) -- se agregó a la
+carga de Google Fonts junto a las demás. El resto de la tipografía de la UI
+(Instrument Serif para títulos de página, IBM Plex Sans para el cuerpo)
+NO cambió -- "implementa el logo" se interpretó como el ícono + el
+tratamiento del wordmark, no como una excusa para recolorear o retipografiar
+el resto de la app.
+
+**Verificado**: geometría del SVG confirmada visualmente en aislamiento
+(página de prueba en el scratchpad, 3 tamaños) antes de integrarlo; luego
+en la app real servida por un server local (no `file://`, que tuvo
+problemas de renderizado en esta sesión) en 375/768/1280px sin overflow;
+fuente/peso/letter-spacing y el `href` del favicon verificados por estilo
+computado vía JS. 14/14 tests de humo.
+
 ## Cosas aprendidas por las malas (no las repitas)
 
 1. **fetch() SÍ funciona en GitHub Pages**, pero NO dentro del sandbox de
