@@ -3020,6 +3020,21 @@
   // Lee un RANGO de páginas [fromPage, toPage] (ambos inclusive), no siempre desde
   // la página 1 -- así "Seguir leyendo más páginas" puede continuar donde quedó
   // en vez de repetir el OCR de las páginas ya leídas (que es lo más lento).
+  //
+  // Bug real encontrado con un escaneo real del usuario (matriz de 69 páginas,
+  // fotografiadas/escaneadas en horizontal pero guardadas como página vertical):
+  // el resultado del OCR salía ilegible ("E. E: xEE S : SA EEN 88 35 d h A
+  // ANES..."), no por baja resolución del escaneo (la imagen embebida era de
+  // 2550x3900px, buena calidad) sino porque Tesseract asume texto horizontal y
+  // el texto real corría de arriba a abajo por el borde izquierdo -- OCR sobre
+  // texto girado 90° da basura, letra por letra fuera de secuencia.
+  // Corrección: antes de leer el rango completo, se prueban las 4 rotaciones
+  // (0/90/180/270) SOLO en la primera página del rango (repetir esto por cada
+  // página sería carísimo -- el OCR ya es lento de por sí) y se usa la
+  // confianza (`data.confidence`, 0-100) que devuelve el propio Tesseract para
+  // elegir cuál de verdad se lee bien, no solo "la que se ve derecha" a ojo.
+  // Un documento escaneado casi siempre tiene la misma orientación en todas
+  // sus páginas, así que esa rotación se reutiliza para el resto del rango.
   async function ocrPdfPages(file, fromPage, toPage, onProgress){
     const [pdfjsLib, Tesseract] = await Promise.all([loadPdfJs(), loadTesseractJs()]);
     const buf = await file.arrayBuffer();
@@ -3033,16 +3048,36 @@
       }
     });
 
+    async function renderPagina(numPagina, rotacion){
+      const page = await pdf.getPage(numPagina);
+      const viewport = page.getViewport({ scale: 2.0, rotation: rotacion }); // resolución más alta ayuda a la precisión del OCR
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+      return canvas;
+    }
+
     let text = '';
     try {
-      for (let i = from; i <= to; i++){
+      let rotacion = 0;
+      if (onProgress) onProgress(0, from, to);
+      let mejorConfianza = -1;
+      let textoPrimeraPagina = '';
+      for (const rot of [0, 90, 180, 270]){
+        const canvas = await renderPagina(from, rot);
+        const { data } = await worker.recognize(canvas);
+        if ((data.confidence || 0) > mejorConfianza){
+          mejorConfianza = data.confidence || 0;
+          rotacion = rot;
+          textoPrimeraPagina = data.text || '';
+        }
+      }
+      text += textoPrimeraPagina + '\n';
+
+      for (let i = from + 1; i <= to; i++){
         if (onProgress) onProgress(0, i, to);
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2.0 }); // resolución más alta ayuda a la precisión del OCR
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+        const canvas = await renderPagina(i, rotacion);
         const { data } = await worker.recognize(canvas);
         text += (data.text || '') + '\n';
       }

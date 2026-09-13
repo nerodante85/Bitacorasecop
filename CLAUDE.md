@@ -464,6 +464,63 @@ matriz (no había ninguno a mano en esta sesión) -- si algún requisito real
 queda mal segmentado, el panel de revisión (siempre abierto para este
 origen) es la primera línea de defensa antes de confiar en el resultado.
 
+**Actualización -- bug real encontrado con el primer PDF real que probó el
+usuario** (ver siguiente sección: `ocrPdfPages` detecta y corrige rotación
+automáticamente desde entonces): el resultado inicial fue ilegible, no por
+la segmentación sino por el OCR en sí. Ya corregido.
+
+## OCR de PDFs escaneados: detección automática de rotación
+
+El usuario probó la carga de matriz en PDF con un archivo real (matriz de
+experiencia del sector educativo, 69 páginas, escaneada) y el resultado del
+OCR salió ilegible: `"E. E: xEE S : SA EEN 88 35 d h A ANES: MIN ENE 3 Pe
+En si Na MERINO MPA EME sa FEE E"`. Afecta a los TRES usos de
+`ocrPdfPages()` por igual (RUP, análisis de pliego, matriz de experiencia)
+-- no es un bug de la segmentación de texto ni de `construirRequisitoDesde
+Texto`, es más abajo, en la lectura del PDF misma.
+
+**Diagnóstico** (con el archivo real que compartió el usuario, no
+adivinado): se extrajo la imagen embebida de la página 1 con `pypdf`+
+`pillow` (instalados temporalmente, igual que el patrón ya usado con
+`tsc` -- desinstalados después) y se abrió con el visor de imágenes. La
+imagen era de 2550×3900px -- buena resolución, ~300 DPI, NO el problema --
+pero el contenido estaba **rotado 90°**: el título ("MATRIZ - EXPERIENCIA
+PARA PROYECTOS DE INFRAESTRUCTURA SOCIAL...") corría de arriba a abajo por
+el borde izquierdo de la imagen, no horizontal. Tesseract asume texto
+horizontal por defecto; sobre texto girado 90° reconoce letras sueltas
+fuera de secuencia -- exactamente la basura que reportó el usuario.
+
+**Corrección en `ocrPdfPages()`**: antes de leer el rango de páginas
+completo, se prueban las 4 rotaciones (0°/90°/180°/270°) SOLO en la primera
+página del rango -- vía el parámetro `rotation` de `page.getViewport(...)`
+de pdf.js -- y se usa `data.confidence` (0-100, que ya devuelve Tesseract)
+para elegir cuál de las 4 se lee de verdad bien, no cuál "se ve derecha" a
+ojo. Un documento escaneado casi siempre tiene la misma orientación en
+todas sus páginas, así que esa rotación detectada se reutiliza para el
+resto del rango sin repetir la prueba en cada una (repetirla por página
+habría sido carísimo -- el OCR ya es lento de por sí). El texto de la
+página 1 obtenido durante la propia detección se reutiliza tal cual -- no
+se vuelve a correr OCR sobre ella una quinta vez.
+
+**Verificado contra el archivo real que falló** (no solo lógica revisada a
+ojo): se generaron las 4 rotaciones de la imagen extraída con `pillow`
+(`rotate(-deg, expand=True)`, mismo sentido horario que el parámetro
+`rotation` de pdf.js) y se les corrió Tesseract.js de verdad en Node
+(instalado temporalmente en el scratchpad, luego `rm -rf node_modules`).
+Resultado: confianza 42/93/46/42 para 0°/90°/180°/270° -- un margen
+enorme e inequívoco a favor de 90°, con texto reconocido perfectamente
+legible ("Matriz - Experiencia "Sector Educativo" ... MATRIZ - EXPERIENCIA
+PARA PROYECTOS DE INFRAESTRUCTURA SOCIAL PARA EL SECTOR EDUCATIVO...") que
+coincide exactamente con el documento real. La lógica de "elegir la
+rotación de mayor confianza" queda confirmada sobre el caso real que
+motivó el fix, no solo sobre el razonamiento de por qué debería funcionar.
+
+**Costo**: 3 pasadas de OCR extra (una por cada rotación que NO ganó) SOLO
+en la primera página de cada rango leído -- no por página. Para un rango de
+15-20 páginas (`OCR_BATCH_PAGES`), es un aumento marginal sobre un proceso
+que ya se advierte como "lento, puede tardar varios minutos" y que el
+usuario dispara a propósito, a sabiendas.
+
 ## Cosas aprendidas por las malas (no las repitas)
 
 1. **fetch() SÍ funciona en GitHub Pages**, pero NO dentro del sandbox de
