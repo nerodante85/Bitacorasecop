@@ -31,7 +31,9 @@ analiza el pliego de condiciones de un proceso puntual.
   matriz de requisitos de un proceso) y determina, requisito por requisito,
   si la empresa CUMPLE / NO CUMPLE / NO DETERMINABLE, con evidencia.
 - **Personal**: registro de los perfiles profesionales del equipo de trabajo
-  (director de obra, residente, especialistas...).
+  (director de obra, residente, especialistas...), cada uno con un botón
+  "Hoja de vida (.txt)" que genera una plantilla lista para revisar y
+  completar con los soportes que exija el pliego.
 - **Analizar pliego**: una vez completados Experiencia y Personal, extrae el
   texto de un pliego en PDF (con respaldo de OCR para escaneos), detecta
   requisitos habilitantes y muestra un resumen de compatibilidad (%

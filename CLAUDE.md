@@ -1621,3 +1621,34 @@ contador) -- el correo es de solo lectura, nunca escribe en `app_state`. Si
 el usuario no entra a la app, el mismo resumen se repite al día siguiente
 mientras siga habiendo novedades sin revisar -- comportamiento intencional
 (avisar hasta que se atienda), no un bug de "no se marca como visto".
+
+## Fase 10 (segunda mitad): hojas de vida del personal
+
+Cierra la Fase 10 (generación de documentos CCE) con la segunda opción de
+las 4 presentadas al usuario al empezar esa fase: hoja de vida por cada
+perfil profesional ya registrado en "Personal".
+
+**Por qué es más simple que la carta de presentación**: no necesita ningún
+campo nuevo (`PERFIL_PROFESIONAL_VACIO` ya tiene nombre/cargo/años/
+formación/especializaciones/experiencia/competencias, cargados desde que
+existe "Personal") ni depende de un proceso puntual -- por eso el botón
+"⬇ Hoja de vida (.txt)" vive en la lista "Equipo registrado"
+(`renderPersonalList`), uno por fila, en vez de en "Evaluación" como la
+carta (que sí necesita datos del proceso elegido). `generarHojaDeVidaTexto`
+recibe directo el objeto `perfilesProfesionales[id]`, sin pasar por
+`evaluarProceso`/`perfilId` como la carta.
+
+**También es plantilla, no formato oficial** -- mismo criterio que la carta
+de presentación (Fase 10) y la sugerencia de oferta (Fase 8): el texto
+generado lo dice explícito, y además aclara por qué NO es el Formato Único
+de Hoja de Vida de Función Pública (ese es para servidores públicos; el
+personal aquí es del equipo de un proponente privado, no aplica -- aclararlo
+evita que alguien intente presentar esta plantilla donde en realidad se pide
+ese formato específico).
+
+**Verificado con datos reales**: perfil "Carlos Andrés Rodríguez Vega"
+(director de obra, 12 años, formación/especializaciones/experiencia/
+competencias completas) generó el texto con cada campo en su lugar; un
+perfil recién creado sin datos generó la misma plantilla con "(no
+registrado/a)" en cada sección, sin "undefined" ni errores. Tests de humo
+5/5. Probado en los 3 breakpoints sin overflow ni errores de consola.

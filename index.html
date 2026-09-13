@@ -2335,7 +2335,8 @@
       const pp = perfilesProfesionales[id];
       const sub = [pp.cargo, pp.anos ? (pp.anos + ' de experiencia') : ''].filter(Boolean).join(' · ');
       return '<div class="recent-item"><div class="recent-item-body"><div class="recent-item-title">' + escapeHtml(pp.nombre || 'Sin nombre') + '</div>' +
-        (sub ? '<div class="recent-item-sub">' + escapeHtml(sub) + '</div>' : '') + '</div></div>';
+        (sub ? '<div class="recent-item-sub">' + escapeHtml(sub) + '</div>' : '') + '</div>' +
+        '<button type="button" class="link-btn" data-hoja-vida-id="' + escapeHtml(id) + '">⬇ Hoja de vida (.txt)</button></div>';
     }).join('');
   }
 
@@ -3995,6 +3996,39 @@
     L.push('');
     L.push('════════════════════════════════════════════════════════');
     L.push('PLANTILLA ORIENTATIVA -- generada a partir de los datos de tu perfil de empresa y del proceso seleccionado. NO es el formato oficial exacto de esta entidad ni de Colombia Compra Eficiente: cada pliego trae su propio Anexo/Formato de carta de presentación (numeración, y a veces firma digital) -- compáralo contra el pliego real antes de presentarla. Los campos marcados [COMPLETAR] no se pueden inferir de los datos ya cargados en la app (el valor de tu oferta lo decides tú, no es el presupuesto oficial del proceso).');
+    return L.join('\n');
+  }
+
+  // Segunda mitad de la Fase 10 (generación de documentos CCE): hoja de vida
+  // de un perfil profesional ya registrado en "Personal". A diferencia de la
+  // carta de presentación, no necesita ningún campo nuevo (ni depende de un
+  // proceso puntual) -- toda la información ya vive en PERFIL_PROFESIONAL_VACIO,
+  // por eso el botón está en la lista de "Equipo registrado", no en
+  // "Evaluación". Igual de orientativa: no es el Formato Único de Hoja de
+  // Vida de Función Pública (ese es para servidores públicos; el personal
+  // aquí es del equipo de un proponente privado, no aplica).
+  function generarHojaDeVidaTexto(pp){
+    const L = [];
+    L.push('HOJA DE VIDA -- ' + (pp.nombre || 'Sin nombre'));
+    L.push('Generado: ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
+    L.push('');
+    L.push('Cargo / rol propuesto: ' + (pp.cargo || '(no registrado)'));
+    if (pp.anos) L.push('Años de experiencia: ' + pp.anos);
+    L.push('');
+    L.push('FORMACIÓN ACADÉMICA');
+    L.push(pp.formacion || '(no registrada)');
+    L.push('');
+    L.push('EXPERIENCIA ESPECÍFICA (proyectos similares)');
+    L.push(pp.experiencia || '(no registrada)');
+    L.push('');
+    L.push('ESPECIALIZACIONES Y CERTIFICACIONES');
+    L.push(pp.especializaciones || '(no registradas)');
+    L.push('');
+    L.push('COMPETENCIAS ADICIONALES');
+    L.push(pp.competencias || '(no registradas)');
+    L.push('');
+    L.push('════════════════════════════════════════════════════════');
+    L.push('PLANTILLA ORIENTATIVA -- generada a partir de los datos ya cargados en "Personal". No es el formato oficial de hoja de vida de ninguna entidad (el Formato Único de Hoja de Vida de Función Pública es para servidores públicos; este es personal de un proponente privado, no aplica). Revísala, complétala con los soportes que exija el pliego (diplomas, tarjeta profesional, certificaciones laborales) y adáptala al formato específico que pida el proceso.');
     return L.join('\n');
   }
 
@@ -5883,6 +5917,13 @@
   if (personalNuevoBtn) personalNuevoBtn.addEventListener('click', nuevoPersonal);
   if (personalEliminarBtn) personalEliminarBtn.addEventListener('click', eliminarPersonal);
   if (personalSelectEl) personalSelectEl.addEventListener('change', cambiarPersonalActivo);
+  if (personalListEl) personalListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-hoja-vida-id]');
+    if (!btn) return;
+    const pp = perfilesProfesionales[btn.getAttribute('data-hoja-vida-id')];
+    if (!pp) return;
+    descargarTexto('hoja-de-vida-' + slugArchivo(pp.nombre) + '.txt', generarHojaDeVidaTexto(pp));
+  });
 
   // Componente único de carga (RUP + los dos Excel de Experiencia): clic para
   // elegir archivo, arrastrar y soltar, y activación por teclado (Enter/Espacio)
