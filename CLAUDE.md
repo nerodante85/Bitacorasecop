@@ -521,6 +521,27 @@ en la primera página de cada rango leído -- no por página. Para un rango de
 que ya se advierte como "lento, puede tardar varios minutos" y que el
 usuario dispara a propósito, a sabiendas.
 
+**Segundo hallazgo, probando ese mismo PDF ya con la rotación corregida**:
+el texto salió mayormente legible (ej. un requisito evaluó CUMPLE con
+evidencia real -- "Fila 2: CONSTRUCCION DE LA INFRAESTRUCTURA FISICA DE LA
+SEDE SIMON BOLIVAR..." y su valor comparado contra el mínimo exigido), pero
+quedaba ruido de OCR disperso (palabras rotas sueltas como "hnotecion",
+"pomitiruccion", "acredraren", "cnatas" -- inevitable en un escaneo real, no
+algo que este proyecto vaya a eliminar del todo). El problema real no era
+ese ruido en sí (el motor ya lo maneja bien: si ninguna palabra rota
+coincide con nada, cae a NO DETERMINABLE, el resultado seguro) sino que la
+JUSTIFICACIÓN de un NO DETERMINABLE por "solo genéricas" listaba TODAS las
+`palabrasDistintivas` del requisito sin límite -- con un criterio
+largo/ruidoso (típico de un PDF vía OCR, no de una celda corta de Excel)
+eso eran decenas de palabras, una pared de texto casi ilegible.
+**Corrección**: `listaAcotada(arr, max)` (junto a `palabrasClaveDe`) corta
+cualquier lista de palabras que se muestre en una justificación a 12 ítems
++ "y N más" -- aplicada en los 3 lugares donde `evaluarRequisito` arma una
+justificación a partir de listas de palabras (genéricas compartidas,
+distintivas del requisito, distintivas que sí matchearon). No toca la
+lógica de CUMPLE/NO CUMPLE/NO DETERMINABLE en absoluto, solo el texto que
+se muestra -- un cambio de presentación, no de criterio de evaluación.
+
 ## Cosas aprendidas por las malas (no las repitas)
 
 1. **fetch() SÍ funciona en GitHub Pages**, pero NO dentro del sandbox de

@@ -3256,6 +3256,19 @@
     return Array.from(new Set(normHeader(texto).split(' ').filter(w => w.length > 3 && !STOPWORDS_ES.has(w))));
   }
 
+  // Bug real encontrado con un PDF real (matriz del sector educativo, vía
+  // OCR): un criterio largo/ruidoso produce decenas de "palabras clave" (el
+  // OCR mete de vez en cuando una palabra rota como "hnotecion" o
+  // "acredraren" que ninguna stopword filtra), y las justificaciones de
+  // abajo las listaban TODAS sin límite -- una pared de texto casi
+  // ilegible en vez de una explicación corta. Acota cualquier lista de
+  // palabras que se muestre en una justificación a `max` ítems.
+  function listaAcotada(arr, max){
+    arr = arr || [];
+    if (arr.length <= max) return arr.join(', ');
+    return arr.slice(0, max).join(', ') + ' y ' + (arr.length - max) + ' más';
+  }
+
   // Construye UN requisito a partir de su texto de criterio + (opcional)
   // valores de celda ya separados por columna. `celdas` viene lleno cuando el
   // origen es un Excel con columnas propias (parsearMatrizExperiencia) y
@@ -3407,8 +3420,8 @@
       resultado = 'NO DETERMINABLE';
       if (soloGenericos.length){
         justificacion = 'Hay ' + soloGenericos.length + ' contrato(s) que comparten solo palabras genéricas de obra (' +
-          Array.from(new Set(soloGenericos.flatMap(r => r.genMatch))).join(', ') + ') con el requisito, pero ninguno comparte una palabra distintiva de su alcance específico' +
-          (req.palabrasDistintivas.length ? ' (' + req.palabrasDistintivas.join(', ') + ')' : '') +
+          listaAcotada(Array.from(new Set(soloGenericos.flatMap(r => r.genMatch))), 12) + ') con el requisito, pero ninguno comparte una palabra distintiva de su alcance específico' +
+          (req.palabrasDistintivas.length ? ' (' + listaAcotada(req.palabrasDistintivas, 12) + ')' : '') +
           '. No es suficiente para confirmar que el objeto realmente coincide -- requiere revisión humana del objeto completo.';
         faltantes.push('Revisar manualmente si alguno de esos contratos, pese a no compartir palabra distintiva, sí corresponde al alcance exigido.');
       } else {
@@ -3418,7 +3431,7 @@
     } else if (sinCriteriosNumericos){
       resultado = 'CUMPLE';
       justificacion = 'Se encontró(aron) ' + relevantes.length + ' contrato(s) cuyo objeto/actividades comparten palabra(s) distintiva(s) del requisito (' +
-        Array.from(new Set(relevancia.filter(r => r.relevante).flatMap(r => r.distMatch))).join(', ') +
+        listaAcotada(Array.from(new Set(relevancia.filter(r => r.relevante).flatMap(r => r.distMatch))), 12) +
         '). El requisito no trae un mínimo numérico (contratos/valor/cantidad) explícito en la matriz -- verifica el alcance exacto contra el objeto completo del contrato.';
     } else if (numericoOk === true){
       resultado = 'CUMPLE';

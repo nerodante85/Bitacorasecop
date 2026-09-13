@@ -419,5 +419,30 @@ await check('PDF de matriz: sin ningún formato de lista reconocible -> el texto
   assert(chunks.length === 1, 'se esperaba 1 solo trozo (todo el texto), fueron ' + chunks.length);
 });
 
+// 20) Bug real reportado por el usuario con un PDF real vía OCR: un criterio
+// largo/ruidoso (el OCR mete palabras rotas de vez en cuando, ej.
+// "hnotecion", "acredraren") generaba una justificación con DECENAS de
+// palabras listadas sin límite -- una pared de texto casi ilegible en vez
+// de una explicación corta. listaAcotada() debe cortarla.
+await check('Justificación de NO DETERMINABLE con un criterio largo/ruidoso (típico de OCR) queda acotada, no es una pared de texto', () => {
+  const palabrasRuidosas = ['recreodeportiva', 'cultural', 'educativa', 'cuantias', 'procedimiento',
+    'contratacion', 'actividades', 'ampliacion', 'reconstruccion', 'conservacion', 'intervencion',
+    'instalacion', 'modificacion', 'optimizacion', 'rehabilitacion', 'remodelacion', 'reposicion',
+    'reparacion', 'locativa', 'restauracion', 'restitucion', 'terminacion', 'reforzamiento',
+    'hnotecion', 'pomitiruccion', 'acredraren', 'cnatas', 'tenticito', 'neoraneento'];
+  const criterioLargo = 'Obras en infraestructura ' + palabrasRuidosas.join(' ') + ' del proceso.';
+  const ev = evaluar(
+    ['Requisito', 'Obligatoriedad'],
+    [[criterioLargo, 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de infraestructura vial urbana', 'Alcaldía', '100000000']] // comparte "infraestructura" (genérica) pero ninguna palabra distintiva del requisito
+  );
+  const just = ev.resultados[0].justificacion;
+  assert(ev.resultados[0].resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + ev.resultados[0].resultado);
+  const palabrasEnJustificacion = (just.match(/,/g) || []).length + 1;
+  assert(palabrasEnJustificacion <= 13, 'la justificación no debería listar más de ~12 palabras sueltas, tiene aprox ' + palabrasEnJustificacion + ': ' + just);
+  assert(/y \d+ más/.test(just), 'con 28 palabras ruidosas se esperaba el sufijo "y N más" recortando la lista, justificación: ' + just);
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
