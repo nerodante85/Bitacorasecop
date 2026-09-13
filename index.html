@@ -1480,6 +1480,12 @@
         <div class="actions">
           <button class="btn-secondary" id="bt-account-logout" type="button">Cerrar sesión</button>
         </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+        <label class="toggle" style="white-space:normal;align-items:flex-start;">
+          <input type="checkbox" id="bt-account-digest-toggle" style="margin-top:3px;flex-shrink:0;">
+          <span>Recibir un resumen diario por correo si hay procesos nuevos en mis alertas guardadas o novedades de empresas seguidas</span>
+        </label>
+        <p class="sub" id="bt-account-digest-note" style="margin-top:6px;">Requiere que tu Edge Function de correo esté activada (ver CLAUDE.md, "Fase 6: correo/job de alertas") -- sin eso, activar esto no envía nada.</p>
       </div>
     </div>
   </div>
@@ -1570,7 +1576,7 @@
     'historial', 'perfiles_empresa', 'perfil_activo_id', 'perfiles_activos',
     'perfil_empresa', 'analisis_pliegos', 'experiencia_evaluacion',
     'perfiles_profesionales', 'personal_activo_id', 'ultima_vista',
-    'alertas_guardadas', 'empresas_seguidas'
+    'alertas_guardadas', 'empresas_seguidas', 'correo_digest_activo'
   ];
 
   // Copia UNA sola vez lo que ya hubiera en este navegador a la cuenta recién
@@ -1672,13 +1678,21 @@
     document.getElementById('bt-account-error').hidden = true;
   }
 
-  function openAccountModal(){
+  async function openAccountModal(){
     const loggedOutEl = document.getElementById('bt-account-logged-out');
     const loggedInEl = document.getElementById('bt-account-logged-in');
     if (sbSession){
       loggedOutEl.hidden = true;
       loggedInEl.hidden = false;
       document.getElementById('bt-account-email-display').textContent = sbSession.user.email || '';
+      // Se lee cada vez que se abre el modal (no se cachea en una variable de
+      // módulo): así, si el valor cambió en otro dispositivo, se refleja al
+      // instante -- mismo criterio que el resto de get/set vía window.storage.
+      try {
+        const r = await window.storage.get('correo_digest_activo', false);
+        const digestToggle = document.getElementById('bt-account-digest-toggle');
+        if (digestToggle) digestToggle.checked = !!(r && r.value === 'true');
+      } catch(e){ /* deja el checkbox como estaba -- no bloquea abrir el modal */ }
     } else {
       loggedOutEl.hidden = false;
       loggedInEl.hidden = true;
@@ -1752,6 +1766,10 @@
     });
     document.getElementById('bt-account-submit').addEventListener('click', handleAccountSubmit);
     document.getElementById('bt-account-logout').addEventListener('click', handleAccountLogout);
+    const digestToggle = document.getElementById('bt-account-digest-toggle');
+    if (digestToggle) digestToggle.addEventListener('change', () => {
+      window.storage.set('correo_digest_activo', digestToggle.checked ? 'true' : 'false', false);
+    });
   }
 
   const root = document.getElementById('bitacora-root');

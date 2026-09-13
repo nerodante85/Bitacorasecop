@@ -161,6 +161,35 @@ dispositivos:
 Detalle de diseño (modelo de datos, seguridad por fila, qué se sincroniza y
 qué no) en `CLAUDE.md`, sección "Fase 1: cuentas y sincronización".
 
+### Resumen diario por correo (opcional, requiere cuenta)
+
+Con cuenta conectada (arriba), en "Tu cuenta" puedes activar "Recibir un
+resumen diario por correo" para tus alertas guardadas y empresas seguidas.
+Esto necesita, además, una pieza de servidor que este repo no despliega
+sola con `git push` (a diferencia de `index.html`, que sí publica solo vía
+GitHub Pages):
+
+1. Crear una cuenta gratis en [resend.com](https://resend.com) y generar una
+   API key (Dashboard → API Keys).
+2. Instalar la [CLI de Supabase](https://supabase.com/docs/guides/cli) y
+   correr, desde la raíz del repo: `supabase login`, luego
+   `supabase link --project-ref <tu-project-ref>` (el ref está en la URL del
+   panel de tu proyecto).
+3. Configurar los secrets de la función (nunca se pegan en `index.html` ni
+   en ningún archivo del repo):
+   ```bash
+   supabase secrets set RESEND_API_KEY=re_xxx
+   supabase secrets set CRON_SECRET=<inventa-una-cadena-larga-al-azar>
+   ```
+4. Desplegar la función: `supabase functions deploy daily-digest`.
+5. Correr `supabase/cron.sql` en el SQL Editor del proyecto (reemplazando
+   `<PROJECT_REF>` y `<CRON_SECRET>` por los valores reales) para programar
+   el envío diario.
+
+Detalle completo (por qué hace falta una Edge Function separada, qué hace
+exactamente, cómo depurarla) en `CLAUDE.md`, sección "Fase 6: correo/job de
+alertas".
+
 ## Seguridad
 
 - **CSP** (`<meta http-equiv="Content-Security-Policy">`) restringe a qué

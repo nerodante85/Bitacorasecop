@@ -1536,3 +1536,88 @@ overflow ni errores de consola reales (los dos únicos errores vistos al
 probar fueron de mi propio método de prueba -- un `fetch('blob:...')` para
 inspeccionar la descarga, bloqueado correctamente por la CSP -- no del flujo
 real de descarga, que usa `<a download>` sin pasar por `connect-src`).
+
+## Fase 6 del prompt maestro: correo/job de alertas
+
+Del prompt maestro del usuario, punto 6 ("Sistema de alertas" -- la parte de
+correo/job que se dejó pendiente a propósito en Fase 4: "Solo en la app, sin
+correo (recomendado para empezar)"). Antes de escribir código se discutió
+con el usuario, igual que en Fase 1, porque **es el primer cambio de
+arquitectura real desde Fase 1**: confirmó proveedor (Resend), frecuencia
+(diaria) y contenido (resumen breve, no el detalle completo en el correo).
+
+**Por qué esto NO puede vivir en `index.html`**: enviar un correo *sin que
+el usuario tenga la pestaña abierta* exige algo que corra solo, en un
+horario, del lado del servidor -- el navegador no puede. La única pieza de
+servidor que ya existe en esta app es Supabase (Fase 1), así que el diseño
+usa lo que ya está: una **Supabase Edge Function** (`supabase/functions/
+daily-digest/index.ts`, Deno/TypeScript) disparada por un **cron de
+Postgres** (`pg_cron` + `pg_net`, `supabase/cron.sql`) una vez al día.
+
+**Primer secreto REAL del proyecto, y por qué necesita su propio archivo**:
+a diferencia de la anon key de Supabase o el App Token de Socrata (ambos
+diseñados para ir embebidos en código de cliente, protegidos por RLS o por
+solo subir un límite de tasa respectivamente -- ver la nota de seguridad ya
+documentada en Fase 1/Socrata), la API key de Resend SÍ es un secreto real:
+quien la tenga puede enviar correos en nombre de la cuenta de Resend del
+usuario. Por eso NUNCA se pega en `index.html` ni en ningún archivo del
+repo -- vive únicamente como *Supabase secret* (`RESEND_API_KEY`,
+configurado con `supabase secrets set`, nunca visible en el navegador ni en
+git). Mismo criterio ya anotado en CLAUDE.md para un hipotético caso similar
+("LLM para lenguaje natural: diseñado, NO implementado") -- este es el
+primero que en realidad se construyó.
+
+**La Edge Function está protegida con un secreto compartido
+(`CRON_SECRET`), no abierta al público**: una función desplegada en
+Supabase tiene una URL pública alcanzable por cualquiera que la descubra.
+Sin esa protección, cualquiera podría invocarla directamente y forzar el
+envío de correos a todos los usuarios de la app. El cron de Postgres manda
+ese mismo secreto en un header (`x-cron-secret`) en cada llamada
+(`supabase/cron.sql`); la función responde 401 si no coincide.
+
+**Duplicación deliberada de lógica, no descuido**: la Edge Function corre en
+Deno, un runtime totalmente aparte del navegador -- no hay forma de
+"importar" funciones de un `<script>` de `index.html` sin agregar un paso de
+build, que esta app no tiene por diseño. Se portaron a mano las funciones
+puras que hacían falta (`parseNumCO`, `normalizeGeo`, `matchesGeo`,
+`matchesTerm` -- incluida la regla de la raíz de 6 letras para pavimento/
+pavimentación --, `findField`, `prepararBusquedaPorNombre`,
+`fetchSecopDataset`), cada una comentada con el nombre exacto de su
+contraparte en `index.html` para que quede claro qué mantener sincronizado
+si esa lógica cambia ahí. Se verificaron con un test desechable de Node
+(casos ya documentados en este archivo: "PAVIMENTO FLEXIBLE" vs
+"pavimentación", "Santander" NO matchea "Norte de Santander", INVIAS vs su
+nombre completo) -- los 7 casos pasaron antes de dar la lógica portada por
+buena.
+
+**Qué SÍ se pudo probar en este entorno, y qué NO**:
+- SÍ: el checkbox nuevo en "Tu cuenta" ("Recibir un resumen diario...")
+  -- render, que no desborda el modal (`max-width:360px`) ni en 375px,
+  que persiste con `window.storage.set('correo_digest_activo', ...)` y que
+  se recarga correctamente al reabrir el modal.
+- SÍ: sintaxis del archivo TypeScript de la Edge Function, con `tsc
+  --noEmit` (sin Deno instalado en este entorno) -- cero errores de
+  sintaxis; los únicos errores reportados son los esperables por faltar los
+  tipos de Deno (`Deno.*`, `npm:` specifier), no problemas reales.
+- SÍ: la lógica pura de coincidencia (ver test desechable arriba).
+- NO se pudo probar en este entorno (sin CLI de Supabase ni cuenta de
+  Resend a mano): el despliegue real de la función, la consulta con
+  `service_role` a `app_state`/`company_members`/Auth Admin API, ni el
+  envío real de un correo. Eso lo verifica el usuario tras desplegar,
+  siguiendo los pasos de `README.md` -- se puede invocar la función a mano
+  con `curl` (con el header `x-cron-secret` correcto) para probar sin
+  esperar al cron diario, y `select * from cron.job_run_details` en el SQL
+  Editor muestra las ejecuciones programadas una vez armado el cron.
+
+**Cero regresión mientras no se active**: el checkbox nuevo empieza sin
+marcar y el flujo `window.storage.get/set` de siempre sigue funcionando
+igual si no se despliega la Edge Function -- simplemente nadie recibiría el
+correo (la casilla no falla ni bloquea nada, solo no tiene efecto sin el
+backend desplegado). Ningún otro flujo de la app cambia.
+
+**Qué NO hace este resumen, a propósito**: no reemplaza "Ver nuevos"/"Ver
+actividad" dentro de la app (que sí marca `ultimaRevision` y resetea el
+contador) -- el correo es de solo lectura, nunca escribe en `app_state`. Si
+el usuario no entra a la app, el mismo resumen se repite al día siguiente
+mientras siga habiendo novedades sin revisar -- comportamiento intencional
+(avisar hasta que se atienda), no un bug de "no se marca como visto".
