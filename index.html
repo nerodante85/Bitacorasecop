@@ -1162,12 +1162,46 @@
                 <label>Capacidad K residual (texto libre)</label>
                 <input id="bt-perfil-k-residual" type="text" placeholder="ej. K residual = 1.200.000.000">
               </div>
+              <div class="field-row2 full">
+                <div class="field">
+                  <label>NIT</label>
+                  <input id="bt-perfil-nit" type="text" placeholder="ej. 900.123.456-7">
+                </div>
+                <div class="field">
+                  <label>Representante legal</label>
+                  <input id="bt-perfil-representante" type="text" placeholder="Nombre completo">
+                </div>
+              </div>
+              <div class="field-row2 full">
+                <div class="field">
+                  <label>Cédula del representante legal</label>
+                  <input id="bt-perfil-representante-cedula" type="text" placeholder="ej. 1.234.567.890">
+                </div>
+                <div class="field">
+                  <label>Teléfono</label>
+                  <input id="bt-perfil-telefono" type="text" placeholder="ej. 300 123 4567">
+                </div>
+              </div>
+              <div class="field full">
+                <label>Dirección</label>
+                <input id="bt-perfil-direccion" type="text" placeholder="ej. Calle 10 # 5-20, Cúcuta">
+              </div>
+              <div class="field-row2 full">
+                <div class="field">
+                  <label>Ciudad</label>
+                  <input id="bt-perfil-ciudad" type="text" placeholder="ej. Cúcuta">
+                </div>
+                <div class="field">
+                  <label>Correo electrónico</label>
+                  <input id="bt-perfil-correo" type="email" placeholder="ej. contacto@empresa.com">
+                </div>
+              </div>
             </div>
             <div class="actions">
               <button class="btn-secondary" id="bt-perfil-save">Guardar perfil</button>
               <span class="saved-note" id="bt-perfil-saved"></span>
             </div>
-            <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga y evalúa aparte, en "Experiencia" (Excel del proponente + matriz de requisitos). El RUP tampoco se usa aquí para inferir experiencia.</div>
+            <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga y evalúa aparte, en "Experiencia" (Excel del proponente + matriz de requisitos). El RUP tampoco se usa aquí para inferir experiencia. Los datos de NIT/representante/contacto se usan solo para generar la carta de presentación (ver "Evaluación") — ningún dato sale de tu navegador salvo que actives cuenta/sincronización.</div>
 
             <div class="titleblock-head" style="border:none;margin:22px 0 10px;padding-bottom:0;">
               <h2 style="font-size:14.5px;">Capacidad contractual estimada</h2>
@@ -1767,6 +1801,13 @@
   const perfilRupEl = document.getElementById('bt-perfil-rup');
   const perfilKEl = document.getElementById('bt-perfil-k');
   const perfilKResidualEl = document.getElementById('bt-perfil-k-residual');
+  const perfilNitEl = document.getElementById('bt-perfil-nit');
+  const perfilRepresentanteEl = document.getElementById('bt-perfil-representante');
+  const perfilRepresentanteCedulaEl = document.getElementById('bt-perfil-representante-cedula');
+  const perfilTelefonoEl = document.getElementById('bt-perfil-telefono');
+  const perfilDireccionEl = document.getElementById('bt-perfil-direccion');
+  const perfilCiudadEl = document.getElementById('bt-perfil-ciudad');
+  const perfilCorreoEl = document.getElementById('bt-perfil-correo');
   const perfilSaveBtn = document.getElementById('bt-perfil-save');
   const perfilSavedEl = document.getElementById('bt-perfil-saved');
   const perfilSelectEl = document.getElementById('bt-perfil-select');
@@ -1856,7 +1897,13 @@
   // array -- agregar un contrato a una empresa se filtraría a todas las
   // demás. Se maneja aparte en migrarPerfil()/nuevoPerfil() (clonado o creado
   // de cero en cada llamada) por esa razón.
-  const PERFIL_VACIO = { nombre: '', rup: '', k: '', kResidual: '' };
+  const PERFIL_VACIO = {
+    nombre: '', rup: '', k: '', kResidual: '',
+    // Datos de contacto/legales -- solo se usan para generar la carta de
+    // presentación (Fase 10, ver generarCartaTexto), no entran en ningún
+    // gate go/no-go.
+    nit: '', representanteLegal: '', representanteCedula: '', telefono: '', direccion: '', ciudad: '', correo: ''
+  };
   let perfiles = {}; // { id: { nombre, rup, k, kResidual, contratosEnEjecucion } }
   let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
   let perfilesActivos = [];       // ids marcados para comparar contra cada pliego (varios a la vez)
@@ -1982,6 +2029,13 @@
     setCampo(perfilRupEl, perfil.rup);
     setCampo(perfilKEl, perfil.k);
     setCampo(perfilKResidualEl, perfil.kResidual);
+    setCampo(perfilNitEl, perfil.nit);
+    setCampo(perfilRepresentanteEl, perfil.representanteLegal);
+    setCampo(perfilRepresentanteCedulaEl, perfil.representanteCedula);
+    setCampo(perfilTelefonoEl, perfil.telefono);
+    setCampo(perfilDireccionEl, perfil.direccion);
+    setCampo(perfilCiudadEl, perfil.ciudad);
+    setCampo(perfilCorreoEl, perfil.correo);
     renderContratosEjecucion();
     if (perfilSavedEl) perfilSavedEl.textContent = '';
     if (perfilRupStatusEl) perfilRupStatusEl.textContent = 'Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa Guardar perfil).';
@@ -1996,6 +2050,13 @@
       rup: getCampo(perfilRupEl),
       k: getCampo(perfilKEl),
       kResidual: getCampo(perfilKResidualEl),
+      nit: getCampo(perfilNitEl),
+      representanteLegal: getCampo(perfilRepresentanteEl),
+      representanteCedula: getCampo(perfilRepresentanteCedulaEl),
+      telefono: getCampo(perfilTelefonoEl),
+      direccion: getCampo(perfilDireccionEl),
+      ciudad: getCampo(perfilCiudadEl),
+      correo: getCampo(perfilCorreoEl),
       // Los contratos en ejecución se gestionan aparte (agregarContratoEjecucion/
       // eliminarContratoEjecucion/actualizarCampoContrato, con su propio
       // autoguardado) -- si "Guardar perfil" reconstruyera el objeto sin este
@@ -3577,6 +3638,7 @@
       ? Object.assign({}, kResidualCrudo, { valor: capacidadEstimada.disponible })
       : kResidualCrudo;
     return {
+      id: p._id || null, // sobrevive a migrarPerfil (Object.assign copia cualquier prop extra) -- lo usa "Generar carta de presentación" para saber de qué perfil sacar NIT/representante/contacto
       nombre: p.nombre || 'Perfil',
       codigos: (p.rup || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean),
       kResidual: kResidualParaGates,
@@ -3727,7 +3789,7 @@
     if (hayFail) veredicto = 'NO-GO';
     else if (hayRevisar || !entry) veredicto = 'REVISAR'; // sin pliego nunca se afirma un GO pleno
     else veredicto = 'GO';
-    return { veredicto: veredicto, gates: gates, conPliego: !!entry, perfil: matriz.nombre };
+    return { veredicto: veredicto, gates: gates, conPliego: !!entry, perfil: matriz.nombre, perfilId: matriz.id };
   }
 
   // Evalúa contra TODOS los perfiles marcados (o el que se edita si no hay marcados)
@@ -3787,9 +3849,18 @@
         '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.detalle) + '</li>'
       ).join('');
       const cls = r.veredicto === 'GO' ? 'eval-go' : r.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
+      // El botón de carta es POR PERFIL (r.perfilId) porque los datos de NIT/
+      // representante/contacto son de una empresa puntual, a diferencia de
+      // "Descargar evaluación" (que es del proceso completo, con todos los
+      // perfiles comparados). Sin perfilId (perfil eliminado entre que se
+      // corrió la evaluación y ahora) no se muestra, en vez de romper.
+      const cartaBtn = r.perfilId
+        ? ' <button type="button" class="link-btn eval-carta-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(r.perfilId) + '">⬇ Generar carta de presentación (.txt)</button>'
+        : '';
       return '<div class="analysis-sub">' + escapeHtml(r.perfil) + ' — <span class="eval-verdict ' + cls + '">' + r.veredicto + '</span>' +
         (r.conPliego ? '' : ' <span style="color:var(--text-muted);font-weight:400;">(evaluación ligera — sin pliego analizado)</span>') + '</div>' +
-        '<ul class="analysis-list">' + filas + '</ul>';
+        '<ul class="analysis-list">' + filas + '</ul>' +
+        '<div style="margin:-4px 0 10px;">' + cartaBtn + '</div>';
     };
     const notas = notasParticipacion(entry);
     const notasHtml = notas.length
@@ -3843,6 +3914,69 @@
     L.push('════════════════════════════════════════════════════════');
     L.push('NOTA: orientativo. NO valida jurídicamente los requisitos habilitantes.');
     L.push('Verifica el pliego completo y el expediente en SECOP II antes de decidir.');
+    return L.join('\n');
+  }
+
+  // ============================================================================
+  // GENERACIÓN DE DOCUMENTOS CCE -- prompt maestro del usuario, punto 10.
+  // Alcance elegido por el usuario entre 4 opciones (carta de presentación /
+  // hojas de vida de personal / ambas / otra): carta de presentación de la
+  // oferta, el documento que pide prácticamente cualquier pliego de obra
+  // pública. Es una PLANTILLA orientativa con el contenido estándar de este
+  // tipo de carta (manifestación de conocer el pliego, ausencia de
+  // inhabilidades, compromiso de suscribir el contrato...) -- NO el formato
+  // oficial exacto de ninguna entidad ni de Colombia Compra Eficiente: cada
+  // pliego trae su propio Anexo/Formato con numeración y a veces firma
+  // digital específica, que esta plantilla no puede replicar sin tenerlo. Los
+  // datos que NO se pueden sacar de lo ya cargado en la app (valor de la
+  // oferta -- que NO es el valor base/presupuesto oficial, es lo que el
+  // proponente decide ofertar -- y el plazo de ejecución ofrecido) quedan
+  // como [COMPLETAR], nunca inventados ni asumidos como si fueran el
+  // presupuesto oficial del proceso.
+  // ============================================================================
+  function generarCartaTexto(perfil, item){
+    const p = perfil; // alias corto -- evita repetir "perfil." en cada línea
+    const L = [];
+    L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
+    L.push('');
+    L.push('Señores');
+    L.push(item.entidad || '[ENTIDAD CONTRATANTE]');
+    L.push('Referencia: ' + (item.modalidad || '[MODALIDAD]') + (item.referencia ? ' No. ' + item.referencia : ' No. [NÚMERO DE PROCESO]'));
+    L.push('Objeto: ' + (item.objeto || '[OBJETO DEL PROCESO]'));
+    L.push('');
+    L.push('Asunto: Carta de presentación de la oferta');
+    L.push('');
+    L.push('El(la) suscrito(a) ' + (p.representanteLegal || '[REPRESENTANTE LEGAL]') +
+      ', identificado(a) con cédula de ciudadanía No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]') +
+      ', obrando en calidad de representante legal de ' + (p.nombre || '[RAZÓN SOCIAL]') +
+      ', sociedad identificada con NIT ' + (p.nit || '[NIT]') +
+      (p.direccion ? ', con domicilio en ' + p.direccion + (p.ciudad ? ', ' + p.ciudad : '') : ', con domicilio en [DIRECCIÓN]' + (p.ciudad ? ', ' + p.ciudad : ', [CIUDAD]')) +
+      (p.telefono ? ', teléfono ' + p.telefono : ', teléfono [TELÉFONO]') +
+      (p.correo ? ', correo electrónico ' + p.correo : ', correo electrónico [CORREO ELECTRÓNICO]') +
+      ', una vez conocido el contenido del proceso de la referencia, manifiesto:');
+    L.push('');
+    L.push('1. Que presento oferta para participar en el proceso de la referencia y que conozco y acepto el pliego de condiciones, sus anexos, adendas y demás documentos del proceso.');
+    L.push('2. Que ni ' + (p.nombre || '[RAZÓN SOCIAL]') + ' ni su representante legal se encuentran incursos en las causales de inhabilidad, incompatibilidad o conflicto de interés para contratar con el Estado, establecidas en la Constitución y la ley.');
+    L.push('3. Que la información y los documentos aportados con esta propuesta son veraces y verificables.');
+    L.push('4. Que en caso de resultar favorecidos con la adjudicación, ' + (p.nombre || '[RAZÓN SOCIAL]') + ' se compromete a suscribir el contrato dentro del término señalado en los documentos del proceso y a constituir las garantías exigidas.');
+    L.push('5. Que el valor total de la presente propuesta es de [COMPLETAR: valor de la oferta], suma que incluye todos los costos directos e indirectos, impuestos, tasas y contribuciones a que haya lugar.');
+    L.push('6. Que el plazo de ejecución ofrecido es de [COMPLETAR: plazo ofrecido], contado a partir de [COMPLETAR: fecha o acta de inicio].');
+    L.push('7. Que declaro lo anterior bajo la gravedad de juramento.');
+    L.push('');
+    L.push('Atentamente,');
+    L.push('');
+    L.push('');
+    L.push('_______________________________________');
+    L.push(p.representanteLegal || '[REPRESENTANTE LEGAL]');
+    L.push('C.C. No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]'));
+    L.push('Representante Legal');
+    L.push(p.nombre || '[RAZÓN SOCIAL]');
+    L.push('NIT: ' + (p.nit || '[NIT]'));
+    if (p.direccion || p.ciudad) L.push('Dirección: ' + (p.direccion || '[DIRECCIÓN]') + (p.ciudad ? ', ' + p.ciudad : ''));
+    if (p.telefono || p.correo) L.push((p.telefono ? 'Teléfono: ' + p.telefono : '') + (p.telefono && p.correo ? '  ·  ' : '') + (p.correo ? 'Correo: ' + p.correo : ''));
+    L.push('');
+    L.push('════════════════════════════════════════════════════════');
+    L.push('PLANTILLA ORIENTATIVA -- generada a partir de los datos de tu perfil de empresa y del proceso seleccionado. NO es el formato oficial exacto de esta entidad ni de Colombia Compra Eficiente: cada pliego trae su propio Anexo/Formato de carta de presentación (numeración, y a veces firma digital) -- compáralo contra el pliego real antes de presentarla. Los campos marcados [COMPLETAR] no se pueden inferir de los datos ya cargados en la app (el valor de tu oferta lo decides tú, no es el presupuesto oficial del proceso).');
     return L.join('\n');
   }
 
@@ -5666,12 +5800,20 @@
   if (evalOutEl) evalOutEl.addEventListener('click', async function(e){
     const infBtn = e.target.closest('.eval-informe-btn');
     const adjBtn = e.target.closest('.eval-adj-btn');
+    const cartaBtn = e.target.closest('.eval-carta-btn');
     if (infBtn){
       const s = (lastScored || []).find(x => x.item.id === infBtn.getAttribute('data-eval-id'));
       if (!s) return;
       const entryInf = analisis[s.item.id];
       const res = s.evaluacion || evaluarMejor(s.item, { daysLeft: s.daysLeft }, entryInf);
       descargarTexto('evaluacion-' + slugArchivo((s.item.referencia || s.item.entidad)) + '-' + new Date().toISOString().slice(0, 10) + '.txt', informeEvalTexto(s.item, res, entryInf));
+      return;
+    }
+    if (cartaBtn){
+      const s = (lastScored || []).find(x => x.item.id === cartaBtn.getAttribute('data-eval-id'));
+      const p = perfiles[cartaBtn.getAttribute('data-perfil-id')];
+      if (!s || !p) return;
+      descargarTexto('carta-presentacion-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarCartaTexto(migrarPerfil(p), s.item));
       return;
     }
     if (adjBtn){

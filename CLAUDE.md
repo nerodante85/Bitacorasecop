@@ -1468,3 +1468,71 @@ departamento ("Escribe al menos..."), y sin resultados con una palabra sin
 sentido (sugerencia de término más genérico). Tests de humo 5/5. Probado en
 los 3 breakpoints sin overflow ni errores de consola (ver el bug de
 eficiencia arriba).
+
+## Fase 10 del prompt maestro: generación de documentos CCE
+
+Del prompt maestro del usuario, punto 10 ("Generación de documentos CCE").
+Presentado con 4 opciones antes de construir (carta de presentación / hojas
+de vida del personal / ambas / otra combinación) -- se eligió carta de
+presentación de la oferta: el documento que pide prácticamente cualquier
+pliego de obra pública, y el único de los dos que necesitaba campos nuevos
+en el perfil (justificando la fase por sí sola; las hojas de vida de
+Personal quedan pendientes para cuando se pidan, ya que no requieren datos
+nuevos).
+
+**Es una PLANTILLA, no el formato oficial**: el contenido (manifestación de
+conocer el pliego, ausencia de inhabilidades/incompatibilidades, compromiso
+de suscribir el contrato...) es el estándar de este tipo de carta en
+contratación pública colombiana, pero cada entidad/pliego trae su propio
+Anexo/Formato con numeración y a veces firma digital específica que esta
+plantilla no puede replicar sin tener ese documento -- se etiqueta así de
+explícito en el propio texto generado, mismo criterio que "Sugerencia de
+oferta económica" (Fase 8) y "Capacidad contractual estimada" (Fase 13).
+
+**Campos nuevos en el perfil, solo para esto**: NIT, representante legal,
+cédula del representante, dirección, ciudad, teléfono, correo -- a
+diferencia de K/K residual (texto libre, porque vienen de una tabla del RUP
+con formato variable), estos son campos ESTRUCTURADOS de una sola línea: van
+a insertarse tal cual en un documento que alguien firma, así que parsear
+texto libre con regex (como se hace con K) habría arriesgado insertar el
+dato equivocado en el lugar equivocado de una carta formal -- no es
+aceptable el mismo margen de error que en un análisis orientativo. A
+diferencia de `contratosEnEjecucion` (un array, con su propio problema de
+referencia compartida, ver Fase 13), estos son strings simples y SÍ pueden
+vivir directo en `PERFIL_VACIO` sin ese riesgo.
+
+**Qué NO se puede rellenar solo, a propósito**: el valor de la oferta y el
+plazo de ejecución ofrecido quedan como `[COMPLETAR]` en el texto generado.
+El valor de la oferta NO es el presupuesto oficial/valor base del proceso
+(eso ya se muestra aparte, y confundir los dos sería literalmente inventar
+la cifra que el proponente va a firmar) -- lo decide la empresa, la app no
+tiene ese dato en ningún lado.
+
+**Botón por PERFIL, no por proceso**: a diferencia de "Descargar evaluación"
+(un solo botón para el proceso completo, con todos los perfiles comparados),
+"Generar carta de presentación" aparece una vez por cada perfil dentro de
+"Evaluación" (`bloquePerfil`), porque el NIT/representante/contacto son de
+UNA empresa puntual. Para saber de qué perfil sacar esos datos al hacer clic
+se agregó `perfilId` al resultado de `evaluarProceso()` -- viene de
+`matrizCapacidad(p).id`, que a su vez sobrevive a `migrarPerfil()` porque
+`Object.assign` copia cualquier propiedad extra de `p` (incluida `_id`, que
+ya traía `perfilesParaComparar()`), no solo las que están en `PERFIL_VACIO`.
+Sin `perfilId` (perfil borrado entre que se evaluó y ahora) el botón
+simplemente no se muestra, en vez de romper.
+
+**Verificado con datos reales**: perfil "CONSTRUCTORA DEL NORTE S.A.S." con
+todos los campos nuevos llenos + un proceso real de la demo -> la carta
+generada sustituyó cada dato correctamente (entidad, objeto, modalidad,
+NIT, representante, cédula, dirección, teléfono, correo) y dejó `[COMPLETAR:
+valor de la oferta]`/`[COMPLETAR: plazo ofrecido]` donde correspondía. Con
+un segundo perfil recién creado (todos los campos vacíos) la misma carta
+sustituyó cada placeholder por su corchete (`[REPRESENTANTE LEGAL]`,
+`[NIT]`...) sin romperse ni mostrar "undefined". Se recordó también, al
+probarlo, la limitación ya documentada en Fase 13 sobre `s.evaluacion`
+cacheado: agregar un segundo perfil no basta para que aparezca su botón de
+carta hasta volver a "Buscar procesos" (nueva búsqueda o cambio de filtro)
+y "Evaluar" de nuevo. Tests de humo 5/5. Probado en los 3 breakpoints sin
+overflow ni errores de consola reales (los dos únicos errores vistos al
+probar fueron de mi propio método de prueba -- un `fetch('blob:...')` para
+inspeccionar la descarga, bloqueado correctamente por la CSP -- no del flujo
+real de descarga, que usa `<a download>` sin pasar por `connect-src`).

@@ -44,6 +44,13 @@ analiza el pliego de condiciones de un proceso puntual.
   "Buscar procesos"). Incluye una sugerencia de oferta económica (escenarios
   conservador/competitivo/agresivo) calculada a partir de ese mismo
   historial — pura aritmética transparente, sin IA.
+- **Generar carta de presentación de la oferta** (dentro de "Evaluación", por
+  cada perfil de empresa comparado): plantilla de texto lista para revisar y
+  adaptar, con los datos de la empresa (NIT, representante legal, contacto —
+  se cargan una vez en "Perfil de la empresa") y del proceso elegido ya
+  completados. No es el formato oficial exacto de ninguna entidad ni de
+  Colombia Compra Eficiente — compárala siempre contra el Anexo/Formato que
+  pida el pliego real.
 - **Competencia**: ficha de una empresa que contrata con el Estado (nombre o
   razón social) — contratos totales, valor contratado, principales entidades,
   sectores y evolución por año, combinando SECOP I y SECOP II. Puedes
