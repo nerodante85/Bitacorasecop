@@ -1296,13 +1296,13 @@
 
             <div class="expeval-uploads">
               <div class="field-label-row"><span class="step-num">2</span> Matriz de experiencia (formato de requisitos)</div>
-              <div class="dropzone" id="bt-expeval-matriz-upload" tabindex="0" role="button" aria-label="Cargar Excel de la matriz de requisitos">
+              <div class="dropzone" id="bt-expeval-matriz-upload" tabindex="0" role="button" aria-label="Cargar Excel o PDF de la matriz de requisitos">
                 <div class="dropzone-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.6-2 4.5 4.5 0 0 1 1.4 8.7"/><path d="M12 21v-8"/><path d="M9 16l3-3 3 3"/></svg></div>
                 <div class="dropzone-title">Cargar matriz de requisitos</div>
-                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo</div>
-                <div class="dropzone-types">Excel</div>
+                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo -- Excel o PDF</div>
+                <div class="dropzone-types">Excel o PDF</div>
               </div>
-              <input type="file" accept=".xlsx,.xls,.csv" id="bt-expeval-matriz-file" hidden>
+              <input type="file" accept=".xlsx,.xls,.csv,.pdf" id="bt-expeval-matriz-file" hidden>
               <div class="saved-note" id="bt-expeval-matriz-status" style="margin-top:8px;">Sin cargar.</div>
             </div>
 
@@ -3221,42 +3221,90 @@
     return Array.from(new Set(normHeader(texto).split(' ').filter(w => w.length > 3 && !STOPWORDS_ES.has(w))));
   }
 
+  // Construye UN requisito a partir de su texto de criterio + (opcional)
+  // valores de celda ya separados por columna. `celdas` viene lleno cuando el
+  // origen es un Excel con columnas propias (parsearMatrizExperiencia) y
+  // vacío `{}` cuando el origen es texto libre de PDF (parsearMatrizExperien
+  // ciaPDF) -- en ese segundo caso TODO sale de los mismos regex sobre
+  // criterioTexto que ya existían como respaldo cuando el Excel no traía una
+  // columna separada para un campo. Compartir esta función entre los dos
+  // orígenes evita mantener la misma lógica de extracción dos veces.
+  function construirRequisitoDesdeTexto(criterioTexto, i, celdas){
+    celdas = celdas || {};
+    criterioTexto = (criterioTexto || '').toString().trim();
+    const tipoRaw = normHeader(String(celdas.tipo || criterioTexto));
+    let tipo = 'no-clasificado';
+    if (/especif/.test(tipoRaw)) tipo = 'especifica';
+    else if (/general/.test(tipoRaw)) tipo = 'general';
+    const oblRaw = normHeader(String(celdas.obligatoriedad || '') + ' ' + criterioTexto);
+    let obligatoriedad = 'obligatorio';
+    if (/opcional/.test(oblRaw)) obligatoriedad = 'opcional';
+    else if (/complementari/.test(oblRaw)) obligatoriedad = 'complementario';
+    else if (/alternativ|cualquiera de|uno de los siguientes|o bien/.test(oblRaw)) obligatoriedad = 'alternativo';
+    const minContratos = celdas.minContratos ? parseNumCO(String(celdas.minContratos)) : (function(){
+      // "mínimo de 3 contratos" y "mínimo 3 contratos" (sin "de") aparecen
+      // ambas formas en pliegos reales -- "de" opcional, no solo la primera.
+      const m = criterioTexto.match(/m[ií]nimo\s+(?:de\s+)?(\d+)\s+contratos?/i) || criterioTexto.match(/(\d+)\s+contratos?\s+como\s+m[ií]nimo/i);
+      return m ? parseInt(m[1], 10) : null;
+    })();
+    const minValor = parseValorUnidad(String(celdas.minValor || '')) || (function(){
+      const m = criterioTexto.match(/(\d[\d.,]*)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i);
+      return m ? parseValorUnidad(m[0]) : null;
+    })();
+    const minCantidad = parseValorUnidad(String(celdas.minCantidad || ''));
+    const acumulableRaw = normHeader(String(celdas.acumulable || '') + ' ' + criterioTexto);
+    const acumulable = /acumul|sumatoria|suma de los? contratos?/.test(acumulableRaw);
+    const palabras = palabrasClaveDe(criterioTexto);
+    const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p));
+    return {
+      id: 'r' + (i + 1), fila: i + 1, criterio: criterioTexto, tipo: tipo, obligatoriedad: obligatoriedad,
+      minContratos: minContratos, minValor: minValor, minCantidad: minCantidad, acumulable: acumulable,
+      palabrasClave: palabras, palabrasDistintivas: distintivas
+    };
+  }
+
   function parsearMatrizExperiencia(workbook){
     const { headers, rows } = leerHojaComoFilas(workbook);
     const cols = detectarColumnas(headers, DICC_REQUISITO);
     const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
     const requisitos = rows.map((row, i) => {
       const criterioTexto = ((cols.criterio != null ? get(row, 'criterio') : row.join(' ')) || '').toString().trim();
-      const tipoRaw = normHeader(String(get(row, 'tipo') || criterioTexto));
-      let tipo = 'no-clasificado';
-      if (/especif/.test(tipoRaw)) tipo = 'especifica';
-      else if (/general/.test(tipoRaw)) tipo = 'general';
-      const oblRaw = normHeader(String(get(row, 'obligatoriedad') || '') + ' ' + criterioTexto);
-      let obligatoriedad = 'obligatorio';
-      if (/opcional/.test(oblRaw)) obligatoriedad = 'opcional';
-      else if (/complementari/.test(oblRaw)) obligatoriedad = 'complementario';
-      else if (/alternativ|cualquiera de|uno de los siguientes|o bien/.test(oblRaw)) obligatoriedad = 'alternativo';
-      const minContratosCelda = get(row, 'minContratos');
-      const minContratos = minContratosCelda ? parseNumCO(String(minContratosCelda)) : (function(){
-        const m = criterioTexto.match(/m[ií]nimo\s+de\s+(\d+)\s+contratos?/i) || criterioTexto.match(/(\d+)\s+contratos?\s+como\s+m[ií]nimo/i);
-        return m ? parseInt(m[1], 10) : null;
-      })();
-      const minValor = parseValorUnidad(String(get(row, 'minValor') || '')) || (function(){
-        const m = criterioTexto.match(/(\d[\d.,]*)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i);
-        return m ? parseValorUnidad(m[0]) : null;
-      })();
-      const minCantidad = parseValorUnidad(String(get(row, 'minCantidad') || ''));
-      const acumulableRaw = normHeader(String(get(row, 'acumulable') || '') + ' ' + criterioTexto);
-      const acumulable = /acumul|sumatoria|suma de los? contratos?/.test(acumulableRaw);
-      const palabras = palabrasClaveDe(criterioTexto);
-      const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p));
-      return {
-        id: 'r' + (i + 1), fila: i + 1, criterio: criterioTexto, tipo: tipo, obligatoriedad: obligatoriedad,
-        minContratos: minContratos, minValor: minValor, minCantidad: minCantidad, acumulable: acumulable,
-        palabrasClave: palabras, palabrasDistintivas: distintivas
-      };
+      return construirRequisitoDesdeTexto(criterioTexto, i, {
+        tipo: get(row, 'tipo'), obligatoriedad: get(row, 'obligatoriedad'),
+        minContratos: get(row, 'minContratos'), minValor: get(row, 'minValor'),
+        minCantidad: get(row, 'minCantidad'), acumulable: get(row, 'acumulable')
+      });
     }).filter(r => r.criterio);
-    return { headers: headers, cols: cols, requisitos: requisitos };
+    return { headers: headers, cols: cols, requisitos: requisitos, fuente: 'excel' };
+  }
+
+  // Segmenta el texto plano de un PDF (matriz de requisitos sin Excel) en
+  // candidatos a "un requisito por trozo" -- corta ANTES de cada marcador de
+  // lista (numerado "1.", con letra "a)", viñeta, "Requisito N", "N°N") que
+  // venga seguido de mayúscula, para no partir dentro de un número con
+  // separador de miles ("1.200.000.000", sin espacio alrededor del punto).
+  // No hay NLP/interpretación semántica real -- es un heurístico de formato
+  // de lista, igual de "por reglas" que el resto del motor. Por eso el panel
+  // de "Revisar interpretación" es más importante aquí que con un Excel: la
+  // segmentación de texto libre es más incierta que leer columnas.
+  function segmentarTextoEnRequisitos(texto){
+    const t = String(texto || '').replace(/\s+/g, ' ').trim();
+    if (!t) return [];
+    const marcador = /(?:\d{1,2}[.)]|[a-jA-J][.)]|[•▪●]|[Rr]equisito\s+\d{1,2}[:.]?|N[°º]\s?\d{1,2}[:.]?)\s{0,2}[A-ZÁÉÍÓÚÑ]/;
+    const marcadorInicio = new RegExp('^' + marcador.source);
+    let partes = t.split(new RegExp('\\s+(?=' + marcador.source + ')')).map(p => p.trim()).filter(Boolean);
+    // Si el primer trozo NO arranca con un marcador (y sí hubo al menos un
+    // marcador real más adelante, o no habría más de un trozo), es texto
+    // suelto antes del primer ítem -- típicamente el título del documento
+    // ("MATRIZ DE REQUISITOS DE EXPERIENCIA") -- no un requisito real.
+    if (partes.length > 1 && !marcadorInicio.test(partes[0])) partes = partes.slice(1);
+    return partes.filter(p => p.length > 15);
+  }
+
+  function parsearMatrizExperienciaPDF(texto){
+    const chunks = segmentarTextoEnRequisitos(texto);
+    const requisitos = chunks.map((chunk, i) => construirRequisitoDesdeTexto(chunk, i, {})).filter(r => r.criterio);
+    return { headers: [], cols: {}, requisitos: requisitos, fuente: 'pdf' };
   }
 
   // Evalúa UN requisito contra los contratos disponibles. Nunca inventa: si
@@ -3393,6 +3441,25 @@
     }).join('');
     return '<details class="expeval-review"><summary>Revisar interpretación: ' + escapeHtml(titulo) + ' (' + nRegistros + ' registro(s) leído(s))</summary>' +
       '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Campo</th><th>Columna del Excel usada</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
+  }
+
+  // Igual que renderColumnasDetectadas pero para el origen PDF: no hay
+  // columnas que mapear, así que en vez de eso se lista CADA requisito que
+  // la segmentación detectó (el texto completo del trozo + lo que se
+  // interpretó de él) para que el usuario confirme que el corte tuvo
+  // sentido antes de correr la evaluación -- abierto por defecto (`open`),
+  // a diferencia del Excel, porque revisar la segmentación es más
+  // importante cuando viene de texto libre que cuando viene de columnas.
+  function renderRequisitosDetectadosPDF(requisitos){
+    const filas = requisitos.map((r, i) => '<tr><td>' + (i + 1) + '</td>' +
+      '<td>' + escapeHtml(truncate(r.criterio, 220)) + '</td>' +
+      '<td>' + escapeHtml(r.obligatoriedad) + '</td>' +
+      '<td>' + (r.minContratos != null ? r.minContratos : '—') + '</td>' +
+      '<td>' + (r.minValor ? r.minValor.valor + ' ' + r.minValor.unidad : '—') + '</td>' +
+      '<td>' + (r.minCantidad ? r.minCantidad.valor : '—') + '</td></tr>').join('');
+    return '<details class="expeval-review" open><summary>Revisar interpretación: Matriz de experiencia (PDF) -- ' + requisitos.length + ' requisito(s) detectado(s), confirma que el corte tenga sentido</summary>' +
+      '<p class="saved-note" style="margin:8px 0;">El PDF no trae columnas -- cada fila de abajo es un trozo de texto que se identificó como un posible requisito nuevo (por numeración, letra o viñeta). Si un requisito quedó partido en dos filas o dos requisitos quedaron juntos en una, corrígelo cargando el Excel si lo tienes, o revisa el resultado final con más cuidado.</p>' +
+      '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>#</th><th>Texto detectado</th><th>Obligatoriedad</th><th>Mín. contratos</th><th>Valor mínimo</th><th>Cantidad mínima</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
   }
 
   function badgeExpEval(resultado){
@@ -6033,7 +6100,9 @@
       expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s).';
     }
     if (expevalRequisitos){
-      html += renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length);
+      html += (expevalRequisitos.fuente === 'pdf')
+        ? renderRequisitosDetectadosPDF(expevalRequisitos.requisitos)
+        : renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length);
       expevalMatrizStatusEl.textContent = (expevalMeta && expevalMeta.matrizFile ? expevalMeta.matrizFile + ' · ' : '') + expevalRequisitos.requisitos.length + ' requisito(s) leído(s).';
     }
     expevalReviewEl.innerHTML = html;
@@ -6095,6 +6164,62 @@
     }
   }
 
+  // Matriz de requisitos en PDF (a veces la entidad la publica así, no en
+  // Excel -- pedido explícito del usuario). Mismo patrón de "texto no
+  // extraíble -> ofrecer OCR" que ya usa procesarRUP() para el PDF del RUP:
+  // primero intenta la capa de texto real del PDF (rápido), y solo si sale
+  // vacía/corta (parece escaneado) ofrece el botón de OCR -- nunca se
+  // dispara OCR solo, es lento y el usuario debe pedirlo a sabiendas.
+  async function cargarMatrizPDF(file, viaOcr){
+    expevalMatrizStatusEl.textContent = viaOcr ? 'Leyendo el PDF con OCR (puede tardar varios minutos)…' : 'Leyendo el PDF…';
+    let text = '', numPages = 0, pagesRead = 0;
+    try {
+      await appReady;
+      if (viaOcr){
+        const r = await ocrPdfPages(file, 1, 20, (pct, page, total) => {
+          expevalMatrizStatusEl.textContent = 'OCR de la matriz… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
+        });
+        text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
+      } else {
+        const r = await extractPdfText(file, 20); // una matriz de requisitos suele ser corta (pocas páginas)
+        text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
+      }
+    } catch(err){
+      expevalMatrizStatusEl.textContent = 'No se pudo leer el PDF (' + (err && err.message ? err.message : 'error') + ').';
+      return;
+    }
+
+    if (!viaOcr && (!text || text.trim().length < 100)){
+      expevalMatrizStatusEl.innerHTML = 'El PDF no tiene texto extraíble (parece escaneado). ' +
+        '<button class="link-btn" id="bt-expeval-matriz-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
+      const b = document.getElementById('bt-expeval-matriz-ocr');
+      if (b) b.addEventListener('click', () => cargarMatrizPDF(file, true));
+      return;
+    }
+
+    const parsed = parsearMatrizExperienciaPDF(text);
+    if (!parsed.requisitos.length){
+      expevalMatrizStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' página(s) pero no reconocí ningún requisito con formato de lista numerada, con letra o viñetas. Prueba con el Excel si lo tienes, o revisa que el PDF traiga texto real (no una imagen).';
+      return;
+    }
+    expevalRequisitos = parsed;
+    expevalMeta = Object.assign({}, expevalMeta, { matrizFile: file.name, nRequisitos: parsed.requisitos.length });
+    expevalResultado = null;
+    expevalMatrizStatusEl.textContent = file.name + ' · ' + parsed.requisitos.length + ' requisito(s) detectado(s) del PDF -- revisa la interpretación abajo.';
+    renderExpEvalReview();
+    renderExpEvalResultado();
+    saveExpEval();
+  }
+
+  // Punto de entrada único del dropzone de matriz: despacha a Excel o a PDF
+  // según la extensión/tipo del archivo -- el usuario no tiene que elegir
+  // nada aparte, solo arrastra el archivo que tenga.
+  async function cargarMatrizArchivo(file){
+    const esPdf = /\.pdf$/i.test(file.name || '') || file.type === 'application/pdf';
+    if (esPdf) return cargarMatrizPDF(file, false);
+    return cargarExcelMatriz(file);
+  }
+
   if (expevalExpUploadBtn && expevalExpFileEl){
     wireDropzone(expevalExpUploadBtn, expevalExpFileEl, (file) => cargarExcelExperiencia(file));
     expevalExpFileEl.addEventListener('change', async () => {
@@ -6104,11 +6229,11 @@
     });
   }
   if (expevalMatrizUploadBtn && expevalMatrizFileEl){
-    wireDropzone(expevalMatrizUploadBtn, expevalMatrizFileEl, (file) => cargarExcelMatriz(file));
+    wireDropzone(expevalMatrizUploadBtn, expevalMatrizFileEl, (file) => cargarMatrizArchivo(file));
     expevalMatrizFileEl.addEventListener('change', async () => {
       const file = expevalMatrizFileEl.files && expevalMatrizFileEl.files[0];
       expevalMatrizFileEl.value = '';
-      if (file) await cargarExcelMatriz(file);
+      if (file) await cargarMatrizArchivo(file);
     });
   }
   if (expevalRunBtn){

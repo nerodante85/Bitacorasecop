@@ -390,6 +390,80 @@ problemas de renderizado en esta sesión) en 375/768/1280px sin overflow;
 fuente/peso/letter-spacing y el `href` del favicon verificados por estilo
 computado vía JS. 14/14 tests de humo.
 
+## Matriz de experiencia también en PDF (no solo Excel)
+
+Pedido del usuario: "hay veces en que la cargan en pdf y no en excel" --
+antes, el dropzone #2 de "Evaluación de experiencia" (Matriz de experiencia
+/ formato de requisitos) solo aceptaba Excel. La Fuente A (Experiencia del
+proponente) NO cambió -- sigue siendo solo Excel, el usuario solo pidió esto
+para la matriz.
+
+**Cómo se resolvió sin duplicar el motor de evaluación**: se extrajo
+`construirRequisitoDesdeTexto(criterioTexto, i, celdas)` de dentro del
+`.map()` de `parsearMatrizExperiencia` -- ya existían regex de respaldo
+sobre `criterioTexto` para cuando el Excel NO traía una columna separada
+para un campo (minContratos/minValor/minCantidad/obligatoriedad/acumulable).
+Para el origen PDF (`parsearMatrizExperienciaPDF`), `celdas` siempre llega
+vacío `{}`, así que se apoya 100% en esos mismos regex -- ningún camino de
+extracción nuevo, solo el que ya existía como respaldo pasa a ser el
+principal para este origen.
+
+**Segmentación de texto libre en requisitos** (`segmentarTextoEnRequisitos`):
+un PDF no trae columnas, así que primero hay que partir el texto plano en
+"un trozo por requisito". Es un heurístico de FORMATO DE LISTA (corta antes
+de "1.", "a)", "•", "Requisito N", "N°N" seguido de mayúscula), no
+interpretación semántica -- mismo espíritu "por reglas, no NLP" que el resto
+del motor (ver "Prompt maestro" del módulo de experiencia). Exige espacio
+antes Y después del marcador para no partir dentro de un número con
+separador de miles ("1.200.000.000", sin espacios alrededor del punto).
+
+**Dos bugs reales encontrados escribiendo los tests de este segmentador**
+(antes de integrarlo, no después -- ver "Tests de humo" más abajo):
+1. El título del documento ("MATRIZ DE REQUISITOS DE EXPERIENCIA...") antes
+   del primer ítem numerado se colaba como un falso "requisito 1". Se
+   corrigió descartando el primer trozo cuando NO arranca con un marcador
+   reconocido (y sí hubo al menos un marcador real más adelante -- si no
+   hay NINGÚN marcador en todo el texto, ese primer/único trozo SÍ se
+   conserva, como respaldo de "no hay lista reconocible, aquí está todo el
+   texto" en vez de inventar que no hay nada).
+2. La frase "mínimo 1 contrato" (sin la palabra "de") no hacía match con el
+   regex de `minContratos`, que solo reconocía "mínimo DE N contratos" -- un
+   bug preexistente en el regex compartido, invisible mientras el Excel
+   siempre traía esa cifra en su propia columna (nunca dependía de este
+   regex). Se hizo "de" opcional (`m[ií]nimo\s+(?:de\s+)?(\d+)\s+contratos?`)
+   -- esto también mejora la lectura de un Excel sin columna de
+   minContratos, no solo la de PDF.
+
+**Extracción de texto del PDF**: reutiliza `extractPdfText`/`ocrPdfPages`
+(las mismas funciones de "Analizar pliego" y del RUP) y el MISMO patrón de
+respaldo ya probado en `procesarRUP()`: primero la capa de texto real del
+PDF (rápido); si sale vacía o con menos de 100 caracteres ("parece
+escaneado"), se ofrece un botón "Intentar con OCR" -- nunca se dispara OCR
+solo, es lento y el usuario debe pedirlo a sabiendas. `cargarMatrizArchivo(file)`
+es el único punto de entrada del dropzone: detecta `.pdf` por extensión/MIME
+y despacha a `cargarMatrizPDF` o a `cargarExcelMatriz` (Excel, sin cambios)
+-- el usuario solo arrastra el archivo que tenga, no elige nada aparte.
+
+**Revisión de la interpretación, más importante aquí que con Excel**: como
+la segmentación de texto libre es más incierta que leer columnas,
+`renderRequisitosDetectadosPDF()` (nueva, junto a `renderColumnasDetectadas`)
+lista cada requisito detectado CON el texto completo del trozo, abierta por
+defecto (`<details open>`, a diferencia del panel de Excel que empieza
+cerrado) -- el usuario debe poder ver de un vistazo si algún requisito quedó
+partido en dos o dos quedaron juntos en uno, antes de correr la evaluación.
+
+**Verificado**: 19/19 tests de humo -- 5 nuevos cubren el camino feliz (lista
+numerada -> mismos campos que produciría un Excel equivalente), los dos
+bugs de arriba (ya corregidos, con test que los habría atrapado), viñetas y
+letras como marcadores alternativos, y el caso sin ningún marcador (devuelve
+el texto completo como un solo trozo, no inventa una segmentación). También
+probado en la app real: el dropzone muestra "EXCEL O PDF", el
+`accept=".xlsx,.xls,.csv,.pdf"` del input se confirmó por JS, sin overflow
+en 375/1280px, sin errores de consola. No se probó con un PDF real de una
+matriz (no había ninguno a mano en esta sesión) -- si algún requisito real
+queda mal segmentado, el panel de revisión (siempre abierto para este
+origen) es la primera línea de defensa antes de confiar en el resultado.
+
 ## Cosas aprendidas por las malas (no las repitas)
 
 1. **fetch() SÍ funciona en GitHub Pages**, pero NO dentro del sandbox de

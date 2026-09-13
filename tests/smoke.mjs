@@ -112,6 +112,8 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'agregarContratoEjecucion', 'eliminarContratoEjecucion', 'actualizarCampoContrato',
     'esPerfilPropio', 'buscarSociosPorSector', 'agruparPorEmpresa', 'renderSociosHtml',
     'runBuscarSocios', 'verFichaDeSocio', 'generarCartaTexto', 'generarHojaDeVidaTexto',
+    'segmentarTextoEnRequisitos', 'parsearMatrizExperienciaPDF', 'construirRequisitoDesdeTexto',
+    'cargarMatrizPDF', 'cargarMatrizArchivo',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -222,7 +224,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta };';
+    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   const factory = new Function('window', source);
   return factory(fakeWindow);
@@ -367,6 +369,54 @@ await check('Caso 8 (la matriz trae varios requisitos de experiencia específica
   // El único obligatorio (escuelas) CUMPLE -- los opcionales/complementarios
   // NO DETERMINABLE no deben arrastrar el resultado global.
   assert(ev.resultadoGlobal === 'CUMPLE', 'el global debería depender solo del obligatorio (CUMPLE), fue ' + ev.resultadoGlobal);
+});
+
+// 15-19) Matriz de experiencia cargada en PDF (texto libre, sin columnas) --
+// pedido del usuario: "hay veces en que la cargan en pdf y no en excel".
+// segmentarTextoEnRequisitos() es un heurístico de formato de lista (corta
+// antes de "1.", "a)", "•", etc. seguido de mayúscula), no NLP real -- estos
+// tests cubren tanto el camino feliz como las dos trampas reales que ya se
+// encontraron escribiéndolo (ver commit): el título del documento colándose
+// como falso requisito, y una referencia numérica dentro de una oración
+// ("numeral 4 del pliego") partiendo donde no debía.
+await check('PDF de matriz: lista numerada -> mismos campos que produciría el Excel equivalente', () => {
+  const texto = '1. Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, obligatorio. ' +
+    '2. Experiencia específica en pavimentación de vías urbanas, mínimo 2 contratos, obligatorio.';
+  const parsed = expEngine.parsearMatrizExperienciaPDF(texto);
+  assert(parsed.fuente === 'pdf', 'se esperaba fuente "pdf"');
+  assert(parsed.requisitos.length === 2, 'se esperaban 2 requisitos, fueron ' + parsed.requisitos.length);
+  assert(parsed.requisitos[0].minContratos === 1, 'requisito 1: se esperaba minContratos=1, fue ' + parsed.requisitos[0].minContratos);
+  assert(parsed.requisitos[1].minContratos === 2, 'requisito 2: se esperaba minContratos=2, fue ' + parsed.requisitos[1].minContratos);
+  assert(parsed.requisitos[0].obligatoriedad === 'obligatorio', 'se esperaba obligatoriedad "obligatorio"');
+});
+
+await check('PDF de matriz: el título del documento antes del primer ítem NO se cuela como requisito', () => {
+  const texto = 'MATRIZ DE REQUISITOS DE EXPERIENCIA DEL PROCESO XYZ-2026. ' +
+    '1. Experiencia general en construcción de obras civiles, mínimo 3 contratos. ' +
+    '2. Experiencia específica en alcantarillado, mínimo 1 contrato.';
+  const chunks = expEngine.segmentarTextoEnRequisitos(texto);
+  assert(chunks.length === 2, 'se esperaban 2 trozos (sin el título), fueron ' + chunks.length + ': ' + JSON.stringify(chunks));
+  assert(!/MATRIZ DE REQUISITOS/.test(chunks[0]), 'el título del documento no debería aparecer como un requisito');
+});
+
+await check('PDF de matriz: una referencia numérica dentro de una oración no parte el texto', () => {
+  const texto = '1. Experiencia general: mínimo 3 contratos según el numeral 4 del pliego, valor 1.200.000.000. ' +
+    '2. Experiencia específica en vías terciarias, mínimo 1 contrato.';
+  const chunks = expEngine.segmentarTextoEnRequisitos(texto);
+  assert(chunks.length === 2, 'se esperaban 2 trozos (el "numeral 4" no debería partir nada), fueron ' + chunks.length + ': ' + JSON.stringify(chunks));
+});
+
+await check('PDF de matriz: viñetas y letras también se reconocen como marcadores de lista', () => {
+  const conVinetas = expEngine.segmentarTextoEnRequisitos('• Experiencia general en obra civil, mínimo 2 contratos. • Experiencia específica en acueducto, mínimo 1 contrato.');
+  assert(conVinetas.length === 2, 'viñetas: se esperaban 2 trozos, fueron ' + conVinetas.length);
+  const conLetras = expEngine.segmentarTextoEnRequisitos('Requisitos: a) Experiencia general en obra civil, mínimo 3 contratos. b) Experiencia específica en vías, valor mínimo 1.000.000.000.');
+  assert(conLetras.length === 2, 'letras: se esperaban 2 trozos, fueron ' + conLetras.length);
+});
+
+await check('PDF de matriz: sin ningún formato de lista reconocible -> el texto completo se devuelve como un solo trozo (no se inventa una segmentación)', () => {
+  const texto = 'Este documento describe en prosa larga los requisitos de experiencia general y específica sin usar ninguna lista numerada, con letras ni viñetas en todo el párrafo.';
+  const chunks = expEngine.segmentarTextoEnRequisitos(texto);
+  assert(chunks.length === 1, 'se esperaba 1 solo trozo (todo el texto), fueron ' + chunks.length);
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
