@@ -2409,3 +2409,13 @@ completos con el activo resaltado; clic en un ítem navega, cierra el panel
 y actualiza el texto del botón; clic fuera y Escape cierran el panel.
 Probado también en tablet (768px) y escritorio: sin cambios visuales, el
 botón desplegable no existe ahí (`display:none` fuera del media query).
+
+**Confirmado en iPhone real por el usuario**: las pruebas de arriba fueron
+con Chromium emulando el tamaño de pantalla (nunca WebKit/Safari real, esta
+herramienta no puede correrlo -- se dejó explícito al usuario en su
+momento, incluidos los riesgos puntuales sin verificar: `position: sticky`
++ `overflow: visible`, y `100vh` con la barra de direcciones de iOS). El
+usuario probó el menú desplegable con el dedo en su propio iPhone contra el
+sitio en producción y confirmó que funciona bien -- cierra el único punto
+de la auditoría de primer uso que había quedado sin verificación directa
+en dispositivo real.
