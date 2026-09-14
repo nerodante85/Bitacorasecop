@@ -2192,3 +2192,92 @@ competencias completas) generó el texto con cada campo en su lugar; un
 perfil recién creado sin datos generó la misma plantilla con "(no
 registrado/a)" en cada sección, sin "undefined" ni errores. Tests de humo
 5/5. Probado en los 3 breakpoints sin overflow ni errores de consola.
+
+## Auditoría de primer uso (perspectiva de un ingeniero civil nuevo en la app)
+
+El usuario pidió auditar la aplicación "desde la perspectiva de un ingeniero
+civil que va a usar la aplicación por primera vez". Se hizo un recorrido real
+en navegador (no lectura de código) por las 7 vistas, incluida una carga real
+de un Excel de experiencia y una matriz de requisitos generados para la
+prueba, corriendo el análisis completo hasta ver CUMPLE/NO DETERMINABLE en
+pantalla, más una pasada en tamaño de celular (375px). El reporte completo
+(0 críticos, 4 importantes, 3 menores, 5 aciertos) se entregó como artefacto;
+el usuario pidió implementar los tres cambios de mayor impacto.
+
+### 1. El texto de ayuda ya no es el mismo bloque repetido en cada pantalla
+
+Hallazgo: `.footnote` (el bloque de 8 párrafos que empieza con "Fuente:
+conjunto de datos abiertos...") es un ÚNICO elemento del DOM, fuera de las
+`<section class="view">` -- por eso aparecía idéntico, palabra por palabra,
+al pie de CUALQUIER vista (Experiencia, Evaluación, Personal...), mezclando
+temas de "Buscar procesos", el semáforo GO/NO-GO o SECOP I vs II aunque el
+usuario no estuviera en esa pantalla. Un texto largo e irrelevante enseña al
+usuario a dejar de leer la ayuda -- justo cuando sí aparezca algo importante
+para esa pantalla, ya la habrá aprendido a saltar.
+
+Fix: cada `<p>` del bloque ahora lleva `data-help-view="buscar"` (o
+`"dashboard"`, `"perfil"`, `"evaluacion"`, `"buscar competencia"`, etc. --
+espacio-separado cuando aplica a más de una vista). Dos párrafos que mezclaban
+dos temas se partieron en dos (`El historial... persisten` quedó en
+`dashboard`; `En "Perfil de la empresa"... RUP` quedó en `perfil`. Igual con
+el párrafo del semáforo: la parte de la tarjeta quedó en `buscar`, la parte
+de "En 'Evaluación' ves el veredicto..." quedó en `evaluacion`).
+`mostrarVista(nombre)` (la misma función que ya alternaba qué `<section>`
+mostrar) ahora también filtra `#bt-footnote [data-help-view]`: oculta los
+`<p>` que no aplican a la vista activa, y oculta el `<div class="footnote">`
+completo si ninguno aplica -- por eso "Experiencia" y "Personal" (que ya
+traen su propia guía en pantalla) quedan sin footnote, en vez de mostrar un
+bloque irrelevante. Nada del contenido se perdió, solo se repartió.
+
+### 2. El panel "Revisar interpretación" avisa solo cuando falta algo que importa
+
+Hallazgo: ese panel (tabla CAMPO / COLUMNA DEL EXCEL USADA) es la única forma
+de detectar una mala auto-detección de columnas, pero empezaba siempre
+colapsado sin distinguir cuáles de los 11 campos posibles son importantes.
+Con un Excel real de prueba, 6 de 11 campos salían "no detectada" sin que el
+usuario supiera si eso arruinaba el análisis o no (normalmente no, son
+opcionales) -- genera desconfianza justo antes del paso que decide si la
+empresa cumple o no.
+
+Fix: `renderColumnasDetectadas` recibe ahora un cuarto parámetro
+`camposEsenciales` (`CAMPOS_ESENCIALES_CONTRATO = ['objeto']`,
+`CAMPOS_ESENCIALES_REQUISITO = ['criterio']` -- el único campo sin el cual el
+motor de coincidencia de palabras no tiene nada que comparar). Si alguno de
+esos NO se detectó: el `<details>` se abre solo (`open`), el resumen agrega
+"-- revisa esto primero", aparece un aviso reutilizando `.demo-banner` (el
+mismo estilo ámbar ya usado en otros avisos de la app) nombrando el campo
+exacto que falta, y esa fila de la tabla se resalta con fondo ámbar y una
+etiqueta "ESENCIAL". Si el campo esencial SÍ se detectó (el caso normal), el
+badge "esencial" igual se muestra en su fila pero sin abrir el panel ni
+mostrar el aviso -- confirmado con un Excel real donde "Objeto" sí se
+detectaba (sin aviso, panel cerrado) y con un segundo Excel con el
+encabezado deliberadamente irreconocible ("Detalle ABC123" -- no contiene
+"objeto", "descripcion" ni "alcance", los sinónimos que reconoce
+`DICC_CONTRATO`) donde el aviso, la apertura automática y el resaltado sí
+aparecieron.
+
+### 3. Ejemplo de formato junto a cada zona de carga
+
+Hallazgo: las dos zonas de carga de "Experiencia" solo decían "Excel, PDF o
+Word" sin mostrar qué columnas espera el sistema. El motor reconoce muchos
+sinónimos de encabezado (`DICC_CONTRATO`/`DICC_REQUISITO`), pero eso es
+invisible hasta después de cargar el archivo -- el usuario con su propio
+Excel no tenía forma de saber de antemano si iba a funcionar.
+
+Fix: un `<details>` "Ver ejemplo de formato aceptado" debajo de cada
+dropzone (mismo estilo `.expeval-review` que el panel de interpretación, así
+que no se agregó CSS nuevo para esto), con una tabla de una fila mostrando
+encabezados típicos + un ejemplo realista de obra pública, y una nota
+aclarando que otros nombres de columna parecidos también sirven y que en
+PDF/Word sin tabla el sistema extrae menos campos con confianza.
+
+### Verificación
+
+`node tests/smoke.mjs`: 33/33 (ninguno de los tres cambios toca las
+funciones de negocio extraídas por el arnés de tests, solo HTML/CSS/JS de
+interfaz). Probado en navegador real: recorrido por Buscar procesos,
+Evaluación y Personal confirmando que cada uno muestra solo los párrafos de
+ayuda que le corresponden (o ninguno); carga de un Excel real de experiencia
+con "Objeto" detectado (panel cerrado, sin aviso) y con "Objeto" no detectado
+a propósito (panel abierto, aviso ámbar, fila resaltada); confirmado que el
+enlace "Ver ejemplo de formato aceptado" aparece bajo ambas zonas de carga.

@@ -647,6 +647,8 @@
     padding-top: 16px;
     border-top: 1px solid var(--border);
   }
+  #bitacora-root .footnote p { margin: 0 0 10px; }
+  #bitacora-root .footnote p:last-child { margin-bottom: 0; }
 
   @media (min-width: 640px) {
     #bitacora-root .field-grid { grid-template-columns: 1fr 1fr; }
@@ -715,6 +717,12 @@
   #bitacora-root .expeval-review summary::-webkit-details-marker { display: none; }
   #bitacora-root .expeval-review summary::before { content: '▸ '; }
   #bitacora-root .expeval-review[open] summary::before { content: '▾ '; }
+  #bitacora-root .campo-esencial {
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+    color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border);
+    border-radius: 20px; padding: 1px 7px; margin-left: 6px; vertical-align: middle;
+  }
+  #bitacora-root tr.fila-esencial-faltante td { background: var(--warning-bg); }
   #bitacora-root .expeval-table-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); }
   #bitacora-root table.expeval-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
   #bitacora-root table.expeval-table th, #bitacora-root table.expeval-table td {
@@ -1292,6 +1300,13 @@
               </div>
               <input type="file" accept=".xlsx,.xls,.csv,.pdf,.docx" id="bt-expeval-exp-file" hidden>
               <div class="saved-note" id="bt-expeval-exp-status" style="margin-top:8px;">Sin cargar.</div>
+              <details class="expeval-review">
+                <summary>Ver ejemplo de formato aceptado</summary>
+                <p class="saved-note" style="margin:8px 0;">En Excel, cualquier encabezado parecido a estos sirve (por ejemplo "Objeto" o "Cliente" también se reconocen) -- no hace falta copiar los nombres exactos. En PDF o Word sin tabla se extrae solo el texto completo, el valor (si hay una cifra clara) y hasta 2 fechas.</p>
+                <div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Objeto del contrato</th><th>Entidad contratante</th><th>Valor del contrato</th><th>Fecha de inicio</th><th>Fecha de terminación</th></tr></thead><tbody>
+                  <tr><td>Construcción y pavimentación de vía urbana, sector La Playa</td><td>Alcaldía de Los Patios</td><td>850.000.000</td><td>01/03/2022</td><td>15/11/2022</td></tr>
+                </tbody></table></div>
+              </details>
             </div>
 
             <div class="expeval-uploads">
@@ -1304,6 +1319,13 @@
               </div>
               <input type="file" accept=".xlsx,.xls,.csv,.pdf,.docx" id="bt-expeval-matriz-file" hidden>
               <div class="saved-note" id="bt-expeval-matriz-status" style="margin-top:8px;">Sin cargar.</div>
+              <details class="expeval-review">
+                <summary>Ver ejemplo de formato aceptado</summary>
+                <p class="saved-note" style="margin:8px 0;">En Excel, cualquier encabezado parecido sirve (por ejemplo "Requisito" o "Descripción del requisito" en vez de "Criterio"). En PDF o Word sin tabla, cada punto numerado, con letra o con viñeta de la lista de requisitos se toma como un requisito distinto.</p>
+                <div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Tipo</th><th>N° mínimo de contratos</th><th>Valor mínimo exigido</th></tr></thead><tbody>
+                  <tr><td>Experiencia específica en construcción de vías urbanas</td><td>Específica</td><td>1</td><td>500.000.000</td></tr>
+                </tbody></table></div>
+              </details>
             </div>
 
             <div id="bt-expeval-review"></div>
@@ -1476,15 +1498,26 @@
           </div>
         </section>
 
-        <div class="footnote">
-          Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "Aplicar filtros" (una petición por cada palabra clave de Especialidades, o por el número de proceso si lo llenaste). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.<br>
-          Si llenas "Número de proceso o referencia", esa búsqueda manda: encuentra el proceso aunque no coincida con las Especialidades, el Departamento, ni con "Ocultar vencidos" / "≤30 días" / "Solo Licitación Pública" / estado / descartados — para no ocultar por accidente el proceso puntual que buscas. Vacía esa casilla para volver a la búsqueda por filtros.<br>
-          El historial de procesos revisados, los perfiles de empresa, los análisis de pliegos y la evaluación de experiencia se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios. En "Perfil de la empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y, orientativamente, los indicadores financieros — revísalos antes de guardar. El RUP ya NO se usa para inferir experiencia general ni específica; eso vive aparte, en "Experiencia".<br>
-          El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos" (RUP/clasificador y Capacidad K), empresa por empresa; el requisito de experiencia que detecta en el texto se muestra igual, pero si lo cumples o no sale de "Experiencia", no de este perfil. Desde el resultado puedes descargar o copiar un informe detallado.<br>
-          Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto, más el resultado de la evaluación de experiencia si ya la corriste; esto también es orientativo. Los procesos revisados que vencen en 3 días o menos se resaltan en rojo. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.<br>
-          Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes).<br>
-          Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados, más el resultado de "Experiencia" (CUMPLE/NO CUMPLE/NO DETERMINABLE), que es el mismo para cualquier perfil comparado. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist. En "Evaluación" ves el veredicto detallado por empresa con una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.<br>
-          "Buscar procesos" solo consulta SECOP II — SECOP I es casi todo histórico (contratos ya cerrados) desde que los procesos nuevos migraron a SECOP II en 2021, así que no aporta oportunidades abiertas reales. Sí se usa en "Ver adjudicaciones de esta entidad", para ampliar el historial de contratación más atrás de lo que cubre SECOP II.
+        <!-- Auditoría "primer uso": este bloque era un solo párrafo largo
+             repetido igual al pie de TODAS las vistas (es un único elemento,
+             fuera de las <section class="view">, así que aparecía idéntico
+             sin importar qué pantalla estuviera abierta) -- mezclaba temas de
+             "Buscar procesos", "Evaluación", "Perfil" y "Competencia" aunque
+             el usuario estuviera en "Experiencia". Ahora cada <p> se marca
+             con qué vista(s) le sirve y mostrarVista() (ver JS) solo deja
+             visibles las que aplican a la vista activa -- en "Experiencia" y
+             "Personal", que ya traen su propia guía en pantalla, no queda
+             ninguna y el bloque completo se oculta. -->
+        <div class="footnote" id="bt-footnote">
+          <p data-help-view="buscar">Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "Aplicar filtros" (una petición por cada palabra clave de Especialidades, o por el número de proceso si lo llenaste). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.</p>
+          <p data-help-view="buscar">Si llenas "Número de proceso o referencia", esa búsqueda manda: encuentra el proceso aunque no coincida con las Especialidades, el Departamento, ni con "Ocultar vencidos" / "≤30 días" / "Solo Licitación Pública" / estado / descartados — para no ocultar por accidente el proceso puntual que buscas. Vacía esa casilla para volver a la búsqueda por filtros.</p>
+          <p data-help-view="dashboard">El historial de procesos revisados, los perfiles de empresa, los análisis de pliegos y la evaluación de experiencia se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios.</p>
+          <p data-help-view="perfil">En "Perfil de la empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y, orientativamente, los indicadores financieros — revísalos antes de guardar. El RUP ya NO se usa para inferir experiencia general ni específica; eso vive aparte, en "Experiencia".</p>
+          <p data-help-view="buscar">El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos" (RUP/clasificador y Capacidad K), empresa por empresa; el requisito de experiencia que detecta en el texto se muestra igual, pero si lo cumples o no sale de "Experiencia", no de este perfil. Desde el resultado puedes descargar o copiar un informe detallado.</p>
+          <p data-help-view="buscar">Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto, más el resultado de la evaluación de experiencia si ya la corriste; esto también es orientativo. Los procesos revisados que vencen en 3 días o menos se resaltan en rojo. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.</p>
+          <p data-help-view="buscar">Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes). Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados, más el resultado de "Experiencia" (CUMPLE/NO CUMPLE/NO DETERMINABLE), que es el mismo para cualquier perfil comparado. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist.</p>
+          <p data-help-view="evaluacion">En "Evaluación" ves el veredicto detallado por empresa con una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.</p>
+          <p data-help-view="buscar competencia">"Buscar procesos" solo consulta SECOP II — SECOP I es casi todo histórico (contratos ya cerrados) desde que los procesos nuevos migraron a SECOP II en 2021, así que no aporta oportunidades abiertas reales. Sí se usa en "Ver adjudicaciones de esta entidad", para ampliar el historial de contratación más atrás de lo que cubre SECOP II.</p>
         </div>
       </div>
     </div>
@@ -3763,14 +3796,30 @@
 
   const ETIQUETAS_CONTRATO = { objeto: 'Objeto', contratante: 'Contratante', valor: 'Valor', fechaInicio: 'Fecha inicio', fechaFin: 'Fecha fin', duracion: 'Duración', cantidad: 'Cantidad', tipo: 'Tipo (general/específica)', actividades: 'Actividades', numeroContrato: 'N° contrato', participacion: '% participación' };
   const ETIQUETAS_REQUISITO = { criterio: 'Criterio / requisito', tipo: 'Tipo', minContratos: 'Mín. contratos', minValor: 'Valor mínimo', minCantidad: 'Cantidad mínima', obligatoriedad: 'Obligatoriedad', acumulable: 'Acumulable' };
+  // Campos sin los cuales el análisis queda cojo -- el resto (fechas,
+  // duración, cantidad, etc.) suma evidencia pero su ausencia no impide
+  // evaluar. Se usan para resaltar la fila y abrir el panel solo. Auditoría
+  // "primer uso": antes esto era invisible -- un primerizo veía 6 "no
+  // detectada" de 11 sin saber si eso arruinaba el análisis.
+  const CAMPOS_ESENCIALES_CONTRATO = ['objeto'];
+  const CAMPOS_ESENCIALES_REQUISITO = ['criterio'];
 
-  function renderColumnasDetectadas(titulo, headers, cols, etiquetas, nRegistros){
+  function renderColumnasDetectadas(titulo, headers, cols, etiquetas, nRegistros, camposEsenciales){
+    camposEsenciales = camposEsenciales || [];
+    let faltaEsencial = false;
     const filas = Object.keys(etiquetas).map(campo => {
       const idx = cols[campo];
       const encontrada = idx != null;
-      return '<tr><td>' + escapeHtml(etiquetas[campo]) + '</td><td>' + (encontrada ? escapeHtml(headers[idx]) : '<em>no detectada</em>') + '</td></tr>';
+      const esEsencial = camposEsenciales.indexOf(campo) !== -1;
+      if (esEsencial && !encontrada) faltaEsencial = true;
+      const marca = esEsencial ? ' <span class="campo-esencial">esencial</span>' : '';
+      return '<tr' + (esEsencial && !encontrada ? ' class="fila-esencial-faltante"' : '') + '><td>' + escapeHtml(etiquetas[campo]) + marca + '</td><td>' + (encontrada ? escapeHtml(headers[idx]) : '<em>no detectada</em>') + '</td></tr>';
     }).join('');
-    return '<details class="expeval-review"><summary>Revisar interpretación: ' + escapeHtml(titulo) + ' (' + nRegistros + ' registro(s) leído(s))</summary>' +
+    const aviso = faltaEsencial
+      ? '<p class="demo-banner" style="margin:8px 0;">⚠ No se detectó "' + escapeHtml(camposEsenciales.map(c => etiquetas[c]).join(', ')) + '" (marcado "esencial" abajo). Revisa los encabezados de tu archivo antes de analizar -- sin esto, el resultado puede quedar incompleto.</p>'
+      : '';
+    return '<details class="expeval-review"' + (faltaEsencial ? ' open' : '') + '><summary>Revisar interpretación: ' + escapeHtml(titulo) + ' (' + nRegistros + ' registro(s) leído(s))' + (faltaEsencial ? ' -- revisa esto primero' : '') + '</summary>' +
+      aviso +
       '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Campo</th><th>Columna del Excel usada</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
   }
 
@@ -6462,13 +6511,13 @@
     // rótulo "Word"/"PDF"/"Excel" que ve el usuario).
     if (expevalContratos){
       html += expevalContratos.headers.length
-        ? renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length)
+        ? renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length, CAMPOS_ESENCIALES_CONTRATO)
         : renderContratosDetectadosTexto(expevalContratos.contratos, etiquetaFuenteArchivo(expevalContratos.fuente));
       expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s).';
     }
     if (expevalRequisitos){
       html += expevalRequisitos.headers.length
-        ? renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length)
+        ? renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length, CAMPOS_ESENCIALES_REQUISITO)
         : renderRequisitosDetectadosTexto(expevalRequisitos.requisitos, etiquetaFuenteArchivo(expevalRequisitos.fuente));
       expevalMatrizStatusEl.textContent = (expevalMeta && expevalMeta.matrizFile ? expevalMeta.matrizFile + ' · ' : '') + expevalRequisitos.requisitos.length + ' requisito(s) leído(s).';
     }
@@ -7000,6 +7049,20 @@
       const sec = document.getElementById('view-' + v);
       if (sec) sec.hidden = (v !== nombre);
     });
+    // El bloque de ayuda al pie es un único elemento compartido por todas
+    // las vistas (no vive dentro de cada <section>) -- cada <p> declara en
+    // qué vista(s) aplica y aquí se filtra cuáles quedan visibles, en vez de
+    // mostrar siempre el texto completo sin importar la pantalla activa.
+    const footnoteEl = document.getElementById('bt-footnote');
+    if (footnoteEl){
+      let algunaVisible = false;
+      footnoteEl.querySelectorAll('[data-help-view]').forEach(p => {
+        const visible = p.getAttribute('data-help-view').split(' ').indexOf(nombre) !== -1;
+        p.hidden = !visible;
+        if (visible) algunaVisible = true;
+      });
+      footnoteEl.hidden = !algunaVisible;
+    }
     document.querySelectorAll('#bt-nav .nav-item').forEach(btn => {
       const activo = btn.getAttribute('data-view') === nombre;
       btn.classList.toggle('active', activo);
