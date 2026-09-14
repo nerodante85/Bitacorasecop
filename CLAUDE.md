@@ -2359,3 +2359,53 @@ de Capacidad K confirmado con saltos de línea reales
 intento de navegación móvil se probó, se midió el desborde real y se
 revirtió antes de dejar nada roto -- `sidebar.scrollWidth -
 sidebar.clientWidth` volvió a día 0 tras revertir.
+
+## Navegación móvil: menú desplegable (el hallazgo que había quedado revertido)
+
+El intento anterior (ver sección anterior) de mostrar el nombre de la
+sección activa junto al ícono se había revertido por desbordar 56-93px a
+375px real. El usuario pidió resolverlo de raíz con un menú desplegable.
+
+**Diseño**: en vez de una fila de 7 íconos, a ≤560px aparece UN botón
+("nav-toggle": ícono de hamburguesa + nombre de la vista activa + flecha)
+que abre `#bt-nav` (el mismo `<div role="tablist">` de siempre, con los
+mismos 7 `<button class="nav-item">`) como panel desplegable en vez de fila
+horizontal. Como el panel abierto no comparte fila con nada más, los 7
+nombres completos caben sin desbordar nunca -- el problema de fondo (ancho
+insuficiente para texto + 7 íconos en una sola fila) se evita en vez de
+intentar exprimirlo más.
+
+**Reutiliza, no duplica**: son los MISMOS 7 botones que ya tenía el nav
+(mismo `id`, mismo listener de clic que llama `mostrarVista()`, mismo
+patrón ARIA `tablist`/`tab`/`aria-selected`, misma navegación por teclado
+con flechas/Home/End) -- el CSS `@media (max-width: 560px)` solo cambia
+cómo se ven (`.sidebar-nav` pasa de fila de solo-íconos a panel vertical
+con `.nav-label` visible), no se crea un menú paralelo.
+
+**Bug real encontrado implementando esto**: el panel se abría (confirmado
+por JS: `display:flex`, tamaño y posición correctos, `nav-open` en la
+clase) pero no se veía en pantalla -- invisible pese a estar "en el DOM".
+Causa: la regla base de `.sidebar` (escritorio) trae `overflow-y: auto`
+para el scroll vertical de la sidebar completa; a ≤560px nada la pisaba, y
+un `overflow` distinto de `visible` en CUALQUIER eje recorta también el
+otro eje (regla de CSS poco conocida) -- así que el panel
+`position:absolute` (más alto que la barra que lo contiene, que a su vez
+mide `height:auto` en celular) quedaba recortado a la altura de la barra
+misma. Fix: `overflow: visible` en `.sidebar` dentro del media query de
+celular, pisando la regla base.
+
+**Mecánica**: `mostrarVista()` (la misma función de siempre) ahora también
+sincroniza el texto del botón desplegable con la vista activa, y cierra el
+panel (`sidebar.classList.remove('nav-open')`) en cada cambio de vista sin
+importar el camino (clic, teclado, "Ir a Experiencia", tarjetas rápidas del
+dashboard...) -- un solo lugar en vez de repetir el cierre en cada listener
+distinto. Aparte: clic en el botón alterna abrir/cerrar, clic fuera del
+panel lo cierra, Escape lo cierra y devuelve el foco al botón.
+
+**Verificado**: 33/33 tests de humo (nada de esto toca lógica de negocio).
+Probado en navegador real a 375px: `sidebar.scrollWidth - clientWidth = 0`
+tanto cerrado como con el panel abierto; el panel muestra los 7 nombres
+completos con el activo resaltado; clic en un ítem navega, cierra el panel
+y actualiza el texto del botón; clic fuera y Escape cierran el panel.
+Probado también en tablet (768px) y escritorio: sin cambios visuales, el
+botón desplegable no existe ahí (`display:none` fuera del media query).
