@@ -119,6 +119,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'extraerFilasPorPosicion', 'cargarExperienciaPDF', 'cargarExperienciaDocx', 'cargarMatrizDocx',
     'cargarExperienciaArchivo',
     'condicionCuantitativaSinModelar', 'extraerCantidadConUnidadContable',
+    'condicionTemporalDelRequisito', 'evaluarCondicionTemporal',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -230,7 +231,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable };';
+    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -270,11 +271,11 @@ await check('motor de "Evaluación de experiencia": se extrae y ejecuta en aisla
   assert(typeof expEngine.evaluarExperienciaCompleta === 'function', 'evaluarExperienciaCompleta no quedó expuesta');
 });
 
-function evaluar(matrizHeaders, matrizRows, expHeaders, expRows) {
+function evaluar(matrizHeaders, matrizRows, expHeaders, expRows, hoy) {
   assert(expEngine, 'el motor no se pudo extraer (ver check anterior) -- no se puede continuar con este caso');
   const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(expHeaders, expRows));
   const requisitos = expEngine.parsearMatrizExperiencia(fakeWorkbook(matrizHeaders, matrizRows));
-  return Object.assign({ contratos, requisitos }, expEngine.evaluarExperienciaCompleta(contratos.contratos, requisitos.requisitos));
+  return Object.assign({ contratos, requisitos }, expEngine.evaluarExperienciaCompleta(contratos.contratos, requisitos.requisitos, hoy));
 }
 
 await check('Caso 1 (cumple todos los requisitos obligatorios) -> CUMPLE', () => {
@@ -594,6 +595,64 @@ await check('Un requisito con condición contable legítima (no dimensional) sig
   const r = expEngine.construirRequisitoDesdeTexto('Experiencia en construcción de vivienda, mínimo 100 unidades', 0, {});
   assert(r.minCantidad && r.minCantidad.valor === 100, 'se esperaba minCantidad=100 extraído del texto, fue ' + JSON.stringify(r.minCantidad));
   assert(r.condicionNoVerificable === null, 'una unidad contable (unidades/viviendas) no debería marcarse como condición sin verificar, fue: ' + r.condicionNoVerificable);
+});
+
+// 34-38) Validación de fechas del requisito ("Ataca la validación de
+// fechas del requisito", pedido explícito del usuario -- estaba
+// documentado como pendiente en la auditoría crítica del motor,
+// elegant-wandering-dewdrop.md, "Fuera de alcance de esta pasada").
+await check('condicionTemporalDelRequisito: extrae "últimos N años" en sus formas usuales (dígito entre paréntesis, dígito suelto, en letras) y no dispara con años sueltos', () => {
+  const a = expEngine.condicionTemporalDelRequisito('Experiencia adquirida dentro de los últimos diez (10) años, contados desde la fecha de cierre.');
+  assert(a && a.anios === 10, 'se esperaba anios=10 (forma "diez (10)"), fue ' + JSON.stringify(a));
+  const b = expEngine.condicionTemporalDelRequisito('Experiencia certificada en los últimos 5 años.');
+  assert(b && b.anios === 5, 'se esperaba anios=5 (forma dígito suelto), fue ' + JSON.stringify(b));
+  const c = expEngine.condicionTemporalDelRequisito('Se exige experiencia dentro de los últimos quince años.');
+  assert(c && c.anios === 15, 'se esperaba anios=15 (forma en letras sin dígito), fue ' + JSON.stringify(c));
+  const d = expEngine.condicionTemporalDelRequisito('Se exige un director de obra con mínimo 5 años de experiencia.');
+  assert(d === null, '"5 años" SIN la palabra "últimos" (años de experiencia de una persona, no ventana de recencia del contrato) no debería disparar, fue: ' + JSON.stringify(d));
+  const e = expEngine.condicionTemporalDelRequisito('Experiencia en construcción de vías urbanas.');
+  assert(e === null, 'un requisito sin ninguna condición temporal debería devolver null, fue: ' + JSON.stringify(e));
+});
+
+await check('"últimos"/"años" no contaminan palabrasDistintivas (mismo bug que "experiencia"/"obligatorio" ya corregido antes -- un contrato real nunca los usa en su objeto)', () => {
+  const r = expEngine.construirRequisitoDesdeTexto('Experiencia específica en construcción de vías urbanas dentro de los últimos diez (10) años', 0, {});
+  assert(r.condicionTemporal && r.condicionTemporal.anios === 10, 'se esperaba condicionTemporal.anios=10, fue ' + JSON.stringify(r.condicionTemporal));
+  assert(!r.palabrasDistintivas.includes('ultimos') && !r.palabrasDistintivas.includes('anos'),
+    '"ultimos"/"anos" no deberían quedar como palabras distintivas, fueron: ' + r.palabrasDistintivas.join(', '));
+});
+
+await check('Condición temporal: un contrato con fecha de terminación DENTRO de la ventana exigida no bloquea el CUMPLE', () => {
+  const ev = evaluar(
+    ['Requisito', 'Obligatoriedad'],
+    [['Experiencia en construcción de vías urbanas dentro de los últimos diez (10) años', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Fecha de terminación'],
+    [['Construcción de vías urbanas en el municipio', 'Alcaldía', '15/03/2023']],
+    new Date('2024-06-01T00:00:00')
+  );
+  assert(ev.resultados[0].resultado === 'CUMPLE', 'se esperaba CUMPLE (fecha de terminación 2023 está dentro de los últimos 10 años contados desde 2024), fue ' + ev.resultados[0].resultado + ' -- ' + ev.resultados[0].justificacion);
+});
+
+await check('Condición temporal: un contrato con fecha de terminación FUERA de la ventana exigida degrada a NO CUMPLE (evidencia real, no solo "falta verificar")', () => {
+  const ev = evaluar(
+    ['Requisito', 'Obligatoriedad'],
+    [['Experiencia en construcción de vías urbanas dentro de los últimos diez (10) años', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Fecha de terminación'],
+    [['Construcción de vías urbanas en el municipio', 'Alcaldía', '15/03/2005']],
+    new Date('2024-06-01T00:00:00')
+  );
+  assert(ev.resultados[0].resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE (fecha de terminación 2005 quedó fuera de los últimos 10 años contados desde 2024), fue ' + ev.resultados[0].resultado + ' -- ' + ev.resultados[0].justificacion);
+  assert(/[uú]ltimos diez \(10\) a[ñn]os/i.test(ev.resultados[0].justificacion), 'la justificación debería citar la condición temporal exigida, fue: ' + ev.resultados[0].justificacion);
+});
+
+await check('Condición temporal: un contrato SIN ninguna fecha reconocida queda NO DETERMINABLE (nunca se inventa que cae dentro de la ventana)', () => {
+  const ev = evaluar(
+    ['Requisito', 'Obligatoriedad'],
+    [['Experiencia en construcción de vías urbanas dentro de los últimos diez (10) años', 'Obligatorio']],
+    ['Objeto', 'Contratante'],
+    [['Construcción de vías urbanas en el municipio', 'Alcaldía']],
+    new Date('2024-06-01T00:00:00')
+  );
+  assert(ev.resultados[0].resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE (sin fecha, no se puede confirmar ni descartar la ventana), fue ' + ev.resultados[0].resultado + ' -- ' + ev.resultados[0].justificacion);
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

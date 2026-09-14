@@ -3446,7 +3446,12 @@
     'obligatorio','obligatoria','opcional','complementario','complementaria','alternativo','alternativa',
     'acumulable','acumulativo','acumulativa','contratos','contrato','smmlv','smlmv','salarios','salario',
     'acreditar','acreditada','acreditado','acreditacion','exigido','exigida','exige','exigencia',
-    'requisito','requisitos','matriz','formato','proponente','valor','cantidad']);
+    'requisito','requisitos','matriz','formato','proponente','valor','cantidad',
+    // "últimos N años" (validación de fechas, ver condicionTemporalDelRequisito):
+    // mismo problema que "experiencia"/"obligatorio" -- describen CÓMO se
+    // redacta la exigencia de recencia, no el alcance técnico del contrato;
+    // un contrato real nunca dice "últimos" o "años" al describir su objeto.
+    'ultimos','ultimo','anos','ano']);
 
   function palabrasClaveDe(texto){
     return Array.from(new Set(normHeader(texto).split(' ').filter(w => w.length > 3 && !STOPWORDS_ES.has(w))));
@@ -3520,6 +3525,104 @@
     return m ? m[0].trim().replace(/\s+/g, ' ') : null;
   }
 
+  // "Ataca la validación de fechas del requisito" -- pedido explícito del
+  // usuario, punto ya identificado como pendiente en la auditoría crítica
+  // del motor (elegant-wandering-dewdrop.md, sección "Fuera de alcance de
+  // esta pasada"): un pliego típico exige "experiencia adquirida dentro de
+  // los últimos N años" y hoy `fechaInicio`/`fechaFin` del contrato existen
+  // pero nunca se comparan contra nada del requisito.
+  //
+  // Convención de redacción legal colombiana: casi siempre el número va en
+  // letras Y en dígito entre paréntesis ("últimos diez (10) años") -- se
+  // prioriza esa forma, con dígito suelto como respaldo ("últimos 10
+  // años") y letras solas como último recurso (menos común, pero existe).
+  const NUMEROS_ESPANOL = { uno:1, dos:2, tres:3, cuatro:4, cinco:5, seis:6, siete:7, ocho:8, nueve:9, diez:10,
+    once:11, doce:12, trece:13, catorce:14, quince:15, dieciseis:16, diecisiete:17, dieciocho:18, diecinueve:19, veinte:20 };
+
+  // Prefijo conector opcional ("dentro de los últimos...", "en los
+  // últimos...") -- se incluye en el match completo (no solo en el
+  // cálculo de `anios`) para que el fragmento devuelto en `texto` cubra
+  // TODA la cláusula, conectores incluidos: son justo las palabras que
+  // después hay que excluir de palabrasDistintivas (ver
+  // construirRequisitoDesdeTexto) para no repetir el bug de "dentro"/
+  // "durante" quedando como palabra distintiva de un requisito que en
+  // realidad no describe nada del alcance técnico.
+  const PREFIJO_VENTANA_TEMPORAL = '(?:dentro\\s+de\\s+los\\s+|durante\\s+los\\s+|en\\s+los\\s+|de\\s+los\\s+)?';
+
+  function condicionTemporalDelRequisito(texto){
+    const t = String(texto || '');
+    let m = t.match(new RegExp(PREFIJO_VENTANA_TEMPORAL + '[uú]ltimos?\\s+[a-záéíóúñ]*\\s*\\((\\d{1,2})\\)\\s*a[ñn]os\\b', 'i'));
+    if (m) return { anios: parseInt(m[1], 10), texto: m[0].trim().replace(/\s+/g, ' ') };
+    m = t.match(new RegExp(PREFIJO_VENTANA_TEMPORAL + '[uú]ltimos?\\s+(\\d{1,2})\\s*a[ñn]os\\b', 'i'));
+    if (m) return { anios: parseInt(m[1], 10), texto: m[0].trim().replace(/\s+/g, ' ') };
+    m = t.match(new RegExp(PREFIJO_VENTANA_TEMPORAL + '[uú]ltimos?\\s+([a-záéíóúñ]+)\\s+a[ñn]os\\b', 'i'));
+    if (m && NUMEROS_ESPANOL[normHeader(m[1])] != null){
+      return { anios: NUMEROS_ESPANOL[normHeader(m[1])], texto: m[0].trim().replace(/\s+/g, ' ') };
+    }
+    return null;
+  }
+
+  // La fecha de referencia de un contrato para "experiencia adquirida" es
+  // la de TERMINACIÓN (cuándo se completó el trabajo, la convención más
+  // común en pliegos: "...contados a partir de la fecha de terminación del
+  // contrato") -- si no hay fechaFin, fechaInicio es la mejor aproximación
+  // disponible en vez de no usar ninguna.
+  function fechaReferenciaContrato(c){
+    return (c && (c.fechaFin || c.fechaInicio)) || null;
+  }
+
+  // Evalúa la condición temporal de un requisito (si la trae) contra los
+  // contratos con coincidencia TOTAL -- análogo a condicionNoVerificable
+  // pero con un desenlace adicional: si TODOS los contratos relevantes que
+  // sí traen fecha quedan fuera de la ventana exigida (y ninguno queda sin
+  // fecha), es evidencia real de incumplimiento -- NO CUMPLE, no solo
+  // "falta verificar" (mismo principio que numericoOk===false: un
+  // incumplimiento demostrado no se esconde detrás de una revisión
+  // manual). Si basta UN contrato relevante dentro de la ventana, la
+  // condición queda satisfecha y no bloquea nada. En cualquier otro caso
+  // (fechas faltantes que podrían cambiar el resultado) es NO
+  // DETERMINABLE. `hoy` es parámetro para que los tests sean estables en
+  // el tiempo -- en producción es la fecha real del navegador.
+  //
+  // Limitación conocida, documentada a propósito: "hoy" es la única ancla
+  // disponible -- a diferencia del análisis de pliegos PDF (que si conoce
+  // la fecha de cierre de un proceso puntual), la evaluación de
+  // Experiencia corre independiente de cualquier proceso específico, así
+  // que no hay una "fecha de cierre" con la que anclar "los últimos N
+  // años" salvo la fecha real de hoy.
+  function evaluarCondicionTemporal(req, relevantes, hoy){
+    if (!req.condicionTemporal) return null;
+    const anios = req.condicionTemporal.anios;
+    const limite = new Date(hoy.getTime());
+    limite.setFullYear(limite.getFullYear() - anios);
+    const estados = relevantes.map(c => {
+      const fecha = fechaReferenciaContrato(c);
+      if (!fecha) return 'sin-fecha';
+      const d = new Date(fecha + 'T00:00:00');
+      if (isNaN(d.getTime())) return 'sin-fecha';
+      return d.getTime() >= limite.getTime() ? 'dentro' : 'vencido';
+    });
+    if (estados.some(e => e === 'dentro')) return { bloquea: false };
+    const vencidos = estados.filter(e => e === 'vencido').length;
+    if (vencidos > 0 && vencidos === estados.length){
+      return {
+        bloquea: true, resultado: 'NO CUMPLE',
+        // El texto citado ya trae su propio conector ("dentro de los
+        // últimos...", "en los últimos...") -- sin prefijo fijo acá para
+        // no duplicarlo (antes decía "...experiencia dentro de "dentro de
+        // los últimos..."").
+        mensaje: 'El requisito exige experiencia "' + req.condicionTemporal.texto + '" (contados desde hoy), pero ' +
+          (vencidos === 1 ? 'el único contrato' : 'los ' + vencidos + ' contratos') +
+          ' con coincidencia total de palabras distintivas tiene(n) fecha de terminación fuera de esa ventana.'
+      };
+    }
+    return {
+      bloquea: true, resultado: 'NO DETERMINABLE',
+      mensaje: 'El requisito exige experiencia "' + req.condicionTemporal.texto +
+        '" (contados desde hoy), pero ningún contrato relevante trae una fecha confirmada dentro de esa ventana para verificarlo automáticamente -- revisa a mano la fecha de terminación del objeto completo.'
+    };
+  }
+
   function construirRequisitoDesdeTexto(criterioTexto, i, celdas){
     celdas = celdas || {};
     criterioTexto = (criterioTexto || '').toString().trim();
@@ -3550,12 +3653,23 @@
     const acumulableRaw = normHeader(String(celdas.acumulable || '') + ' ' + criterioTexto);
     const acumulable = /acumul|sumatoria|suma de los? contratos?/.test(acumulableRaw);
     const palabras = palabrasClaveDe(criterioTexto);
-    const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PALABRAS_META_REQUISITO.has(p));
     const condicionNoVerificable = condicionCuantitativaSinModelar(criterioTexto);
+    const condicionTemporal = condicionTemporalDelRequisito(criterioTexto);
+    // La cláusula temporal completa ("dentro de los últimos diez (10)
+    // años") es 100% boilerplate de redacción -- a diferencia de "50
+    // metros" (que si puede describir alcance técnico real, por eso NO se
+    // excluye), ninguna palabra de esta cláusula específica pertenece al
+    // alcance de la obra. No alcanza con filtrar "ultimos"/"anos" sueltos
+    // (PALABRAS_META_REQUISITO): conectores ("dentro", "durante") y
+    // números en letras ("diez") varían según cómo lo redacte cada pliego
+    // -- se excluye el fragmento completo en vez de mantener una lista fija.
+    const palabrasCondicionTemporal = condicionTemporal ? new Set(palabrasClaveDe(condicionTemporal.texto)) : new Set();
+    const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PALABRAS_META_REQUISITO.has(p) && !palabrasCondicionTemporal.has(p));
     return {
       id: 'r' + (i + 1), fila: i + 1, criterio: criterioTexto, tipo: tipo, obligatoriedad: obligatoriedad,
       minContratos: minContratos, minValor: minValor, minCantidad: minCantidad, acumulable: acumulable,
-      palabrasClave: palabras, palabrasDistintivas: distintivas, condicionNoVerificable: condicionNoVerificable
+      palabrasClave: palabras, palabrasDistintivas: distintivas, condicionNoVerificable: condicionNoVerificable,
+      condicionTemporal: condicionTemporal
     };
   }
 
@@ -3695,7 +3809,8 @@
   //    dependería de esa rama -- el resultado baja a NO DETERMINABLE con
   //    la condición sin verificar explícita en la justificación, nunca se
   //    inventa que se cumplió.
-  function evaluarRequisito(req, contratos){
+  function evaluarRequisito(req, contratos, hoy){
+    hoy = hoy || new Date();
     const candidatos = (req.tipo === 'general' || req.tipo === 'especifica')
       ? contratos.filter(c => c.tipo === req.tipo || c.tipo === 'no-clasificado')
       : contratos.slice();
@@ -3785,10 +3900,15 @@
         faltantes.push('Confirmar si existe experiencia relacionada descrita con otras palabras, o si el requisito realmente no se cumple.');
       }
     } else if (sinCriteriosNumericos){
+      const gateTemporal = evaluarCondicionTemporal(req, relevantes, hoy);
       if (req.condicionNoVerificable){
         resultado = 'NO DETERMINABLE';
         justificacion = 'Hay ' + relevantes.length + ' contrato(s) con coincidencia TOTAL de las palabras distintivas del requisito, pero el requisito exige además una condición cuantitativa ("' + req.condicionNoVerificable + '") que el sistema no puede verificar automáticamente contra el Excel/PDF/Word de experiencia (no hay un campo estructurado equivalente). Revisa manualmente el objeto completo del contrato antes de confirmar CUMPLE.';
         faltantes.push('Confirmar a mano si el contrato satisface la condición "' + req.condicionNoVerificable + '".');
+      } else if (gateTemporal && gateTemporal.bloquea){
+        resultado = gateTemporal.resultado;
+        justificacion = gateTemporal.mensaje;
+        if (resultado === 'NO DETERMINABLE') faltantes.push('Confirmar a mano la fecha de terminación de los contratos relevantes contra la ventana temporal exigida.');
       } else {
         resultado = 'CUMPLE';
         justificacion = 'Se encontró(aron) ' + relevantes.length + ' contrato(s) cuyo objeto/actividades comparten TODAS las palabras distintivas del requisito (' +
@@ -3796,10 +3916,15 @@
           '). El requisito no trae un mínimo numérico (contratos/valor/cantidad) explícito en la matriz -- verifica el alcance exacto contra el objeto completo del contrato.';
       }
     } else if (numericoOk === true){
+      const gateTemporal = evaluarCondicionTemporal(req, relevantes, hoy);
       if (req.condicionNoVerificable){
         resultado = 'NO DETERMINABLE';
         justificacion = 'Los criterios numéricos modelados sí se cumplen (' + evidencia.join(' ') + '), pero el requisito exige además una condición cuantitativa ("' + req.condicionNoVerificable + '") que el sistema no puede verificar automáticamente -- revisión manual necesaria antes de confirmar CUMPLE.';
         faltantes.push('Confirmar a mano si el contrato satisface la condición "' + req.condicionNoVerificable + '".');
+      } else if (gateTemporal && gateTemporal.bloquea){
+        resultado = gateTemporal.resultado;
+        justificacion = gateTemporal.mensaje + ' Criterios numéricos modelados: ' + evidencia.join(' ');
+        if (resultado === 'NO DETERMINABLE') faltantes.push('Confirmar a mano la fecha de terminación de los contratos relevantes contra la ventana temporal exigida.');
       } else {
         resultado = 'CUMPLE';
         justificacion = 'Hay contratos con coincidencia total de palabras distintivas y satisfacen el/los criterio(s) numérico(s) exigido(s). ' + evidencia.join(' ');
@@ -3827,8 +3952,8 @@
   // pero no arrastran el global a NO CUMPLE por sí solos -- la matriz rara vez
   // dice explícitamente qué alternativos van agrupados, así que cada uno se
   // reporta individualmente y se avisa que puede requerir agrupamiento manual.
-  function evaluarExperienciaCompleta(contratos, requisitos){
-    const resultados = requisitos.map(r => evaluarRequisito(r, contratos));
+  function evaluarExperienciaCompleta(contratos, requisitos, hoy){
+    const resultados = requisitos.map(r => evaluarRequisito(r, contratos, hoy));
     const conteo = { 'CUMPLE': 0, 'NO CUMPLE': 0, 'NO DETERMINABLE': 0 };
     resultados.forEach(r => conteo[r.resultado]++);
     const obligatorios = resultados.filter(r => r.requisito.obligatoriedad === 'obligatorio');

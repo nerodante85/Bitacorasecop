@@ -2419,3 +2419,76 @@ usuario probó el menú desplegable con el dedo en su propio iPhone contra el
 sitio en producción y confirmó que funciona bien -- cierra el único punto
 de la auditoría de primer uso que había quedado sin verificación directa
 en dispositivo real.
+
+## Validación de fechas del requisito ("últimos N años")
+
+El usuario pidió explícitamente atacar este punto, ya identificado como
+pendiente en la auditoría crítica del motor (elegant-wandering-dewdrop.md,
+"Fuera de alcance de esta pasada"): un pliego típico exige "experiencia
+adquirida dentro de los últimos N años" y el motor tenía `fechaInicio`/
+`fechaFin` del contrato pero nunca los comparaba contra nada del requisito.
+
+**Extracción** (`condicionTemporalDelRequisito`, junto a
+`condicionCuantitativaSinModelar`): reconoce la convención de redacción
+legal colombiana -- casi siempre el número va en letras Y en dígito entre
+paréntesis ("últimos diez (10) años") -- con dígito suelto como respaldo
+("últimos 10 años") y letras solas como último recurso ("últimos quince
+años", vía un diccionario `NUMEROS_ESPANOL` de 1 a 20). Un prefijo conector
+opcional ("dentro de los", "durante los", "en los", "de los") se incluye en
+el fragmento capturado a propósito -- ver el bug real más abajo.
+
+**Comparación** (`evaluarCondicionTemporal`, junto a `evaluarRequisito`):
+la fecha de referencia del contrato es `fechaFin` (cuándo se completó el
+trabajo -- coincide con la convención más común en pliegos: "...contados a
+partir de la fecha de terminación") con `fechaInicio` como respaldo si no
+hay fechaFin. Tres desenlaces, igual que `condicionNoVerificable` pero con
+uno más:
+- Si ALGÚN contrato relevante (coincidencia total) cae dentro de la
+  ventana → no bloquea nada, CUMPLE sigue en pie.
+- Si TODOS los que sí traen fecha quedan fuera de la ventana (y ninguno
+  sin fecha) → **NO CUMPLE**, no solo "falta verificar" -- es evidencia
+  real de incumplimiento, mismo principio que `numericoOk === false` (un
+  incumplimiento demostrado no se esconde detrás de una revisión manual).
+- Cualquier otro caso (fechas faltantes que podrían cambiar el resultado)
+  → NO DETERMINABLE, nunca se inventa que cae dentro de la ventana.
+
+**Limitación conocida, documentada a propósito**: "hoy" (fecha real del
+navegador) es la única ancla disponible -- a diferencia del análisis de
+pliegos PDF (que sí conoce la fecha de cierre de un proceso puntual), la
+evaluación de "Experiencia" corre independiente de cualquier proceso
+específico, así que no hay una "fecha de cierre" con la que anclar "los
+últimos N años". `evaluarRequisito`/`evaluarExperienciaCompleta` reciben
+`hoy` como parámetro opcional (default `new Date()`) precisamente para que
+los tests no dependan del reloj real y no se vuelvan flaky con el tiempo.
+
+**Bug real encontrado por los propios tests, dos veces seguidas** (mismo
+patrón que el bug de `PALABRAS_META_REQUISITO` de la auditoría crítica --
+los tests atraparon esto ANTES de cualquier push):
+1. "ultimos"/"anos" sueltos quedaban como palabras distintivas del
+   requisito -- agregados a `PALABRAS_META_REQUISITO` (mismo principio:
+   describen CÓMO se redacta la exigencia, no el alcance técnico).
+2. Insuficiente: con "dentro de los últimos diez (10) años", las palabras
+   "dentro" (conector) y "diez" (número en letras) TAMBIÉN quedaban como
+   distintivas -- una lista fija de palabras a excluir no alcanza porque
+   los conectores varían según cómo redacte cada pliego. Fix real: en vez
+   de una lista fija, se excluye TODO el fragmento que capturó
+   `condicionTemporalDelRequisito` (por eso el prefijo conector se incluye
+   en el match) -- `palabrasClaveDe(condicionTemporal.texto)` da el
+   conjunto exacto de palabras a excluir de `palabrasDistintivas`, sin
+   tocar `palabrasClave` (que sigue completo, como con las demás
+   exclusiones). A diferencia de "50 metros" (que si puede describir
+   alcance técnico real, por eso esa NO se excluye), la cláusula temporal
+   es 100% boilerplate -- ninguna de sus palabras pertenece al alcance de
+   la obra.
+
+**Verificado**: 38/38 tests de humo (5 nuevos: extracción en sus 3 formas
++ que no contamine palabrasDistintivas + los 3 desenlaces de la
+comparación). Probado en navegador real con dos Excel reales generados
+para la prueba -- mismo requisito ("vías urbanas dentro de los últimos
+diez (10) años"), mismo contrato ("Construcción de vías urbanas...") con
+solo la fecha de terminación distinta: 15/03/2005 dio NO CUMPLE citando la
+condición exacta en la justificación ("El requisito exige experiencia
+'dentro de los últimos diez (10) años' (contados desde hoy), pero el
+único contrato... tiene fecha de terminación fuera de esa ventana"; nótese
+sin la duplicación "...dentro de "dentro de..."" que sí apareció en el
+primer intento, corregida antes de este commit); 15/03/2023 dio CUMPLE.
