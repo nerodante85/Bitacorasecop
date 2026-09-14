@@ -640,6 +640,120 @@ casos -- con agrupación de miles, sin señal de dinero, con "$" --,
 `construirContratoDesdeTexto`, y un contrato de texto libre evaluado
 CUMPLE de punta a punta contra un requisito).
 
+## Auditoría crítica del motor de evaluación: coincidencia total, no parcial
+
+El usuario mandó una "PREOCUPACIÓN CRÍTICA" muy extensa: temía que el motor
+estuviera decidiendo CUMPLE por coincidencia superficial de palabras en vez
+de evaluar de verdad las condiciones del requisito, y pidió explícitamente
+**auditar primero, no tocar código todavía** -- diagnóstico con ejemplos
+concretos, propuesta de arquitectura, y solo después implementar. Se usó
+`EnterPlanMode`/`ExitPlanMode` para eso exactamente: el plan aprobado
+(guardado en el proyecto como referencia del proceso, no como archivo del
+repo) es la auditoría completa verificada línea por línea contra el código
+real, no contra una descripción de memoria.
+
+**Los dos riesgos reales que confirmó la auditoría** (ejecutando la lógica
+real a mano, no hipotéticos):
+1. **Coincidencia de UNA sola palabra distintiva bastaba.** "Experiencia en
+   construcción de vías **urbanas**" vs "Construcción de vías **rurales**"
+   compartían "vías" (1 de 2 palabras distintivas) y el contrato se
+   marcaba "relevante" -- sin criterios numéricos explícitos, esto
+   producía CUMPLE automático ignorando que "urbanas" vs "rurales" es
+   justo la condición que decide si aplica.
+2. **Condiciones cuantitativas fuera de los 3 campos modelados
+   (minContratos/minValor/minCantidad) desaparecían en silencio.**
+   "Longitud mínima de 50 metros" no encajaba en ningún regex existente
+   -- con coincidencia de palabras y sin ningún criterio numérico
+   detectado, el resultado era CUMPLE automático sin haber verificado la
+   longitud en absoluto (un puente de 20m pasando un requisito que pedía
+   50m mínimo).
+
+**Por qué NO se propuso un motor semántico/LLM**: el proyecto ya tiene esa
+decisión tomada y reafirmada hace apenas unos días -- `nl-search` (que sí
+usaba un LLM) se construyó y se **eliminó por costo**, a pedido del mismo
+usuario. Meter un LLM en la pieza más crítica de la app además
+introduciría el problema en sentido inverso: un LLM puede "sonar seguro"
+con lenguaje natural convincente sin evidencia verificable, más difícil de
+auditar que un regex. El fix implementado es 100% basado en reglas,
+extiende el mismo mecanismo de palabras clave que ya existía.
+
+**Fix 1 -- coincidencia TOTAL reemplaza al binario relevante/no-relevante**
+(`evaluarRequisito`): un contrato ahora es "relevante" (puede producir
+CUMPLE) solo si comparte **todas** las palabras distintivas del requisito,
+no con que comparta una sola. Comparte algunas pero no todas =
+`coincidenciaParcial`, una categoría nueva que nunca por sí sola decide
+CUMPLE -- a lo sumo NO DETERMINABLE, con la palabra que faltó explícita en
+la justificación (ej. "falta al menos: urbanas").
+
+**Bug real encontrado implementando el Fix 1** (antes de que llegara a
+producción -- los propios tests de regresión de Casos 1/2/5/7/8 lo
+atraparon de inmediato): exigir coincidencia total rompía prácticamente
+CUALQUIER requisito bien redactado, porque palabras como "experiencia" o
+"específica" (parte de CÓMO se redacta el requisito -- "Experiencia
+específica en...") no estaban en `PALABRAS_GENERICAS_OBRA` así que
+contaban como "distintivas", pero un contrato real jamás describe su
+propio objeto usando la palabra "experiencia". Se agregó
+`PALABRAS_META_REQUISITO` (experiencia, específica, general, mínimo/a,
+obligatorio, contratos, smmlv, acreditar, exigido, valor, cantidad...),
+filtrada igual que las genéricas de obra, exclusivamente al calcular
+`palabrasDistintivas` (no toca `palabrasClave` en sí). **Lección**: subir
+una exigencia de coincidencia sin antes limpiar el "vocabulario del propio
+requisito" del conjunto de palabras exigidas rompe todo lo que ya
+funcionaba -- guárdate el conjunto de tests de regresión ya existentes
+como red de seguridad antes de tocar el corazón del motor.
+
+**Fix 2 -- condiciones cuantitativas no modeladas bloquean el CUMPLE
+automático** (`condicionCuantitativaSinModelar`, `UNIDADES_DIMENSIONALES`
+vs `UNIDADES_CONTABLES`): no se intenta parsear ni convertir unidades
+físicas (frágil) -- solo se detecta que el requisito exige algo con una
+unidad de longitud/área/volumen/peso/potencia (metros, km, m2, m3,
+hectáreas, toneladas, kW, MW...) que el Excel/PDF/Word de experiencia no
+tiene forma de verificar (no hay un campo estructurado equivalente al
+`cantidad` genérico del contrato, que en cada documento podría significar
+otra cosa). Cuando se detecta, el resultado que HABRÍA sido CUMPLE
+automático baja a NO DETERMINABLE con la condición sin verificar explícita
+("revisa manualmente si el contrato satisface la condición '50 metros'").
+Las unidades CONTABLES (viviendas, unidades, aulas...) SÍ se tratan
+distinto -- de verdad corresponden al campo `cantidad` de un contrato, así
+que se extraen como `minCantidad` real y sí se comparan (cierra también un
+hueco menor ya confirmado: antes `minCantidad` no tenía ningún respaldo de
+texto libre, solo venía de una celda de Excel explícita).
+
+**Un NO CUMPLE ya demostrado no se convierte en NO DETERMINABLE**: si los
+criterios numéricos modelados YA fallan (`numericoOk === false`),
+`condicionNoVerificable` no lo toca -- ocultar una evidencia real de
+incumplimiento detrás de "falta verificar algo más" sería peor que el
+problema que se está corrigiendo. Solo intercepta los caminos que
+*habrían* producido CUMPLE.
+
+**Alcance deliberadamente NO implementado en esta pasada** (documentado en
+el plan aprobado para no perderlo): validación de fechas/período exigido
+en el requisito (hoy `fechaInicio`/`fechaFin` del contrato existen pero
+nunca se comparan contra nada del lado del requisito); un indicador
+numérico de "nivel de confianza" (se decidió NO agregarlo -- la
+coincidencia total/parcial YA es esa señal, de forma estructural, agregar
+un número aparte duplicaría la misma información sin aportar más);
+agrupamiento real de requisitos "alternativos" (OR entre varios) --
+limitación ya documentada en el propio código desde antes, sigue sin
+resolverse.
+
+**Verificado**: 33/33 tests de humo -- 5 nuevos cubren específicamente los
+2 riesgos confirmados (con fixtures diseñados para ejercitar CADA
+mecanismo por separado: el caso de "50 metros" comparte TODAS las palabras
+distintivas a propósito, para probar `condicionNoVerificable`
+específicamente y no que la respuesta correcta salga por otro camino
+accidental) más las unidades contables como control positivo (que SÍ deben
+seguir funcionando, no sobre-corregir). Además, probado en el navegador
+real con el caso "vías urbanas" vs "vías rurales" cargado como `.xlsx`
+generado en memoria (no un mock) -- confirmado visualmente NO DETERMINABLE
+con la justificación nueva y RESULTADO GLOBAL: REQUIERE REVISIÓN. (Una
+primera prueba con un `.csv` de prueba mostró tildes rotas en la
+justificación -- se investigó y era un artefacto de codificación del
+archivo de prueba en sí, no del motor: repetido con un `.xlsx` real
+generado con la misma librería `XLSX` que usa la app, el texto salió
+perfecto -- confirma que no era un bug de producción antes de darlo por
+cerrado.)
+
 ## Cosas aprendidas por las malas (no las repitas)
 
 1. **fetch() SÍ funciona en GitHub Pages**, pero NO dentro del sandbox de

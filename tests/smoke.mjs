@@ -118,6 +118,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'valorConfiableDeTexto', 'construirContratoDesdeTexto', 'parsearExperienciaDesdeFilasTexto',
     'extraerFilasPorPosicion', 'cargarExperienciaPDF', 'cargarExperienciaDocx', 'cargarMatrizDocx',
     'cargarExperienciaArchivo',
+    'condicionCuantitativaSinModelar', 'extraerCantidadConUnidadContable',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -229,7 +230,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto };';
+    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -536,6 +537,63 @@ await check('Experiencia del proponente de texto libre (PDF/Word sin tabla) eval
   const requisitos = expEngine.parsearMatrizExperienciaPDF('1. Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, obligatorio.');
   const ev = expEngine.evaluarExperienciaCompleta(experiencia.contratos, requisitos.requisitos);
   assert(ev.resultadoGlobal === 'CUMPLE', 'se esperaba CUMPLE evaluando contratos de texto libre contra un requisito, fue ' + ev.resultadoGlobal);
+});
+
+// 30-31) Auditoría "PREOCUPACIÓN CRÍTICA — MÉTODO DE ANÁLISIS DE
+// CUMPLIMIENTO DE EXPERIENCIA" (ver elegant-wandering-dewdrop.md): dos
+// riesgos de falso positivo CONFIRMADOS contra el código real antes del
+// fix (no hipotéticos) -- quedan como regresión permanente para que
+// nunca vuelvan a colarse.
+await check('Riesgo A de la auditoría: "vías urbanas" vs "vías rurales" comparte 1 de 2 palabras distintivas -> NO DETERMINABLE, nunca CUMPLE automático', () => {
+  // Antes del fix: bastaba compartir "vias" (1 de 2 palabras distintivas)
+  // para marcar el contrato "relevante" y, sin un valor/cantidad mínima
+  // explícito en el requisito, el resultado era CUMPLE automático -- sin
+  // que el sistema notara que "urbanas" vs "rurales" es justo la
+  // condición que decide si aplica.
+  const ev = evaluar(
+    ['Requisito', 'Obligatoriedad'],
+    [['Experiencia en construcción de vías urbanas', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de vías rurales en el corregimiento', 'Alcaldía', '900000000']]
+  );
+  assert(ev.resultados[0].resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE (coincidencia parcial -- nunca debe auto-CUMPLIR), fue ' + ev.resultados[0].resultado);
+  assert(/urbanas/i.test(ev.resultados[0].justificacion), 'la justificación debería nombrar la palabra distintiva que faltó ("urbanas"), fue: ' + ev.resultados[0].justificacion);
+});
+
+await check('Riesgo B de la auditoría: condición cuantitativa NO modelada ("50 metros") bloquea el CUMPLE automático aunque haya coincidencia total de palabras', () => {
+  // Antes del fix: "longitud mínima de 50 metros" no encajaba en ningún
+  // regex (minContratos/minValor/minCantidad), así que desaparecía en
+  // silencio -- con coincidencia total de palabras y sin ningún criterio
+  // numérico modelado, el resultado era CUMPLE automático sin haber
+  // verificado la longitud en absoluto. El contrato de abajo comparte
+  // TODAS las palabras distintivas a propósito (puentes/longitud/metros)
+  // para probar específicamente el bloqueo de condicionNoVerificable, no
+  // solo una coincidencia parcial accidental.
+  const ev = evaluar(
+    ['Requisito', 'Obligatoriedad'],
+    [['Experiencia en construcción de puentes con una longitud mínima de 50 metros', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de puentes de longitud de 20 metros en zona rural', 'Alcaldía', '500000000']]
+  );
+  assert(ev.resultados[0].resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE (condición de longitud no verificable -- nunca CUMPLE automático), fue ' + ev.resultados[0].resultado);
+  assert(/50 metros/i.test(ev.resultados[0].justificacion), 'la justificación debería citar la condición sin verificar ("50 metros"), fue: ' + ev.resultados[0].justificacion);
+});
+
+await check('condicionCuantitativaSinModelar: detecta unidades DIMENSIONALES (metros, m2, toneladas...) que no tienen campo estructurado equivalente en el contrato', () => {
+  assert(expEngine.condicionCuantitativaSinModelar('longitud mínima de 50 metros') === '50 metros', 'debería detectar "50 metros"');
+  assert(expEngine.condicionCuantitativaSinModelar('área mínima de 500 m2') !== null, 'debería detectar un área en m2');
+  assert(expEngine.condicionCuantitativaSinModelar('mínimo 3 contratos') === null, 'no debería disparar con una condición ya modelada (contratos)');
+});
+
+await check('extraerCantidadConUnidadContable: unidades CONTABLES (viviendas, unidades, aulas...) SÍ se extraen como minCantidad verificable -- no todo número+unidad queda sin modelar', () => {
+  const v = expEngine.extraerCantidadConUnidadContable('cantidad mínima de 200 viviendas');
+  assert(v && v.valor === 200, 'se esperaba minCantidad=200 (viviendas SÍ es una unidad contable, comparable contra el campo "cantidad" del contrato), fue ' + JSON.stringify(v));
+});
+
+await check('Un requisito con condición contable legítima (no dimensional) sigue evaluándose normalmente, no se bloquea de más', () => {
+  const r = expEngine.construirRequisitoDesdeTexto('Experiencia en construcción de vivienda, mínimo 100 unidades', 0, {});
+  assert(r.minCantidad && r.minCantidad.valor === 100, 'se esperaba minCantidad=100 extraído del texto, fue ' + JSON.stringify(r.minCantidad));
+  assert(r.condicionNoVerificable === null, 'una unidad contable (unidades/viviendas) no debería marcarse como condición sin verificar, fue: ' + r.condicionNoVerificable);
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

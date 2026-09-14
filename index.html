@@ -3342,6 +3342,24 @@
   // contra un contrato de "construcción de un edificio administrativo").
   const PALABRAS_GENERICAS_OBRA = new Set(['construccion','construir','obra','obras','proyecto','proyectos','contrato','contratacion','ejecucion','ejecutar','mantenimiento','adecuacion','mejoramiento','infraestructura','servicio','servicios','desarrollo']);
 
+  // Bug real encontrado exigiendo coincidencia TOTAL de palabras
+  // distintivas (auditoría del usuario, ver elegant-wandering-dewdrop.md):
+  // palabras que describen la ESTRUCTURA del requisito ("Experiencia
+  // ESPECÍFICA en...", "...mínimo 1 CONTRATO", "...OBLIGATORIO") NO son
+  // generic-obra (no están en PALABRAS_GENERICAS_OBRA) así que quedaban
+  // como "distintivas" -- pero un contrato real jamás describe su propio
+  // objeto usando la palabra "experiencia" o "obligatorio", así que
+  // exigirlas rompía la coincidencia total de prácticamente CUALQUIER
+  // requisito bien redactado (confirmado: los Casos 1/2/5/7/8 fallaban
+  // hasta agregar este filtro). Se excluyen de `palabrasDistintivas`
+  // igual que las genéricas de obra -- nunca de `palabrasClave` en sí
+  // (que sigue completo, por si se usa para otra cosa más adelante).
+  const PALABRAS_META_REQUISITO = new Set(['experiencia','especifica','especifico','general','minimo','minima','maximo','maxima',
+    'obligatorio','obligatoria','opcional','complementario','complementaria','alternativo','alternativa',
+    'acumulable','acumulativo','acumulativa','contratos','contrato','smmlv','smlmv','salarios','salario',
+    'acreditar','acreditada','acreditado','acreditacion','exigido','exigida','exige','exigencia',
+    'requisito','requisitos','matriz','formato','proponente','valor','cantidad']);
+
   function palabrasClaveDe(texto){
     return Array.from(new Set(normHeader(texto).split(' ').filter(w => w.length > 3 && !STOPWORDS_ES.has(w))));
   }
@@ -3367,6 +3385,53 @@
   // criterioTexto que ya existían como respaldo cuando el Excel no traía una
   // columna separada para un campo. Compartir esta función entre los dos
   // orígenes evita mantener la misma lógica de extracción dos veces.
+  // Auditoría pedida por el usuario ("PREOCUPACIÓN CRÍTICA — MÉTODO DE
+  // ANÁLISIS DE CUMPLIMIENTO DE EXPERIENCIA", plan aprobado en
+  // elegant-wandering-dewdrop.md): el motor solo modelaba 3 condiciones
+  // cuantitativas (minContratos/minValor/minCantidad) -- una condición como
+  // "longitud mínima de 50 metros" no encajaba en ninguna, así que
+  // desaparecía en silencio (`sinCriteriosNumericos = true`) y el
+  // requisito podía terminar en CUMPLE automático con solo compartir la
+  // palabra "metros". Estas dos listas separan las unidades en dos grupos
+  // con tratamiento DISTINTO a propósito:
+  //
+  // - UNIDADES_CONTABLES: cuentan ítems discretos (viviendas, aulas...)
+  //   que razonablemente corresponden al campo genérico `cantidad` de un
+  //   contrato -- SÍ se extraen como minCantidad real y SÍ se comparan.
+  // - UNIDADES_DIMENSIONALES: miden longitud/área/volumen/peso/potencia.
+  //   El Excel/PDF/Word de experiencia NO trae un campo estructurado
+  //   equivalente (solo un `cantidad` genérico de significado no
+  //   verificado, que en un contrato dado podría significar cualquier
+  //   otra cosa) -- comparar "50 metros" del requisito contra el
+  //   `cantidad` de un contrato sería comparar magnitudes sin garantía de
+  //   que midan lo mismo. Por diseño, estas NUNCA se auto-extraen como
+  //   condición verificable -- ver condicionCuantitativaSinModelar() más
+  //   abajo y cómo evaluarRequisito() bloquea el CUMPLE automático cuando
+  //   aparecen.
+  const UNIDADES_CONTABLES = 'unidades?|viviendas?|aulas?|puestos?|c[aá]mas?|apartamentos?';
+  const UNIDADES_DIMENSIONALES = 'metros?|kil[oó]metros?|km|m2|m²|m3|m³|hect[aá]reas?|toneladas?|kilovatios?|kw|megavatios?|mw|kilogramos?|kg|litros?';
+
+  function extraerCantidadConUnidadContable(texto){
+    const patrones = [
+      new RegExp('cantidad\\s+m[ií]nim[oa]\\s+(?:de\\s+)?(\\d[\\d.,]*)\\s*(?:' + UNIDADES_CONTABLES + ')', 'i'),
+      new RegExp('m[ií]nim[oa]\\s+(?:de\\s+)?(\\d[\\d.,]*)\\s*(?:' + UNIDADES_CONTABLES + ')', 'i'),
+      new RegExp('(\\d[\\d.,]*)\\s*(?:' + UNIDADES_CONTABLES + ')\\s*como\\s*m[ií]nim[oa]', 'i')
+    ];
+    for (const p of patrones){
+      const m = texto.match(p);
+      if (m) return parseValorUnidad(m[1]);
+    }
+    return null;
+  }
+
+  // Detecta una condición cuantitativa DIMENSIONAL en el texto del
+  // requisito (ver comentario largo arriba) -- devuelve el fragmento
+  // literal que la disparó (ej. "50 metros"), o null si no hay ninguna.
+  function condicionCuantitativaSinModelar(texto){
+    const m = new RegExp('\\d[\\d.,]*\\s*(?:' + UNIDADES_DIMENSIONALES + ')\\b', 'i').exec(texto || '');
+    return m ? m[0].trim().replace(/\s+/g, ' ') : null;
+  }
+
   function construirRequisitoDesdeTexto(criterioTexto, i, celdas){
     celdas = celdas || {};
     criterioTexto = (criterioTexto || '').toString().trim();
@@ -3389,15 +3454,20 @@
       const m = criterioTexto.match(/(\d[\d.,]*)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i);
       return m ? parseValorUnidad(m[0]) : null;
     })();
-    const minCantidad = parseValorUnidad(String(celdas.minCantidad || ''));
+    // Respaldo de texto libre para minCantidad (antes solo venía de una
+    // celda de Excel explícita -- en un PDF/Word, o un Excel sin esa
+    // columna, una cantidad mínima con unidad CONTABLE se perdía en
+    // silencio; con unidad DIMENSIONAL, ver condicionNoVerificable abajo).
+    const minCantidad = parseValorUnidad(String(celdas.minCantidad || '')) || extraerCantidadConUnidadContable(criterioTexto);
     const acumulableRaw = normHeader(String(celdas.acumulable || '') + ' ' + criterioTexto);
     const acumulable = /acumul|sumatoria|suma de los? contratos?/.test(acumulableRaw);
     const palabras = palabrasClaveDe(criterioTexto);
-    const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p));
+    const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PALABRAS_META_REQUISITO.has(p));
+    const condicionNoVerificable = condicionCuantitativaSinModelar(criterioTexto);
     return {
       id: 'r' + (i + 1), fila: i + 1, criterio: criterioTexto, tipo: tipo, obligatoriedad: obligatoriedad,
       minContratos: minContratos, minValor: minValor, minCantidad: minCantidad, acumulable: acumulable,
-      palabrasClave: palabras, palabrasDistintivas: distintivas
+      palabrasClave: palabras, palabrasDistintivas: distintivas, condicionNoVerificable: condicionNoVerificable
     };
   }
 
@@ -3511,6 +3581,32 @@
   // Evalúa UN requisito contra los contratos disponibles. Nunca inventa: si
   // falta un dato para decidir con confianza, el resultado es NO DETERMINABLE
   // y se explica exactamente qué información adicional haría falta.
+  // Auditoría pedida por el usuario -- ver el comentario largo sobre
+  // UNIDADES_CONTABLES/DIMENSIONALES más arriba y elegant-wandering-
+  // dewdrop.md para el diagnóstico completo con los 2 casos de falso
+  // positivo confirmados que motivaron este cambio:
+  //
+  // 1. Antes, UNA sola palabra distintiva compartida bastaba para marcar
+  //    un contrato "relevante" (`distMatch.length > 0`) -- "vías urbanas"
+  //    (requisito) vs "vías rurales" (contrato) compartían "vías" y el
+  //    contrato entraba a la evaluación como si calificara, sin que el
+  //    sistema notara que "urbanas" vs "rurales" es justo la condición
+  //    que decide si aplica. Ahora se exige coincidencia TOTAL (todas las
+  //    palabras distintivas, no solo alguna) para que un contrato pueda
+  //    producir CUMPLE por sí solo -- una coincidencia PARCIAL (algunas
+  //    pero no todas) queda en su propia categoría, que nunca por sí sola
+  //    basta para CUMPLE, solo para NO DETERMINABLE con la palabra que
+  //    faltó explícita en la justificación.
+  // 2. Una condición cuantitativa que no fuera número-de-contratos/valor/
+  //    cantidad (ej. "longitud mínima de 50 metros") no encajaba en
+  //    ningún regex y desaparecía en silencio -- con coincidencia total
+  //    de palabras y sin ningún criterio numérico modelado, el resultado
+  //    era CUMPLE automático sin haber verificado esa condición en
+  //    absoluto. Ahora `req.condicionNoVerificable` (ver
+  //    condicionCuantitativaSinModelar) bloquea cualquier CUMPLE que
+  //    dependería de esa rama -- el resultado baja a NO DETERMINABLE con
+  //    la condición sin verificar explícita en la justificación, nunca se
+  //    inventa que se cumplió.
   function evaluarRequisito(req, contratos){
     const candidatos = (req.tipo === 'general' || req.tipo === 'especifica')
       ? contratos.filter(c => c.tipo === req.tipo || c.tipo === 'no-clasificado')
@@ -3521,10 +3617,17 @@
       const palabrasContrato = new Set(texto.split(' '));
       const distMatch = req.palabrasDistintivas.filter(p => palabrasContrato.has(p));
       const genMatch = req.palabrasClave.filter(p => PALABRAS_GENERICAS_OBRA.has(p) && palabrasContrato.has(p));
-      return { contrato: c, distMatch: distMatch, genMatch: genMatch, relevante: distMatch.length > 0 };
+      // Coincidencia TOTAL: comparte TODAS las palabras distintivas (no
+      // solo alguna) -- solo esto cuenta como "relevante" para CUMPLE.
+      // Coincidencia PARCIAL: comparte algunas pero no todas -- candidato
+      // débil, nunca decide CUMPLE por sí solo.
+      const coincidenciaTotal = req.palabrasDistintivas.length > 0 && distMatch.length === req.palabrasDistintivas.length;
+      const coincidenciaParcial = distMatch.length > 0 && !coincidenciaTotal;
+      return { contrato: c, distMatch: distMatch, genMatch: genMatch, coincidenciaTotal: coincidenciaTotal, coincidenciaParcial: coincidenciaParcial, relevante: coincidenciaTotal };
     });
     const relevantes = relevancia.filter(r => r.relevante).map(r => r.contrato);
-    const soloGenericos = relevancia.filter(r => !r.relevante && r.genMatch.length > 0);
+    const parciales = relevancia.filter(r => r.coincidenciaParcial);
+    const soloGenericos = relevancia.filter(r => !r.relevante && !r.coincidenciaParcial && r.genMatch.length > 0);
 
     const evidencia = [];
     const faltantes = [];
@@ -3571,7 +3674,19 @@
 
     if (relevantes.length === 0){
       resultado = 'NO DETERMINABLE';
-      if (soloGenericos.length){
+      if (parciales.length){
+        // Coincidencia PARCIAL: la señal más fuerte disponible, pero
+        // nunca suficiente por sí sola -- se explica EXACTAMENTE qué
+        // palabra(s) distintiva(s) faltó/faltaron (ej. "urbanas"), no solo
+        // que "no coincide del todo".
+        const distintivasEncontradas = Array.from(new Set(parciales.flatMap(r => r.distMatch)));
+        const distintivasFaltantes = req.palabrasDistintivas.filter(p => !distintivasEncontradas.includes(p));
+        justificacion = 'Hay ' + parciales.length + ' contrato(s) que comparten ALGUNAS palabras distintivas del requisito (' +
+          listaAcotada(distintivasEncontradas, 12) + ' -- de ' + req.palabrasDistintivas.length + ' en total), pero no todas' +
+          (distintivasFaltantes.length ? ' (falta al menos: ' + listaAcotada(distintivasFaltantes, 12) + ')' : '') +
+          '. Una coincidencia parcial no basta para confirmar que el alcance sea equivalente -- podría tratarse de una condición distinta (ej. "urbanas" vs "rurales") -- requiere revisión humana del objeto completo.';
+        faltantes.push('Confirmar a mano si alguno de esos contratos, pese a no compartir todas las palabras distintivas, sí corresponde exactamente al alcance exigido.');
+      } else if (soloGenericos.length){
         justificacion = 'Hay ' + soloGenericos.length + ' contrato(s) que comparten solo palabras genéricas de obra (' +
           listaAcotada(Array.from(new Set(soloGenericos.flatMap(r => r.genMatch))), 12) + ') con el requisito, pero ninguno comparte una palabra distintiva de su alcance específico' +
           (req.palabrasDistintivas.length ? ' (' + listaAcotada(req.palabrasDistintivas, 12) + ')' : '') +
@@ -3582,19 +3697,34 @@
         faltantes.push('Confirmar si existe experiencia relacionada descrita con otras palabras, o si el requisito realmente no se cumple.');
       }
     } else if (sinCriteriosNumericos){
-      resultado = 'CUMPLE';
-      justificacion = 'Se encontró(aron) ' + relevantes.length + ' contrato(s) cuyo objeto/actividades comparten palabra(s) distintiva(s) del requisito (' +
-        listaAcotada(Array.from(new Set(relevancia.filter(r => r.relevante).flatMap(r => r.distMatch))), 12) +
-        '). El requisito no trae un mínimo numérico (contratos/valor/cantidad) explícito en la matriz -- verifica el alcance exacto contra el objeto completo del contrato.';
+      if (req.condicionNoVerificable){
+        resultado = 'NO DETERMINABLE';
+        justificacion = 'Hay ' + relevantes.length + ' contrato(s) con coincidencia TOTAL de las palabras distintivas del requisito, pero el requisito exige además una condición cuantitativa ("' + req.condicionNoVerificable + '") que el sistema no puede verificar automáticamente contra el Excel/PDF/Word de experiencia (no hay un campo estructurado equivalente). Revisa manualmente el objeto completo del contrato antes de confirmar CUMPLE.';
+        faltantes.push('Confirmar a mano si el contrato satisface la condición "' + req.condicionNoVerificable + '".');
+      } else {
+        resultado = 'CUMPLE';
+        justificacion = 'Se encontró(aron) ' + relevantes.length + ' contrato(s) cuyo objeto/actividades comparten TODAS las palabras distintivas del requisito (' +
+          listaAcotada(req.palabrasDistintivas, 12) +
+          '). El requisito no trae un mínimo numérico (contratos/valor/cantidad) explícito en la matriz -- verifica el alcance exacto contra el objeto completo del contrato.';
+      }
     } else if (numericoOk === true){
-      resultado = 'CUMPLE';
-      justificacion = 'Hay contratos relevantes por objeto y satisfacen el/los criterio(s) numérico(s) exigido(s). ' + evidencia.join(' ');
+      if (req.condicionNoVerificable){
+        resultado = 'NO DETERMINABLE';
+        justificacion = 'Los criterios numéricos modelados sí se cumplen (' + evidencia.join(' ') + '), pero el requisito exige además una condición cuantitativa ("' + req.condicionNoVerificable + '") que el sistema no puede verificar automáticamente -- revisión manual necesaria antes de confirmar CUMPLE.';
+        faltantes.push('Confirmar a mano si el contrato satisface la condición "' + req.condicionNoVerificable + '".');
+      } else {
+        resultado = 'CUMPLE';
+        justificacion = 'Hay contratos con coincidencia total de palabras distintivas y satisfacen el/los criterio(s) numérico(s) exigido(s). ' + evidencia.join(' ');
+      }
     } else if (numericoOk === false){
+      // Un NO CUMPLE ya demostrado con los criterios modelados es válido
+      // por sí solo -- condicionNoVerificable NO lo convierte en NO
+      // DETERMINABLE (sería ocultar una evidencia real de incumplimiento).
       resultado = 'NO CUMPLE';
-      justificacion = 'Hay contratos relevantes por objeto, pero no alcanzan el/los criterio(s) numérico(s) exigido(s) en la matriz. ' + evidencia.join(' ');
+      justificacion = 'Hay contratos con coincidencia total de palabras distintivas, pero no alcanzan el/los criterio(s) numérico(s) exigido(s) en la matriz. ' + evidencia.join(' ');
     } else {
       resultado = 'NO DETERMINABLE';
-      justificacion = 'Hay contratos relevantes por objeto, pero falta información en el Excel para confirmar el criterio numérico exigido. ' + faltantes.join(' ');
+      justificacion = 'Hay contratos con coincidencia total de palabras distintivas, pero falta información en el Excel/PDF/Word para confirmar el criterio numérico exigido. ' + faltantes.join(' ');
     }
 
     return {
