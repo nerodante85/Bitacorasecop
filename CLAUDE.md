@@ -542,6 +542,104 @@ distintivas del requisito, distintivas que sí matchearon). No toca la
 lógica de CUMPLE/NO CUMPLE/NO DETERMINABLE en absoluto, solo el texto que
 se muestra -- un cambio de presentación, no de criterio de evaluación.
 
+## Word (.docx) y PDF también en "Experiencia del proponente"
+
+Pedido del usuario, después de ya tener PDF en la Matriz: "permite que se
+puedan cargar archivos pdf y word también en Experiencia del Proponente y
+Matriz de Experiencia" -- es decir, agregar PDF a Fuente A (Experiencia del
+proponente, que hasta entonces era solo Excel) Y agregar Word a AMBOS
+dropzones.
+
+**Word (.docx): tabla primero, texto libre como respaldo, para ambos
+dropzones por igual.** Se cargó `mammoth.js` (1.12.3, jsDelivr con SRI --
+no está en cdnjs, se probó y da 404) porque es la única forma razonable de
+leer un `.docx` (ZIP+XML) del lado del cliente; NO se intenta leer `.doc`
+binario viejo (pre-2007), ninguna librería cliente lo soporta bien.
+`mammoth.convertToHtml()` preserva las tablas del documento como HTML real
+-- `leerPrimeraTablaHtml()` (nueva) las lee con la MISMA forma
+`{headers, rows}` que ya devolvía `leerHojaComoFilas()` para Excel, así que
+`detectarColumnas()` y todo lo que ya existía funciona igual sobre una
+tabla de Word sin duplicar nada. Para eso se refactorizaron
+`parsearExcelExperiencia`/`parsearMatrizExperiencia` en
+`parsearExperienciaDeFilas`/`parsearRequisitosDeFilas` (reciben
+`{headers,rows}` directo, sin acoplarse a un `workbook` de Excel) +
+wrappers delgados que llaman `leerHojaComoFilas(workbook)` primero -- mismo
+patrón de refactor que ya se había usado para `construirRequisitoDesdeTexto`
+en la fase anterior. Si el `.docx` NO trae ninguna tabla (es texto corrido),
+se usa `mammoth.extractRawText()` y cae al mismo camino de texto libre que
+un PDF (ver abajo) -- un Word sin tabla y un PDF tienen exactamente el
+mismo problema (sin columnas que leer), así que comparten la solución.
+
+**PDF para "Experiencia del proponente": reconstrucción de FILAS por
+posición, no segmentación por marcador de lista.** La matriz (una lista de
+requisitos) se pudo segmentar por "1.", "a)", viñetas porque los
+requisitos suelen redactarse como una lista. "Experiencia del proponente"
+es casi siempre una TABLA de muchos contratos -- ahí no hay marcador de
+lista que buscar. `extraerFilasPorPosicion()` (nueva) agrupa los
+fragmentos de texto que `pdf.js` ya reporta con su posición (x,y) por
+proximidad en Y (±4px = "mismo renglón visual"), ordenados de izquierda a
+derecha -- reconstruye FILAS, no columnas (una reconstrucción de tabla
+completa por posición sería mucho más frágil y no hacía falta: ver el
+punto siguiente, por qué no se necesitan columnas separadas). Mismo patrón
+de "texto no extraíble -> ofrecer OCR" que `cargarMatrizPDF`; en la vía
+OCR (sin coordenadas x,y disponibles, Tesseract no las expone igual) se
+parte por línea del texto reconocido en vez de por posición.
+
+**Por qué un contrato de texto libre NO intenta extraer los 11 campos que
+sí tiene el Excel** (`construirContratoDesdeTexto`, nueva): un requisito
+necesita casi siempre una sola cifra extra (mínimo de contratos/valor);
+un contrato tiene objeto, contratante, valor, 2 fechas, duración, cantidad,
+tipo, número de contrato, % participación -- intentar separar los 11 de un
+renglón de texto corrido sería, en la práctica, inventar la mayoría con
+regex frágiles. En cambio, solo se extrae lo que de verdad se puede
+reconocer con confianza:
+- `objeto`: el texto completo del renglón -- alimenta el emparejamiento
+  por palabra clave, que es el mecanismo PRINCIPAL de todos modos (no
+  necesita campos separados, ver `evaluarRequisito`).
+- `valor`: SOLO con una señal fuerte de que es dinero y no, por ejemplo,
+  un número de contrato/expediente parecido (`valorConfiableDeTexto`,
+  nueva) -- "$"/COP/SMMLV explícito, o un número agrupado en miles con al
+  menos 2 puntos (formato colombiano estándar, ej. "1.200.000.000").
+  Un contrato "No. 2024001234" sin esa forma NO se confunde con un valor.
+- `fechaInicio`/`fechaFin`: hasta 2 fechas con formato reconocible en el
+  texto (primera = inicio, segunda = fin).
+- `contratante`, `duracion`, `cantidad`, `numeroContrato`, `participacion`:
+  quedan `null` a propósito -- no hay señal confiable para aislarlos de un
+  renglón de texto corrido sin inventar. Mismo principio "NO DETERMINABLE
+  antes que inventar" ya aplicado en la evaluación, llevado ahora también
+  a la EXTRACCIÓN de los contratos, no solo a su comparación contra la
+  matriz.
+
+**Panel de revisión, generalizado a 2 orígenes × 2 formas** (`renderExpEval
+Review`): la distinción real de qué panel mostrar es si HAY columnas reales
+que mapear (`headers.length`, no el string de `fuente`) -- Excel y un
+`.docx` CON tabla usan `renderColumnasDetectadas` (ya existía); PDF y un
+`.docx` SIN tabla usan paneles de texto libre abiertos por defecto:
+`renderRequisitosDetectadosTexto` (renombrada desde `...DetectadosPDF`,
+ya no es solo-PDF) para la matriz, y la nueva `renderContratosDetectadosTexto`
+para Fuente A -- esta última muestra explícitamente "—" en contratante/
+fechas cuando no se reconocieron, en vez de dejarlo ambiguo.
+
+**Verificado de punta a punta con archivos REALES, no solo con HTML/texto
+sintético** (a diferencia de la ronda de PDF de la matriz, donde no había
+ningún archivo real a mano): se generaron dos `.docx` reales con
+`python-docx` (instalado temporalmente, desinstalado después) -- una tabla
+de requisitos y una tabla de contratos -- copiados al directorio servido
+del proyecto, e inyectados en los `<input type="file">` reales de la app
+vía `DataTransfer` + evento `change` (la única forma de simular una
+selección de archivo real sin bloqueo del navegador). Resultado: mammoth.js
+cargó de verdad desde jsDelivr con el SRI correcto, ambas tablas se
+leyeron bien (2 requisitos, 1 contrato), y "Analizar información" corrió
+la evaluación completa -- el requisito de puentes dio CUMPLE con evidencia
+real ("Fila 1: Construcción de puentes vehiculares... valor 500000000"),
+el de pavimentación (exige 2 contratos, solo había 1 no relacionado) dio
+NO DETERMINABLE, resultado global REQUIERE REVISIÓN. 28/28 tests de humo
+(8 nuevos: `leerPrimeraTablaHtml` con y sin tabla, una tabla de `.docx`
+evaluada igual que su Excel equivalente, `valorConfiableDeTexto` en sus 3
+casos -- con agrupación de miles, sin señal de dinero, con "$" --,
+`construirContratoDesdeTexto`, y un contrato de texto libre evaluado
+CUMPLE de punta a punta contra un requisito).
+
 ## Cosas aprendidas por las malas (no las repitas)
 
 1. **fetch() SÍ funciona en GitHub Pages**, pero NO dentro del sandbox de

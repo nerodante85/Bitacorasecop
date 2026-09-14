@@ -114,6 +114,10 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'runBuscarSocios', 'verFichaDeSocio', 'generarCartaTexto', 'generarHojaDeVidaTexto',
     'segmentarTextoEnRequisitos', 'parsearMatrizExperienciaPDF', 'construirRequisitoDesdeTexto',
     'cargarMatrizPDF', 'cargarMatrizArchivo',
+    'loadMammothJs', 'leerPrimeraTablaHtml', 'parsearExperienciaDeFilas', 'parsearRequisitosDeFilas',
+    'valorConfiableDeTexto', 'construirContratoDesdeTexto', 'parsearExperienciaDesdeFilasTexto',
+    'extraerFilasPorPosicion', 'cargarExperienciaPDF', 'cargarExperienciaDocx', 'cargarMatrizDocx',
+    'cargarExperienciaArchivo',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -160,17 +164,18 @@ await check('todo host https:// usado en el código aparece en la política CSP'
   assert(missing.length === 0, 'host(s) usados en el código pero ausentes de la CSP: ' + missing.join(', '));
 });
 
-// 5) El SRI de los 4 scripts de terceros sigue coincidiendo con el CDN -----
+// 5) El SRI de los 5 scripts de terceros sigue coincidiendo con el CDN -----
 // Requiere red (GitHub Actions la tiene). Si algún día se sube de versión
-// pdf.js/xlsx/Tesseract.js/supabase-js sin recalcular el hash, este test lo
-// detecta ANTES de que un usuario real se quede con esa librería sin cargar
-// (la CSP + SRI la bloquean en silencio, ver commit que las agregó).
-await check('el SRI embebido de pdf.js/xlsx/Tesseract.js/supabase-js coincide con el archivo real del CDN', async () => {
+// pdf.js/xlsx/Tesseract.js/supabase-js/mammoth.js sin recalcular el hash,
+// este test lo detecta ANTES de que un usuario real se quede con esa
+// librería sin cargar (la CSP + SRI la bloquean en silencio, ver commit
+// que las agregó).
+await check('el SRI embebido de pdf.js/xlsx/Tesseract.js/supabase-js/mammoth.js coincide con el archivo real del CDN', async () => {
   const scriptBody = extractMainScript();
   const pairs = [...scriptBody.matchAll(
     /\.src\s*=\s*'(https:\/\/(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/[^']+)';[\s\S]*?\.integrity\s*=\s*'(sha384-[^']+)';/g
   )].map(m => ({ url: m[1], integrity: m[2] }));
-  assert(pairs.length === 4, 'se esperaban 4 scripts CDN con integrity (pdf.js, xlsx, Tesseract.js, supabase-js), se encontraron ' + pairs.length);
+  assert(pairs.length === 5, 'se esperaban 5 scripts CDN con integrity (pdf.js, xlsx, Tesseract.js, supabase-js, mammoth.js), se encontraron ' + pairs.length);
   for (const { url, integrity } of pairs) {
     const res = await fetch(url);
     assert(res.ok, 'HTTP ' + res.status + ' al descargar ' + url);
@@ -224,8 +229,26 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF };';
+    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
+  // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
+  // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
+  // suficiente para probar la función con el HTML que mammoth.convertToHtml
+  // realmente produce, sin instalar jsdom solo para esto. `new Function(...)`
+  // resuelve identificadores libres contra el scope GLOBAL (no el léxico de
+  // este módulo), así que el shim se cuelga de `globalThis`.
+  globalThis.DOMParser = class {
+    parseFromString(html) {
+      const tableMatch = String(html || '').match(/<table[^>]*>([\s\S]*?)<\/table>/i);
+      const tableHtml = tableMatch ? tableMatch[1] : null;
+      const celdas = (rowHtml) => [...rowHtml.matchAll(/<(td|th)[^>]*>([\s\S]*?)<\/\1>/gi)]
+        .map(m => ({ textContent: m[2].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ') }));
+      const trs = tableHtml
+        ? [...tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map(m => ({ querySelectorAll: () => celdas(m[1]) }))
+        : [];
+      return { querySelector: (sel) => (sel === 'table' && tableHtml) ? { querySelectorAll: () => trs } : null };
+    }
+  };
   const factory = new Function('window', source);
   return factory(fakeWindow);
 }
@@ -442,6 +465,77 @@ await check('Justificación de NO DETERMINABLE con un criterio largo/ruidoso (t�
   const palabrasEnJustificacion = (just.match(/,/g) || []).length + 1;
   assert(palabrasEnJustificacion <= 13, 'la justificación no debería listar más de ~12 palabras sueltas, tiene aprox ' + palabrasEnJustificacion + ': ' + just);
   assert(/y \d+ más/.test(just), 'con 28 palabras ruidosas se esperaba el sufijo "y N más" recortando la lista, justificación: ' + just);
+});
+
+// 22-29) Word (.docx) y PDF/texto libre también para "Experiencia del
+// proponente" -- pedido del usuario. A diferencia de la matriz, un
+// contrato tiene MUCHOS campos (objeto, contratante, valor, 2 fechas,
+// duración, cantidad...) -- de texto libre solo se extraen con confianza
+// el objeto (el texto completo) y, con señal fuerte, valor y fechas; el
+// resto queda null a propósito en vez de adivinado.
+await check('leerPrimeraTablaHtml: extrae headers+rows de una tabla HTML (lo que produce mammoth.convertToHtml de un .docx)', () => {
+  const html = '<p>Matriz de requisitos</p><table><tr><td>Requisito</td><td>Obligatoriedad</td></tr>' +
+    '<tr><td>Experiencia específica en construcción de puentes</td><td>Obligatorio</td></tr>' +
+    '<tr><td>Experiencia específica en pavimentación</td><td>Opcional</td></tr></table>';
+  const tabla = expEngine.leerPrimeraTablaHtml(html);
+  assert(tabla.headers.length === 2, 'se esperaban 2 encabezados, fueron ' + tabla.headers.length);
+  assert(tabla.headers[0] === 'Requisito', 'encabezado 0 esperado "Requisito", fue "' + tabla.headers[0] + '"');
+  assert(tabla.rows.length === 2, 'se esperaban 2 filas de datos, fueron ' + tabla.rows.length);
+  assert(tabla.rows[0][0] === 'Experiencia específica en construcción de puentes', 'fila 0 no coincide: ' + tabla.rows[0][0]);
+});
+
+await check('leerPrimeraTablaHtml: sin ninguna tabla en el HTML (documento de texto corrido) devuelve headers/rows vacíos, no inventa una tabla', () => {
+  const html = '<p>Este documento no tiene ninguna tabla, solo párrafos.</p><p>Otro párrafo más.</p>';
+  const tabla = expEngine.leerPrimeraTablaHtml(html);
+  assert(tabla.headers.length === 0 && tabla.rows.length === 0, 'se esperaban headers/rows vacíos sin tabla en el HTML');
+});
+
+await check('Tabla de un .docx (vía leerPrimeraTablaHtml) evaluada como matriz -> mismo resultado que el Excel equivalente', () => {
+  const tabla = expEngine.leerPrimeraTablaHtml(
+    '<table><tr><td>Requisito</td><td>Número mínimo de contratos</td><td>Obligatoriedad</td></tr>' +
+    '<tr><td>Experiencia específica en construcción de puentes vehiculares</td><td>1</td><td>Obligatorio</td></tr></table>'
+  );
+  const requisitos = expEngine.parsearRequisitosDeFilas(tabla);
+  assert(requisitos.requisitos.length === 1, 'se esperaba 1 requisito, fueron ' + requisitos.requisitos.length);
+  assert(requisitos.requisitos[0].minContratos === 1, 'se esperaba minContratos=1, fue ' + requisitos.requisitos[0].minContratos);
+});
+
+await check('valorConfiableDeTexto: un número agrupado en miles (formato colombiano) SÍ se extrae como valor', () => {
+  const v = expEngine.valorConfiableDeTexto('Construcción de un puente, valor total 1.200.000.000 pesos');
+  assert(v && v.valor === 1200000000, 'se esperaba 1200000000, fue ' + (v && v.valor));
+});
+
+await check('valorConfiableDeTexto: un número SIN señal de dinero (ej. un número de contrato/expediente) NO se extrae -- mejor null que un valor inventado', () => {
+  const v = expEngine.valorConfiableDeTexto('Contrato No. 2024001234 suscrito con la Alcaldía en el año 2024');
+  assert(v === null, 'un número de contrato/año no debería interpretarse como un valor en pesos, se obtuvo: ' + JSON.stringify(v));
+});
+
+await check('valorConfiableDeTexto: con símbolo "$" explícito SÍ se extrae aunque el número sea corto', () => {
+  const v = expEngine.valorConfiableDeTexto('Contrato por $500000 mensuales');
+  assert(v && v.valor === 500000, 'se esperaba 500000, fue ' + (v && v.valor));
+});
+
+await check('construirContratoDesdeTexto: extrae objeto/valor/fechas con confianza, deja el resto en null en vez de inventarlo', () => {
+  const c = expEngine.construirContratoDesdeTexto(
+    'Construcción de puentes vehiculares sobre el río Pamplonita, valor 1.500.000.000, del 01/03/2020 al 15/12/2021', 0
+  );
+  assert(c.objeto.includes('Construcción de puentes'), 'objeto debería conservar el texto completo');
+  assert(c.valor === 1500000000, 'se esperaba valor 1500000000, fue ' + c.valor);
+  assert(c.fechaInicio === '2020-03-01', 'se esperaba fechaInicio 2020-03-01, fue ' + c.fechaInicio);
+  assert(c.fechaFin === '2021-12-15', 'se esperaba fechaFin 2021-12-15, fue ' + c.fechaFin);
+  assert(c.contratante === null && c.duracion === null && c.cantidad === null, 'contratante/duración/cantidad deberían quedar null -- no hay señal confiable para inventarlos de texto libre');
+});
+
+await check('Experiencia del proponente de texto libre (PDF/Word sin tabla) evaluada contra un requisito -> CUMPLE con evidencia real', () => {
+  const filas = [
+    'Construcción de puentes vehiculares sobre el río Pamplonita, valor 1.500.000.000, del 01/03/2020 al 15/12/2021',
+    'Interventoría de obras de acueducto rural, valor 300.000.000'
+  ];
+  const experiencia = expEngine.parsearExperienciaDesdeFilasTexto(filas, 'pdf');
+  assert(experiencia.contratos.length === 2, 'se esperaban 2 contratos, fueron ' + experiencia.contratos.length);
+  const requisitos = expEngine.parsearMatrizExperienciaPDF('1. Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, obligatorio.');
+  const ev = expEngine.evaluarExperienciaCompleta(experiencia.contratos, requisitos.requisitos);
+  assert(ev.resultadoGlobal === 'CUMPLE', 'se esperaba CUMPLE evaluando contratos de texto libre contra un requisito, fue ' + ev.resultadoGlobal);
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

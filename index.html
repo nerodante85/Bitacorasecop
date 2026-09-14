@@ -1284,25 +1284,25 @@
 
             <div class="expeval-uploads">
               <div class="field-label-row"><span class="step-num">1</span> Experiencia del proponente</div>
-              <div class="dropzone" id="bt-expeval-exp-upload" tabindex="0" role="button" aria-label="Cargar Excel de experiencia del proponente">
+              <div class="dropzone" id="bt-expeval-exp-upload" tabindex="0" role="button" aria-label="Cargar Excel, PDF o Word de experiencia del proponente">
                 <div class="dropzone-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.6-2 4.5 4.5 0 0 1 1.4 8.7"/><path d="M12 21v-8"/><path d="M9 16l3-3 3 3"/></svg></div>
                 <div class="dropzone-title">Cargar experiencia del proponente</div>
-                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo</div>
-                <div class="dropzone-types">Excel</div>
+                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo -- Excel, PDF o Word</div>
+                <div class="dropzone-types">Excel, PDF o Word</div>
               </div>
-              <input type="file" accept=".xlsx,.xls,.csv" id="bt-expeval-exp-file" hidden>
+              <input type="file" accept=".xlsx,.xls,.csv,.pdf,.docx" id="bt-expeval-exp-file" hidden>
               <div class="saved-note" id="bt-expeval-exp-status" style="margin-top:8px;">Sin cargar.</div>
             </div>
 
             <div class="expeval-uploads">
               <div class="field-label-row"><span class="step-num">2</span> Matriz de experiencia (formato de requisitos)</div>
-              <div class="dropzone" id="bt-expeval-matriz-upload" tabindex="0" role="button" aria-label="Cargar Excel o PDF de la matriz de requisitos">
+              <div class="dropzone" id="bt-expeval-matriz-upload" tabindex="0" role="button" aria-label="Cargar Excel, PDF o Word de la matriz de requisitos">
                 <div class="dropzone-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.6-2 4.5 4.5 0 0 1 1.4 8.7"/><path d="M12 21v-8"/><path d="M9 16l3-3 3 3"/></svg></div>
                 <div class="dropzone-title">Cargar matriz de requisitos</div>
-                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo -- Excel o PDF</div>
-                <div class="dropzone-types">Excel o PDF</div>
+                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo -- Excel, PDF o Word</div>
+                <div class="dropzone-types">Excel, PDF o Word</div>
               </div>
-              <input type="file" accept=".xlsx,.xls,.csv,.pdf" id="bt-expeval-matriz-file" hidden>
+              <input type="file" accept=".xlsx,.xls,.csv,.pdf,.docx" id="bt-expeval-matriz-file" hidden>
               <div class="saved-note" id="bt-expeval-matriz-status" style="margin-top:8px;">Sin cargar.</div>
             </div>
 
@@ -3102,6 +3102,46 @@
     return { text: text, numPages: pdf.numPages, pagesRead: n };
   }
 
+  // Reconstruye FILAS de una tabla de PDF por posición -- a diferencia de
+  // extractPdfText (que junta todo el texto de la página en una sola
+  // cadena, sin renglones), aquí se agrupan los fragmentos de texto que
+  // pdf.js ya reporta con su posición (x,y) según su coordenada Y: dos
+  // fragmentos "en el mismo renglón visual" quedan en la misma fila,
+  // ordenados de izquierda a derecha. Es el heurístico correcto para
+  // "Experiencia del proponente" (una TABLA de muchos contratos, sin la
+  // estructura de lista numerada que sí tiene la matriz de requisitos) --
+  // no reconstruye columnas, solo filas; cada fila completa se trata luego
+  // como el texto de un contrato (ver construirContratoDesdeTexto).
+  async function extraerFilasPorPosicion(file, maxPages){
+    const pdfjsLib = await loadPdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const n = Math.min(pdf.numPages, maxPages || 20);
+    const filas = [];
+    const UMBRAL_Y = 4; // px de tolerancia para considerar dos textos "en la misma fila"
+    for (let p = 1; p <= n; p++){
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const items = content.items
+        .map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] }))
+        .filter(it => it.str.trim());
+      if (!items.length) continue;
+      items.sort((a, b) => (b.y - a.y) || (a.x - b.x)); // de arriba a abajo, izquierda a derecha
+      let actual = [], yActual = null;
+      for (const it of items){
+        if (yActual === null || Math.abs(it.y - yActual) > UMBRAL_Y){
+          if (actual.length) filas.push(actual.map(x => x.str).join(' '));
+          actual = [];
+        }
+        actual.push(it);
+        yActual = it.y;
+      }
+      if (actual.length) filas.push(actual.map(x => x.str).join(' '));
+    }
+    const filasLimpias = filas.map(f => f.replace(/\s+/g, ' ').trim()).filter(f => f.length > 10);
+    return { filas: filasLimpias, numPages: pdf.numPages, pagesRead: n };
+  }
+
   // ==========================================================================
   // EVALUACIÓN DE EXPERIENCIA: cruce Excel "Experiencia del proponente" (Fuente
   // A) contra Excel "Matriz de experiencia / Formato" (Fuente B). A diferencia
@@ -3126,6 +3166,25 @@
       document.head.appendChild(script);
     });
     return window.__bitacoraXlsxPromise;
+  }
+
+  // mammoth.js: SOLO sabe leer .docx (el formato ZIP+XML de Word moderno) --
+  // el .doc binario viejo (pre-2007) no es un caso soportado por ninguna
+  // librería cliente razonable, así que no se intenta. No está en cdnjs (se
+  // probó, 404); sí en jsDelivr, que la CSP ya permitía desde pdf.js/xlsx.
+  function loadMammothJs(){
+    if (window.mammoth) return Promise.resolve(window.mammoth);
+    if (window.__bitacoraMammothPromise) return window.__bitacoraMammothPromise;
+    window.__bitacoraMammothPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.3/mammoth.browser.min.js';
+      script.integrity = 'sha384-xqNXvcKbEqifokHcBnB0H32p+OQchhD/T/xJGWCMAW5fC0c0MBf9atO3weoPCT84';
+      script.crossOrigin = 'anonymous';
+      script.onload = () => resolve(window.mammoth);
+      script.onerror = () => reject(new Error('no se pudo cargar el lector de Word (revisa tu conexión)'));
+      document.head.appendChild(script);
+    });
+    return window.__bitacoraMammothPromise;
   }
 
   // Quita tildes, baja a minúscula y colapsa espacios -- para comparar
@@ -3202,6 +3261,28 @@
     return { headers: headers, rows: rows, hojaNombre: nombreHoja };
   }
 
+  // Lee la PRIMERA tabla de un HTML (el que produce mammoth.convertToHtml a
+  // partir de un .docx) con la MISMA forma {headers, rows} que
+  // leerHojaComoFilas -- así detectarColumnas() y todo lo que ya existe para
+  // Excel funciona igual sobre una tabla de Word, sin duplicar nada. Mismo
+  // criterio de "primera fila con >=2 celdas no vacías es el encabezado"
+  // que ya usaba Excel. Si el documento no trae ninguna tabla (es texto
+  // corrido, no un formato tabular), devuelve filas vacías -- el llamador
+  // cae entonces al camino de texto libre (igual que un PDF).
+  function leerPrimeraTablaHtml(html){
+    const doc = new DOMParser().parseFromString(html || '', 'text/html');
+    const tabla = doc.querySelector('table');
+    if (!tabla) return { headers: [], rows: [] };
+    const filas = Array.from(tabla.querySelectorAll('tr')).map(tr =>
+      Array.from(tr.querySelectorAll('td,th')).map(td => (td.textContent || '').replace(/\s+/g, ' ').trim())
+    );
+    const idxHeader = filas.findIndex(f => f.filter(c => c !== '').length >= 2);
+    if (idxHeader === -1) return { headers: [], rows: [] };
+    const headers = filas[idxHeader];
+    const rows = filas.slice(idxHeader + 1).filter(f => f.some(c => c !== ''));
+    return { headers: headers, rows: rows };
+  }
+
   // dd/mm/yyyy, dd-mm-yyyy o yyyy-mm-dd -> 'yyyy-mm-dd'. Si el formato no se
   // reconoce, devuelve null -- no inventa una fecha.
   function parseFechaExcel(v){
@@ -3214,8 +3295,13 @@
     return null;
   }
 
-  function parsearExcelExperiencia(workbook){
-    const { headers, rows } = leerHojaComoFilas(workbook);
+  // Construye los contratos a partir de {headers, rows} YA leídos -- de
+  // dónde vinieron esas filas (Excel, o la tabla de un .docx vía
+  // leerPrimeraTablaHtml) no le importa a esta función, mismo espíritu que
+  // construirRequisitoDesdeTexto para la matriz: un solo lugar que arma el
+  // objeto contrato, reutilizado por cada origen de archivo.
+  function parsearExperienciaDeFilas(datos){
+    const headers = datos.headers, rows = datos.rows;
     const cols = detectarColumnas(headers, DICC_CONTRATO);
     const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
     const contratos = rows.map((row, i) => {
@@ -3243,6 +3329,10 @@
       };
     });
     return { headers: headers, cols: cols, contratos: contratos };
+  }
+
+  function parsearExcelExperiencia(workbook){
+    return parsearExperienciaDeFilas(leerHojaComoFilas(workbook));
   }
 
   const STOPWORDS_ES = new Set(['de','del','la','el','los','las','en','y','o','para','con','por','a','al','un','una','que','se','su','sus','como','entre','sobre','este','esta','estos','estas','sea','ser','mas','no']);
@@ -3311,8 +3401,8 @@
     };
   }
 
-  function parsearMatrizExperiencia(workbook){
-    const { headers, rows } = leerHojaComoFilas(workbook);
+  function parsearRequisitosDeFilas(datos){
+    const headers = datos.headers, rows = datos.rows;
     const cols = detectarColumnas(headers, DICC_REQUISITO);
     const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
     const requisitos = rows.map((row, i) => {
@@ -3324,6 +3414,10 @@
       });
     }).filter(r => r.criterio);
     return { headers: headers, cols: cols, requisitos: requisitos, fuente: 'excel' };
+  }
+
+  function parsearMatrizExperiencia(workbook){
+    return parsearRequisitosDeFilas(leerHojaComoFilas(workbook));
   }
 
   // Segmenta el texto plano de un PDF (matriz de requisitos sin Excel) en
@@ -3353,6 +3447,65 @@
     const chunks = segmentarTextoEnRequisitos(texto);
     const requisitos = chunks.map((chunk, i) => construirRequisitoDesdeTexto(chunk, i, {})).filter(r => r.criterio);
     return { headers: [], cols: {}, requisitos: requisitos, fuente: 'pdf' };
+  }
+
+  // Extrae un valor en pesos de texto libre SOLO cuando hay una señal fuerte
+  // de que es dinero -- "$"/COP/SMMLV explícito, o un número agrupado en
+  // miles con al menos 2 puntos (ej. "1.200.000", formato colombiano
+  // estándar). A diferencia de una celda de Excel dedicada a "Valor" (donde
+  // cualquier número presente ES el valor por definición), una fila de
+  // texto libre reconstruida de un PDF/Word puede traer mezclado un número
+  // de contrato/expediente parecido (ej. "2024001234") -- sin esta señal,
+  // mejor no extraer nada (queda NO DETERMINABLE más adelante) que extraer
+  // el número equivocado y alterar una decisión de CUMPLE/NO CUMPLE.
+  function valorConfiableDeTexto(texto){
+    const conSenal = texto.match(/(?:\$|cop|smmlv|smlmv)\s*[\d.,]+/i);
+    if (conSenal) return parseValorUnidad(conSenal[0]);
+    const agrupado = texto.match(/\d{1,3}(?:\.\d{3}){2,}/);
+    if (agrupado) return parseValorUnidad(agrupado[0]);
+    return null;
+  }
+
+  // Construye UN contrato a partir de una fila de texto libre -- sin
+  // columnas separadas, reconstruida por posición desde un PDF o por línea
+  // desde Word/OCR (ver extraerFilasPorPosicion). A diferencia de un
+  // requisito (una sola cifra clave casi siempre alcanza), un contrato
+  // tiene MUCHOS campos -- intentar separarlos todos de un texto corrido
+  // sería, en la práctica, inventar la mayoría de ellos. Por eso solo se
+  // extrae lo que de verdad se puede reconocer con confianza: el texto
+  // completo como "objeto" (alimenta el emparejamiento por palabra clave,
+  // el mecanismo principal de todos modos), el valor SOLO con señal fuerte
+  // (ver valorConfiableDeTexto), y hasta 2 fechas con formato reconocible
+  // (primera = inicio, segunda = fin). El resto (contratante, duración
+  // exacta, cantidad, número de contrato, % participación) se deja en null
+  // en vez de adivinar -- mismo principio de "NO DETERMINABLE antes que
+  // inventar" aplicado aquí, no solo en la evaluación de cada requisito.
+  function construirContratoDesdeTexto(texto, i){
+    texto = (texto || '').toString().trim();
+    const valorObj = valorConfiableDeTexto(texto);
+    const fechas = (texto.match(/\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b|\b\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\b/g) || [])
+      .map(parseFechaExcel).filter(Boolean);
+    return {
+      fila: i + 1,
+      objeto: texto || null,
+      contratante: null,
+      valor: valorObj ? valorObj.valor : null,
+      valorRaw: valorObj ? String(valorObj.valor) : null,
+      fechaInicio: fechas[0] || null,
+      fechaFin: fechas[1] || null,
+      duracion: null,
+      cantidad: null,
+      cantidadRaw: null,
+      tipo: 'no-clasificado',
+      actividades: null,
+      numeroContrato: null,
+      participacion: null
+    };
+  }
+
+  function parsearExperienciaDesdeFilasTexto(filas, fuente){
+    const contratos = filas.map((f, i) => construirContratoDesdeTexto(f, i)).filter(c => c.objeto);
+    return { headers: [], cols: {}, contratos: contratos, fuente: fuente || 'texto' };
   }
 
   // Evalúa UN requisito contra los contratos disponibles. Nunca inventa: si
@@ -3491,23 +3644,41 @@
       '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Campo</th><th>Columna del Excel usada</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
   }
 
-  // Igual que renderColumnasDetectadas pero para el origen PDF: no hay
-  // columnas que mapear, así que en vez de eso se lista CADA requisito que
-  // la segmentación detectó (el texto completo del trozo + lo que se
-  // interpretó de él) para que el usuario confirme que el corte tuvo
-  // sentido antes de correr la evaluación -- abierto por defecto (`open`),
-  // a diferencia del Excel, porque revisar la segmentación es más
-  // importante cuando viene de texto libre que cuando viene de columnas.
-  function renderRequisitosDetectadosPDF(requisitos){
+  // Igual que renderColumnasDetectadas pero para un origen SIN columnas
+  // (PDF, o un .docx que no traía tabla): en vez de mapear columnas, lista
+  // CADA requisito que la segmentación detectó (el texto completo del
+  // trozo + lo que se interpretó de él) para que el usuario confirme que
+  // el corte tuvo sentido antes de correr la evaluación -- abierto por
+  // defecto (`open`), a diferencia del Excel, porque revisar la
+  // segmentación es más importante cuando viene de texto libre que cuando
+  // viene de columnas.
+  function renderRequisitosDetectadosTexto(requisitos, fuenteLabel){
     const filas = requisitos.map((r, i) => '<tr><td>' + (i + 1) + '</td>' +
       '<td>' + escapeHtml(truncate(r.criterio, 220)) + '</td>' +
       '<td>' + escapeHtml(r.obligatoriedad) + '</td>' +
       '<td>' + (r.minContratos != null ? r.minContratos : '—') + '</td>' +
       '<td>' + (r.minValor ? r.minValor.valor + ' ' + r.minValor.unidad : '—') + '</td>' +
       '<td>' + (r.minCantidad ? r.minCantidad.valor : '—') + '</td></tr>').join('');
-    return '<details class="expeval-review" open><summary>Revisar interpretación: Matriz de experiencia (PDF) -- ' + requisitos.length + ' requisito(s) detectado(s), confirma que el corte tenga sentido</summary>' +
-      '<p class="saved-note" style="margin:8px 0;">El PDF no trae columnas -- cada fila de abajo es un trozo de texto que se identificó como un posible requisito nuevo (por numeración, letra o viñeta). Si un requisito quedó partido en dos filas o dos requisitos quedaron juntos en una, corrígelo cargando el Excel si lo tienes, o revisa el resultado final con más cuidado.</p>' +
+    return '<details class="expeval-review" open><summary>Revisar interpretación: Matriz de experiencia (' + escapeHtml(fuenteLabel) + ') -- ' + requisitos.length + ' requisito(s) detectado(s), confirma que el corte tenga sentido</summary>' +
+      '<p class="saved-note" style="margin:8px 0;">El archivo no trae columnas -- cada fila de abajo es un trozo de texto que se identificó como un posible requisito nuevo (por numeración, letra o viñeta). Si un requisito quedó partido en dos filas o dos requisitos quedaron juntos en una, corrígelo cargando el Excel si lo tienes, o revisa el resultado final con más cuidado.</p>' +
       '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>#</th><th>Texto detectado</th><th>Obligatoriedad</th><th>Mín. contratos</th><th>Valor mínimo</th><th>Cantidad mínima</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
+  }
+
+  // Análogo a renderRequisitosDetectadosTexto pero para contratos (Fuente
+  // A): cada fila reconstruida de un PDF (por posición) o de un Word sin
+  // tabla (por línea), con lo poco que construirContratoDesdeTexto pudo
+  // reconocer con confianza -- el resto ("—") es honesto en vez de
+  // inventado, y el usuario lo ve de entrada, no lo descubre recién en el
+  // resultado final.
+  function renderContratosDetectadosTexto(contratos, fuenteLabel){
+    const filas = contratos.map((c, i) => '<tr><td>' + (i + 1) + '</td>' +
+      '<td>' + escapeHtml(truncate(c.objeto || '', 220)) + '</td>' +
+      '<td>' + (c.valor != null ? c.valor.toLocaleString('es-CO') : '—') + '</td>' +
+      '<td>' + (c.fechaInicio || '—') + '</td>' +
+      '<td>' + (c.fechaFin || '—') + '</td></tr>').join('');
+    return '<details class="expeval-review" open><summary>Revisar interpretación: Experiencia del proponente (' + escapeHtml(fuenteLabel) + ') -- ' + contratos.length + ' contrato(s) detectado(s), confirma que el corte tenga sentido</summary>' +
+      '<p class="saved-note" style="margin:8px 0;">El archivo no trae columnas -- cada fila de abajo es un fragmento de texto que se identificó como un posible contrato nuevo. Solo se extraen con confianza el texto completo (para el cruce por palabra clave) y, cuando hay una señal clara, el valor y hasta 2 fechas -- contratante, duración, cantidad y demás quedan "—" a propósito en vez de adivinados. Si algo importante falta, carga el Excel si lo tienes.</p>' +
+      '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>#</th><th>Texto detectado</th><th>Valor</th><th>Fecha inicio</th><th>Fecha fin</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
   }
 
   function badgeExpEval(resultado){
@@ -6137,20 +6308,38 @@
     });
   }
 
+  // Etiqueta legible del origen para el título del panel de revisión --
+  // 'excel'/'docx' SÍ tienen columnas reales (tabla), 'pdf'/'docx-texto'
+  // vienen de texto libre segmentado -- ver esa distinción real en
+  // renderExpEvalReview (headers.length, no el string de fuente en sí).
+  function etiquetaFuenteArchivo(fuente){
+    if (fuente === 'docx' || fuente === 'docx-texto') return 'Word';
+    if (fuente === 'pdf') return 'PDF';
+    return 'Excel';
+  }
+
   function renderExpEvalReview(){
     let html = '';
     // También restaura el texto de estado bajo cada dropzone (nombre de
     // archivo + cantidad leída) -- si no, tras recargar la página el
     // indicador de pasos mostraba "1/2 hechos" pero el dropzone seguía
     // diciendo "Sin cargar.", una contradicción visual confusa.
+    //
+    // La distinción real de qué panel usar es si HAY columnas reales que
+    // mapear (Excel, o un .docx que sí traía tabla) o no (PDF, o un .docx
+    // sin tabla que cayó al camino de texto libre) -- se mira
+    // `headers.length`, no el string de `fuente` (que solo sirve para el
+    // rótulo "Word"/"PDF"/"Excel" que ve el usuario).
     if (expevalContratos){
-      html += renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length);
+      html += expevalContratos.headers.length
+        ? renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length)
+        : renderContratosDetectadosTexto(expevalContratos.contratos, etiquetaFuenteArchivo(expevalContratos.fuente));
       expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s).';
     }
     if (expevalRequisitos){
-      html += (expevalRequisitos.fuente === 'pdf')
-        ? renderRequisitosDetectadosPDF(expevalRequisitos.requisitos)
-        : renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length);
+      html += expevalRequisitos.headers.length
+        ? renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length)
+        : renderRequisitosDetectadosTexto(expevalRequisitos.requisitos, etiquetaFuenteArchivo(expevalRequisitos.fuente));
       expevalMatrizStatusEl.textContent = (expevalMeta && expevalMeta.matrizFile ? expevalMeta.matrizFile + ' · ' : '') + expevalRequisitos.requisitos.length + ' requisito(s) leído(s).';
     }
     expevalReviewEl.innerHTML = html;
@@ -6259,21 +6448,153 @@
     saveExpEval();
   }
 
-  // Punto de entrada único del dropzone de matriz: despacha a Excel o a PDF
-  // según la extensión/tipo del archivo -- el usuario no tiene que elegir
-  // nada aparte, solo arrastra el archivo que tenga.
+  // Experiencia del proponente en PDF (pedido explícito del usuario, igual
+  // que la matriz). A diferencia de la matriz (una lista numerada de
+  // requisitos), "Experiencia del proponente" es casi siempre una TABLA de
+  // muchos contratos -- por eso NO reutiliza segmentarTextoEnRequisitos
+  // (pensada para marcadores de lista), sino extraerFilasPorPosicion
+  // (agrupa el texto del PDF por renglón visual según su coordenada Y).
+  // Mismo patrón de "texto no extraíble -> ofrecer OCR" que procesarRUP()
+  // y cargarMatrizPDF(); en la vía OCR, sin coordenadas disponibles, se
+  // parte por línea de texto en vez de por posición.
+  async function cargarExperienciaPDF(file, viaOcr){
+    expevalExpStatusEl.textContent = viaOcr ? 'Leyendo el PDF con OCR (puede tardar varios minutos)…' : 'Leyendo el PDF…';
+    let filas = [], numPages = 0, pagesRead = 0;
+    try {
+      await appReady;
+      if (viaOcr){
+        const r = await ocrPdfPages(file, 1, 20, (pct, page, total) => {
+          expevalExpStatusEl.textContent = 'OCR de la experiencia… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
+        });
+        numPages = r.numPages; pagesRead = r.pagesRead;
+        filas = r.text.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l.length > 10);
+      } else {
+        const r = await extraerFilasPorPosicion(file, 20);
+        filas = r.filas; numPages = r.numPages; pagesRead = r.pagesRead;
+      }
+    } catch(err){
+      expevalExpStatusEl.textContent = 'No se pudo leer el PDF (' + (err && err.message ? err.message : 'error') + ').';
+      return;
+    }
+
+    if (!viaOcr && filas.join('').length < 100){
+      expevalExpStatusEl.innerHTML = 'El PDF no tiene texto extraíble (parece escaneado). ' +
+        '<button class="link-btn" id="bt-expeval-exp-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
+      const b = document.getElementById('bt-expeval-exp-ocr');
+      if (b) b.addEventListener('click', () => cargarExperienciaPDF(file, true));
+      return;
+    }
+
+    const parsed = parsearExperienciaDesdeFilasTexto(filas, 'pdf');
+    if (!parsed.contratos.length){
+      expevalExpStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' página(s) pero no reconocí ninguna fila de contrato. Prueba con el Excel si lo tienes.';
+      return;
+    }
+    expevalContratos = parsed;
+    expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
+    expevalResultado = null;
+    expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) detectado(s) del PDF -- revisa la interpretación abajo.';
+    renderExpEvalReview();
+    renderExpEvalResultado();
+    saveExpEval();
+  }
+
+  // Word (.docx) para Experiencia del proponente: primero intenta leer la
+  // PRIMERA tabla del documento (lo más común -- muchas empresas exportan
+  // la misma plantilla que usarían en Excel, pero a Word) reutilizando
+  // exactamente la misma lógica de columnas que ya usa Excel
+  // (parsearExperienciaDeFilas); si el documento no trae ninguna tabla
+  // (es texto corrido), cae al mismo camino de texto libre que un PDF
+  // (parsearExperienciaDesdeFilasTexto), partiendo por línea.
+  async function cargarExperienciaDocx(file){
+    expevalExpStatusEl.textContent = 'Leyendo el Word…';
+    try {
+      const mammoth = await loadMammothJs();
+      const htmlResult = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+      const tabla = leerPrimeraTablaHtml(htmlResult.value);
+      let parsed;
+      if (tabla.rows.length){
+        parsed = parsearExperienciaDeFilas(tabla);
+        parsed.fuente = 'docx';
+      } else {
+        const textResult = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        const filas = textResult.value.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(l => l.length > 10);
+        parsed = parsearExperienciaDesdeFilasTexto(filas, 'docx-texto');
+      }
+      if (!parsed.contratos.length){
+        expevalExpStatusEl.textContent = 'Se leyó el Word pero no se reconoció ningún contrato -- revisa que tenga una tabla, o una lista clara con un contrato por línea.';
+        return;
+      }
+      expevalContratos = parsed;
+      expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
+      expevalResultado = null;
+      expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s) del Word' + (tabla.rows.length ? '.' : ' -- revisa la interpretación abajo.');
+      renderExpEvalReview();
+      renderExpEvalResultado();
+      saveExpEval();
+    } catch(err){
+      expevalExpStatusEl.textContent = 'No se pudo leer el Word (' + (err && err.message ? err.message : 'error') + ').';
+    }
+  }
+
+  // Word (.docx) para la Matriz de experiencia -- mismo patrón tabla-primero
+  // que cargarExperienciaDocx, con fallback a parsearMatrizExperienciaPDF
+  // (que pese al nombre solo espera texto plano, sirve igual para el texto
+  // que saca mammoth de un .docx sin tabla).
+  async function cargarMatrizDocx(file){
+    expevalMatrizStatusEl.textContent = 'Leyendo el Word…';
+    try {
+      const mammoth = await loadMammothJs();
+      const htmlResult = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+      const tabla = leerPrimeraTablaHtml(htmlResult.value);
+      let parsed;
+      if (tabla.rows.length){
+        parsed = parsearRequisitosDeFilas(tabla);
+        parsed.fuente = 'docx';
+      } else {
+        const textResult = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        parsed = parsearMatrizExperienciaPDF(textResult.value);
+        parsed.fuente = 'docx-texto';
+      }
+      if (!parsed.requisitos.length){
+        expevalMatrizStatusEl.textContent = 'Se leyó el Word pero no se reconoció ningún requisito -- revisa que tenga una tabla, o una lista numerada, con letra o con viñetas.';
+        return;
+      }
+      expevalRequisitos = parsed;
+      expevalMeta = Object.assign({}, expevalMeta, { matrizFile: file.name, nRequisitos: parsed.requisitos.length });
+      expevalResultado = null;
+      expevalMatrizStatusEl.textContent = file.name + ' · ' + parsed.requisitos.length + ' requisito(s) leído(s) del Word' + (tabla.rows.length ? '.' : ' -- revisa la interpretación abajo.');
+      renderExpEvalReview();
+      renderExpEvalResultado();
+      saveExpEval();
+    } catch(err){
+      expevalMatrizStatusEl.textContent = 'No se pudo leer el Word (' + (err && err.message ? err.message : 'error') + ').';
+    }
+  }
+
+  // Puntos de entrada únicos de cada dropzone: despachan por extensión/tipo
+  // del archivo -- el usuario no tiene que elegir nada aparte, solo
+  // arrastra el archivo que tenga (Excel, PDF o Word).
+  async function cargarExperienciaArchivo(file){
+    const nombre = (file.name || '').toLowerCase();
+    if (/\.docx$/.test(nombre)) return cargarExperienciaDocx(file);
+    if (/\.pdf$/.test(nombre) || file.type === 'application/pdf') return cargarExperienciaPDF(file, false);
+    return cargarExcelExperiencia(file);
+  }
+
   async function cargarMatrizArchivo(file){
-    const esPdf = /\.pdf$/i.test(file.name || '') || file.type === 'application/pdf';
-    if (esPdf) return cargarMatrizPDF(file, false);
+    const nombre = (file.name || '').toLowerCase();
+    if (/\.docx$/.test(nombre)) return cargarMatrizDocx(file);
+    if (/\.pdf$/.test(nombre) || file.type === 'application/pdf') return cargarMatrizPDF(file, false);
     return cargarExcelMatriz(file);
   }
 
   if (expevalExpUploadBtn && expevalExpFileEl){
-    wireDropzone(expevalExpUploadBtn, expevalExpFileEl, (file) => cargarExcelExperiencia(file));
+    wireDropzone(expevalExpUploadBtn, expevalExpFileEl, (file) => cargarExperienciaArchivo(file));
     expevalExpFileEl.addEventListener('change', async () => {
       const file = expevalExpFileEl.files && expevalExpFileEl.files[0];
       expevalExpFileEl.value = '';
-      if (file) await cargarExcelExperiencia(file);
+      if (file) await cargarExperienciaArchivo(file);
     });
   }
   if (expevalMatrizUploadBtn && expevalMatrizFileEl){
