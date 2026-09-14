@@ -2281,3 +2281,81 @@ ayuda que le corresponden (o ninguno); carga de un Excel real de experiencia
 con "Objeto" detectado (panel cerrado, sin aviso) y con "Objeto" no detectado
 a propósito (panel abierto, aviso ámbar, fila resaltada); confirmado que el
 enlace "Ver ejemplo de formato aceptado" aparece bajo ambas zonas de carga.
+
+## Auditoría de primer uso, segunda pasada: los hallazgos importantes/menores restantes
+
+Después de los 3 cambios rápidos, el usuario pidió revisar el resto del
+reporte (1 importante y 2 menores que quedaban, más el de nomenclatura).
+
+### "Capacidad K / financiera": el placeholder enseñaba un formato que rompía su propio buscador
+
+La recomendación original del audit era "campos numéricos estructurados",
+pero investigar el código reveló algo más preciso y más urgente: el campo SÍ
+se usa programáticamente (`compararConPerfil`, línea ~4073) -- se parte por
+`,`/`;`/salto de línea (`splitTerms`) en términos, y cada término se busca
+como substring dentro del texto del pliego analizado. El placeholder decía
+`"K = 3.500.000.000 · Patrimonio = 450.000.000 · Liquidez = 1,3"` usando
+"·" como separador -- pero "·" NO es uno de los delimitadores de
+`splitTerms`. Un usuario que copiara ese formato al pie de la letra
+terminaba con UN solo término gigante (el texto completo) que nunca iba a
+aparecer literal en un pliego real -- la comparación quedaba rota en
+silencio para cualquiera que llenara el campo a mano (el autocompletado
+desde el RUP no tiene este problema: `parsearRUP` ya arma el texto con
+`ind.join('\n')`, un indicador por línea).
+
+Fix: el placeholder ahora usa saltos de línea reales (`&#10;` en el
+atributo) -- mismo formato que ya produce el autocompletado del RUP -- y la
+etiqueta dice "un dato por línea" en vez de sugerir la sintaxis "K = ... ·
+...". No se tocó el modelo de datos (`k` sigue siendo un string libre) ni
+`compararConPerfil` -- el bug estaba en el ejemplo mostrado al usuario, no
+en la lógica.
+
+### Nomenclatura: "Perfil en edición" ahora dice a qué perfil se refiere
+
+El mismo `<label>Perfil en edición</label>` se repetía igual en "Perfil de
+la empresa" (selector de empresas) y en "Personal" (selector de
+profesionales) -- ahora dicen "Empresa en edición" y "Profesional en
+edición" respectivamente. Cambio de una sola palabra por pantalla, sin
+tocar los `id` ni la lógica de los `<select>`.
+
+### "Ver datos de ejemplo" ahora también se ofrece directo en el estado vacío
+
+Antes solo existía el botón junto a los filtros, arriba del todo -- si la
+primera búsqueda de alguien nuevo daba "SIN RESULTADOS" (real: con los
+filtros de fábrica, en el momento de la prueba no había licitaciones
+abiertas en Norte de Santander en esos rubros), tocaba volver a subir para
+encontrarlo. Ahora el mensaje de "SIN RESULTADOS" incluye un enlace propio
+("Ver datos de ejemplo") que llama al mismo `loadDemo()` -- delegado en el
+listener de click de `resultsEl` ya existente (`e.target.closest('#bt-empty-demo')`),
+mismo patrón que ya usaban los botones "Ir a Experiencia/Personal" del
+mismo contenedor. También se aclaró el texto: "Puede que ahora mismo no
+haya ninguna licitación abierta con esos criterios -- no es un error."
+
+### Navegación móvil: se intentó y se revirtió (documentado para no repetir el intento)
+
+Se probó mostrar el nombre de la sección junto al ícono, pero SOLO para el
+ítem activo (para no repetir el problema de los 7 labels completos que ya
+se había evitado a propósito). Medido con el mismo método que los bugs de
+overflow ya documentados en este archivo (`sidebar.scrollWidth -
+sidebar.clientWidth` a 375px real): con "Competencia" como activo, 56px de
+desborde; con "Perfil de la empresa" (el label más largo), 93px. Se
+revirtió por completo -- el nav vuelve a ser exactamente como estaba
+(solo íconos, `title`/`aria-label` como nombre accesible). El nombre de la
+sección activa de todas formas ya es visible de inmediato: cada vista
+muestra su propio `<h1>` justo debajo del nav apenas se toca el ícono. Lo
+que de verdad falta -- ayudar a elegir el ícono correcto ANTES de tocarlo,
+sin conocer aún la app -- necesitaría reemplazar la fila de íconos por un
+menú desplegable con nombres completos en celular, un cambio de diseño más
+grande que no se improvisó en esta pasada para no arriesgar el ajuste ya
+afinado del nav actual.
+
+### Verificación
+
+`node tests/smoke.mjs`: 33/33. Probado en navegador real: "Empresa en
+edición"/"Profesional en edición" confirmados en sus pantallas; placeholder
+de Capacidad K confirmado con saltos de línea reales
+(`textarea.placeholder`); el enlace nuevo en el estado vacío sí dispara
+`loadDemo()` (aparece el banner "Estás viendo datos de ejemplo"); el
+intento de navegación móvil se probó, se midió el desborde real y se
+revirtió antes de dejar nada roto -- `sidebar.scrollWidth -
+sidebar.clientWidth` volvió a día 0 tras revertir.

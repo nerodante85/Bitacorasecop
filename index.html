@@ -916,6 +916,17 @@
        vez porque el margen que falta es menor. */
     #bitacora-root .nav-item { padding: 8px; white-space: nowrap; font-size: 13.5px; }
     #bitacora-root .nav-item .nav-label { display: none; }
+    /* Auditoría "primer uso": se intentó mostrar el nombre del ítem activo
+       (icono + texto) para no depender de adivinar el ícono -- revertido:
+       incluso solo el activo desborda los 375px reales ya ajustados al
+       límite (93px de más con "Perfil de la empresa", medido con
+       scrollWidth - clientWidth, mismo método que los bugs de overflow
+       documentados arriba). El nombre de la vista activa ya queda visible
+       de todas formas en el <h1> de cada pantalla, justo debajo de este
+       nav -- lo que falta (adivinar el ícono ANTES de tocarlo) necesita un
+       menú desplegable con nombres en vez de textos en la barra, cambio
+       más grande que no se metió en esta pasada para no arriesgar el
+       ajuste ya afinado de este nav. */
     #bitacora-root .sidebar-foot { display: none; }
     #bitacora-root .wrap { padding: 20px 14px 32px; }
     #bitacora-root .view-header h1 { font-size: 22px; }
@@ -1175,7 +1186,7 @@
             </div>
             <div class="perfil-switcher">
               <div class="field">
-                <label>Perfil en edición</label>
+                <label>Empresa en edición</label>
                 <select id="bt-perfil-select"></select>
               </div>
               <div class="field">
@@ -1208,8 +1219,19 @@
                 <textarea id="bt-perfil-rup" rows="2" placeholder="ej. 72101507, 72141108, construcción de vías, alcantarillado"></textarea>
               </div>
               <div class="field full">
-                <label>Capacidad K / financiera (texto libre; el RUP la rellena con activo/pasivo corriente, patrimonio e indicadores)</label>
-                <textarea id="bt-perfil-k" rows="2" placeholder="ej. K = 3.500.000.000 · Patrimonio = 450.000.000 · Liquidez = 1,3"></textarea>
+                <label>Capacidad K / financiera (un dato por línea; el RUP la rellena automáticamente con activo/pasivo corriente, patrimonio e indicadores)</label>
+                <!-- Auditoría "primer uso": el placeholder anterior mostraba
+                     "K = ... · Patrimonio = ... · Liquidez = ..." separado
+                     por "·", pero compararConPerfil() (más abajo) parte este
+                     campo por coma/punto y coma/salto de línea -- con "·" el
+                     texto completo quedaba como UN solo término gigante que
+                     nunca iba a aparecer literal en un pliego. El ejemplo
+                     ahora usa saltos de línea (lo mismo que ya escribe el
+                     autocompletado del RUP, ver `ind.join('\n')` en
+                     parsearRUP), que sí coincide con el separador real y
+                     además evita la coma decimal colombiana ("1,3") que
+                     habría partido un ejemplo separado por comas.-->
+                <textarea id="bt-perfil-k" rows="3" placeholder="ej.&#10;K = 3.500.000.000&#10;Patrimonio = 450.000.000&#10;Liquidez = 1,3"></textarea>
               </div>
               <div class="field full">
                 <label>Capacidad K residual (texto libre)</label>
@@ -1352,7 +1374,7 @@
             </div>
             <div class="perfil-switcher">
               <div class="field">
-                <label>Perfil en edición</label>
+                <label>Profesional en edición</label>
                 <select id="bt-personal-select"></select>
               </div>
               <div class="field">
@@ -5691,7 +5713,9 @@
       const sugerencia = buscandoProceso
         ? 'No apareció ningún proceso con ese número/referencia entre los datos consultados. Revisa que esté bien escrito, o prueba solo con una parte (por ejemplo, sin el año).'
         : 'Prueba con menos palabras clave, quita el filtro de departamento, o desmarca "Solo Licitación Pública" / "Solo publicados hace ≤30 días" / vencidos / descartados.';
-      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Instrument Serif\',serif;font-style:italic;font-weight:400;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + sugerencia + '</div>';
+      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Instrument Serif\',serif;font-style:italic;font-weight:400;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + sugerencia +
+        ' Puede que ahora mismo no haya ninguna licitación abierta con esos criterios -- no es un error.' +
+        '<div style="margin-top:10px;"><button type="button" class="link-btn" id="bt-empty-demo">Ver datos de ejemplo</button> para ver cómo luce la plataforma mientras tanto.</div></div>';
       return;
     }
 
@@ -6830,6 +6854,15 @@
   // botones del análisis de pliegos (OCR y "seguir leyendo"). Antes eran tres
   // listeners 'click' separados sobre el mismo elemento.
   resultsEl.addEventListener('click', async function(e){
+    // -1) "Ver datos de ejemplo" ofrecido directo en el estado vacío (SIN
+    // RESULTADOS) -- auditoría "primer uso": con los filtros de fábrica, la
+    // primera búsqueda de alguien nuevo puede dar 0 resultados reales (no es
+    // un error, simplemente no hay licitaciones abiertas ahora mismo con
+    // esos criterios), y antes había que volver a subir hasta el botón
+    // "Ver datos de ejemplo" del panel de filtros para ver cómo luce la
+    // plataforma con datos. Reusa el mismo loadDemo() que ese botón.
+    if (e.target.closest('#bt-empty-demo')){ loadDemo(); return; }
+
     // 0) "Ir a Experiencia/Personal" -- del mensaje que bloquea "Analizar pliego"
     const irABtn = e.target.closest('button[data-ir-a]');
     if (irABtn){
