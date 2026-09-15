@@ -2788,3 +2788,189 @@ seriedad al 8% (por debajo del mínimo, la alerta "dura" de la sección
 anterior) -- las 3 alertas salieron juntas y correctas (2 "BAJA" citando
 Ley 1150, 1 "MEDIA" citando el Decreto 1082), viabilidad 80/100
 (100-5-10-5), confirmado con los `className`/página real de cada una.
+
+## Auditoría de usabilidad, segunda pasada (app ya crecida a 7 secciones)
+
+El usuario pidió "que la interfaz sea más fácil de entender" sin apuntar a
+una pantalla concreta -- se repitió el mismo método de la primera auditoría
+de "primer uso" (recorrido real en navegador, estado limpio, no lectura de
+código) porque la app creció mucho desde esa pasada (Personal, Competencia,
+red flags/viabilidad no existían todavía). 6 hallazgos, todos implementados
+y verificados; 0 críticos.
+
+### 1. El aviso "Siguiente paso" era estático -- contradecía al propio botón deshabilitado de la misma pantalla
+
+En "Experiencia" y "Personal", `<div class="saved-note">Siguiente paso: ve
+a...</div>` estaba escrito directo en el HTML, sin ningún `id` ni lógica
+condicional -- se mostraba SIEMPRE, incluso con la página recién cargada y
+sin ningún archivo/perfil todavía. En "Experiencia" esto quedaba justo
+debajo de "Analizar información" (correctamente deshabilitado hasta cargar
+ambos archivos) -- dos mensajes contradictorios visibles a la vez: uno dice
+"todavía no", el otro "ya puedes irte".
+
+Fix: se les dio `id` (`bt-expeval-siguiente-paso` / `bt-personal-siguiente-paso`)
+y `hidden` por defecto. `renderExpEvalSteps()` (que ya calculaba `s3 = !!
+expevalResultado` para el paso 4 del stepper) ahora también decide
+`siguientePasoEl.hidden = !s3` -- se muestra solo cuando la evaluación
+realmente se ejecutó. `renderPersonalList()` hace lo mismo con `!ids.length`
+-- se muestra solo con al menos un profesional registrado. Ambas funciones
+ya se llamaban desde el bootstrap (`appReady.then(...)`), así que el estado
+restaurado desde `localStorage` también queda correcto sin tocar nada más.
+
+### 2. El stepper de "Buscar procesos" decía "3 pasos" pero mostraba 5 círculos sin distinguirlos
+
+"Preparación para analizar un pliego" / "Estos 3 pasos se hacen una sola
+vez" encabezaba un stepper de 5 pasos (Experiencia/Análisis/Perfiles/Pliego/
+Resultado) con el mismo peso visual para los 5 -- nada indicaba cuáles 3 son
+"de una sola vez" (1-3) y cuáles 2 se repiten por cada pliego (4-5).
+
+Fix: el separador entre el paso 3 y el 4 gana una variante `.step-sep-group`
+(línea punteada más ancha en vez de la barra sólida de 22px de los demás)
+para que se lea como "un tipo de salto distinto" sin agregar texto flotante
+que pudiera romper el `flex-wrap` en celular. El subtítulo se reescribió
+para ser exacto: "Los pasos 1 a 3 se hacen una sola vez; los pasos 4 y 5 se
+repiten con cada pliego que analices (marcados con el separador punteado)".
+
+### 3. El paso 3 del stepper se llamaba solo "Perfiles" -- ambiguo con "Perfil de la empresa"
+
+"Perfiles" (paso 3) y la sección "Perfil de la empresa" (RUP/K, algo
+completamente distinto) comparten la misma palabra -- el mensaje de
+bloqueo de abajo sí aclaraba "perfil profesional en 'Personal'", pero la
+etiqueta corta del círculo por sí sola podía mandar a alguien a la sección
+equivocada. Fix: la etiqueta del paso 3 pasa a decir "Personal" a secas --
+el mismo nombre exacto que ya usa el ítem de la sidebar, cero ambigüedad
+nueva que inventar.
+
+### 4. El Dashboard no tenía tarjeta de acceso rápido a "Personal" ni a "Competencia"
+
+`.quick-grid` en "Inicio" solo tenía 4 tarjetas (Buscar procesos/Perfil de
+la empresa/Experiencia/Evaluación) aunque la sidebar ya tiene 7 secciones
+desde hace varias fases -- alguien que solo mira el Dashboard podía no
+enterarse de que "Personal" (paso obligatorio para desbloquear "Analizar
+pliego") o "Competencia" existen. Fix: 2 tarjetas nuevas, mismo componente
+`.quick-card[data-view]` (el listener ya es genérico por `data-view`, cero
+JS nuevo) y reutilizando los mismos íconos SVG que ya tienen esos ítems en
+la sidebar -- ningún ícono nuevo que diseñar. `.quick-grid` ya era
+`grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))`, así que 6
+tarjetas en vez de 4 reflowan solas sin tocar CSS.
+
+### 5. "Competencia" tenía dos botones distintos, los dos literalmente "Buscar"
+
+"Buscar empresa" (ficha completa) y "Buscar socios (consorcios)" son dos
+formularios de búsqueda distintos en la misma vista, pero sus botones
+(`#bt-comp-buscar` / `#bt-socios-buscar`) decían ambos solo "Buscar" --
+solo el encabezado de cada bloque los distinguía. Fix: "Buscar empresa" /
+"Buscar socios". Se verificó que ningún JS reescribe el `textContent` de
+esos botones en ningún estado de carga (solo togglean `.disabled`, mismo
+patrón que ya se había encontrado roto una vez con botones en mayúscula --
+ver "Cosas aprendidas por las malas" -- así que se confirmó explícitamente
+antes de dar el cambio por bueno).
+
+### 6. "Capacidad K residual (texto libre)" no avisaba que solo funciona en pesos
+
+El label decía "texto libre" sin más -- pero la sección de abajo
+("Capacidad contractual estimada") solo puede calcular algo si ese campo
+está en pesos (avisa "no se puede calcular si está en SMMLV o vacía", ver
+Fase 13). "Texto libre" sonaba a "cualquier formato sirve igual". Fix:
+label extendido a "Capacidad K residual (texto libre; en pesos si quieres
+que se calcule tu capacidad disponible más abajo)" -- no se tocó el modelo
+de datos (sigue siendo un string libre), solo se adelantó la advertencia
+al momento de escribir, no después de guardar.
+
+**Verificado**: 50/50 tests de humo (ninguno de estos 6 cambios toca lógica
+de negocio, solo HTML/CSS/JS de interfaz -- no se esperaban tests nuevos, y
+no los hubo). Probado en navegador real de punta a punta, estado limpio
+(sin cuenta, `localStorage` vacío -- confirmado que el propio bootstrap
+crea un perfil de empresa vacío por defecto, comportamiento real, no un
+resto de pruebas anteriores): las 6 tarjetas del Dashboard confirmadas por
+`quick-card-title`; el aviso de "Experiencia"/"Personal" confirmado oculto
+en vacío y visible tras completar (se registró un profesional real de
+punta a punta -- clic en "+ Nuevo profesional", que crea el `id` activo,
+ANTES de escribir el nombre y guardar, ver `savePersonal()`: sin ese primer
+clic no hay `personalActivoId` y guardar no hace nada en silencio, un
+detalle real del flujo que hay que respetar al probarlo, no un bug); el
+separador punteado y la etiqueta "Personal" confirmados visualmente en
+captura de pantalla; los botones "Buscar empresa"/"Buscar socios" y el
+label de K residual confirmados por texto real del DOM.
+
+## Sección "Competencia" eliminada por completo (Fases 9, 11 y 12)
+
+El usuario pidió eliminar la sección "Competencia" -- ficha de empresa
+(Fase 11), buscar socios/consorcios (Fase 9) y seguimiento de empresas
+(Fase 12), las tres vivían juntas en esa vista. Se quitó todo, sin dejar
+nada a medias: el ítem de la sidebar, la tarjeta rápida del Dashboard, el
+panel "Actividad de empresas seguidas" del Dashboard, la sección completa
+(`view-competencia`), las funciones exclusivas de las tres sub-funciones,
+la clave de `localStorage`/sincronización `empresas_seguidas`, el CSS de
+las barras (`.comp-bar-*`), y las referencias en `tests/smoke.mjs`.
+
+**La trampa real de este borrado, evitada a propósito**: `prepararBusquedaPorNombre()`
+se había factorizado en su momento (Fase 11) precisamente para que
+`buscarFichaEmpresa` (Competencia) y `buscarAdjudicaciones` ("Ver
+adjudicaciones de esta entidad", dentro de **Evaluación**, no Competencia)
+compartieran el mismo criterio de coincidencia de nombre. Borrar a ciegas
+todo lo que mencionara "Competencia" o SECOP I+II por nombre habría podido
+arrastrarse `prepararBusquedaPorNombre`/`buscarAdjudicaciones`/
+`fetchSecopDataset`/`descuentoComparable`/`SECOP_I_DATASET` -- todas
+código real de **Evaluación**, no de Competencia, solo ubicadas cerca en
+el archivo. Antes de tocar una sola línea se hizo un mapeo completo función
+por función (exclusiva vs. compartida) con un agente de exploración, y se
+verificó con grep que `agruparContratos` (la única duda real) no tiene
+ningún llamador fuera de la ficha de empresa. Al terminar,
+`prepararBusquedaPorNombre` queda con un solo llamador (`buscarAdjudicaciones`)
+y su comentario se actualizó para ya no mencionar la función eliminada.
+
+**Qué se eliminó, en JS**: el bloque completo "SEGUIMIENTO DE EMPRESAS"
+(`empresasSeguidas`, `seguirEmpresa`, `dejarDeSeguirEmpresa`,
+`revisarEmpresaSeguida`, `revisarTodasLasEmpresasSeguidas`,
+`verActividadEmpresa`, `renderEmpresasSeguidasList`, `renderDashSeguimiento`,
+`badgeSeguimiento`); el bloque "INTELIGENCIA COMPETITIVA: FICHA DE EMPRESA"
+(`buscarFichaEmpresa`, `agruparContratos`, `agregarFichaEmpresa`,
+`renderFichaEmpresaHtml`); el bloque "BUSCAR SOCIOS (CONSORCIOS)"
+(`esPerfilPropio`, `buscarSociosPorSector`, `agruparPorEmpresa`,
+`renderSociosHtml`, `runBuscarSocios`, `verFichaDeSocio`); las 12
+constantes `const compXxxEl = document.getElementById(...)`; el listener
+de wiring completo (`compBuscarBtn`, `sociosBuscarBtn`, `seguimientoListEl`,
+etc.); `renderDashSeguimiento()` dentro de `actualizarDashboard()`;
+`renderEmpresasSeguidasList()`/`revisarTodasLasEmpresasSeguidas()` del
+bootstrap `appReady.then(...)`; `loadEmpresasSeguidas()` del
+`Promise.allSettled` inicial; `'competencia'` de `VISTAS` y de
+`SYNCED_KEYS`; el `if (nombre === 'competencia') ...` dentro de
+`mostrarVista()`.
+
+**Qué se preservó explícitamente** (la lista de "no tocar" del mapeo
+previo): `prepararBusquedaPorNombre`, `buscarAdjudicaciones`,
+`SECOP_I_DATASET`, `fetchSecopDataset`/`fetchAllForDataset`,
+`descuentoComparable`, y todos los utilitarios genéricos (`normalize`,
+`matchesTerm`, `matchesGeo`, `findField`, etc.) -- todos siguen siendo
+código vivo de "Ver adjudicaciones de esta entidad"/"Sugerencia de oferta
+económica" en Evaluación. También se preservó el párrafo de ayuda sobre
+SECOP I vs SECOP II (sigue siendo relevante para "Buscar procesos" por sí
+solo) -- solo se le quitó `" competencia"` de su atributo
+`data-help-view`, no se borró el párrafo.
+
+**Comentarios corregidos, no solo código**: dos comentarios que
+justificaban decisiones de diseño citando funciones ahora eliminadas como
+referencia (`prepararBusquedaPorNombre`, `fetchSecopDataset`) se
+reescribieron para no dejar una referencia colgante a código que ya no
+existe. Los comentarios de CSS/HTML que mencionaban "7 secciones"/"7
+nombres" (el conteo de ítems del nav antes de este borrado) se
+actualizaron a 6, o se generalizaron para no depender de un número exacto
+-- ninguno de estos era funcional (el nav móvil se basa en el DOM real,
+no en un conteo hardcodeado), pero el proyecto ya se había topado antes
+con comentarios de conteo desactualizados (ver Fase 11, "cada ítem de nav
+nuevo hay que volver a medir").
+
+**Verificado**: 50/50 tests de humo (se quitaron del REQUIRED las 15
+funciones exclusivas de Competencia; se conservaron `prepararBusquedaPorNombre`,
+`generarCartaTexto`, `generarHojaDeVidaTexto` -- compartidas o no
+relacionadas, solo co-ubicadas en el mismo array). Probado en navegador
+real de punta a punta: consola limpia (0 errores) al cargar la página; el
+nav y las tarjetas rápidas del Dashboard muestran 5 secciones (sin
+Competencia); `document.getElementById('bt-nav-competencia')` devuelve
+`null`; y -- la prueba que de verdad importaba -- "Ver adjudicaciones de
+esta entidad" en Evaluación se probó de punta a punta contra un proceso
+real cargado desde los datos de ejemplo: trajo adjudicaciones reales de
+SECOP I y SECOP II (incluida una con "vs base: n/c" real), confirmando
+que `buscarAdjudicaciones`/`prepararBusquedaPorNombre` siguen funcionando
+exactamente igual después del borrado.
