@@ -2974,3 +2974,11 @@ real cargado desde los datos de ejemplo: trajo adjudicaciones reales de
 SECOP I y SECOP II (incluida una con "vs base: n/c" real), confirmando
 que `buscarAdjudicaciones`/`prepararBusquedaPorNombre` siguen funcionando
 exactamente igual después del borrado.
+
+**Celular, mismo patrón que la navegación móvil (ver esa sección)**: se
+repitió aparte la prueba a 375px real de las pantallas tocadas en esta
+ronda (dropdown de nav con 6 ítems, tarjetas rápidas del Dashboard,
+stepper con el separador punteado, label largo de K residual) -- 0px de
+desbordamiento en todas. Solo Chromium emulado, nunca Safari/WebKit real
+(la herramienta no puede correrlo). El usuario probó el sitio en
+producción con su propio iPhone y confirmó que funciona bien.
