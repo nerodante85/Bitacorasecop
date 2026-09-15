@@ -101,7 +101,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'resumenCompatibilidad', 'renderCompatibilidadHtml',
     'parsearExcelExperiencia', 'parsearMatrizExperiencia', 'evaluarExperienciaCompleta',
     'loadPdfJs', 'loadTesseractJs', 'loadXlsxLib', 'extractPdfText', 'ocrPdfPages',
-    'loadSupabaseJs', 'bootstrapAccountSession',
+    'loadSupabaseJs', 'bootstrapAccountSession', 'openRecoveryPanel', 'handleSetNewPassword',
     'guardarAlertaActual', 'eliminarAlerta', 'evaluarAlerta', 'revisarTodasLasAlertas',
     'verNuevosDeAlerta', 'renderAlertasList', 'renderDashAlertas',
     'descuentoComparable', 'sugerenciaOfertaEconomica', 'renderOfertaSugeridaHtml',

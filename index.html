@@ -231,6 +231,14 @@
     background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger);
     border-radius: var(--radius-sm); padding: 8px 12px; font-size: 12.5px; margin-bottom: 14px;
   }
+  /* Mismo cuadro que .account-error pero en tono positivo -- para mensajes
+     de confirmación ("cuenta creada, revisa tu correo", "te llegó un
+     enlace...") que antes reutilizaban el rojo de error y parecían un
+     fallo aunque el texto dijera lo contrario. */
+  #bitacora-root .account-notice {
+    background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success);
+    border-radius: var(--radius-sm); padding: 8px 12px; font-size: 12.5px; margin-bottom: 14px;
+  }
   #bitacora-root .account-toggle-mode { margin-top: 16px; font-size: 12.5px; color: var(--text-muted); text-align: center; }
   #bitacora-root .account-toggle-mode button {
     background: none; border: none; padding: 0; color: var(--accent); font-weight: 600;
@@ -1597,22 +1605,47 @@
 
       <div id="bt-account-logged-out">
         <h2 id="bt-account-title">Iniciar sesión</h2>
-        <p class="sub">Sincroniza tus perfiles, experiencia y análisis entre dispositivos.</p>
+        <p class="sub" id="bt-account-sub">Sincroniza tus perfiles, experiencia y análisis entre dispositivos.</p>
         <div class="account-error" id="bt-account-error" hidden></div>
         <div class="field">
           <label for="bt-account-email">Correo</label>
           <input type="email" id="bt-account-email" autocomplete="email" placeholder="tucorreo@empresa.com">
         </div>
-        <div class="field">
+        <div class="field" id="bt-account-password-field">
           <label for="bt-account-password">Contraseña</label>
           <input type="password" id="bt-account-password" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
         </div>
         <div class="actions">
           <button class="btn-primary" id="bt-account-submit" type="button">Iniciar sesión</button>
         </div>
+        <p class="sub" id="bt-account-forgot-row" style="margin:10px 0 0;">
+          <button type="button" class="link-btn" id="bt-account-forgot-link">¿Olvidaste tu contraseña?</button>
+        </p>
         <div class="account-toggle-mode">
           <span id="bt-account-toggle-text">¿No tienes cuenta?</span>
           <button type="button" id="bt-account-toggle-btn">Crear una</button>
+        </div>
+      </div>
+
+      <!-- Se abre solo (no por clic del usuario) cuando llega el enlace del
+           correo de "recuperar contraseña": supabase-js detecta el token de
+           recuperación en la URL al cargar la página y dispara el evento
+           PASSWORD_RECOVERY (ver bootstrapAccountSession) -- ahí se oculta
+           cualquier otro panel del modal y se muestra este. -->
+      <div id="bt-account-recovery" hidden>
+        <h2>Elige una nueva contraseña</h2>
+        <p class="sub">Confirmada tu identidad por el enlace del correo -- ya puedes guardar una contraseña nueva.</p>
+        <div class="account-error" id="bt-account-recovery-error" hidden></div>
+        <div class="field">
+          <label for="bt-account-new-password">Nueva contraseña</label>
+          <input type="password" id="bt-account-new-password" autocomplete="new-password" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="field">
+          <label for="bt-account-new-password-confirm">Confirmar contraseña</label>
+          <input type="password" id="bt-account-new-password-confirm" autocomplete="new-password" placeholder="Repite la contraseña">
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="bt-account-recovery-submit" type="button">Guardar nueva contraseña</button>
         </div>
       </div>
 
@@ -1697,6 +1730,17 @@
     if (sbClient) return sbClient;
     const { createClient } = await loadSupabaseJs();
     sbClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // Recuperar contraseña: el enlace del correo de
+    // resetPasswordForEmail() trae el token de recuperación en la URL: al
+    // inicializar el cliente (detectSessionInUrl:true, el default),
+    // supabase-js lo detecta solo y dispara el evento PASSWORD_RECOVERY --
+    // se registra el listener aquí mismo, justo después de crear el
+    // cliente, para no perderse el evento si se disparara antes de que el
+    // resto del bootstrap termine. `openRecoveryPanel` está declarada más
+    // abajo con `function` (hoisted), así que puede referenciarse ya acá.
+    sbClient.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') openRecoveryPanel();
+    });
     return sbClient;
   }
 
@@ -1794,7 +1838,7 @@
   };
 
   // -- UI del modal de cuenta -----------------------------------------------
-  let accountModalMode = 'login'; // 'login' | 'signup'
+  let accountModalMode = 'login'; // 'login' | 'signup' | 'forgot'
 
   function renderSidebarFootAccount(){
     if (!SUPABASE_ENABLED) return; // deja el texto original de .sidebar-foot intacto
@@ -1813,16 +1857,86 @@
 
   function setAccountModalMode(mode){
     accountModalMode = mode;
-    document.getElementById('bt-account-title').textContent = mode === 'signup' ? 'Crear cuenta' : 'Iniciar sesión';
-    document.getElementById('bt-account-submit').textContent = mode === 'signup' ? 'Crear cuenta' : 'Iniciar sesión';
-    document.getElementById('bt-account-toggle-text').textContent = mode === 'signup' ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?';
-    document.getElementById('bt-account-toggle-btn').textContent = mode === 'signup' ? 'Iniciar sesión' : 'Crear una';
+    const titulos = { login: 'Iniciar sesión', signup: 'Crear cuenta', forgot: 'Recuperar contraseña' };
+    const subs = {
+      login: 'Sincroniza tus perfiles, experiencia y análisis entre dispositivos.',
+      signup: 'Sincroniza tus perfiles, experiencia y análisis entre dispositivos.',
+      forgot: 'Escribe tu correo y te mandamos un enlace para elegir una contraseña nueva.'
+    };
+    const submits = { login: 'Iniciar sesión', signup: 'Crear cuenta', forgot: 'Enviar enlace de recuperación' };
+    document.getElementById('bt-account-title').textContent = titulos[mode];
+    document.getElementById('bt-account-sub').textContent = subs[mode];
+    document.getElementById('bt-account-submit').textContent = submits[mode];
+    // La contraseña no aplica al pedir el enlace de recuperación -- ese
+    // paso solo necesita el correo. El enlace "¿Olvidaste tu contraseña?"
+    // tampoco tiene sentido en "signup" (todavía no hay cuenta) ni dentro
+    // de "forgot" (ya se está en ese flujo).
+    document.getElementById('bt-account-password-field').hidden = mode === 'forgot';
+    document.getElementById('bt-account-forgot-row').hidden = mode !== 'login';
+    if (mode === 'forgot'){
+      document.getElementById('bt-account-toggle-text').textContent = '';
+      document.getElementById('bt-account-toggle-btn').textContent = 'Volver a iniciar sesión';
+    } else {
+      document.getElementById('bt-account-toggle-text').textContent = mode === 'signup' ? '¿Ya tienes cuenta?' : '¿No tienes cuenta?';
+      document.getElementById('bt-account-toggle-btn').textContent = mode === 'signup' ? 'Iniciar sesión' : 'Crear una';
+    }
     document.getElementById('bt-account-error').hidden = true;
   }
 
+  // true entre el momento en que llega el evento PASSWORD_RECOVERY y el
+  // momento en que se guarda la contraseña nueva (o se recarga la página)
+  // -- mientras esté activo, cualquier forma de abrir el modal (el enlace
+  // de la sidebar, "Cuenta"...) debe llevar al panel de recuperación, no al
+  // de login normal, porque hay una sesión de recuperación en curso.
+  let sbRecoveryActive = false;
+
+  function openRecoveryPanel(){
+    sbRecoveryActive = true;
+    document.getElementById('bt-account-logged-out').hidden = true;
+    document.getElementById('bt-account-logged-in').hidden = true;
+    document.getElementById('bt-account-recovery').hidden = false;
+    document.getElementById('bt-account-recovery-error').hidden = true;
+    document.getElementById('bt-account-backdrop').hidden = false;
+    document.getElementById('bt-account-new-password').focus();
+  }
+
+  function showRecoveryError(msg){
+    const el = document.getElementById('bt-account-recovery-error');
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  async function handleSetNewPassword(){
+    const p1 = document.getElementById('bt-account-new-password').value;
+    const p2 = document.getElementById('bt-account-new-password-confirm').value;
+    if (!p1 || p1.length < 6){
+      showRecoveryError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (p1 !== p2){
+      showRecoveryError('Las dos contraseñas no coinciden.');
+      return;
+    }
+    const submitBtn = document.getElementById('bt-account-recovery-submit');
+    submitBtn.disabled = true;
+    try {
+      const client = await getSupabaseClient();
+      const { error } = await client.auth.updateUser({ password: p1 });
+      if (error) throw error;
+      sbRecoveryActive = false;
+      location.reload(); // updateUser no cierra la sesión -- recarga y arranca ya logueado
+    } catch(e){
+      showRecoveryError((e && e.message) || 'No se pudo guardar la contraseña. Intenta de nuevo.');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  }
+
   async function openAccountModal(){
+    if (sbRecoveryActive){ openRecoveryPanel(); return; }
     const loggedOutEl = document.getElementById('bt-account-logged-out');
     const loggedInEl = document.getElementById('bt-account-logged-in');
+    document.getElementById('bt-account-recovery').hidden = true;
     if (sbSession){
       loggedOutEl.hidden = true;
       loggedInEl.hidden = false;
@@ -1850,6 +1964,17 @@
 
   function showAccountError(msg){
     const el = document.getElementById('bt-account-error');
+    el.className = 'account-error';
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  // Mismo cuadro/elemento que showAccountError, pero en tono positivo (ver
+  // .account-notice) -- para confirmaciones que no son un fallo ("cuenta
+  // creada, revisa tu correo", "te llegó un enlace de recuperación").
+  function showAccountNotice(msg){
+    const el = document.getElementById('bt-account-error');
+    el.className = 'account-notice';
     el.textContent = msg;
     el.hidden = false;
   }
@@ -1857,7 +1982,12 @@
   async function handleAccountSubmit(){
     const email = document.getElementById('bt-account-email').value.trim();
     const password = document.getElementById('bt-account-password').value;
-    if (!email || !password){
+    if (accountModalMode === 'forgot'){
+      if (!email){
+        showAccountError('Escribe tu correo.');
+        return;
+      }
+    } else if (!email || !password){
       showAccountError('Completa correo y contraseña.');
       return;
     }
@@ -1865,12 +1995,34 @@
     submitBtn.disabled = true;
     try {
       const client = await getSupabaseClient();
+      if (accountModalMode === 'forgot'){
+        // redirectTo dinámico (no hardcodeado) para que el enlace del
+        // correo funcione igual en producción, en un fork con otro dominio,
+        // o en una prueba local -- debe estar en la lista de "Redirect
+        // URLs" del proyecto de Supabase (Authentication -> URL
+        // Configuration) o Supabase lo ignora y cae al Site URL por
+        // defecto (ver "Cómo activar esto" en CLAUDE.md).
+        const { error } = await client.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin + window.location.pathname
+        });
+        if (error) throw error;
+        // Reordenado a propósito respecto a un bug real que ya tenía el
+        // camino de signup (ver más abajo): cambiar de modo PRIMERO y
+        // mostrar el mensaje DESPUÉS -- setAccountModalMode() oculta
+        // #bt-account-error al final, así que llamarlo después de
+        // showAccountNotice() borraría el mensaje que se acababa de
+        // mostrar (el mensaje de "cuenta creada" del signup nunca llegaba
+        // a verse por este mismo motivo -- corregido acá también).
+        setAccountModalMode('login');
+        showAccountNotice('Si ese correo tiene una cuenta, te llegará un enlace para elegir una contraseña nueva. Revisa también spam.');
+        return;
+      }
       if (accountModalMode === 'signup'){
         const { data, error } = await client.auth.signUp({ email, password });
         if (error) throw error;
         if (!data.session){
-          showAccountError('Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.');
           setAccountModalMode('login');
+          showAccountNotice('Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.');
           return;
         }
       } else {
@@ -1904,9 +2056,14 @@
       if (e.key === 'Escape' && !document.getElementById('bt-account-backdrop').hidden) closeAccountModal();
     });
     document.getElementById('bt-account-toggle-btn').addEventListener('click', () => {
-      setAccountModalMode(accountModalMode === 'signup' ? 'login' : 'signup');
+      // Desde "signup" o "forgot", el botón siempre vuelve a "login" --
+      // solo desde "login" pasa a "signup" (no hay un tercer destino que
+      // alternar).
+      setAccountModalMode(accountModalMode === 'login' ? 'signup' : 'login');
     });
+    document.getElementById('bt-account-forgot-link').addEventListener('click', () => setAccountModalMode('forgot'));
     document.getElementById('bt-account-submit').addEventListener('click', handleAccountSubmit);
+    document.getElementById('bt-account-recovery-submit').addEventListener('click', handleSetNewPassword);
     document.getElementById('bt-account-logout').addEventListener('click', handleAccountLogout);
     const digestToggle = document.getElementById('bt-account-digest-toggle');
     if (digestToggle) digestToggle.addEventListener('change', () => {

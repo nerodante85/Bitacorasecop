@@ -2574,3 +2574,82 @@ en su propio bloque, cada fila agrupada quedó etiquetada "Grupo 1" en la
 tabla, y el resultado global salió REQUIERE REVISIÓN (correcto: el grupo
 sí cumple, pero el tercer requisito individual, sin grupo, quedó NO
 DETERMINABLE y por sí solo ya fuerza esa revisión).
+
+## Recuperar contraseña
+
+Del roadmap de Fase 1, explícitamente aplazado en su momento ("Qué NO se
+implementó a propósito, por ahora: recuperar contraseña..."). El usuario
+pidió atacarlo directamente -- a diferencia del motor de evaluación de
+experiencia, esto es Auth estándar de Supabase (patrón bien documentado
+por el proveedor, no una decisión de negocio ambigua), así que se
+implementó directo sin ronda de auditoría previa.
+
+**Flujo de Supabase Auth (`resetPasswordForEmail` + `PASSWORD_RECOVERY` +
+`updateUser`)**: el modal de cuenta gana un tercer modo, `'forgot'`
+(además de `'login'`/`'signup'`), con un enlace "¿Olvidaste tu
+contraseña?" visible solo en modo login. Al enviarlo, llama a
+`client.auth.resetPasswordForEmail(email, { redirectTo })` -- el correo
+que Supabase manda trae un enlace que, al abrirse, hace que supabase-js
+(`detectSessionInUrl: true`, el default) detecte el token de recuperación
+en la URL y dispare el evento `PASSWORD_RECOVERY` vía
+`onAuthStateChange`. Se registra ese listener justo después de
+`createClient()` en `getSupabaseClient()` (no en otro lado) para no
+arriesgar perderse el evento si llegara antes de que el resto del
+bootstrap termine. Cuando dispara, `openRecoveryPanel()` abre el modal
+solo (sin que el usuario haga clic en nada) mostrando un panel nuevo
+("Elige una nueva contraseña", ajeno a los campos de login/signup) que al
+guardar llama a `client.auth.updateUser({ password })`.
+
+**`redirectTo` dinámico, no hardcodeado**
+(`window.location.origin + window.location.pathname`): funciona igual en
+producción, en un fork con otro dominio, o en una prueba local. *Requiere
+un paso manual en el proyecto de Supabase del usuario*: esa URL exacta (o
+un patrón con comodín que la cubra) debe estar en Authentication -> URL
+Configuration -> Redirect URLs, o Supabase la ignora y el enlace cae al
+Site URL por defecto -- mismo tipo de paso de activación ya documentado
+para Fase 1/Fase 6 (algo que un asistente de IA no puede hacer por
+tratarse de la cuenta del usuario).
+
+**`sbRecoveryActive`**: mientras esté en `true` (desde que llega el evento
+hasta que se guarda la contraseña o se recarga la página), CUALQUIER forma
+de abrir el modal (el enlace de la sidebar, "Cuenta"...) lleva al panel de
+recuperación en vez del de login normal -- hay una sesión de recuperación
+en curso y completarla es la acción correcta, no un login normal.
+
+**Dos bugs reales corregidos de paso, encontrados al escribir este mismo
+flujo** (no eran nuevos, ya existían en el signup):
+1. El mensaje de confirmación de signup ("Cuenta creada. Revisa tu
+   correo...") reutilizaba `showAccountError` (caja roja de error) para
+   una buena noticia -- y además `setAccountModalMode('login')` se
+   llamaba DESPUÉS de mostrar el mensaje, y esa función oculta
+   `#bt-account-error` al final -- el mensaje nunca llegaba a verse en la
+   práctica. Se agregó `.account-notice` (mismo cuadro, tono verde de
+   `--success`) + `showAccountNotice()`, y se invirtió el orden (cambiar
+   de modo PRIMERO, mostrar el mensaje DESPUÉS) en los dos flujos que lo
+   necesitan (signup sin sesión, y ahora "forgot").
+
+**Verificado**: 43/43 tests de humo (sin tests nuevos de lógica pura --
+esto es UI/Auth dependiente del navegador real, no una función aislable
+como el motor de experiencia; se agregaron `openRecoveryPanel`/
+`handleSetNewPassword` a la lista de funciones clave del check 3). Probado
+en navegador real contra el proyecto de Supabase real: clic en "¿Olvidaste
+tu contraseña?" cambia correctamente de panel (título, botón, campo de
+contraseña oculto); enviar el formulario con un correo de prueba
+inexistente disparó la llamada real a `resetPasswordForEmail` sin error y
+mostró el mensaje de confirmación en verde (no rojo), volviendo a modo
+login con el campo de contraseña visible de nuevo; el panel "Elige una
+nueva contraseña" se revisó visualmente (sin errores de layout); su
+validación local (contraseñas que no coinciden) se probó real, sin tocar
+la red; con contraseñas iguales sí llamó a `updateUser()` de verdad, que
+devolvió el error esperado "Auth session missing!" (no hay una sesión de
+recuperación real sin haber llegado por el enlace del correo) manejado
+con gracia en la caja de error, sin romper la página.
+
+**Lo único que NO se pudo probar en este entorno** (requiere abrir un
+correo real, algo que un asistente de IA no puede hacer): el camino
+completo end a end -- recibir el correo real, abrir el enlace, y
+confirmar que `PASSWORD_RECOVERY` dispara y abre el panel solo. El
+usuario debería probarlo una vez con su propia cuenta antes de darlo por
+completamente verificado, y agregar la URL de redirect en el dashboard de
+Supabase si todavía no lo ha hecho (ver arriba) -- sin ese paso, el enlace
+del correo no completará la detección de sesión.
