@@ -775,6 +775,15 @@
     display: block; font-weight: 500; font-size: 12.5px; margin-top: 5px; color: inherit; opacity: .85;
   }
 
+  /* Grupos de requisitos alternativos (ver agruparAlternativos): una lista
+     corta encima de la tabla de detalle, mismo tono que el resto de
+     "resumen antes del detalle" de esta sección. */
+  #bitacora-root .expeval-grupos {
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--surface); padding: 12px 16px; margin: 0 0 16px;
+  }
+  #bitacora-root .expeval-grupo-item { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 4px 0; font-size: 13px; }
+
   /* Indicador de pasos (01 → 02 → 03 → 04) para el flujo de Experiencia. */
   #bitacora-root .steps { display: flex; align-items: center; gap: 6px; margin-bottom: 22px; flex-wrap: wrap; }
   #bitacora-root .step { display: flex; align-items: center; gap: 9px; }
@@ -3309,7 +3318,14 @@
     minValor: ['valor minimo exigido', 'valor minimo', 'smmlv minimo', 'smmlv exigido'],
     minCantidad: ['cantidad minima exigida', 'cantidad minima'],
     obligatoriedad: ['tipo de exigencia', 'obligatoriedad', 'caracter'],
-    acumulable: ['acumulable', 'sumatoria']
+    acumulable: ['acumulable', 'sumatoria'],
+    // "Requisitos alternativos": columna OPCIONAL para cuando el pliego sí
+    // dice explícitamente qué alternativas van juntas (ej. "Grupo 1" en dos
+    // filas distintas) -- ver agruparAlternativos() más abajo. Sin esta
+    // columna, sigue existiendo un respaldo automático (racha de filas
+    // consecutivas ya clasificadas "alternativo"), pero la columna explícita
+    // es la señal más confiable cuando el pliego la trae.
+    grupo: ['grupo alternativo', 'grupo de alternativas', 'grupo', 'opcion']
   };
 
   // Asigna, para cada campo lógico del diccionario, cuál columna del Excel
@@ -3665,11 +3681,15 @@
     // -- se excluye el fragmento completo en vez de mantener una lista fija.
     const palabrasCondicionTemporal = condicionTemporal ? new Set(palabrasClaveDe(condicionTemporal.texto)) : new Set();
     const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PALABRAS_META_REQUISITO.has(p) && !palabrasCondicionTemporal.has(p));
+    // "Requisitos alternativos": si la matriz trae una columna explícita de
+    // grupo, se guarda tal cual (texto crudo, para mostrarlo legible más
+    // adelante) -- ver agruparAlternativos() y DICC_REQUISITO.grupo arriba.
+    const grupo = (celdas.grupo || '').toString().trim() || null;
     return {
       id: 'r' + (i + 1), fila: i + 1, criterio: criterioTexto, tipo: tipo, obligatoriedad: obligatoriedad,
       minContratos: minContratos, minValor: minValor, minCantidad: minCantidad, acumulable: acumulable,
       palabrasClave: palabras, palabrasDistintivas: distintivas, condicionNoVerificable: condicionNoVerificable,
-      condicionTemporal: condicionTemporal
+      condicionTemporal: condicionTemporal, grupo: grupo
     };
   }
 
@@ -3682,7 +3702,8 @@
       return construirRequisitoDesdeTexto(criterioTexto, i, {
         tipo: get(row, 'tipo'), obligatoriedad: get(row, 'obligatoriedad'),
         minContratos: get(row, 'minContratos'), minValor: get(row, 'minValor'),
-        minCantidad: get(row, 'minCantidad'), acumulable: get(row, 'acumulable')
+        minCantidad: get(row, 'minCantidad'), acumulable: get(row, 'acumulable'),
+        grupo: get(row, 'grupo')
       });
     }).filter(r => r.criterio);
     return { headers: headers, cols: cols, requisitos: requisitos, fuente: 'excel' };
@@ -3947,19 +3968,98 @@
     };
   }
 
-  // Resultado global: se basa SOLO en los requisitos "obligatorio" (sección 11
-  // del pedido). "opcional"/"complementario"/"alternativo" quedan en el detalle
-  // pero no arrastran el global a NO CUMPLE por sí solos -- la matriz rara vez
-  // dice explícitamente qué alternativos van agrupados, así que cada uno se
-  // reporta individualmente y se avisa que puede requerir agrupamiento manual.
+  // "Ataca requisitos alternativos" -- pedido explícito del usuario, ya
+  // documentado como limitación pendiente ("agrupamiento real de
+  // requisitos alternativos (OR entre varios) -- limitación ya
+  // documentada en el propio código desde antes, sigue sin resolverse",
+  // auditoría crítica del motor). El problema de fondo sigue siendo real:
+  // la matriz rara vez dice qué alternativas van juntas, así que agrupar
+  // a ciegas por cercanía o por texto inventaría una relación que quizás
+  // no existe -- exactamente el tipo de invención que la auditoría crítica
+  // pidió evitar. Dos señales, en orden de confianza, NUNCA una tercera
+  // inventada:
+  // 1. Columna explícita "Grupo" (DICC_REQUISITO.grupo) -- si el pliego SÍ
+  //    la trae, agrupa por el mismo valor normalizado. Es la señal más
+  //    confiable posible porque la puso quien redactó la matriz, no una
+  //    inferencia de este motor.
+  // 2. Sin columna: una racha de filas CONSECUTIVAS que el regex de
+  //    obligatoriedad YA clasificó como "alternativo" (ver
+  //    construirRequisitoDesdeTexto) -- en la práctica, cuando un pliego
+  //    redacta "acredite uno de los siguientes: a)... b)... c)...", esas
+  //    opciones aparecen una tras otra en la matriz. Un "alternativo"
+  //    suelto (racha de 1) NO forma grupo -- sigue exactamente el
+  //    comportamiento de antes de este cambio (informativo, no afecta el
+  //    global), así que ninguna matriz existente cambia de resultado por
+  //    accidente.
+  // Un grupo detectado se trata como el equivalente de UN "obligatorio"
+  // para el resultado global (acreditar UNO de varios alternativos suele
+  // ser en sí mismo obligatorio): CUMPLE si algún miembro CUMPLE, NO CUMPLE
+  // SOLO si TODOS los miembros dieron NO CUMPLE (nunca se mezcla con NO
+  // DETERMINABLE para inventar un NO CUMPLE que no está confirmado), NO
+  // DETERMINABLE en cualquier otro caso -- mismo principio "NO DETERMINABLE
+  // antes que inventar" de siempre.
+  function agruparAlternativos(resultados){
+    const porColumna = {};
+    const sinGrupoExplicito = [];
+    resultados.forEach(r => {
+      const clave = (r.requisito.grupo || '').trim();
+      if (clave){
+        const k = normHeader(clave);
+        (porColumna[k] = porColumna[k] || []).push(r);
+      } else {
+        sinGrupoExplicito.push(r);
+      }
+    });
+    const grupos = Object.keys(porColumna).map(k => ({
+      clave: 'Grupo "' + porColumna[k][0].requisito.grupo.trim() + '"',
+      miembros: porColumna[k], origen: 'columna'
+    }));
+    let racha = [];
+    const cerrarRacha = () => {
+      if (racha.length >= 2){
+        grupos.push({
+          clave: 'Alternativos consecutivos (filas ' + racha[0].requisito.fila + '-' + racha[racha.length - 1].requisito.fila + ')',
+          miembros: racha.slice(), origen: 'consecutivos'
+        });
+      }
+      racha = [];
+    };
+    sinGrupoExplicito.forEach(r => {
+      if (r.requisito.obligatoriedad === 'alternativo') racha.push(r);
+      else cerrarRacha();
+    });
+    cerrarRacha();
+    return grupos.map(g => {
+      const resultadosMiembros = g.miembros.map(m => m.resultado);
+      let resultado;
+      if (resultadosMiembros.indexOf('CUMPLE') !== -1) resultado = 'CUMPLE';
+      else if (resultadosMiembros.every(r => r === 'NO CUMPLE')) resultado = 'NO CUMPLE';
+      else resultado = 'NO DETERMINABLE';
+      return Object.assign({}, g, { resultado: resultado });
+    });
+  }
+
+  // Resultado global: se basa en los requisitos "obligatorio" (sección 11
+  // del pedido) MÁS, desde el agrupamiento de arriba, cada grupo de
+  // "alternativos" detectado -- un "alternativo" suelto (sin grupo) sigue
+  // sin arrastrar el global por sí solo, igual que "opcional"/
+  // "complementario".
   function evaluarExperienciaCompleta(contratos, requisitos, hoy){
     const resultados = requisitos.map(r => evaluarRequisito(r, contratos, hoy));
     const conteo = { 'CUMPLE': 0, 'NO CUMPLE': 0, 'NO DETERMINABLE': 0 };
     resultados.forEach(r => conteo[r.resultado]++);
-    const obligatorios = resultados.filter(r => r.requisito.obligatoriedad === 'obligatorio');
+    // Un requisito con columna "Grupo" explícita queda representado por su
+    // grupo (abajo), no individualmente -- sin este `&& !r.requisito.grupo`,
+    // una fila que la matriz marcó con grupo pero cuyo propio texto no
+    // dispara la palabra "alternativo" (obligatoriedad por defecto =
+    // "obligatorio") se contaría DOS veces hacia el resultado global: una
+    // vez sola y otra vez dentro de su grupo.
+    const obligatorios = resultados.filter(r => r.requisito.obligatoriedad === 'obligatorio' && !r.requisito.grupo);
+    const grupos = agruparAlternativos(resultados);
+    const resultadosGrupos = grupos.map(g => g.resultado);
     let resultadoGlobal;
-    if (obligatorios.some(r => r.resultado === 'NO CUMPLE')) resultadoGlobal = 'NO CUMPLE';
-    else if (!obligatorios.length || obligatorios.some(r => r.resultado === 'NO DETERMINABLE')) resultadoGlobal = 'REQUIERE REVISIÓN';
+    if (obligatorios.some(r => r.resultado === 'NO CUMPLE') || resultadosGrupos.indexOf('NO CUMPLE') !== -1) resultadoGlobal = 'NO CUMPLE';
+    else if ((!obligatorios.length && !grupos.length) || obligatorios.some(r => r.resultado === 'NO DETERMINABLE') || resultadosGrupos.indexOf('NO DETERMINABLE') !== -1) resultadoGlobal = 'REQUIERE REVISIÓN';
     else resultadoGlobal = 'CUMPLE';
     // Experiencia general = la que trae el Excel del proponente, sin más (solo se
     // identifica, no se evalúa cumplimiento sobre ella sola). Experiencia
@@ -3971,11 +4071,11 @@
       noClasificado: contratos.filter(c => c.tipo === 'no-clasificado').length,
       total: contratos.length
     };
-    return { resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length, resumenContratos: resumenContratos };
+    return { resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length, resumenContratos: resumenContratos, grupos: grupos };
   }
 
   const ETIQUETAS_CONTRATO = { objeto: 'Objeto', contratante: 'Contratante', valor: 'Valor', fechaInicio: 'Fecha inicio', fechaFin: 'Fecha fin', duracion: 'Duración', cantidad: 'Cantidad', tipo: 'Tipo (general/específica)', actividades: 'Actividades', numeroContrato: 'N° contrato', participacion: '% participación' };
-  const ETIQUETAS_REQUISITO = { criterio: 'Criterio / requisito', tipo: 'Tipo', minContratos: 'Mín. contratos', minValor: 'Valor mínimo', minCantidad: 'Cantidad mínima', obligatoriedad: 'Obligatoriedad', acumulable: 'Acumulable' };
+  const ETIQUETAS_REQUISITO = { criterio: 'Criterio / requisito', tipo: 'Tipo', minContratos: 'Mín. contratos', minValor: 'Valor mínimo', minCantidad: 'Cantidad mínima', obligatoriedad: 'Obligatoriedad', acumulable: 'Acumulable', grupo: 'Grupo alternativo' };
   // Campos sin los cuales el análisis queda cojo -- el resto (fechas,
   // duración, cantidad, etc.) suma evidencia pero su ausencia no impide
   // evaluar. Se usan para resaltar la fila y abrir el panel solo. Auditoría
@@ -4058,20 +4158,37 @@
       '<div class="stat" style="color:var(--warning)">' + ev.conteo['NO DETERMINABLE'] + '<span>NO DETERMINABLE</span></div>' +
       '</div>';
     const claseGlobal = ev.resultadoGlobal === 'CUMPLE' ? 'expeval-cumple' : (ev.resultadoGlobal === 'NO CUMPLE' ? 'expeval-nocumple' : 'expeval-nd');
+    const grupos = ev.grupos || [];
+    const totalGateGlobal = ev.totalObligatorios + grupos.length;
     const global = '<div class="expeval-global ' + claseGlobal + '">RESULTADO GLOBAL: ' + escapeHtml(ev.resultadoGlobal) +
-      ' <small>(' + ev.totalObligatorios + ' requisito(s) obligatorio(s) de ' + ev.resultados.length + ' evaluados)</small></div>';
+      ' <small>(' + totalGateGlobal + ' requisito(s)/grupo(s) obligatorio(s) de ' + ev.resultados.length + ' evaluados' +
+      (grupos.length ? ' -- incluye ' + grupos.length + ' grupo(s) de alternativos' : '') + ')</small></div>';
+    // Etiqueta de grupo por requisito (si pertenece a alguno) -- un mismo
+    // requisito solo puede quedar en un grupo (ver agruparAlternativos:
+    // los que ya entraron por columna explícita no vuelven a evaluarse
+    // para la racha de consecutivos).
+    const grupoPorReqId = {};
+    grupos.forEach((g, gi) => g.miembros.forEach(m => { grupoPorReqId[m.requisito.id] = gi; }));
+    const gruposHtml = grupos.length
+      ? '<div class="expeval-grupos"><div class="field-label-row" style="margin-bottom:6px;">Grupos de requisitos alternativos (acreditar UNO de cada grupo)</div>' +
+        grupos.map((g, gi) => '<div class="expeval-grupo-item">' + badgeExpEval(g.resultado) +
+          ' <strong>Grupo ' + (gi + 1) + '</strong> <span class="saved-note">(' + escapeHtml(g.clave) + ')</span>: ' +
+          g.miembros.map(m => 'fila ' + m.requisito.fila).join(', ') +
+          '</div>').join('') + '</div>'
+      : '';
     const filas = ev.resultados.map(r => {
       const evid = r.contratosEvaluados.length
         ? r.contratosEvaluados.map(c => 'Fila ' + c.fila + (c.objeto ? ': ' + escapeHtml(truncate(c.objeto, 90)) : '') + (c.valor != null ? ' · valor ' + c.valor : '')).join('<br>')
         : '—';
-      return '<tr><td>' + escapeHtml(truncate(r.requisito.criterio, 160)) + ' <span class="tag">' + escapeHtml(r.requisito.obligatoriedad) + '</span></td>' +
+      const grupoTag = grupoPorReqId[r.requisito.id] != null ? ' <span class="tag" title="Este requisito se evalúa como parte de un grupo -- ver arriba">Grupo ' + (grupoPorReqId[r.requisito.id] + 1) + '</span>' : '';
+      return '<tr><td>' + escapeHtml(truncate(r.requisito.criterio, 160)) + ' <span class="tag">' + escapeHtml(r.requisito.obligatoriedad) + '</span>' + grupoTag + '</td>' +
         '<td>' + escapeHtml(r.evidencia.join(' ') || '—') + '</td>' +
         '<td>' + evid + '</td>' +
         '<td>' + badgeExpEval(r.resultado) + '</td>' +
         '<td>' + escapeHtml(r.justificacion) + (r.faltantes.length ? '<br><em>Falta: ' + escapeHtml(r.faltantes.join(' ')) + '</em>' : '') + '</td></tr>';
     }).join('');
     const tabla = '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Información encontrada</th><th>Evidencia (contrato)</th><th>Resultado</th><th>Justificación</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
-    return identificacion + resumen + global + tabla;
+    return identificacion + resumen + global + gruposHtml + tabla;
   }
 
   function informeExperienciaTexto(ev, meta){
@@ -4090,11 +4207,22 @@
     L.push('RESULTADO GLOBAL: ' + ev.resultadoGlobal);
     L.push('CUMPLE: ' + ev.conteo['CUMPLE'] + ' · NO CUMPLE: ' + ev.conteo['NO CUMPLE'] + ' · NO DETERMINABLE: ' + ev.conteo['NO DETERMINABLE']);
     L.push('Requisitos obligatorios evaluados: ' + ev.totalObligatorios);
+    const grupos = ev.grupos || [];
+    const grupoPorReqId = {};
+    grupos.forEach((g, gi) => g.miembros.forEach(m => { grupoPorReqId[m.requisito.id] = gi; }));
+    if (grupos.length){
+      L.push('');
+      L.push('GRUPOS DE REQUISITOS ALTERNATIVOS (acreditar UNO de cada grupo)');
+      grupos.forEach((g, gi) => {
+        L.push('Grupo ' + (gi + 1) + ' [' + g.resultado + '] (' + g.clave + '): filas ' + g.miembros.map(m => m.requisito.fila).join(', '));
+      });
+    }
     L.push('');
     L.push('DETALLE POR REQUISITO');
     L.push('-'.repeat(60));
     ev.resultados.forEach((r, i) => {
-      L.push((i + 1) + '. [' + r.resultado + '] (' + r.requisito.obligatoriedad + (r.requisito.tipo !== 'no-clasificado' ? ', ' + r.requisito.tipo : '') + ')');
+      const grupoTxt = grupoPorReqId[r.requisito.id] != null ? ', grupo ' + (grupoPorReqId[r.requisito.id] + 1) : '';
+      L.push((i + 1) + '. [' + r.resultado + '] (' + r.requisito.obligatoriedad + (r.requisito.tipo !== 'no-clasificado' ? ', ' + r.requisito.tipo : '') + grupoTxt + ')');
       L.push('   Requisito: ' + r.requisito.criterio);
       if (r.evidencia.length) L.push('   Información encontrada: ' + r.evidencia.join(' '));
       if (r.contratosEvaluados.length){

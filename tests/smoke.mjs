@@ -119,7 +119,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'extraerFilasPorPosicion', 'cargarExperienciaPDF', 'cargarExperienciaDocx', 'cargarMatrizDocx',
     'cargarExperienciaArchivo',
     'condicionCuantitativaSinModelar', 'extraerCantidadConUnidadContable',
-    'condicionTemporalDelRequisito', 'evaluarCondicionTemporal',
+    'condicionTemporalDelRequisito', 'evaluarCondicionTemporal', 'agruparAlternativos',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -231,7 +231,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal };';
+    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -653,6 +653,97 @@ await check('Condición temporal: un contrato SIN ninguna fecha reconocida queda
     new Date('2024-06-01T00:00:00')
   );
   assert(ev.resultados[0].resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE (sin fecha, no se puede confirmar ni descartar la ventana), fue ' + ev.resultados[0].resultado + ' -- ' + ev.resultados[0].justificacion);
+});
+
+// 39-43) Requisitos alternativos (OR entre varios) -- limitación pendiente
+// desde la auditoría crítica, atacada a pedido explícito del usuario. Dos
+// señales de agrupamiento (columna "Grupo" explícita, o racha de filas
+// consecutivas ya clasificadas "alternativo"), nunca una tercera inventada.
+await check('Grupo alternativo por columna explícita: si UN miembro CUMPLE, el grupo CUMPLE y arrastra el resultado global (sin necesitar ningún "obligatorio" aparte)', () => {
+  const ev = evaluar(
+    ['Requisito', 'Grupo'],
+    [
+      ['Experiencia específica en construcción de puentes vehiculares', 'Grupo 1'],
+      ['Experiencia específica en construcción de vías urbanas', 'Grupo 1'],
+    ],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de puentes vehiculares sobre el río Pamplonita', 'Alcaldía', '500000000']]
+  );
+  assert(ev.resultados[0].resultado === 'CUMPLE', 'el primer miembro (puentes) debería CUMPLIR individualmente, fue ' + ev.resultados[0].resultado);
+  assert(ev.resultados[1].resultado === 'NO DETERMINABLE', 'el segundo miembro (vías urbanas, sin contrato relacionado) debería quedar NO DETERMINABLE, fue ' + ev.resultados[1].resultado);
+  assert(ev.grupos.length === 1, 'se esperaba 1 grupo detectado por columna, fueron ' + ev.grupos.length);
+  assert(ev.grupos[0].resultado === 'CUMPLE', 'el grupo debería CUMPLIR (basta con que UN miembro cumpla), fue ' + ev.grupos[0].resultado);
+  assert(ev.resultadoGlobal === 'CUMPLE', 'el grupo es el único "obligatorio-equivalente" de la matriz -- el global debería depender de él, fue ' + ev.resultadoGlobal);
+});
+
+await check('Grupo alternativo por columna explícita: si TODOS los miembros dan NO CUMPLE, el grupo es NO CUMPLE (evidencia real, no "falta verificar")', () => {
+  const ev = evaluar(
+    ['Requisito', 'Grupo', 'Número mínimo de contratos'],
+    [
+      ['Experiencia específica en construcción de puentes vehiculares', 'Grupo 2', '2'],
+      ['Experiencia específica en construcción de vías urbanas', 'Grupo 2', '2'],
+    ],
+    ['Objeto', 'Contratante', 'Valor'],
+    [
+      ['Construcción de puentes vehiculares sobre el río Pamplonita', 'Alcaldía', '500000000'],
+      ['Construcción de vías urbanas en el municipio de Los Patios', 'Alcaldía', '300000000'],
+    ]
+  );
+  assert(ev.resultados[0].resultado === 'NO CUMPLE' && ev.resultados[1].resultado === 'NO CUMPLE', 'ambos miembros deberían dar NO CUMPLE (1 contrato relevante, exige 2), fueron ' + ev.resultados.map(r => r.resultado).join(', '));
+  assert(ev.grupos[0].resultado === 'NO CUMPLE', 'el grupo debería ser NO CUMPLE (todos sus miembros lo son), fue ' + ev.grupos[0].resultado);
+  assert(ev.resultadoGlobal === 'NO CUMPLE', 'se esperaba NO CUMPLE global, fue ' + ev.resultadoGlobal);
+});
+
+await check('Una fila con columna "Grupo" no se cuenta DOS veces hacia el global (una vez sola y otra vez dentro de su grupo)', () => {
+  // Sin la exclusión `&& !r.requisito.grupo` en evaluarExperienciaCompleta,
+  // esta fila (obligatoriedad por defecto = "obligatorio", su propio texto
+  // no dice "alternativo") quedaría en `obligatorios` Y en un grupo a la
+  // vez -- doble conteo hacia el resultado global.
+  const ev = evaluar(
+    ['Requisito', 'Grupo'],
+    [
+      ['Experiencia específica en construcción de puentes vehiculares', 'Grupo 3'],
+      ['Experiencia específica en construcción de vías urbanas', 'Grupo 3'],
+    ],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de puentes vehiculares sobre el río Pamplonita', 'Alcaldía', '500000000']]
+  );
+  assert(ev.totalObligatorios === 0, 'ninguna fila agrupada debería contarse individualmente como "obligatorio", fue ' + ev.totalObligatorios);
+});
+
+await check('Racha de "alternativo" consecutivos (sin columna "Grupo"): 2 o más filas seguidas forman un grupo automático', () => {
+  // headers con 2 columnas a propósito: leerHojaComoFilas exige >=2 celdas
+  // no vacías en la fila de encabezados para reconocerla como tal -- una
+  // sola columna ("Requisito") no basta y la matriz saldría vacía.
+  const ev = evaluar(
+    ['Requisito', 'Tipo'],
+    [
+      ['Experiencia alternativa en construcción de puentes vehiculares', ''],
+      ['Experiencia alternativa en construcción de vías urbanas', ''],
+    ],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de puentes vehiculares sobre el río Pamplonita', 'Alcaldía', '500000000']]
+  );
+  assert(ev.resultados[0].requisito.obligatoriedad === 'alternativo' && ev.resultados[1].requisito.obligatoriedad === 'alternativo', 'ambas filas deberían auto-clasificarse "alternativo" por su propio texto');
+  assert(ev.grupos.length === 1, 'se esperaba 1 grupo automático (racha de 2 consecutivos), fueron ' + ev.grupos.length);
+  assert(ev.grupos[0].origen === 'consecutivos', 'se esperaba origen "consecutivos", fue ' + ev.grupos[0].origen);
+  assert(ev.grupos[0].resultado === 'CUMPLE', 'el grupo debería CUMPLIR (un miembro cumple), fue ' + ev.grupos[0].resultado);
+  assert(ev.resultadoGlobal === 'CUMPLE', 'se esperaba CUMPLE global, fue ' + ev.resultadoGlobal);
+});
+
+await check('Un "alternativo" SUELTO (sin pareja consecutiva) no forma grupo -- sigue sin arrastrar el global, igual que antes de este cambio', () => {
+  const ev = evaluar(
+    ['Requisito', 'Obligatoriedad'],
+    [
+      ['Experiencia específica en construcción de escuelas', 'Obligatorio'],
+      ['Experiencia alternativa en construcción de puentes vehiculares', 'Alternativo'],
+    ],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de escuelas rurales en el corregimiento', 'Alcaldía', '250000000']]
+  );
+  assert(ev.grupos.length === 0, 'un alternativo solo (racha de 1) no debería formar grupo, se detectaron ' + ev.grupos.length);
+  assert(ev.totalObligatorios === 1, 'se esperaba 1 obligatorio (escuelas) sin contar el alternativo suelto, fueron ' + ev.totalObligatorios);
+  assert(ev.resultadoGlobal === 'CUMPLE', 'el global debería depender solo del obligatorio (escuelas, CUMPLE), fue ' + ev.resultadoGlobal);
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

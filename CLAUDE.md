@@ -2492,3 +2492,85 @@ condición exacta en la justificación ("El requisito exige experiencia
 único contrato... tiene fecha de terminación fuera de esa ventana"; nótese
 sin la duplicación "...dentro de "dentro de..."" que sí apareció en el
 primer intento, corregida antes de este commit); 15/03/2023 dio CUMPLE.
+
+## Requisitos alternativos (OR entre varios)
+
+El usuario pidió explícitamente atacar la última limitación pendiente del
+motor de evaluación que quedaba documentada desde la auditoría crítica:
+"agrupamiento real de requisitos alternativos (OR entre varios) --
+limitación ya documentada en el propio código desde antes, sigue sin
+resolverse". Hasta ahora, `obligatoriedad: 'alternativo'` existía como
+clasificación pero cada fila se evaluaba y mostraba de forma
+independiente, sin ninguna noción de "estos N requisitos son opciones
+entre las que basta con acreditar una" -- una matriz con "acredite UNO de
+los siguientes: a)... b)..." quedaba invisible para el resultado global,
+como si ninguna de las opciones importara.
+
+**Por qué no se agrupó a ciegas por cercanía o texto**: el propio comentario
+del código ya advertía "la matriz rara vez dice explícitamente qué
+alternativos van agrupados" -- inventar una relación de agrupamiento que
+en realidad no existe es exactamente el tipo de invención que la auditoría
+crítica pidió evitar (mismo principio que ya rige `condicionNoVerificable`/
+`condicionTemporal`: mejor NO DETERMINABLE que una condición inventada).
+Se usan dos señales, en orden de confianza, nunca una tercera especulativa:
+
+1. **Columna explícita "Grupo"** (`DICC_REQUISITO.grupo`: "grupo
+   alternativo", "grupo de alternativas", "grupo", "opcion") -- si el
+   pliego SÍ la trae, agrupa por el mismo valor normalizado. Es la señal
+   más confiable posible porque la puso quien redactó la matriz, no una
+   inferencia de este motor.
+2. **Sin columna**: una racha de filas CONSECUTIVAS que el regex de
+   `obligatoriedad` YA clasificaba como "alternativo" (texto con
+   "alternativ", "cualquiera de", "uno de los siguientes", "o bien") --
+   en la práctica, cuando un pliego redacta "acredite uno de los
+   siguientes: a)... b)... c)...", esas opciones aparecen una tras otra en
+   la matriz. Un "alternativo" SUELTO (racha de 1) NO forma grupo -- sigue
+   exactamente el comportamiento de antes de este cambio (informativo,
+   no afecta el global), así que ninguna matriz existente cambia de
+   resultado por accidente.
+
+**`agruparAlternativos(resultados)`** (junto a `evaluarExperienciaCompleta`):
+separa por columna explícita primero, agrupa el resto por rachas
+consecutivas de "alternativo", y calcula el resultado agregado de cada
+grupo: CUMPLE si algún miembro CUMPLE, NO CUMPLE SOLO si TODOS los
+miembros dieron NO CUMPLE (nunca se mezcla con NO DETERMINABLE para
+inventar un NO CUMPLE que no está confirmado), NO DETERMINABLE en
+cualquier otro caso -- mismo principio de siempre.
+
+**Un grupo cuenta como un "obligatorio" para el resultado global**
+(acreditar UNO de varios alternativos suele ser en sí mismo obligatorio):
+`evaluarExperienciaCompleta` ahora combina `obligatorios` (como antes) con
+el resultado de cada grupo detectado a la hora de decidir NO CUMPLE /
+REQUIERE REVISIÓN / CUMPLE.
+
+**Bug real evitado antes de escribir el primer test** (no llegó a
+producción): una fila con columna "Grupo" explícita pero cuyo propio texto
+NO dispara la palabra "alternativo" cae, por el `if/else` existente, en
+`obligatoriedad = 'obligatorio'` (el valor por defecto) -- sin excluirla,
+esa fila se habría contado DOS veces hacia el resultado global: una vez
+sola (vía el filtro `obligatorios` de siempre) y otra vez dentro de su
+grupo. Fix: `obligatorios` ahora excluye explícitamente cualquier fila con
+`requisito.grupo` no vacío (`&& !r.requisito.grupo`) -- una fila agrupada
+queda representada por su grupo, nunca por sí sola además.
+
+**UI**: un bloque nuevo "Grupos de requisitos alternativos" (badge de
+resultado + qué filas lo componen) aparece antes de la tabla de detalle
+cuando hay al menos un grupo; cada fila agrupada de la tabla de detalle
+lleva una etiqueta adicional "Grupo N" junto a su obligatoriedad. El
+informe `.txt` descargable (`informeExperienciaTexto`) incluye la misma
+sección de grupos y anota "grupo N" en el encabezado de cada requisito
+agrupado.
+
+**Verificado**: 43/43 tests de humo (5 nuevos: columna explícita con un
+miembro CUMPLE arrastrando el global, columna explícita con todos NO
+CUMPLE, el bug del doble conteo evitado explícitamente, racha automática
+de consecutivos, y un alternativo suelto sin grupo que NO afecta el
+global -- este último confirma que ninguna matriz existente, incluido el
+propio Caso 8 del arnés de tests, cambia de comportamiento). Probado en
+navegador real con un Excel real de 3 requisitos (2 en "Grupo 1" -- uno
+CUMPLE, el otro sin contrato relacionado -- más uno individual obligatorio
+sin grupo, sin contrato relacionado): el grupo mostró CUMPLE correctamente
+en su propio bloque, cada fila agrupada quedó etiquetada "Grupo 1" en la
+tabla, y el resultado global salió REQUIERE REVISIÓN (correcto: el grupo
+sí cumple, pero el tercer requisito individual, sin grupo, quedó NO
+DETERMINABLE y por sí solo ya fuerza esa revisión).
