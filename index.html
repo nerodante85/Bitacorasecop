@@ -531,6 +531,9 @@
   #bitacora-root .tag.visto { border-color: var(--border-strong); background: var(--bg); color: var(--text-muted); }
   #bitacora-root .tag.nuevo { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
   #bitacora-root .tag.fuente { border-color: var(--border-strong); background: var(--bg); color: var(--text-muted); }
+  #bitacora-root .tag.redflag-alta { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
+  #bitacora-root .tag.redflag-media { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
+  #bitacora-root .tag.redflag-baja { border-color: var(--border-strong); background: var(--bg); color: var(--text-muted); }
   #bitacora-root .tag.eval { font-weight: 700; }
   #bitacora-root .eval-go { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
   #bitacora-root .eval-nogo { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
@@ -3313,6 +3316,7 @@
     }
 
     let text = '';
+    const paginaOffsets = []; // relativos a ESTE llamado (empieza en 0) -- ver ocrBtn/contBtn, que lo desplazan al acumular
     try {
       let rotacion = 0;
       if (onProgress) onProgress(0, from, to);
@@ -3328,17 +3332,19 @@
         }
       }
       text += textoPrimeraPagina + '\n';
+      paginaOffsets.push({ pagina: from, hasta: text.length });
 
       for (let i = from + 1; i <= to; i++){
         if (onProgress) onProgress(0, i, to);
         const canvas = await renderPagina(i, rotacion);
         const { data } = await worker.recognize(canvas);
         text += (data.text || '') + '\n';
+        paginaOffsets.push({ pagina: i, hasta: text.length });
       }
     } finally {
       await worker.terminate();
     }
-    return { text: text, numPages: pdf.numPages, pagesRead: to };
+    return { text: text, numPages: pdf.numPages, pagesRead: to, paginaOffsets: paginaOffsets };
   }
 
   async function extractPdfText(file, maxPages){
@@ -3347,13 +3353,15 @@
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     let text = '';
+    const paginaOffsets = []; // [{ pagina, hasta }] -- ver detectarRedFlags/paginaDeOffset
     const n = Math.min(pdf.numPages, maxPages);
     for (let i = 1; i <= n; i++){
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
       text += content.items.map(it => it.str).join(' ') + '\n';
+      paginaOffsets.push({ pagina: i, hasta: text.length });
     }
-    return { text: text, numPages: pdf.numPages, pagesRead: n };
+    return { text: text, numPages: pdf.numPages, pagesRead: n, paginaOffsets: paginaOffsets };
   }
 
   // Reconstruye FILAS de una tabla de PDF por posición -- a diferencia de
@@ -4472,6 +4480,86 @@
     const nums = (s.match(/\d[\d.,]*\d|\d/g) || []).map(parseNumCO).filter(n => n != null && n > 0);
     if (!nums.length) return null;
     return { valor: Math.max.apply(null, nums), unidad: smmlv ? 'SMMLV' : 'COP' };
+  }
+
+  // ── Red flags del pliego: mínimos legales de garantías ──────────────────
+  // El Decreto 1082 de 2015 fija PISOS (mínimos), no techos -- por eso solo se
+  // detecta cuando el pliego declara un % (o SMMLV) explícito POR DEBAJO del
+  // mínimo exigido, nunca "demasiado alto" (eso sería el principio general de
+  // proporcionalidad de la Ley 1150, un criterio de revisión, no una cifra
+  // fija verificable -- deliberadamente fuera de esta primera versión, ver
+  // CLAUDE.md). Un valor por debajo del mínimo SÍ es una cifra objetiva: casi
+  // siempre señala un pliego mal redactado (revisar si el valor del contrato
+  // es el que parece) o una irregularidad real -- en cualquier caso, algo que
+  // vale la pena confirmar con la entidad antes de ofertar, no un NO CUMPLE.
+  // Cada artículo/cifra se verificó contra el texto oficial del decreto antes
+  // de codificarlo (2 fuentes independientes cada uno), no se inventó.
+  const REGLAS_RED_FLAG = [
+    { id: 'garantia-cumplimiento-baja',
+      etiqueta: 'Garantía de cumplimiento por debajo del mínimo legal',
+      regex: /garant[ií]a\s+(?:[uú]nica\s+)?de\s+cumplimiento[^.\n]{0,100}?(\d{1,3}(?:[.,]\d+)?)\s*%/i,
+      minimo: 10, unidad: '%', severidad: 'alta',
+      articulo: 'Decreto 1082 de 2015, Art. 2.2.1.2.3.1.12 (el mínimo baja a 2.5/1/0.5% solo en contratos superiores a 1.000.000 SMMLV)' },
+    { id: 'garantia-seriedad-baja',
+      etiqueta: 'Garantía de seriedad de la oferta por debajo del mínimo legal',
+      regex: /garant[ií]a\s+de\s+seriedad(?:\s+de\s+la\s+oferta)?[^.\n]{0,100}?(\d{1,3}(?:[.,]\d+)?)\s*%/i,
+      minimo: 10, unidad: '%', severidad: 'media',
+      articulo: 'Decreto 1082 de 2015, Art. 2.2.1.2.3.1.9' },
+    { id: 'rc-extracontractual-baja',
+      etiqueta: 'Garantía de responsabilidad civil extracontractual por debajo del mínimo legal',
+      // Acepta tanto "200 SMMLV" como "(doscientos) 200) SMMLV" -- redacción legal
+      // colombiana frecuente pone el número entre paréntesis (ver el mismo patrón
+      // ya documentado en condicionTemporalDelRequisito, "últimos diez (10) años").
+      regex: /responsabilidad\s+civil\s+extracontractual[^.\n]{0,150}?(\d{1,4}(?:[.,]\d+)?)\)?\s*(?:smmlv|smlmv|salarios?\s+m[íi]nimos)/i,
+      minimo: 200, unidad: 'SMMLV', severidad: 'media',
+      articulo: 'Decreto 1082 de 2015, Art. 2.2.1.2.3.2.9 (sube a 300/400 SMMLV en contratos mayores a 1.500/2.500 SMMLV)' }
+  ];
+
+  // paginaOffsets: [{ pagina, hasta }] con `hasta` = índice de char (en el
+  // texto concatenado) donde termina esa página -- ver extractPdfText/
+  // ocrPdfPages. Mapea el índice de un match a su página real, para poder
+  // citar "p. N" con un número verificable, nunca inventado.
+  function paginaDeOffset(paginaOffsets, idx){
+    if (!paginaOffsets || !paginaOffsets.length || idx == null) return null;
+    for (const p of paginaOffsets){ if (idx < p.hasta) return p.pagina; }
+    return paginaOffsets[paginaOffsets.length - 1].pagina;
+  }
+
+  // Busca la PRIMERA mención de cada regla que traiga un número junto a la
+  // etiqueta (el regex exige ambos en el mismo fragmento -- una mención suelta
+  // sin cifra cercana no dispara nada, no se inventa un valor). Solo reporta
+  // cuando ese número está POR DEBAJO del mínimo legal.
+  function detectarRedFlags(text, paginaOffsets){
+    const t = String(text || '');
+    const hallazgos = [];
+    REGLAS_RED_FLAG.forEach(regla => {
+      const m = t.match(regla.regex);
+      if (!m) return;
+      const valor = parseNumCO(m[1]);
+      if (valor == null || valor >= regla.minimo) return;
+      const snippet = m[0].trim().replace(/\s+/g, ' ');
+      hallazgos.push({
+        id: regla.id, severidad: regla.severidad,
+        mensaje: regla.etiqueta + ': el pliego exige ' + valor + (regla.unidad === '%' ? '%' : ' SMMLV') +
+          ' (el mínimo legal es ' + regla.minimo + (regla.unidad === '%' ? '%' : ' SMMLV') +
+          '). Puede ser un error de redacción del pliego (revisa si el valor del contrato es el que parece) o una irregularidad real -- confírmalo con la entidad antes de ofertar.',
+        pagina: paginaDeOffset(paginaOffsets, m.index),
+        articulo: regla.articulo,
+        snippet: snippet.length > 200 ? snippet.slice(0, 200) + '…' : snippet
+      });
+    });
+    return hallazgos;
+  }
+
+  // 100 menos una penalización fija por severidad de cada red flag, nunca
+  // bajo 0 -- aritmética simple y auditable (mismo criterio que classify()/
+  // scoreRecord en "Buscar procesos"), un número orientativo, no una
+  // certificación de viabilidad real.
+  function calcularViabilidad(redFlags){
+    const PESO_SEVERIDAD = { alta: 20, media: 10, baja: 5 };
+    let score = 100;
+    (redFlags || []).forEach(f => { score -= (PESO_SEVERIDAD[f.severidad] || 10); });
+    return Math.max(0, score);
   }
 
   // Umbrales numéricos que EXIGE el pliego (índices financieros, K residual).
@@ -5758,6 +5846,27 @@
     const sinHallazgos = !primero.hallazgosAnotados || primero.hallazgosAnotados.length === 0;
     const fecha = fmtDate(new Date(entry.ts).toISOString()) || '';
 
+    // Alertas de garantías por debajo del mínimo legal (ver detectarRedFlags) +
+    // viabilidad orientativa. `entry.redFlags`/`entry.viabilidad` no existen en
+    // análisis guardados ANTES de esta funcionalidad -- se omite el bloque
+    // entero en vez de mostrar "undefined/100".
+    const tieneRedFlags = Array.isArray(entry.redFlags);
+    const redFlagsHtml = !tieneRedFlags ? '' :
+      '<div class="analysis-sub">ALERTAS DEL PLIEGO' + (entry.redFlags.length ? ' (' + entry.redFlags.length + ')' : '') + '</div>' +
+      (entry.redFlags.length
+        ? '<ul class="analysis-list">' + entry.redFlags.map(f =>
+            '<li><span class="tag redflag-' + escapeHtml(f.severidad) + '">' + escapeHtml(f.severidad.toUpperCase()) + '</span> ' +
+            escapeHtml(f.mensaje) +
+            (f.pagina ? ' <span style="color:var(--text-muted);">— pliego, p. ' + f.pagina + '</span>' : '') +
+            ' <span class="tag fuente" title="' + escapeHtml(f.snippet) + '">' + escapeHtml(f.articulo) + '</span></li>'
+          ).join('') + '</ul>'
+        : '<ul class="analysis-list"><li>No se detectaron garantías por debajo del mínimo legal en el texto leído.</li></ul>') +
+      (entry.viabilidad != null
+        ? '<div style="margin:6px 0 8px;"><span style="font-size:22px;font-weight:700;color:' +
+          (entry.viabilidad >= 80 ? 'var(--success)' : (entry.viabilidad >= 50 ? 'var(--warning)' : 'var(--danger)')) +
+          ';">' + entry.viabilidad + '/100</span> <span style="color:var(--text-muted);font-size:12.5px;">viabilidad orientativa (100 menos una penalización fija por cada alerta — no es una certificación)</span></div>'
+        : '');
+
     const perfilesHtml = comps.length
       ? comps.map(c =>
           '<div class="analysis-sub">COINCIDENCIA — ' + escapeHtml(c.perfilNombre || 'Perfil') + '</div>' +
@@ -5767,6 +5876,7 @@
 
     return '<div class="analysis-block">' +
       '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' · <span style="color:var(--warning);">vía OCR</span>' : '') + ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
+      redFlagsHtml +
       compatHtml +
       (entry.kResidual ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(entry.kResidual) + '</div>' : '') +
       '<div class="analysis-sub">REQUISITOS HABILITANTES DETECTADOS</div>' +
@@ -6620,6 +6730,19 @@
     L.push('  Fecha análisis: ' + (fmtDate(new Date(entry.ts).toISOString()) || '—'));
     nl();
 
+    if (Array.isArray(entry.redFlags)){
+      L.push('ALERTAS DEL PLIEGO' + (entry.viabilidad != null ? ' (viabilidad orientativa: ' + entry.viabilidad + '/100)' : ''));
+      if (!entry.redFlags.length){
+        L.push('  No se detectaron garantías por debajo del mínimo legal en el texto leído.');
+      } else {
+        entry.redFlags.forEach(f => {
+          L.push('  [' + f.severidad.toUpperCase() + '] ' + f.mensaje);
+          L.push('    ' + f.articulo + (f.pagina ? ' · pliego, p. ' + f.pagina : ''));
+        });
+      }
+      nl();
+    }
+
     L.push('CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)');
     L.push('  ' + (entry.kResidual || 'No detectada explícitamente en las páginas leídas.'));
     nl();
@@ -7349,7 +7472,7 @@
       slot.innerHTML = '<div class="analysis-loading">Leyendo PDF…</div>';
       try {
         await appReady;
-        const { text, numPages, pagesRead } = await extractPdfText(file);
+        const { text, numPages, pagesRead, paginaOffsets } = await extractPdfText(file);
         if (!text || text.trim().length < 200){
           pendingOcrFiles[id] = file;
           const blobUrl = URL.createObjectURL(file);
@@ -7361,7 +7484,9 @@
         }
         const { hallazgos, kResidual, exigencias } = analizarTexto(text);
         const { comps } = compararConPerfiles(text, hallazgos);
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, kResidual: kResidual, exigencias: exigencias, comps: comps };
+        const redFlags = detectarRedFlags(text, paginaOffsets);
+        const viabilidad = calcularViabilidad(redFlags);
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad };
         analisis[id] = entry;
         saveAnalisis();
         delete pendingPliegoFiles[id];
@@ -7387,7 +7512,7 @@
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página 1</div>';
-        const { text, numPages, pagesRead } = await ocrPdfPages(file, 1, OCR_BATCH_PAGES, (pct, page, total) => {
+        const { text, numPages, pagesRead, paginaOffsets } = await ocrPdfPages(file, 1, OCR_BATCH_PAGES, (pct, page, total) => {
           slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
         });
         if (!text || text.trim().length < 50){
@@ -7396,7 +7521,9 @@
         }
         const { hallazgos, kResidual, exigencias } = analizarTexto(text);
         const { comps } = compararConPerfiles(text, hallazgos);
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, kResidual: kResidual, exigencias: exigencias, comps: comps, viaOcr: true };
+        const redFlags = detectarRedFlags(text, paginaOffsets);
+        const viabilidad = calcularViabilidad(redFlags);
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaOcr: true };
         analisis[id] = entry;
         saveAnalisis();
         { const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
@@ -7429,14 +7556,20 @@
         const result = await ocrPdfPages(file, from, to, (pct, page, total) => {
           slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
         });
+        const baseLen = (entry.ocrText || '').length;
         const fullText = (entry.ocrText || '') + result.text;
         entry.ocrText = fullText;
+        entry.paginaOffsets = (entry.paginaOffsets || []).concat(
+          (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
+        );
         entry.pagesRead = result.pagesRead;
         entry.ts = Date.now();
         const { hallazgos: nuevosHallazgos, kResidual, exigencias } = analizarTexto(fullText);
         entry.kResidual = kResidual;
         entry.exigencias = exigencias;
         entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
+        entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
+        entry.viabilidad = calcularViabilidad(entry.redFlags);
         delete entry.comp; // por si venía del esquema viejo de un solo perfil
         analisis[id] = entry;
         saveAnalisis();

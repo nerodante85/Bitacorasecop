@@ -2653,3 +2653,90 @@ usuario debería probarlo una vez con su propia cuenta antes de darlo por
 completamente verificado, y agregar la URL de redirect en el dashboard de
 Supabase si todavía no lo ha hecho (ver arriba) -- sin ese paso, el enlace
 del correo no completará la detección de sesión.
+
+## Red flags del análisis de pliego: garantías por debajo del mínimo legal
+
+El usuario preguntó si se podía integrar, sin el "chat experto" (una función
+del estilo de un mockup ajeno que vio -- LLM con citas a página/artículo),
+las otras dos piezas que sí encajan con la arquitectura 100% basada en
+reglas de este proyecto: alertas ("red flags") citando el artículo legal
+exacto, y un puntaje de "viabilidad" orientativo.
+
+**Investigación previa a codificar cualquier cifra** (mismo principio ya
+aplicado en Fase 13, "capacidad contractual estimada"): antes de escribir
+una sola regla se verificó el texto real del Decreto 1082 de 2015 (2
+fuentes independientes por cada cifra, ver el hilo de la conversación) --
+y esa investigación cambió el planteamiento original. El decreto fija
+PISOS (mínimos), no techos: no existe un límite legal fijo que una
+garantía "alta" supere. Por eso NINGUNA regla dispara por un % demasiado
+alto (eso sería el principio general de proporcionalidad de la Ley 1150,
+un criterio de revisión humana, no una cifra verificable -- deliberadamente
+fuera de esta primera versión). Las 3 reglas implementadas SÍ son cifras
+objetivas: disparan solo cuando el pliego declara un valor explícito POR
+DEBAJO del mínimo legal -- señal real de un pliego mal redactado (revisar
+si el valor del contrato es el que parece) o de una irregularidad, nunca
+un "no cumple" del proponente.
+
+**`REGLAS_RED_FLAG`** (junto a `parseValorUnidad`, antes de
+`extraerExigencias`): 3 reglas, cada una `{ regex, mínimo, unidad,
+severidad, artículo }` --
+- Garantía de cumplimiento < 10% del valor del contrato -- Decreto 1082 de
+  2015, Art. 2.2.1.2.3.1.12 (severidad alta).
+- Garantía de seriedad de la oferta < 10% del valor de la oferta -- Art.
+  2.2.1.2.3.1.9 (media).
+- Garantía de responsabilidad civil extracontractual < 200 SMMLV -- Art.
+  2.2.1.2.3.2.9 (media).
+Cada regex exige la etiqueta ("garantía de cumplimiento"...) Y un número
+junto a ella en el mismo fragmento -- una mención suelta sin cifra cercana
+no dispara nada, no se inventa un valor (mismo principio que
+`extraerExigencias`/`cerca()`, ya existente).
+
+**Página real, no inventada** (`paginaDeOffset`, `extractPdfText`/
+`ocrPdfPages` extendidas): hasta ahora esas dos funciones solo devolvían el
+texto concatenado de todo el PDF, sin rastro de qué página aportó cada
+fragmento. Se agregó `paginaOffsets: [{ pagina, hasta }]` (el índice de
+carácter donde termina cada página en el texto concatenado) -- barato de
+guardar (unos pocos números, no el texto de cada página duplicado) y
+suficiente para mapear el índice de un match a su página real
+(`paginaDeOffset`). En el flujo de OCR por tandas ("Seguir leyendo más
+páginas"), los offsets de la tanda nueva se desplazan por el largo ya
+acumulado antes de concatenarlos -- mismo patrón que ya usaba `entry.ocrText`
+para ir sumando texto entre tandas.
+
+**Viabilidad orientativa** (`calcularViabilidad`): 100 menos una
+penalización fija por severidad de cada alerta (alta -20, media -10, baja
+-5), nunca por debajo de 0 -- mismo criterio simple y auditable que
+`scoreRecord`/`classify` de "Buscar procesos", explícitamente etiquetado
+como orientativo, no una certificación.
+
+**UI**: bloque "Alertas del pliego" en `renderAnalysisHtml`, justo debajo
+del encabezado del análisis (antes del resumen de compatibilidad) --
+badge de severidad (`.tag.redflag-alta/-media/-baja`, mismos tokens
+`--danger`/`--warning` ya existentes, ningún color nuevo), el mensaje, la
+página citada y el artículo legal. Con 0 alertas se muestra igual el
+bloque con el mensaje "No se detectaron..." en vez de ocultarse -- que la
+ausencia de alertas sea visible, no silenciosa. `entry.redFlags`/
+`entry.viabilidad` no existen en análisis guardados ANTES de esta
+funcionalidad (localStorage de sesiones previas) -- el render los omite
+por completo en ese caso (`Array.isArray(entry.redFlags)`) en vez de
+mostrar "undefined/100". Misma sección agregada al informe `.txt`
+descargable (`informeAnalisisTexto`).
+
+**Verificado**: 49/49 tests de humo (6 nuevos: cada regla dispara por
+debajo del mínimo con la página real del match, NINGUNA dispara igual o
+por encima del mínimo -- incluido un caso al 30% a propósito, para dejar
+constancia de que un % alto no debe inventar una alerta --, las 3 reglas
+a la vez sin pisarse entre sí, una mención sin cifra cercana no dispara
+nada, la aritmética de `calcularViabilidad` incluido el piso en 0, y
+`paginaDeOffset` mapeando índices a páginas reales). Probado en navegador
+real de punta a punta: un PDF sintético de 2 páginas (generado con
+`fpdf2`, instalado temporalmente y desinstalado después, mismo patrón que
+`openpyxl`/`python-docx` en rondas anteriores) con las 3 garantías por
+debajo del mínimo en la página 2 -- inyectado en el flujo real "Analizar
+pliego" (gate de Experiencia/Personal simulado escribiendo directamente en
+`localStorage` antes de recargar, ya que solo hacía falta probar el
+análisis del pliego, no el motor de experiencia otra vez). Resultado real:
+las 3 alertas con la página 2 citada correctamente, viabilidad 60/100
+(100-20-10-10), y los colores de severidad resueltos contra los tokens
+reales del tema (`getComputedStyle` confirmó `--danger`/`--warning`, no un
+`var()` huérfano).

@@ -120,6 +120,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'cargarExperienciaArchivo',
     'condicionCuantitativaSinModelar', 'extraerCantidadConUnidadContable',
     'condicionTemporalDelRequisito', 'evaluarCondicionTemporal', 'agruparAlternativos',
+    'paginaDeOffset', 'detectarRedFlags', 'calcularViabilidad',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -231,7 +232,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos };';
+    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -744,6 +745,55 @@ await check('Un "alternativo" SUELTO (sin pareja consecutiva) no forma grupo -- 
   assert(ev.grupos.length === 0, 'un alternativo solo (racha de 1) no debería formar grupo, se detectaron ' + ev.grupos.length);
   assert(ev.totalObligatorios === 1, 'se esperaba 1 obligatorio (escuelas) sin contar el alternativo suelto, fueron ' + ev.totalObligatorios);
   assert(ev.resultadoGlobal === 'CUMPLE', 'el global debería depender solo del obligatorio (escuelas, CUMPLE), fue ' + ev.resultadoGlobal);
+});
+
+// 15) Red flags del pliego: garantías por debajo del mínimo legal (Decreto
+// 1082 de 2015) -----------------------------------------------------------
+// detectarRedFlags NUNCA debe disparar por un % "alto" (el decreto fija
+// pisos, no techos) ni inventar un valor cuando no hay un número explícito
+// junto a la etiqueta -- solo cuando SÍ hay un número y está por debajo del
+// mínimo verificado.
+await check('detectarRedFlags: garantía de cumplimiento por debajo del 10% dispara, con la página real del match', () => {
+  const texto = 'Cláusula décima. RELLENO. '.repeat(20) +
+    'La Garantía de Cumplimiento equivalente al cinco por ciento (5%) del valor del contrato. Fin.';
+  const paginaOffsets = [{ pagina: 1, hasta: 300 }, { pagina: 2, hasta: texto.length }];
+  const hallazgos = expEngine.detectarRedFlags(texto, paginaOffsets);
+  assert(hallazgos.length === 1, 'se esperaba 1 alerta (garantía de cumplimiento al 5%), se detectaron ' + hallazgos.length);
+  assert(hallazgos[0].id === 'garantia-cumplimiento-baja', 'id inesperado: ' + hallazgos[0].id);
+  assert(hallazgos[0].pagina === 2, 'la alerta debería citar la página 2 (donde está el match real), citó ' + hallazgos[0].pagina);
+  assert(/2\.2\.1\.2\.3\.1\.12/.test(hallazgos[0].articulo), 'la cita debería incluir el artículo 2.2.1.2.3.1.12');
+});
+await check('detectarRedFlags: garantía de cumplimiento en o por encima del 10% NO dispara (el decreto fija un mínimo, no un máximo)', () => {
+  const texto = 'La Garantía de Cumplimiento equivalente al diez por ciento (10%) del valor del contrato.';
+  assert(expEngine.detectarRedFlags(texto, []).length === 0, 'un 10% exacto no debería disparar la alerta (es el mínimo legal, no está por debajo)');
+  const texto30 = 'La Garantía de Cumplimiento equivalente al treinta por ciento (30%) del valor del contrato.';
+  assert(expEngine.detectarRedFlags(texto30, []).length === 0, 'un 30% (por ENCIMA del mínimo) no es una infracción verificable con una cifra fija -- no debe inventarse una alerta');
+});
+await check('detectarRedFlags: garantía de seriedad de la oferta y RC extracontractual por debajo del mínimo, ambas a la vez', () => {
+  const texto = 'Garantía de Seriedad de la Oferta por el ocho por ciento (8%) del valor de la oferta. ' +
+    'La garantía de Responsabilidad Civil Extracontractual amparará hasta ciento cincuenta (150) SMMLV.';
+  const hallazgos = expEngine.detectarRedFlags(texto, []);
+  const ids = hallazgos.map(h => h.id).sort();
+  assert(JSON.stringify(ids) === JSON.stringify(['garantia-seriedad-baja', 'rc-extracontractual-baja']),
+    'se esperaban las 2 alertas (seriedad 8% y RC extracontractual 150 SMMLV), se obtuvo: ' + ids.join(', '));
+});
+await check('detectarRedFlags: mención de "garantía de cumplimiento" SIN número cercano no dispara nada (no se inventa un valor)', () => {
+  const texto = 'El proponente debe constituir la Garantía de Cumplimiento a favor de la entidad, según lo defina el comité evaluador más adelante en este documento.';
+  assert(expEngine.detectarRedFlags(texto, []).length === 0, 'sin un % explícito junto a la etiqueta, no debería inventarse ninguna alerta');
+});
+await check('calcularViabilidad: 100 sin alertas, resta fija por severidad, nunca baja de 0', () => {
+  assert(expEngine.calcularViabilidad([]) === 100, 'sin alertas la viabilidad debería ser 100');
+  assert(expEngine.calcularViabilidad([{ severidad: 'alta' }, { severidad: 'media' }]) === 70,
+    '100 - 20 (alta) - 10 (media) debería dar 70');
+  const seis = Array.from({ length: 6 }, () => ({ severidad: 'alta' })); // 6 x 20 = 120, más de 100
+  assert(expEngine.calcularViabilidad(seis) === 0, 'la viabilidad nunca debería bajar de 0');
+});
+await check('paginaDeOffset: mapea un índice de carácter a la página real, no a una posición inventada', () => {
+  const offsets = [{ pagina: 1, hasta: 100 }, { pagina: 2, hasta: 250 }, { pagina: 3, hasta: 400 }];
+  assert(expEngine.paginaDeOffset(offsets, 50) === 1, 'un índice dentro de la página 1 debería mapear a 1');
+  assert(expEngine.paginaDeOffset(offsets, 150) === 2, 'un índice dentro de la página 2 debería mapear a 2');
+  assert(expEngine.paginaDeOffset(offsets, 399) === 3, 'un índice dentro de la página 3 debería mapear a 3');
+  assert(expEngine.paginaDeOffset([], 10) === null, 'sin offsets no debería inventarse una página');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
