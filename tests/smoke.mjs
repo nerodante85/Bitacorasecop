@@ -763,11 +763,21 @@ await check('detectarRedFlags: garantía de cumplimiento por debajo del 10% disp
   assert(hallazgos[0].pagina === 2, 'la alerta debería citar la página 2 (donde está el match real), citó ' + hallazgos[0].pagina);
   assert(/2\.2\.1\.2\.3\.1\.12/.test(hallazgos[0].articulo), 'la cita debería incluir el artículo 2.2.1.2.3.1.12');
 });
-await check('detectarRedFlags: garantía de cumplimiento en o por encima del 10% NO dispara (el decreto fija un mínimo, no un máximo)', () => {
+await check('detectarRedFlags: garantía de cumplimiento en el mínimo legal exacto, o razonablemente por encima, NO dispara ninguna alerta', () => {
   const texto = 'La Garantía de Cumplimiento equivalente al diez por ciento (10%) del valor del contrato.';
-  assert(expEngine.detectarRedFlags(texto, []).length === 0, 'un 10% exacto no debería disparar la alerta (es el mínimo legal, no está por debajo)');
+  assert(expEngine.detectarRedFlags(texto, []).length === 0, 'un 10% exacto no debería disparar nada (es el mínimo legal, no está por debajo ni es desproporcionado)');
+  const texto15 = 'La Garantía de Cumplimiento equivalente al quince por ciento (15%) del valor del contrato.';
+  assert(expEngine.detectarRedFlags(texto15, []).length === 0, 'un 15% (por encima del mínimo pero lejos de 3x) es razonable -- no debería disparar la alerta de proporcionalidad');
+});
+await check('detectarRedFlags: garantía de cumplimiento MUY por encima del mínimo (>=3x) dispara la alerta blanda de proporcionalidad, no la de infracción', () => {
   const texto30 = 'La Garantía de Cumplimiento equivalente al treinta por ciento (30%) del valor del contrato.';
-  assert(expEngine.detectarRedFlags(texto30, []).length === 0, 'un 30% (por ENCIMA del mínimo) no es una infracción verificable con una cifra fija -- no debe inventarse una alerta');
+  const hallazgos = expEngine.detectarRedFlags(texto30, []);
+  assert(hallazgos.length === 1, 'un 30% (exactamente 3x el mínimo) debería disparar la alerta de proporcionalidad, se detectaron ' + hallazgos.length);
+  assert(hallazgos[0].id === 'garantia-cumplimiento-alta', 'id inesperado: ' + hallazgos[0].id);
+  assert(hallazgos[0].severidad === 'baja', 'la alerta de proporcionalidad debe ser severidad baja (la más débil), fue ' + hallazgos[0].severidad);
+  assert(/Ley 1150/.test(hallazgos[0].articulo), 'debe citar el principio general (Ley 1150, Art. 5), no un artículo del Decreto 1082 con cifra fija');
+  assert(!/infracci[oó]n confirmada/i.test(hallazgos[0].mensaje) || /no es necesariamente/i.test(hallazgos[0].mensaje),
+    'el mensaje NUNCA debe presentar esto como una infracción confirmada -- solo un criterio de revisión');
 });
 await check('detectarRedFlags: garantía de seriedad de la oferta y RC extracontractual por debajo del mínimo, ambas a la vez', () => {
   const texto = 'Garantía de Seriedad de la Oferta por el ocho por ciento (8%) del valor de la oferta. ' +

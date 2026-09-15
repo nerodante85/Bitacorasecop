@@ -2740,3 +2740,51 @@ las 3 alertas con la página 2 citada correctamente, viabilidad 60/100
 (100-20-10-10), y los colores de severidad resueltos contra los tokens
 reales del tema (`getComputedStyle` confirmó `--danger`/`--warning`, no un
 `var()` huérfano).
+
+## Extensión: reglas de proporcionalidad (garantía MUY por encima del mínimo)
+
+El usuario pidió construir también la pieza que la sección anterior había
+dejado fuera a propósito: la regla "blanda" de proporcionalidad, para un %
+demasiado ALTO. **Corrige una afirmación de la sección anterior**: el test
+"un 30% (por ENCIMA del mínimo) no debe inventarse una alerta" ya no
+aplica tal cual -- con esta extensión, 30% (exactamente 3x el mínimo de
+10%) SÍ dispara, pero una alerta de una naturaleza deliberadamente distinta
+(ver abajo). El test se reescribió para reflejar esto (ver "Verificado").
+
+**La distinción de certeza entre los dos tipos de alerta es el punto
+central, no un detalle de implementación**: por debajo del mínimo es una
+cifra legal objetiva (cita el artículo exacto del Decreto 1082, severidad
+alta/media); muy por encima es un criterio nuestro, orientativo, NUNCA
+presentado como infracción -- el decreto no fija ningún techo. Se cita el
+principio general de selección objetiva/libre concurrencia (Ley 1150 de
+2007, Art. 5), con severidad **baja** a propósito (la categoría más débil,
+para que nunca se confunda visualmente con una alerta de mínimo legal) y
+un mensaje que dice explícitamente "no es necesariamente una infracción".
+
+**Umbral** (`umbralProporcion: 3` en cada regla de `REGLAS_RED_FLAG`): 3x
+el mínimo legal (30% para las garantías del 10%, 600 SMMLV para la de
+RC extracontractual) -- un múltiplo orientativo elegido por nosotros, NO
+una cifra que exista en el decreto (a diferencia de `minimo`, que sí está
+verificada contra el texto oficial). Si el usuario pide ajustar este
+múltiplo más adelante, es un solo número por regla, no un rediseño.
+
+**`detectarRedFlags` reestructurada** para evaluar ambos casos por regla
+sin re-matchear el texto dos veces: extrae el valor una sola vez y decide
+`valor < minimo` (alerta de mínimo legal, id `<regla>-baja`) vs.
+`valor >= minimo * umbralProporcion` (alerta de proporcionalidad, id
+`<regla>-alta`) -- mutuamente excluyentes por construcción, nunca las dos
+a la vez para la misma regla. Un valor entre el mínimo y el umbral (ej.
+15% de garantía de cumplimiento) no dispara nada -- es el rango normal,
+no hay nada que señalar.
+
+**Verificado**: 50/50 tests de humo (2 nuevos, 1 reescrito: el caso del
+10% exacto y un 15% razonable NO disparan nada; el caso del 30% SÍ
+dispara pero como alerta de proporcionalidad -- severidad baja, cita la
+Ley 1150 no el Decreto 1082, y el mensaje nunca afirma una infracción
+confirmada). Probado en navegador real de punta a punta con un segundo
+PDF sintético (mismo patrón `fpdf2` temporal): garantía de cumplimiento al
+35% y RC extracontractual a 700 SMMLV (ambas ≥3x su mínimo) + garantía de
+seriedad al 8% (por debajo del mínimo, la alerta "dura" de la sección
+anterior) -- las 3 alertas salieron juntas y correctas (2 "BAJA" citando
+Ley 1150, 1 "MEDIA" citando el Decreto 1082), viabilidad 80/100
+(100-5-10-5), confirmado con los `className`/página real de cada una.
