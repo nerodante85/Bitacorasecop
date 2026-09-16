@@ -3070,3 +3070,8 @@ búsqueda → Preparación para analizar un pliego → Alertas guardadas"; y
 subir un `.txt` real (inyectado vía `DataTransfer`, el mismo método que
 simula un drag-and-drop real de principio a fin) mostró el mensaje nuevo
 exacto, nombrando el archivo.
+
+**Confirmado en iPhone real por el usuario**: mismo patrón que las rondas
+anteriores -- solo se pudo probar en Chromium emulado en este entorno,
+nunca Safari/WebKit real. El usuario probó el sitio en producción con su
+propio iPhone y confirmó que funciona bien.
