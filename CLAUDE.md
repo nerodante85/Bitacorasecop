@@ -2982,3 +2982,91 @@ stepper con el separador punteado, label largo de K residual) -- 0px de
 desbordamiento en todas. Solo Chromium emulado, nunca Safari/WebKit real
 (la herramienta no puede correrlo). El usuario probó el sitio en
 producción con su propio iPhone y confirmó que funciona bien.
+
+## Auditoría UX/UI, tercera pasada (primer uso, con flujos completados de punta a punta)
+
+El usuario pidió otra auditoría de primer uso, esta vez sobre la app ya sin
+"Competencia" y con los fixes de la segunda pasada. A diferencia de las dos
+rondas anteriores (mayormente inspección de estados vacíos), esta incluyó
+completar flujos reales (crear un perfil, subir un archivo del tipo
+equivocado) para encontrar problemas que solo aparecen al interactuar, no
+solo al mirar. 4 hallazgos, todos implementados.
+
+### 1. El Dashboard no orientaba a alguien genuinamente nuevo
+
+"Inicio" saludaba ("Buenas tardes") y mostraba un resumen de "tu actividad"
+enteramente en cero, sin ningún "empieza por aquí" -- las tarjetas de
+acceso rápido existen más abajo, pero no sugieren ningún orden. Fix: un
+panel "Primeros pasos" nuevo (`#bt-dash-primeros-pasos`), una lista
+numerada de 4 pasos (Perfil de la empresa → Experiencia → Personal →
+Buscar procesos) que solo se muestra mientras la cuenta esté
+`esCuentaVacia()` -- sin perfiles, sin experiencia evaluada, sin personal,
+sin historial. En cuanto hay UN dato real guardado, el panel desaparece
+solo y no vuelve a competir por espacio con el resto del Dashboard.
+Reutiliza el mismo patrón de click delegado por `data-view` que ya usan
+`.quick-card`/`.nav-item` (se agregó `.primeros-pasos-item[data-view]` al
+mismo `querySelectorAll`), así que no hizo falta wiring nuevo.
+
+### 2. Se creaba automáticamente un perfil fantasma "Mi empresa" -- y el Dashboard lo contaba como dato real
+
+`loadPerfiles()` tenía un bloque de "migración desde el esquema de un solo
+perfil" que corría con solo `Object.keys(perfiles).length === 0` -- sin
+exigir que de verdad hubiera un `perfil_empresa` viejo que migrar. Una
+cuenta genuinamente nueva (nunca tuvo el esquema viejo tampoco) terminaba
+igual con un perfil vacío llamado "Mi empresa" ya persistido en
+`localStorage` sin que el usuario hiciera nada -- y "Perfiles de empresa:
+1" en el Dashboard, dando la falsa impresión de tener algo guardado. Fix:
+el bloque de migración ahora exige `if (perfilViejo)` -- una cuenta nueva
+de verdad arranca con `perfiles` vacío, igual que "Personal" (que nunca
+tuvo este problema, confirmado por separado: su `perfiles_profesionales`
+arranca en `null`). `renderPerfilSelect()` gana el mismo estado vacío
+("Sin perfiles todavía -- usa '+ Nuevo perfil'") que ya tenía
+`renderPersonalSelect()`, para no dejar un `<select>` en blanco sin
+explicación. Los perfiles ya guardados por usuarios existentes (incluido
+un "Mi empresa" real que alguien haya llenado con datos) no se tocan --
+este fix solo cambia qué pasa en una cuenta nueva desde cero.
+
+### 3. "Buscar procesos" mostraba el aviso de preparación ANTES que los filtros
+
+El panel "Preparación para analizar un pliego" (stepper de 5 pasos + aviso
+ámbar si falta Experiencia/Personal) vivía arriba de "Filtros de
+búsqueda" -- lo primero que veía alguien nuevo al entrar por el acceso más
+obvio desde el Dashboard era un bloque grande diciendo que faltaba
+completar dos secciones enteras, aunque la búsqueda en sí NUNCA estuvo
+bloqueada (solo "Analizar pliego" lo está). Fix: se movió el bloque
+completo (`#bt-flujo-panel`, mismos ids, sin tocar el JS que lo alimenta)
+a después de "Filtros de búsqueda" -- la tarea principal de la vista
+(buscar) se ve primero; la preparación para analizar un pliego específico
+sigue ahí, solo que ya no antes de todo lo demás.
+
+### 4. Subir un archivo del tipo equivocado a "Experiencia" no lo decía
+
+El `accept=".xlsx,.xls,.csv,.pdf,.docx"` del `<input type=file>` solo
+filtra el diálogo nativo de "elegir archivo" -- un drag-and-drop real
+(el método principal de estos dropzones) NO lo respeta en ningún
+navegador. Confirmado en la práctica: arrastrar un `.txt` caía sin aviso
+en `cargarExcelExperiencia` (cualquier extensión no reconocida como
+`.docx`/`.pdf` iba ahí por defecto) y el lector de Excel lo "leía" como
+una hoja vacía, mostrando "Se leyó el archivo pero no se reconocieron
+filas de contratos" -- como si fuera un Excel mal formateado, no un
+archivo del tipo equivocado. Fix: `esTipoDeArchivoAceptado(file)` nueva,
+revisada ANTES de despachar a cualquier parser en
+`cargarExperienciaArchivo`/`cargarMatrizArchivo` -- si la extensión no es
+ninguna de las 5 reconocidas (y no es PDF por `file.type` tampoco), corta
+ahí mismo con un mensaje explícito nombrando el archivo real y los tipos
+que sí sirven, sin tocar la lógica de lectura en absoluto.
+
+**Verificado**: 50/50 tests de humo (ninguno de los 4 cambios toca lógica
+de negocio evaluable -- son UI/flujo, sin tests nuevos, igual que la
+segunda pasada). Probado en navegador real de punta a punta con estado
+limpio: "Primeros pasos" visible y sus 4 enlaces navegando correctamente;
+al crear un perfil real con "+ Nuevo perfil" el panel desaparece solo y
+el contador del Dashboard pasa a reflejar el dato real; el selector
+"Empresa en edición" confirmado con el nuevo estado vacío;
+`localStorage.getItem('bitacora_perfiles_empresa')` confirmado `null` en
+una cuenta recién cargada (antes tenía el fantasma "Mi empresa"); el
+orden real de los `<h2>` de "Buscar procesos" confirmado como "Filtros de
+búsqueda → Preparación para analizar un pliego → Alertas guardadas"; y
+subir un `.txt` real (inyectado vía `DataTransfer`, el mismo método que
+simula un drag-and-drop real de principio a fin) mostró el mensaje nuevo
+exacto, nombrando el archivo.

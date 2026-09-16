@@ -859,6 +859,22 @@
   #bitacora-root .quick-card-title { font-size: 14.5px; font-weight: 700; color: var(--text-heading); }
   #bitacora-root .quick-card-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
 
+  /* "Primeros pasos" (Dashboard, solo con la cuenta vacía) -- lista numerada
+     compacta, distinta de .quick-card (esas son un menú permanente; esta es
+     una secuencia sugerida que desaparece en cuanto hay datos reales). */
+  #bitacora-root .primeros-pasos-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  #bitacora-root .primeros-pasos-item {
+    width: 100%; display: flex; align-items: flex-start; gap: 14px; text-align: left;
+    background: none; border: none; border-bottom: 1px solid var(--border); padding: 13px 4px; cursor: pointer;
+  }
+  #bitacora-root .primeros-pasos-list li:last-child .primeros-pasos-item { border-bottom: none; }
+  #bitacora-root .primeros-pasos-item:hover { background: var(--bg); }
+  #bitacora-root .primeros-pasos-num {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+    font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  #bitacora-root .primeros-pasos-item span:last-child { font-size: 13.5px; color: var(--text); line-height: 1.5; }
+
   #bitacora-root .recent-list { display: flex; flex-direction: column; gap: 1px; }
   #bitacora-root .recent-item {
     display: flex; align-items: center; gap: 14px; padding: 13px 4px;
@@ -1041,6 +1057,27 @@
             <p>Este es el resumen de tu actividad de consultoría. Desde aquí puedes ir directo a lo que necesites hacer.</p>
           </div>
 
+          <!-- Auditoría de usabilidad, tercera pasada: una cuenta genuinamente
+               nueva llegaba directo a un Dashboard "sobre tu actividad" con
+               todo en cero, sin ningún "empieza por aquí" -- las tarjetas de
+               acceso rápido de más abajo existen, pero no sugieren ningún
+               orden. Este panel solo se muestra mientras la cuenta esté
+               vacía de verdad (ver esCuentaVacia() en el JS) y desaparece en
+               cuanto hay algo real guardado -- no compite con el resto del
+               Dashboard para quien ya usa la app. -->
+          <div class="titleblock" id="bt-dash-primeros-pasos" hidden>
+            <div class="titleblock-head">
+              <h2>Primeros pasos</h2>
+              <span>Así se prepara la app para analizar tu primer pliego</span>
+            </div>
+            <ol class="primeros-pasos-list">
+              <li><button type="button" class="primeros-pasos-item" data-view="perfil"><span class="primeros-pasos-num">1</span><span><strong>Perfil de la empresa</strong> — carga el RUP o completa tu ficha (clasificación y capacidad financiera).</span></button></li>
+              <li><button type="button" class="primeros-pasos-item" data-view="experiencia"><span class="primeros-pasos-num">2</span><span><strong>Experiencia</strong> — sube la experiencia de tu empresa y evalúala contra una matriz de requisitos.</span></button></li>
+              <li><button type="button" class="primeros-pasos-item" data-view="personal"><span class="primeros-pasos-num">3</span><span><strong>Personal</strong> — registra al menos un profesional de tu equipo de trabajo.</span></button></li>
+              <li><button type="button" class="primeros-pasos-item" data-view="buscar"><span class="primeros-pasos-num">4</span><span><strong>Buscar procesos</strong> — encuentra licitaciones abiertas y analiza el pliego que te interese.</span></button></li>
+            </ol>
+          </div>
+
           <div class="stat-grid">
             <div class="stat-card">
               <div class="stat-card-label">Perfiles de empresa</div>
@@ -1117,25 +1154,6 @@
             <p>Busca licitaciones públicas abiertas en SECOP II y da seguimiento a las que te interesan.</p>
           </div>
 
-          <div class="titleblock" id="bt-flujo-panel">
-            <div class="titleblock-head">
-              <h2>Preparación para analizar un pliego</h2>
-              <span>Los pasos 1 a 3 se hacen una sola vez; los pasos 4 y 5 se repiten con cada pliego que analices (marcados con el separador punteado)</span>
-            </div>
-            <div class="steps" id="bt-flujo-steps">
-              <div class="step" data-step="1"><span class="step-circle">1</span><span class="step-label">Experiencia</span></div>
-              <span class="step-sep"></span>
-              <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Análisis</span></div>
-              <span class="step-sep"></span>
-              <div class="step" data-step="3"><span class="step-circle">3</span><span class="step-label">Personal</span></div>
-              <span class="step-sep step-sep-group"></span>
-              <div class="step" data-step="4"><span class="step-circle">4</span><span class="step-label">Pliego</span></div>
-              <span class="step-sep"></span>
-              <div class="step" data-step="5"><span class="step-circle">5</span><span class="step-label">Resultado</span></div>
-            </div>
-            <div id="bt-flujo-mensaje"></div>
-          </div>
-
           <div class="titleblock">
             <div class="titleblock-head">
               <h2>Filtros de búsqueda</h2>
@@ -1170,6 +1188,33 @@
               <button class="btn-secondary" id="bt-demo">Ver datos de ejemplo</button>
             </div>
             <div class="saved-note" id="bt-data-freshness" style="margin-top:8px;"></div>
+          </div>
+
+          <!-- Auditoría de usabilidad, tercera pasada: este panel vivía ANTES
+               de "Filtros de búsqueda" -- lo primero que veía alguien nuevo al
+               entrar a "Buscar procesos" (el acceso rápido más obvio desde el
+               Dashboard) era un aviso de que faltaba completar Experiencia y
+               Personal, dando la impresión de que la búsqueda misma estaba
+               bloqueada (no lo está: solo "Analizar pliego" lo está). Se movió
+               después de los filtros para que la tarea principal de esta
+               vista (buscar) se vea primero. -->
+          <div class="titleblock" id="bt-flujo-panel">
+            <div class="titleblock-head">
+              <h2>Preparación para analizar un pliego</h2>
+              <span>Los pasos 1 a 3 se hacen una sola vez; los pasos 4 y 5 se repiten con cada pliego que analices (marcados con el separador punteado)</span>
+            </div>
+            <div class="steps" id="bt-flujo-steps">
+              <div class="step" data-step="1"><span class="step-circle">1</span><span class="step-label">Experiencia</span></div>
+              <span class="step-sep"></span>
+              <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Análisis</span></div>
+              <span class="step-sep"></span>
+              <div class="step" data-step="3"><span class="step-circle">3</span><span class="step-label">Personal</span></div>
+              <span class="step-sep step-sep-group"></span>
+              <div class="step" data-step="4"><span class="step-circle">4</span><span class="step-label">Pliego</span></div>
+              <span class="step-sep"></span>
+              <div class="step" data-step="5"><span class="step-circle">5</span><span class="step-label">Resultado</span></div>
+            </div>
+            <div id="bt-flujo-mensaje"></div>
           </div>
 
           <!-- Alertas por criterios guardados: guarda la combinación actual de
@@ -2168,17 +2213,26 @@
     })();
     perfilActivoId = (activoR && activoR.value) || null;
 
-    // Migración desde el esquema de un solo perfil (perfil_empresa)
+    // Migración desde el esquema de un solo perfil (perfil_empresa) -- SOLO si
+    // de verdad había algo que migrar. Antes esto corría con solo
+    // `perfiles` vacío (sin exigir `perfilViejo`), así que una cuenta
+    // genuinamente nueva -- sin `perfil_empresa` tampoco -- terminaba con un
+    // perfil fantasma "Mi empresa" ya guardado sin que el usuario hiciera
+    // nada (el Dashboard lo contaba como "1 perfil guardado"). Auditoría de
+    // usabilidad: ahora una cuenta nueva arranca con `perfiles` genuinamente
+    // vacío, igual que "Personal" -- ver renderPerfilSelect().
     if (Object.keys(perfiles).length === 0){
       let perfilViejo = null;
       try {
         const r = await window.storage.get('perfil_empresa', false);
         if (r && r.value) perfilViejo = JSON.parse(r.value);
       } catch(e){ /* nada */ }
-      const id = nuevoPerfilId();
-      perfiles[id] = migrarPerfil(Object.assign({ nombre: 'Mi empresa' }, perfilViejo || {}));
-      perfilActivoId = id;
-      await persistirPerfiles();
+      if (perfilViejo){
+        const id = nuevoPerfilId();
+        perfiles[id] = migrarPerfil(Object.assign({ nombre: 'Mi empresa' }, perfilViejo));
+        perfilActivoId = id;
+        await persistirPerfiles();
+      }
     }
 
     // Lleva todos los perfiles guardados al esquema actual (idempotente).
@@ -2217,9 +2271,10 @@
   }
 
   function renderPerfilSelect(){
-    perfilSelectEl.innerHTML = Object.keys(perfiles).map(id =>
-      '<option value="' + id + '"' + (id === perfilActivoId ? ' selected' : '') + '>' + escapeHtml(perfiles[id].nombre || 'Sin nombre') + '</option>'
-    ).join('');
+    const ids = Object.keys(perfiles);
+    perfilSelectEl.innerHTML = ids.length
+      ? ids.map(id => '<option value="' + id + '"' + (id === perfilActivoId ? ' selected' : '') + '>' + escapeHtml(perfiles[id].nombre || 'Sin nombre') + '</option>').join('')
+      : '<option value="">Sin perfiles todavía -- usa "+ Nuevo perfil"</option>';
   }
 
   // Casillas "comparar en el análisis de pliegos" -- una por perfil, varias
@@ -6739,7 +6794,22 @@
   // Puntos de entrada únicos de cada dropzone: despachan por extensión/tipo
   // del archivo -- el usuario no tiene que elegir nada aparte, solo
   // arrastra el archivo que tenga (Excel, PDF o Word).
+  // Antes, cualquier extensión no reconocida (ej. arrastrar un .txt o .jpg
+  // por error -- el `accept` del input NO filtra un drag-and-drop real, solo
+  // el diálogo nativo de "elegir archivo") caía sin avisar en el lector de
+  // Excel, que a veces "lee" el archivo como una hoja vacía/basura y termina
+  // mostrando "no se reconocieron filas" -- como si fuera un Excel mal
+  // formateado, no un archivo del tipo equivocado. Auditoría de usabilidad.
+  function esTipoDeArchivoAceptado(file){
+    return /\.(xlsx|xls|csv|docx|pdf)$/i.test((file.name || '').toLowerCase()) || file.type === 'application/pdf';
+  }
+  const MSG_TIPO_NO_ACEPTADO = (file) => 'Tipo de archivo no reconocido ("' + (file.name || 'sin nombre') + '"). Sube un Excel (.xlsx/.xls/.csv), un Word (.docx) o un PDF.';
+
   async function cargarExperienciaArchivo(file){
+    if (!esTipoDeArchivoAceptado(file)){
+      expevalExpStatusEl.textContent = MSG_TIPO_NO_ACEPTADO(file);
+      return;
+    }
     const nombre = (file.name || '').toLowerCase();
     if (/\.docx$/.test(nombre)) return cargarExperienciaDocx(file);
     if (/\.pdf$/.test(nombre) || file.type === 'application/pdf') return cargarExperienciaPDF(file, false);
@@ -6747,6 +6817,10 @@
   }
 
   async function cargarMatrizArchivo(file){
+    if (!esTipoDeArchivoAceptado(file)){
+      expevalMatrizStatusEl.textContent = MSG_TIPO_NO_ACEPTADO(file);
+      return;
+    }
     const nombre = (file.name || '').toLowerCase();
     if (/\.docx$/.test(nombre)) return cargarMatrizDocx(file);
     if (/\.pdf$/.test(nombre) || file.type === 'application/pdf') return cargarMatrizPDF(file, false);
@@ -7136,7 +7210,7 @@
     }
   }
 
-  document.querySelectorAll('#bt-nav .nav-item, .quick-card[data-view]').forEach(btn => {
+  document.querySelectorAll('#bt-nav .nav-item, .quick-card[data-view], .primeros-pasos-item[data-view]').forEach(btn => {
     btn.addEventListener('click', () => mostrarVista(btn.getAttribute('data-view')));
   });
   // Navegación por teclado del patrón ARIA "tablist" (#bt-nav ya tenía
@@ -7268,9 +7342,23 @@
   // falta mantenerlo sincronizado en tiempo real mientras el usuario está en
   // otra pantalla). Nunca inventa datos -- si algo no se ha hecho todavía, lo
   // dice explícitamente ("Sin ejecutar", "Busca procesos para ver tu shortlist").
+  // Cuenta "genuinamente vacía" = sin ningún dato real guardado todavía en
+  // ninguna sección -- ver "Primeros pasos" (Dashboard). Deliberadamente NO
+  // cuenta un perfil de empresa vacío como dato real (ver el fix de
+  // loadPerfiles() que dejó de crear uno fantasma "Mi empresa" solo).
+  function esCuentaVacia(){
+    return Object.keys(perfiles || {}).length === 0 &&
+      !expevalResultado &&
+      Object.keys(perfilesProfesionales || {}).length === 0 &&
+      Object.keys(historial || {}).length === 0;
+  }
+
   function actualizarDashboard(){
     const greetEl = document.getElementById('bt-dash-greeting');
     if (greetEl) greetEl.textContent = saludoSegunHora();
+
+    const primerosPasosEl = document.getElementById('bt-dash-primeros-pasos');
+    if (primerosPasosEl) primerosPasosEl.hidden = !esCuentaVacia();
 
     const perfilesEl = document.getElementById('bt-dash-perfiles');
     if (perfilesEl) perfilesEl.textContent = Object.keys(perfiles || {}).length;
