@@ -3309,3 +3309,122 @@ consola en todo el flujo.
 anteriores -- solo se pudo probar en Chromium emulado en este entorno,
 nunca Safari/WebKit real. El usuario probó el sitio en producción con su
 propio iPhone y confirmó que funciona bien.
+
+## Extracción de requisitos: probada contra pliegos reales, no solo sintéticos
+
+El usuario preguntó explícitamente si la comparación de experiencia seguía
+funcionando y si era "por coincidencias o de forma más segura" -- y luego
+pidió probar la extracción contra pliegos reales suyos (no los PDF
+sintéticos con los que se había probado hasta ahora). Compartió 3
+documentos reales: un Estudio Previo de Cáchira (escaneado, sin texto
+extraíble -- activaría el flujo de OCR ya existente, no se probó más a
+fondo), los Estudios Previos de Zapatoca (LP-005-2026, 42 páginas) y un
+Pliego de Condiciones real de Norte de Santander (Documento Tipo de
+Colombia Compra Eficiente, 73 páginas, LP-SV-03249-2026).
+
+**Método**: se extrajo el texto página por página con `pypdf` (instalado
+temporalmente, mismo patrón ya usado con `fpdf2`/`openpyxl` en rondas
+anteriores) replicando el mismo formato `{text, paginaOffsets}` que
+produce `extractPdfText`, y se corrió `localizarSeccionesExperiencia`/
+`extraerRequisitosDePliego` reales (extraídas del propio `index.html`,
+mismo mecanismo que ya usa `tests/smoke.mjs`) contra ese texto -- no una
+simulación, el código real ejecutándose sobre documentos reales.
+
+**Resultado del primer intento: mal, con evidencia concreta.** Contra el
+Estudio Previo de Zapatoca se extrajeron 69 "requisitos"; contra el Pliego
+de Norte de Santander, 45. La gran mayoría eran ruido -- índices
+financieros ("RENTABILIDAD DEL PATRIMONIO"), obligaciones generales del
+contratista ("Disponer del personal idóneo..."), reglas legales sobre
+consorcios, encabezados de página repetidos ("Código: CCE-EICP-GI-01
+Página: 26 de 73"). Causa raíz: la zona alrededor de cada ancla era
+demasiado ancha (hasta 6.000 caracteres) y **cualquier** trozo con
+marcador de lista propio (1./A./B...) dentro de esa zona se aceptaba como
+requisito, sin revisar si el trozo mismo hablaba de experiencia.
+
+**Segundo hallazgo, más de fondo**: los pliegos oficiales reales (sobre
+todo el "Documento Tipo" de Colombia Compra Eficiente) presentan la cifra
+EXACTA de experiencia exigida como una **tabla** ("Matriz 1 – Experiencia"),
+no como prosa numerada -- confirmado buscando "SMMLV" en el texto real:
+"Este porcentaje de experiencia se tomará sobre el 'valor mínimo a
+certificar... de conformidad con el numeral 3.5.8'" (una referencia a otra
+sección, no la cifra misma). `extractPdfText` concatena el texto de la
+página sin conservar filas/columnas (misma limitación ya conocida y
+resuelta aparte para "Experiencia del proponente" vía
+`extraerFilasPorPosicion`, que no se usa aquí) -- así que esos valores
+tabulares pueden quedar genuinamente fuera de alcance de un extractor de
+texto plano, no es solo cuestión de afinar umbrales.
+
+**Corrección implementada, en dos partes:**
+
+1. **`pareceRequisitoDeExperienciaReal(req)`** (nueva, junto a
+   `extraerRequisitosDePliego`): un trozo solo se acepta como requisito
+   real si el trozo MISMO (no la zona que lo contiene) menciona
+   "experien..." Y trae algo verificable (`minContratos`/`minValor`/
+   `minCantidad`/`condicionNoVerificable`/`condicionTemporal` no nulo).
+   Deliberadamente más conservador que antes: mejor no extraer un
+   requisito ambiguo que inventar uno que en realidad es ruido
+   procedimental. Bajó los falsos positivos de 69 y 45 a 0 y 1
+   respectivamente en los documentos reales.
+2. **`REGEX_MENCION_TABLA_EXPERIENCIA` / `posiblesTablasNoLeidas`**: cuando
+   una zona menciona una tabla/matriz de experiencia (ej. "Matriz 1 –
+   Experiencia") pero no produjo ningún requisito aceptado, se marca
+   explícitamente para revisión manual citando la página real -- en vez de
+   forzar una extracción que saldría mal, o peor, quedarse callado. Se
+   agregó también como ANCLA propia (`PATRON_MATRIZ_EXPERIENCIA`,
+   compartida entre `REGEX_ANCLAS_EXPERIENCIA` y
+   `REGEX_MENCION_TABLA_EXPERIENCIA`) -- sin esto, una mención de "Matriz N
+   – Experiencia" sin otra ancla genérica cerca no generaba zona alguna, y
+   el aviso nunca llegaba a dispararse. Se muestra en un panel nuevo
+   ("POSIBLE TABLA DE EXPERIENCIA NO LEÍDA") dentro de "Experiencia
+   requerida", combinando Pliego + Estudio Previo y deduplicando por
+   fuente+página.
+
+**Tercer bug real, encontrado por el propio requisito genuino que SÍ
+sobrevivió el filtro**: el único requisito real extraído del Pliego de
+Norte de Santander decía "...con mínimo uno (1) y máximo cinco (5)
+contratos" -- el regex de `minContratos` en `construirRequisitoDesdeTexto`
+exigía un dígito inmediatamente después de "mínimo" (`mínimo 3 contratos`),
+y no reconocía la convención de redacción legal colombiana de número en
+letra CON el dígito entre paréntesis (misma convención que
+`condicionTemporalDelRequisito` ya maneja para "últimos diez (10) años",
+pero el regex de `minContratos` nunca se había actualizado para esto).
+Se agregó un tercer patrón de respaldo (`mínimo [palabra] (N)`, con un
+lookahead que exige "contrato(s)" dentro de los siguientes 40 caracteres
+para no confundirlo con otro "mínimo palabra (N)" ajeno, ej. "mínimo tres
+(3) años de constituidas").
+
+**Verificado**: 67/67 tests de humo (5 nuevos: `pareceRequisitoDeExperienciaReal`
+rechazando ruido con marcador propio y rechazando una cláusula
+procedimental que sí menciona "experiencia" pero sin ningún número,
+aceptando un requisito genuino; una zona real con ruido MEZCLADO junto a
+un requisito genuino, confirmando que el ruido se descarta y el genuino
+sobrevive intacto; una mención de tabla sin ningún requisito extraíble
+marcada para revisión manual con la página correcta). Vuelto a correr
+contra los 2 pliegos reales tras el fix: Zapatoca sigue en 0 requisitos
+(honesto -- ese Estudio Previo en particular defiere la cifra exacta al
+Pliego, que no se tenía) sin ningún falso positivo; Norte de Santander
+bajó de 45 a 1 requisito genuino (`minContratos: 1` correctamente
+extraído tras el fix del regex) más 7 páginas reales marcadas como
+"posible tabla no leída" (1, 3, 23, 25, 28, 29, 30) señalando exactamente
+dónde está la matriz real. Probado además de punta a punta en el
+navegador real con el propio PDF de 73 páginas de Norte de Santander
+(leídas 40/73, el tope por defecto de `extractPdfText`) inyectado vía
+`DataTransfer` -- 0 errores de consola, resultado REQUIERE REVISIÓN
+honesto (2 requisitos, ambos NO DETERMINABLE por falta de contrato
+relacionado en el Excel de prueba) con el panel de "posible tabla" listando
+las 7 páginas reales para revisión manual.
+
+**Limitación que queda documentada, no resuelta en esta pasada**: cuando
+un requisito genuino sobrevive el filtro pero su propio trozo de texto no
+alcanza a incluir la cifra real (porque quedó en el trozo siguiente, ya
+sea por el marcador de lista o por la nueva ancla de "Matriz N –
+Experiencia" cortando justo ahí), `minValor` puede tomar un número grande
+pero incorrecto de más adelante en el mismo trozo ancho (confirmado en la
+prueba real: un `40000 SMMLV` que no corresponde a ese requisito
+puntual). No genera un CUMPLE falso (el requisito de todos modos terminó
+NO DETERMINABLE por falta de contrato relacionado), pero el valor
+mostrado en la justificación puede no ser confiable -- reconstruir la
+tabla real (filas/columnas por coordenada, como ya hace
+`extraerFilasPorPosicion` para "Experiencia del proponente") queda fuera
+de alcance de esta pasada; el panel de "posible tabla no leída" es la
+mitigación actual.

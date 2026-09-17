@@ -122,7 +122,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'textoPliegoDe', 'localizarSeccionesExperiencia', 'segmentarConOffsets',
     'extraerRequisitosDePliego', 'detectarInconsistenciasPliegoEP',
     'cargarEstudioPrevioPDF', 'cargarEstudioPrevioDocx', 'cargarEstudioPrevioArchivo',
-    'evaluarExperienciaDeProceso',
+    'evaluarExperienciaDeProceso', 'pareceRequisitoDeExperienciaReal',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -234,7 +234,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -933,6 +933,56 @@ await check('textoPliegoDe: lee ocrText cuando el pliego se leyó vía OCR, y te
   assert(expEngine.textoPliegoDe({ viaOcr: false, text: 'texto normal', ocrText: 'texto ocr' }) === 'texto normal', 'debería leer entry.text cuando viaOcr es false');
   assert(expEngine.textoPliegoDe({ viaOcr: true, text: 'texto normal', ocrText: 'texto ocr' }) === 'texto ocr', 'debería leer entry.ocrText cuando viaOcr es true');
   assert(expEngine.textoPliegoDe(null) === '', 'sin entry no debería fallar, devuelve string vacío');
+});
+
+// 54-58) Filtro de contenido real (auditoría contra 2 pliegos/estudios
+// previos REALES, ver CLAUDE.md): aceptar cualquier trozo con marcador de
+// lista dentro de una zona ancha colaba decenas de falsos "requisitos" por
+// documento -- índices financieros, obligaciones generales del
+// contratista, reglas de consorcios, encabezados de página repetidos.
+await check('pareceRequisitoDeExperienciaReal: rechaza un trozo con marcador propio pero SIN relación real con experiencia (ruido típico de un pliego real)', () => {
+  const ruido = expEngine.construirRequisitoDesdeTexto('16. Disponer del personal idóneo, así como de los recursos logísticos, materiales, y/o equipos necesarios.', 0, {});
+  assert(!expEngine.pareceRequisitoDeExperienciaReal(ruido), 'un trozo que no menciona "experiencia" y no trae ningún número no debería aceptarse como requisito real');
+  const indiceFinanciero = expEngine.construirRequisitoDesdeTexto('RENTABILIDAD DEL PATRIMONIO', 0, {});
+  assert(!expEngine.pareceRequisitoDeExperienciaReal(indiceFinanciero), 'un índice financiero suelto no debería colarse como requisito de experiencia');
+});
+
+await check('pareceRequisitoDeExperienciaReal: rechaza un trozo que SÍ menciona experiencia pero es una cláusula procedimental sin ningún número (confirmado con un pliego real: "Documento Tipo" de obra pública)', () => {
+  const procedimental = expEngine.construirRequisitoDesdeTexto('E. La experiencia a la que se refiere este numeral podrá ser validada mediante los documentos establecidos en el pliego de condiciones.', 0, {});
+  assert(!expEngine.pareceRequisitoDeExperienciaReal(procedimental), 'una cláusula sobre CÓMO se valida la experiencia, sin ningún número, no es un requisito cuantificable -- se descarta en vez de mostrarla como ambigua');
+});
+
+await check('pareceRequisitoDeExperienciaReal: acepta un trozo real (menciona experiencia Y trae un número verificable)', () => {
+  const real = expEngine.construirRequisitoDesdeTexto('El Proponente podrá acreditar la experiencia solicitada con mínimo uno (1) y máximo cinco (5) contratos.', 0, {});
+  assert(expEngine.pareceRequisitoDeExperienciaReal(real), 'un requisito con "experiencia" + un número (mínimo 1 contrato) sí debería aceptarse');
+});
+
+await check('extraerRequisitosDePliego: una zona real con ruido MEZCLADO junto a un requisito genuino -- el ruido se descarta, el genuino sobrevive (regresión del bug encontrado con 2 pliegos reales)', () => {
+  // Antes del fix: CUALQUIER trozo con marcador de lista dentro de la zona
+  // se aceptaba -- este texto (basado en el patrón real que produjo 45+
+  // falsos positivos) mezcla 3 trozos de ruido con 1 requisito genuino.
+  const texto = 'Requisitos de experiencia: ' +
+    '1. Cumplir con las condiciones establecidas en los Documentos del proceso. ' +
+    '2. RENTABILIDAD DEL PATRIMONIO. ' +
+    '3. Experiencia específica en construcción de puentes vehiculares, mínimo 2 contratos, obligatorio. ' +
+    '4. Disponer del personal idóneo y los recursos necesarios.';
+  const { requisitos } = expEngine.extraerRequisitosDePliego(texto, [{ pagina: 1, hasta: texto.length }], 'Pliego de Condiciones');
+  assert(requisitos.length === 1, 'se esperaba que sobreviviera SOLO el requisito genuino (puentes), sobrevivieron ' + requisitos.length + ': ' + JSON.stringify(requisitos.map(r => r.criterio)));
+  assert(requisitos[0].minContratos === 2, 'el requisito genuino debería conservar minContratos=2, fue ' + requisitos[0].minContratos);
+});
+
+await check('extraerRequisitosDePliego: una zona menciona una tabla/matriz de experiencia sin ningún requisito extraíble como prosa -> se marca para revisión manual, citando la página', () => {
+  // Confirmado con un pliego real (Documento Tipo de Colombia Compra
+  // Eficiente): la cifra exacta vive en una tabla ("Matriz 1 -- Experiencia")
+  // que extractPdfText no puede reconstruir en filas/columnas -- mejor
+  // avisar la página que inventar una extracción.
+  const texto = 'Las longitudes, volúmenes, dimensiones, tipologías y demás condiciones de experiencia ' +
+    'establecidas en la Matriz 1 – Experiencia, si aplica, determinarán el cumplimiento del proponente.';
+  const paginaOffsets = [{ pagina: 30, hasta: texto.length }];
+  const { requisitos, posiblesTablasNoLeidas } = expEngine.extraerRequisitosDePliego(texto, paginaOffsets, 'Pliego de Condiciones');
+  assert(requisitos.length === 0, 'no debería inventarse ningún requisito a partir de una mención de tabla sin cifras en prosa');
+  assert(posiblesTablasNoLeidas.length === 1, 'se esperaba 1 aviso de posible tabla no leída, se detectaron ' + posiblesTablasNoLeidas.length);
+  assert(posiblesTablasNoLeidas[0].pagina === 30, 'el aviso debería citar la página real, citó ' + posiblesTablasNoLeidas[0].pagina);
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

@@ -3687,7 +3687,17 @@
     const minContratos = celdas.minContratos ? parseNumCO(String(celdas.minContratos)) : (function(){
       // "mínimo de 3 contratos" y "mínimo 3 contratos" (sin "de") aparecen
       // ambas formas en pliegos reales -- "de" opcional, no solo la primera.
-      const m = criterioTexto.match(/m[ií]nimo\s+(?:de\s+)?(\d+)\s+contratos?/i) || criterioTexto.match(/(\d+)\s+contratos?\s+como\s+m[ií]nimo/i);
+      // Tercera forma, confirmada con un pliego real (auditoría contra 2
+      // pliegos/estudios previos reales, ver CLAUDE.md): "mínimo uno (1) y
+      // máximo cinco (5) contratos" -- número en letra con el dígito entre
+      // paréntesis, misma convención de redacción legal colombiana ya
+      // manejada en condicionTemporalDelRequisito ("últimos diez (10)
+      // años"). El lookahead exige "contrato(s)" cerca (≤40 caracteres)
+      // para no confundir esto con otro "mínimo palabra (N)" que no hable
+      // de contratos (ej. "mínimo tres (3) años de constituidas").
+      const m = criterioTexto.match(/m[ií]nimo\s+(?:de\s+)?(\d+)\s+contratos?/i) ||
+        criterioTexto.match(/(\d+)\s+contratos?\s+como\s+m[ií]nimo/i) ||
+        criterioTexto.match(/m[ií]nimo\s+(?:de\s+)?[a-záéíóúñ]+\s*\((\d+)\)(?=[^.]{0,40}contratos?)/i);
       return m ? parseInt(m[1], 10) : null;
     })();
     const minValor = parseValorUnidad(String(celdas.minValor || '')) || (function(){
@@ -4493,7 +4503,15 @@
     'codigos unspsc', 'porcentajes de participacion', 'condiciones de los contratos',
     'condiciones tecnicas', 'experiencia relacionada'
   ];
-  const REGEX_ANCLAS_EXPERIENCIA = new RegExp('(?:' + ANCLAS_EXPERIENCIA.map(patronAncla).join('|') + ')', 'gi');
+  // Mención de una tabla/matriz de experiencia (ej. "Matriz 1 – Experiencia",
+  // común en el "Documento Tipo" de obra pública de Colombia Compra
+  // Eficiente) -- confirmada como ancla propia (no solo como aviso, ver
+  // REGEX_MENCION_TABLA_EXPERIENCIA/posiblesTablasNoLeidas más abajo) con
+  // un pliego real: sin esto, una mención de matriz sin ninguna OTRA ancla
+  // cerca no generaba zona alguna, así que el aviso de "revisar
+  // manualmente" nunca llegaba a dispararse.
+  const PATRON_MATRIZ_EXPERIENCIA = 'matriz\\s*(?:n?[°º]?\\s*\\d+)?\\s*[-–—:]?\\s*(?:de\\s+)?experiencia';
+  const REGEX_ANCLAS_EXPERIENCIA = new RegExp('(?:' + ANCLAS_EXPERIENCIA.map(patronAncla).join('|') + '|' + PATRON_MATRIZ_EXPERIENCIA + ')', 'gi');
 
   // Techo de cuánto texto puede abarcar UNA zona (desde una ancla hasta la
   // siguiente, o hasta el techo si no hay otra ancla cerca) -- evita
@@ -4543,6 +4561,32 @@
   // tocar sus otros llamadores, parsearRequisitosDeFilas). Descarta trozos
   // cuyo rango de offsets se solapa >50% con uno ya aceptado -- dos anclas
   // cercanas no deberían duplicar el mismo requisito.
+  // Auditoría contra 2 pliegos/estudios previos REALES (ver CLAUDE.md):
+  // aceptar cualquier trozo con marcador de lista dentro de una zona ancha
+  // colaba decenas de falsos "requisitos" por documento -- índices
+  // financieros, obligaciones generales del contratista, reglas de
+  // consorcios, encabezados de página repetidos, todos con su propio
+  // "A."/"B."/número pero sin relación real con experiencia. Se exige que
+  // el trozo MISMO (no solo la zona) hable de experiencia Y traiga algo
+  // verificable -- más conservador a propósito: mejor no extraer un
+  // requisito ambiguo que inventar uno que en realidad es ruido.
+  function pareceRequisitoDeExperienciaReal(req){
+    if (!/experien/.test(normHeader(req.criterio))) return false;
+    return req.minContratos != null || req.minValor != null || req.minCantidad != null ||
+      !!req.condicionNoVerificable || !!req.condicionTemporal;
+  }
+
+  // Señal de que la zona menciona una tabla/matriz de experiencia (ej.
+  // "Matriz 1 – Experiencia", común en el "Documento Tipo" de obra pública
+  // de Colombia Compra Eficiente) -- confirmado con un pliego real: ahí es
+  // donde vive la cifra exacta (SMMLV por actividad), pero
+  // extractPdfText/ocrPdfPages concatenan el texto de la página SIN
+  // conservar filas/columnas, así que esos valores quedan fuera de
+  // alcance de este extractor. No se intenta reconstruir la tabla --
+  // mejor avisar la página para revisión manual que forzar una extracción
+  // que saldría mal.
+  const REGEX_MENCION_TABLA_EXPERIENCIA = new RegExp(PATRON_MATRIZ_EXPERIENCIA, 'i');
+
   function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
     const zonas = localizarSeccionesExperiencia(text, paginaOffsets);
     const aceptados = []; // rangos [inicio, fin] absolutos ya usados
@@ -4552,22 +4596,28 @@
       return largoMenor > 0 && (solape / largoMenor) > 0.5;
     });
     const requisitos = [];
+    const posiblesTablasNoLeidas = [];
     zonas.forEach(zona => {
       const chunks = segmentarConOffsets(zona.texto);
+      let aceptadosEnZona = 0;
       chunks.forEach(chunk => {
         const absInicio = zona.inicio + chunk.inicio;
         const absFin = absInicio + chunk.texto.length;
         if (seSolapaMucho(absInicio, absFin)) return;
-        aceptados.push([absInicio, absFin]);
         const req = construirRequisitoDesdeTexto(chunk.texto, requisitos.length, {});
-        if (!req.criterio) return;
+        if (!req.criterio || !pareceRequisitoDeExperienciaReal(req)) return;
+        aceptados.push([absInicio, absFin]);
         req.fuente = fuenteLabel;
         req.pagina = paginaDeOffset(paginaOffsets, absInicio);
         req.anclaDetectada = zona.ancla;
         requisitos.push(req);
+        aceptadosEnZona++;
       });
+      if (!aceptadosEnZona && REGEX_MENCION_TABLA_EXPERIENCIA.test(zona.texto)){
+        posiblesTablasNoLeidas.push({ pagina: zona.pagina, ancla: zona.ancla });
+      }
     });
-    return { requisitos: requisitos, zonas: zonas };
+    return { requisitos: requisitos, zonas: zonas, posiblesTablasNoLeidas: posiblesTablasNoLeidas };
   }
 
   // Detecta cuando el Pliego y el Estudio Previo parecen exigir cosas
@@ -5451,6 +5501,20 @@
   // Envuelve renderResultadoExperiencia (sin cambios -- ya es agnóstica de
   // dónde salieron los requisitos) con el checklist de documentos, el
   // conteo de requisitos por tipo, y las inconsistencias detectadas.
+  // Avisa cuando una zona menciona una tabla/matriz de experiencia (ej.
+  // "Matriz 1 -- Experiencia") que no se pudo interpretar como texto plano
+  // -- ver pareceRequisitoDeExperienciaReal/REGEX_MENCION_TABLA_EXPERIENCIA.
+  // No es un error: es más honesto avisar dónde mirar a mano que inventar
+  // una extracción de una tabla que la app no puede leer.
+  function renderPosiblesTablasHtml(tablas){
+    if (!tablas || !tablas.length) return '';
+    const items = tablas.map(t => '<li>' + escapeHtml(t.fuente) + ', p. ' + (t.pagina || '?') +
+      ' <span style="color:var(--text-muted);">(mención: "' + escapeHtml(t.ancla.replace(/\s+/g, ' ')) + '")</span></li>').join('');
+    return '<div class="analysis-sub">POSIBLE TABLA DE EXPERIENCIA NO LEÍDA</div>' +
+      '<p class="saved-note" style="margin:4px 0 6px;">Estas páginas mencionan una matriz/tabla de experiencia, pero su contenido no se pudo interpretar como texto (las tablas de un PDF no siempre conservan filas y columnas al extraer el texto) -- revísalas a mano antes de confiar en el resultado de abajo.</p>' +
+      '<ul class="analysis-list">' + items + '</ul>';
+  }
+
   function renderRequisitosExperienciaHtml(entry){
     const ev = entry.experienciaResultado;
     const req = entry.requisitosExperiencia || [];
@@ -5459,7 +5523,8 @@
     const conteoHtml = '<div class="saved-note" style="margin-bottom:8px;">Requisitos identificados: ' + req.length +
       ' (' + general + ' de experiencia general, ' + especifica + ' de experiencia específica)' +
       (entry.estudioPrevioText ? '.' : ' -- basado solo en el Pliego de Condiciones (sin Estudio Previo cargado).') + '</div>';
-    return conteoHtml + renderInconsistenciasPliegoEPHtml(entry.inconsistenciasPliegoEP) + renderResultadoExperiencia(ev);
+    return conteoHtml + renderPosiblesTablasHtml(entry.posiblesTablasExperiencia) +
+      renderInconsistenciasPliegoEPHtml(entry.inconsistenciasPliegoEP) + renderResultadoExperiencia(ev);
   }
 
   function bloqueExperienciaHtml(entry){
@@ -6966,14 +7031,29 @@
     const entry = analisis[id];
     if (!entry || !expevalContratos) return;
     const texto = textoPliegoDe(entry);
-    const { requisitos: reqsPliego } = extraerRequisitosDePliego(texto, entry.paginaOffsets, 'Pliego de Condiciones');
-    let reqsEP = [];
+    const pliegoEx = extraerRequisitosDePliego(texto, entry.paginaOffsets, 'Pliego de Condiciones');
+    let reqsEP = [], tablasEP = [];
     if (entry.estudioPrevioText){
-      reqsEP = extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo').requisitos;
+      const epEx = extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo');
+      reqsEP = epEx.requisitos;
+      tablasEP = epEx.posiblesTablasNoLeidas.map(t => Object.assign({ fuente: 'Estudio Previo' }, t));
     }
-    const todos = reqsPliego.concat(reqsEP);
+    const todos = pliegoEx.requisitos.concat(reqsEP);
     entry.requisitosExperiencia = todos;
-    entry.inconsistenciasPliegoEP = detectarInconsistenciasPliegoEP(reqsPliego, reqsEP);
+    entry.inconsistenciasPliegoEP = detectarInconsistenciasPliegoEP(pliegoEx.requisitos, reqsEP);
+    // Tablas/matrices de experiencia mencionadas pero no interpretables
+    // como texto plano (ver pareceRequisitoDeExperienciaReal/
+    // REGEX_MENCION_TABLA_EXPERIENCIA) -- deduplicadas por fuente+página,
+    // varias anclas cercanas de la misma tabla real no deberían mostrarse
+    // como avisos repetidos.
+    const tablas = pliegoEx.posiblesTablasNoLeidas.map(t => Object.assign({ fuente: 'Pliego de Condiciones' }, t)).concat(tablasEP);
+    const vistas = new Set();
+    entry.posiblesTablasExperiencia = tablas.filter(t => {
+      const k = t.fuente + '|' + t.pagina;
+      if (vistas.has(k)) return false;
+      vistas.add(k);
+      return true;
+    });
     entry.experienciaResultado = evaluarExperienciaCompleta(expevalContratos.contratos, todos);
     analisis[id] = entry;
     saveAnalisis();
