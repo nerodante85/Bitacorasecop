@@ -3304,3 +3304,8 @@ en la misma sesión queda sin ningún dato de experiencia (el gate es por
 proceso, no global). Dashboard actualizado correctamente ("1 proceso con
 experiencia evaluada -- 0 CUMPLE"). Sin overflow en 375px. 0 errores de
 consola en todo el flujo.
+
+**Confirmado en iPhone real por el usuario**: mismo patrón que las rondas
+anteriores -- solo se pudo probar en Chromium emulado en este entorno,
+nunca Safari/WebKit real. El usuario probó el sitio en producción con su
+propio iPhone y confirmó que funciona bien.
