@@ -1201,18 +1201,16 @@
           <div class="titleblock" id="bt-flujo-panel">
             <div class="titleblock-head">
               <h2>Preparación para analizar un pliego</h2>
-              <span>Los pasos 1 a 3 se hacen una sola vez; los pasos 4 y 5 se repiten con cada pliego que analices (marcados con el separador punteado)</span>
+              <span>Los pasos 1 y 2 se hacen una sola vez; los pasos 3 y 4 se repiten con cada pliego que analices (marcados con el separador punteado) -- los requisitos de experiencia se extraen automáticamente del Pliego/Estudio Previo de cada proceso, no de un paso aparte</span>
             </div>
             <div class="steps" id="bt-flujo-steps">
               <div class="step" data-step="1"><span class="step-circle">1</span><span class="step-label">Experiencia</span></div>
               <span class="step-sep"></span>
-              <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Análisis</span></div>
-              <span class="step-sep"></span>
-              <div class="step" data-step="3"><span class="step-circle">3</span><span class="step-label">Personal</span></div>
+              <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Personal</span></div>
               <span class="step-sep step-sep-group"></span>
-              <div class="step" data-step="4"><span class="step-circle">4</span><span class="step-label">Pliego</span></div>
+              <div class="step" data-step="3"><span class="step-circle">3</span><span class="step-label">Pliego</span></div>
               <span class="step-sep"></span>
-              <div class="step" data-step="5"><span class="step-circle">5</span><span class="step-label">Resultado</span></div>
+              <div class="step" data-step="4"><span class="step-circle">4</span><span class="step-label">Resultado</span></div>
             </div>
             <div id="bt-flujo-mensaje"></div>
           </div>
@@ -1378,23 +1376,19 @@
         <section class="view" id="view-experiencia" data-view="experiencia" role="tabpanel" aria-labelledby="bt-nav-experiencia" hidden>
           <div class="view-header">
             <h1>Experiencia</h1>
-            <p>Carga la experiencia de tu empresa y la matriz de requisitos del proceso para saber si cumples, en cuatro pasos.</p>
+            <p>Carga la experiencia acreditada de tu empresa. Los requisitos que exige cada proceso se extraen automáticamente del Pliego de Condiciones y/o Estudio Previo al analizar ese pliego, en "Buscar procesos" -- ya no hace falta preparar una matriz aparte.</p>
           </div>
 
           <div class="steps" id="bt-expeval-steps">
             <div class="step" data-step="1"><span class="step-circle">1</span><span class="step-label">Cargar experiencia</span></div>
             <span class="step-sep"></span>
-            <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Cargar matriz</span></div>
-            <span class="step-sep"></span>
-            <div class="step" data-step="3"><span class="step-circle">3</span><span class="step-label">Analizar</span></div>
-            <span class="step-sep"></span>
-            <div class="step" data-step="4"><span class="step-circle">4</span><span class="step-label">Revisar resultados</span></div>
+            <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Listo</span></div>
           </div>
 
           <div class="titleblock" id="bt-expeval-panel">
             <div class="titleblock-head">
-              <h2>Evaluación de experiencia</h2>
-              <span>CUMPLE / NO CUMPLE / NO DETERMINABLE, con evidencia y justificación por requisito</span>
+              <h2>Experiencia acreditada de tu empresa</h2>
+              <span>Se compara, requisito por requisito, contra lo que exija el Pliego/Estudio Previo de cada proceso que analices en "Buscar procesos"</span>
             </div>
 
             <div class="expeval-uploads">
@@ -1416,34 +1410,12 @@
               </details>
             </div>
 
-            <div class="expeval-uploads">
-              <div class="field-label-row"><span class="step-num">2</span> Matriz de experiencia (formato de requisitos)</div>
-              <div class="dropzone" id="bt-expeval-matriz-upload" tabindex="0" role="button" aria-label="Cargar Excel, PDF o Word de la matriz de requisitos">
-                <div class="dropzone-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.6-2 4.5 4.5 0 0 1 1.4 8.7"/><path d="M12 21v-8"/><path d="M9 16l3-3 3 3"/></svg></div>
-                <div class="dropzone-title">Cargar matriz de requisitos</div>
-                <div class="dropzone-sub">Arrastra tu archivo aquí o haz clic para seleccionarlo -- Excel, PDF o Word</div>
-                <div class="dropzone-types">Excel, PDF o Word</div>
-              </div>
-              <input type="file" accept=".xlsx,.xls,.csv,.pdf,.docx" id="bt-expeval-matriz-file" hidden>
-              <div class="saved-note" id="bt-expeval-matriz-status" style="margin-top:8px;">Sin cargar.</div>
-              <details class="expeval-review">
-                <summary>Ver ejemplo de formato aceptado</summary>
-                <p class="saved-note" style="margin:8px 0;">En Excel, cualquier encabezado parecido sirve (por ejemplo "Requisito" o "Descripción del requisito" en vez de "Criterio"). En PDF o Word sin tabla, cada punto numerado, con letra o con viñeta de la lista de requisitos se toma como un requisito distinto.</p>
-                <div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Tipo</th><th>N° mínimo de contratos</th><th>Valor mínimo exigido</th></tr></thead><tbody>
-                  <tr><td>Experiencia específica en construcción de vías urbanas</td><td>Específica</td><td>1</td><td>500.000.000</td></tr>
-                </tbody></table></div>
-              </details>
-            </div>
-
             <div id="bt-expeval-review"></div>
             <div class="actions">
-              <button class="btn-primary" id="bt-expeval-run" disabled>Analizar información</button>
-              <button class="link-btn" id="bt-expeval-informe" style="display:none">Descargar informe (.txt)</button>
               <button class="link-btn" id="bt-expeval-clear" style="display:none">Borrar lo cargado</button>
             </div>
-            <div id="bt-expeval-out"></div>
           </div>
-          <div class="saved-note" id="bt-expeval-siguiente-paso" hidden>Ya evaluaste la experiencia. Siguiente paso: ve a "Personal" para registrar el equipo de trabajo, y después a "Buscar procesos" para analizar el pliego que te interese.</div>
+          <div class="saved-note" id="bt-expeval-siguiente-paso" hidden>Ya cargaste tu experiencia. Siguiente paso: ve a "Personal" para registrar el equipo de trabajo, y después a "Buscar procesos" para analizar el pliego que te interese -- ahí se extraen los requisitos y se evalúa el cumplimiento.</div>
         </section>
 
         <section class="view" id="view-personal" data-view="personal" role="tabpanel" aria-labelledby="bt-nav-personal" hidden>
@@ -2095,14 +2067,8 @@
   const expevalExpUploadBtn = document.getElementById('bt-expeval-exp-upload');
   const expevalExpFileEl = document.getElementById('bt-expeval-exp-file');
   const expevalExpStatusEl = document.getElementById('bt-expeval-exp-status');
-  const expevalMatrizUploadBtn = document.getElementById('bt-expeval-matriz-upload');
-  const expevalMatrizFileEl = document.getElementById('bt-expeval-matriz-file');
-  const expevalMatrizStatusEl = document.getElementById('bt-expeval-matriz-status');
   const expevalReviewEl = document.getElementById('bt-expeval-review');
-  const expevalRunBtn = document.getElementById('bt-expeval-run');
-  const expevalInformeBtn = document.getElementById('bt-expeval-informe');
   const expevalClearBtn = document.getElementById('bt-expeval-clear');
-  const expevalOutEl = document.getElementById('bt-expeval-out');
   const personalSelectEl = document.getElementById('bt-personal-select');
   const personalNombreEl = document.getElementById('bt-personal-nombre');
   const personalNuevoBtn = document.getElementById('bt-personal-nuevo');
@@ -2880,14 +2846,14 @@
     }
   }
 
-  // Evaluación de experiencia (Excel proponente vs Excel matriz): se guarda
-  // todo junto (contratos parseados, requisitos parseados, metadatos de los
-  // archivos y el último resultado) para no repetir la lectura del Excel al
-  // recargar la página.
+  // Experiencia acreditada de la empresa (Fuente A) -- global, se sube una
+  // vez y se reutiliza en cualquier proceso. Los requisitos con los que se
+  // compara YA NO se cargan aquí (ver "Experiencia requerida", por proceso,
+  // dentro de renderAnalysisHtml) -- salen del Pliego/Estudio Previo de
+  // cada proceso puntual, así que el resultado tampoco es global: vive en
+  // `analisis[id].experienciaResultado`.
   let expevalContratos = null;   // { headers, cols, contratos } de parsearExcelExperiencia
-  let expevalRequisitos = null;  // { headers, cols, requisitos } de parsearMatrizExperiencia
-  let expevalMeta = null;        // { expFile, matrizFile }
-  let expevalResultado = null;   // resultado de evaluarExperienciaCompleta
+  let expevalMeta = null;        // { expFile, nContratos }
 
   async function loadExpEval(){
     try {
@@ -2895,9 +2861,10 @@
       if (r && r.value){
         const d = JSON.parse(r.value);
         expevalContratos = d.contratos || null;
-        expevalRequisitos = d.requisitos || null;
         expevalMeta = d.meta || null;
-        expevalResultado = d.resultado || null;
+        // d.requisitos/d.resultado (matriz manual, ya eliminada) se ignoran
+        // a propósito -- dato viejo de sesiones anteriores, se deja tal
+        // cual en localStorage en vez de borrarlo, no hace falta migrarlo.
       }
     } catch(e){ /* nada guardado aún */ }
   }
@@ -2905,7 +2872,7 @@
   async function saveExpEval(){
     try {
       await window.storage.set('experiencia_evaluacion', JSON.stringify({
-        contratos: expevalContratos, requisitos: expevalRequisitos, meta: expevalMeta, resultado: expevalResultado
+        contratos: expevalContratos, meta: expevalMeta
       }), false);
     } catch(e){
       console.error('No se pudo guardar la evaluación de experiencia', e);
@@ -2948,21 +2915,25 @@
   // usuario, para que el sistema conozca la empresa antes de juzgar si
   // puede responder a un pliego puntual.
   // ============================================================
+  // La experiencia de la empresa (Fuente A) ya no necesita una "evaluación"
+  // global previa -- los requisitos con los que se compara ahora salen del
+  // Pliego/Estudio Previo de CADA proceso puntual, así que esa comparación
+  // solo puede correr una vez que el pliego de ese proceso ya se analizó
+  // (ver "Experiencia requerida", dentro de renderAnalysisHtml). El único
+  // prerrequisito global real que queda es tener la experiencia cargada.
   function estadoFlujoPliego(){
     const experienciaCargada = !!(expevalContratos && expevalContratos.contratos && expevalContratos.contratos.length);
-    const experienciaAnalizada = !!expevalResultado;
     const perfilesCargados = Object.keys(perfilesProfesionales).length > 0;
     return {
       experienciaCargada: experienciaCargada,
-      experienciaAnalizada: experienciaAnalizada,
       perfilesCargados: perfilesCargados,
-      listo: experienciaCargada && experienciaAnalizada && perfilesCargados
+      listo: experienciaCargada && perfilesCargados
     };
   }
 
   function mensajeFlujoFaltante(flujo){
     const falta = [];
-    if (!flujo.experienciaCargada || !flujo.experienciaAnalizada) falta.push('completar el análisis de experiencia');
+    if (!flujo.experienciaCargada) falta.push('cargar la experiencia acreditada de tu empresa');
     if (!flujo.perfilesCargados) falta.push('registrar al menos un perfil profesional en "Personal"');
     return 'Para analizar el pliego primero debes ' + falta.join(' y ') + '.';
   }
@@ -3550,12 +3521,12 @@
 
   // Construye UN requisito a partir de su texto de criterio + (opcional)
   // valores de celda ya separados por columna. `celdas` viene lleno cuando el
-  // origen es un Excel con columnas propias (parsearMatrizExperiencia) y
-  // vacío `{}` cuando el origen es texto libre de PDF (parsearMatrizExperien
-  // ciaPDF) -- en ese segundo caso TODO sale de los mismos regex sobre
-  // criterioTexto que ya existían como respaldo cuando el Excel no traía una
-  // columna separada para un campo. Compartir esta función entre los dos
-  // orígenes evita mantener la misma lógica de extracción dos veces.
+  // origen es un Excel/Word con columnas propias (parsearRequisitosDeFilas) y
+  // vacío `{}` cuando el origen es texto libre (Pliego/Estudio Previo, ver
+  // extraerRequisitosDePliego) -- en ese segundo caso TODO sale de los mismos
+  // regex sobre criterioTexto que ya existían como respaldo cuando el Excel
+  // no traía una columna separada para un campo. Compartir esta función
+  // entre los distintos orígenes evita mantener la misma lógica dos veces.
   // Auditoría pedida por el usuario ("PREOCUPACIÓN CRÍTICA — MÉTODO DE
   // ANÁLISIS DE CUMPLIMIENTO DE EXPERIENCIA", plan aprobado en
   // elegant-wandering-dewdrop.md): el motor solo modelaba 3 condiciones
@@ -3771,25 +3742,23 @@
     return { headers: headers, cols: cols, requisitos: requisitos, fuente: 'excel' };
   }
 
-  function parsearMatrizExperiencia(workbook){
-    return parsearRequisitosDeFilas(leerHojaComoFilas(workbook));
-  }
+  // Marcador de lista compartido por los dos segmentadores de texto libre de
+  // abajo -- corta ANTES de cada marcador (numerado "1.", con letra "a)",
+  // viñeta, "Requisito N", "N°N") seguido de mayúscula, para no partir
+  // dentro de un número con separador de miles ("1.200.000.000", sin
+  // espacio alrededor del punto). No hay NLP/interpretación semántica real
+  // -- es un heurístico de formato de lista, igual de "por reglas" que el
+  // resto del motor.
+  const MARCADOR_REQUISITO_LISTA = /(?:\d{1,2}[.)]|[a-jA-J][.)]|[•▪●]|[Rr]equisito\s+\d{1,2}[:.]?|N[°º]\s?\d{1,2}[:.]?)\s{0,2}[A-ZÁÉÍÓÚÑ]/;
 
-  // Segmenta el texto plano de un PDF (matriz de requisitos sin Excel) en
-  // candidatos a "un requisito por trozo" -- corta ANTES de cada marcador de
-  // lista (numerado "1.", con letra "a)", viñeta, "Requisito N", "N°N") que
-  // venga seguido de mayúscula, para no partir dentro de un número con
-  // separador de miles ("1.200.000.000", sin espacio alrededor del punto).
-  // No hay NLP/interpretación semántica real -- es un heurístico de formato
-  // de lista, igual de "por reglas" que el resto del motor. Por eso el panel
-  // de "Revisar interpretación" es más importante aquí que con un Excel: la
-  // segmentación de texto libre es más incierta que leer columnas.
+  // Segmenta texto libre en candidatos a "un requisito por trozo" (texto
+  // normalizado, sin offsets -- ver segmentarConOffsets para la variante que
+  // preserva el índice de cada trozo, usada por extraerRequisitosDePliego).
   function segmentarTextoEnRequisitos(texto){
     const t = String(texto || '').replace(/\s+/g, ' ').trim();
     if (!t) return [];
-    const marcador = /(?:\d{1,2}[.)]|[a-jA-J][.)]|[•▪●]|[Rr]equisito\s+\d{1,2}[:.]?|N[°º]\s?\d{1,2}[:.]?)\s{0,2}[A-ZÁÉÍÓÚÑ]/;
-    const marcadorInicio = new RegExp('^' + marcador.source);
-    let partes = t.split(new RegExp('\\s+(?=' + marcador.source + ')')).map(p => p.trim()).filter(Boolean);
+    const marcadorInicio = new RegExp('^' + MARCADOR_REQUISITO_LISTA.source);
+    let partes = t.split(new RegExp('\\s+(?=' + MARCADOR_REQUISITO_LISTA.source + ')')).map(p => p.trim()).filter(Boolean);
     // Si el primer trozo NO arranca con un marcador (y sí hubo al menos un
     // marcador real más adelante, o no habría más de un trozo), es texto
     // suelto antes del primer ítem -- típicamente el título del documento
@@ -3798,10 +3767,29 @@
     return partes.filter(p => p.length > 15);
   }
 
-  function parsearMatrizExperienciaPDF(texto){
-    const chunks = segmentarTextoEnRequisitos(texto);
-    const requisitos = chunks.map((chunk, i) => construirRequisitoDesdeTexto(chunk, i, {})).filter(r => r.criterio);
-    return { headers: [], cols: {}, requisitos: requisitos, fuente: 'pdf' };
+  // Igual que segmentarTextoEnRequisitos, pero sobre el texto TAL CUAL viene
+  // (sin normalizar espacios primero) y devolviendo, junto a cada trozo, el
+  // índice de carácter donde empieza dentro de ESE texto -- necesario para
+  // extraerRequisitosDePliego, que tiene que resolver cada trozo a una
+  // página real vía paginaDeOffset. No colapsa `\s+` a un solo espacio
+  // porque eso movería los índices; en cambio recorta espacios sueltos
+  // SOLO en los bordes de cada trozo ya cortado (no cambia dónde empieza).
+  function segmentarConOffsets(texto){
+    const t = String(texto || '');
+    if (!t.trim()) return [];
+    const re = new RegExp('\\s+(?=' + MARCADOR_REQUISITO_LISTA.source + ')', 'g');
+    const cortes = [0];
+    let m;
+    while ((m = re.exec(t))) cortes.push(m.index);
+    let partes = cortes.map((inicio, i) => {
+      const fin = i + 1 < cortes.length ? cortes[i + 1] : t.length;
+      const crudo = t.slice(inicio, fin);
+      const espacioIzq = crudo.match(/^\s*/)[0].length;
+      return { texto: crudo.slice(espacioIzq).replace(/\s+$/, ''), inicio: inicio + espacioIzq };
+    }).filter(p => p.texto);
+    const marcadorInicio = new RegExp('^' + MARCADOR_REQUISITO_LISTA.source);
+    if (partes.length > 1 && !marcadorInicio.test(partes[0].texto)) partes = partes.slice(1);
+    return partes.filter(p => p.texto.length > 15);
   }
 
   // Extrae un valor en pesos de texto libre SOLO cuando hay una señal fuerte
@@ -4137,14 +4125,12 @@
   }
 
   const ETIQUETAS_CONTRATO = { objeto: 'Objeto', contratante: 'Contratante', valor: 'Valor', fechaInicio: 'Fecha inicio', fechaFin: 'Fecha fin', duracion: 'Duración', cantidad: 'Cantidad', tipo: 'Tipo (general/específica)', actividades: 'Actividades', numeroContrato: 'N° contrato', participacion: '% participación' };
-  const ETIQUETAS_REQUISITO = { criterio: 'Criterio / requisito', tipo: 'Tipo', minContratos: 'Mín. contratos', minValor: 'Valor mínimo', minCantidad: 'Cantidad mínima', obligatoriedad: 'Obligatoriedad', acumulable: 'Acumulable', grupo: 'Grupo alternativo' };
   // Campos sin los cuales el análisis queda cojo -- el resto (fechas,
   // duración, cantidad, etc.) suma evidencia pero su ausencia no impide
   // evaluar. Se usan para resaltar la fila y abrir el panel solo. Auditoría
   // "primer uso": antes esto era invisible -- un primerizo veía 6 "no
   // detectada" de 11 sin saber si eso arruinaba el análisis.
   const CAMPOS_ESENCIALES_CONTRATO = ['objeto'];
-  const CAMPOS_ESENCIALES_REQUISITO = ['criterio'];
 
   function renderColumnasDetectadas(titulo, headers, cols, etiquetas, nRegistros, camposEsenciales){
     camposEsenciales = camposEsenciales || [];
@@ -4165,32 +4151,14 @@
       '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Campo</th><th>Columna del Excel usada</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
   }
 
-  // Igual que renderColumnasDetectadas pero para un origen SIN columnas
-  // (PDF, o un .docx que no traía tabla): en vez de mapear columnas, lista
-  // CADA requisito que la segmentación detectó (el texto completo del
-  // trozo + lo que se interpretó de él) para que el usuario confirme que
-  // el corte tuvo sentido antes de correr la evaluación -- abierto por
-  // defecto (`open`), a diferencia del Excel, porque revisar la
-  // segmentación es más importante cuando viene de texto libre que cuando
-  // viene de columnas.
-  function renderRequisitosDetectadosTexto(requisitos, fuenteLabel){
-    const filas = requisitos.map((r, i) => '<tr><td>' + (i + 1) + '</td>' +
-      '<td>' + escapeHtml(truncate(r.criterio, 220)) + '</td>' +
-      '<td>' + escapeHtml(r.obligatoriedad) + '</td>' +
-      '<td>' + (r.minContratos != null ? r.minContratos : '—') + '</td>' +
-      '<td>' + (r.minValor ? r.minValor.valor + ' ' + r.minValor.unidad : '—') + '</td>' +
-      '<td>' + (r.minCantidad ? r.minCantidad.valor : '—') + '</td></tr>').join('');
-    return '<details class="expeval-review" open><summary>Revisar interpretación: Matriz de experiencia (' + escapeHtml(fuenteLabel) + ') -- ' + requisitos.length + ' requisito(s) detectado(s), confirma que el corte tenga sentido</summary>' +
-      '<p class="saved-note" style="margin:8px 0;">El archivo no trae columnas -- cada fila de abajo es un trozo de texto que se identificó como un posible requisito nuevo (por numeración, letra o viñeta). Si un requisito quedó partido en dos filas o dos requisitos quedaron juntos en una, corrígelo cargando el Excel si lo tienes, o revisa el resultado final con más cuidado.</p>' +
-      '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>#</th><th>Texto detectado</th><th>Obligatoriedad</th><th>Mín. contratos</th><th>Valor mínimo</th><th>Cantidad mínima</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
-  }
-
-  // Análogo a renderRequisitosDetectadosTexto pero para contratos (Fuente
+  // Lista CADA contrato que la segmentación de texto libre detectó (Fuente
   // A): cada fila reconstruida de un PDF (por posición) o de un Word sin
   // tabla (por línea), con lo poco que construirContratoDesdeTexto pudo
   // reconocer con confianza -- el resto ("—") es honesto en vez de
   // inventado, y el usuario lo ve de entrada, no lo descubre recién en el
-  // resultado final.
+  // resultado final. Abierto por defecto (`open`), a diferencia del panel
+  // de columnas de Excel, porque revisar la segmentación es más importante
+  // cuando viene de texto libre que cuando viene de columnas.
   function renderContratosDetectadosTexto(contratos, fuenteLabel){
     const filas = contratos.map((c, i) => '<tr><td>' + (i + 1) + '</td>' +
       '<td>' + escapeHtml(truncate(c.objeto || '', 220)) + '</td>' +
@@ -4243,7 +4211,12 @@
         ? r.contratosEvaluados.map(c => 'Fila ' + c.fila + (c.objeto ? ': ' + escapeHtml(truncate(c.objeto, 90)) : '') + (c.valor != null ? ' · valor ' + c.valor : '')).join('<br>')
         : '—';
       const grupoTag = grupoPorReqId[r.requisito.id] != null ? ' <span class="tag" title="Este requisito se evalúa como parte de un grupo -- ver arriba">Grupo ' + (grupoPorReqId[r.requisito.id] + 1) + '</span>' : '';
-      return '<tr><td>' + escapeHtml(truncate(r.requisito.criterio, 160)) + ' <span class="tag">' + escapeHtml(r.requisito.obligatoriedad) + '</span>' + grupoTag + '</td>' +
+      // fuente/pagina solo existen en requisitos extraídos del Pliego/Estudio
+      // Previo (ver extraerRequisitosDePliego) -- un requisito viejo de la
+      // matriz manual (ya eliminada, pero puede seguir en datos guardados) no
+      // los tiene, así que el badge se omite en vez de mostrar "undefined".
+      const fuenteTag = r.requisito.fuente ? ' <span class="tag fuente" title="' + escapeHtml(r.requisito.anclaDetectada || '') + '">' + escapeHtml(r.requisito.fuente) + (r.requisito.pagina ? ', p. ' + r.requisito.pagina : '') + '</span>' : '';
+      return '<tr><td>' + escapeHtml(truncate(r.requisito.criterio, 160)) + ' <span class="tag">' + escapeHtml(r.requisito.obligatoriedad) + '</span>' + grupoTag + fuenteTag + '</td>' +
         '<td>' + escapeHtml(r.evidencia.join(' ') || '—') + '</td>' +
         '<td>' + evid + '</td>' +
         '<td>' + badgeExpEval(r.resultado) + '</td>' +
@@ -4258,8 +4231,8 @@
     L.push('INFORME DE EVALUACIÓN DE EXPERIENCIA');
     L.push('Generado: ' + new Date().toLocaleString('es-CO'));
     if (meta){
-      L.push('Excel de experiencia: ' + (meta.expFile || '—') + ' (' + (meta.nContratos || 0) + ' contratos leídos)');
-      L.push('Matriz de experiencia: ' + (meta.matrizFile || '—') + ' (' + (meta.nRequisitos || 0) + ' requisitos leídos)');
+      L.push('Experiencia del proponente: ' + (meta.expFile || '—') + ' (' + (meta.nContratos || 0) + ' contratos leídos)');
+      L.push('Pliego de Condiciones: ' + (meta.pliegoFile || '—') + (meta.estudioPrevioFile ? ' · Estudio Previo: ' + meta.estudioPrevioFile : ' (sin Estudio Previo cargado)'));
     }
     L.push('');
     const rc = ev.resumenContratos || {};
@@ -4301,20 +4274,22 @@
     return L.join('\n');
   }
 
-  // Traduce el resultado de la evaluación de experiencia independiente (Excel
-  // del proponente vs matriz, sección "Evaluación de experiencia") al estado
-  // ok/revisar/fail/nd que usa el semáforo go/no-go, con un detalle legible.
-  // Es la MISMA para cualquier perfil comparado -- esa evaluación ya no
-  // distingue por empresa (no está en el perfil), a propósito.
-  function experienciaGateDetalle(){
-    if (!expevalResultado || !expevalResultado.resultados || !expevalResultado.resultados.length){
-      return { estado: 'nd', detalle: 'Sin evaluación de experiencia -- cárgala en la sección "Evaluación de experiencia" (Excel del proponente + matriz de requisitos).' };
+  // Traduce el resultado de experiencia de ESTE proceso puntual (los
+  // requisitos salen de su Pliego/Estudio Previo, ver "Experiencia
+  // requerida" en renderAnalysisHtml) al estado ok/revisar/fail/nd que usa
+  // el semáforo go/no-go, con un detalle legible. Ya no es un resultado
+  // global compartido por todos los procesos -- depende de `entry` (el
+  // análisis de pliego de este proceso), porque los requisitos mismos
+  // dependen de qué proceso se está mirando.
+  function experienciaGateDetalle(entry){
+    if (!entry || !entry.experienciaResultado || !entry.experienciaResultado.resultados || !entry.experienciaResultado.resultados.length){
+      return { estado: 'nd', detalle: 'Analiza el pliego de este proceso (y evalúa la experiencia requerida, en "Experiencia requerida" debajo del análisis) para conocer el cumplimiento de experiencia.' };
     }
-    const ev = expevalResultado;
+    const ev = entry.experienciaResultado;
     const estado = ev.resultadoGlobal === 'CUMPLE' ? 'ok' : (ev.resultadoGlobal === 'NO CUMPLE' ? 'fail' : 'revisar');
-    const detalle = 'Evaluación de experiencia: ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' +
+    const detalle = 'Experiencia requerida por este proceso: ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' +
       ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' +
-      ev.resultados.length + ' requisito(s), ' + ev.totalObligatorios + ' obligatorio(s)). Ver detalle en "Evaluación de experiencia".';
+      ev.resultados.length + ' requisito(s), ' + ev.totalObligatorios + ' obligatorio(s)). Ver detalle en "Experiencia requerida" debajo del análisis del pliego.';
     return { estado: estado, detalle: detalle };
   }
 
@@ -4479,6 +4454,176 @@
     let score = 100;
     (redFlags || []).forEach(f => { score -= (PESO_SEVERIDAD[f.severidad] || 10); });
     return Math.max(0, score);
+  }
+
+  // Devuelve el texto completo del pliego ya analizado de un `entry`,
+  // cualquiera haya sido el camino que lo produjo (capa de texto normal o
+  // OCR por tandas) -- un solo punto de lectura en vez de que cada llamador
+  // tenga que saber cuál de los dos campos revisar.
+  function textoPliegoDe(entry){
+    return entry ? (entry.viaOcr ? entry.ocrText : entry.text) : '';
+  }
+
+  // ── Requisitos de experiencia extraídos del Pliego/Estudio Previo ───────
+  // Reemplaza la "matriz de requisitos" subida a mano: los requisitos que
+  // exige un proceso YA están en su Pliego de Condiciones y/o Estudio
+  // Previo -- pedirle al usuario que los transcriba a un documento aparte
+  // era trabajo redundante y una fuente de error. Ver
+  // elegant-wandering-dewdrop.md para el diseño completo.
+  //
+  // Frases ancla del pedido del usuario (sección 2 del prompt) -- localizan
+  // ZONAS del texto que hablan de experiencia, sin limitarse a coincidencias
+  // exactas de una sola palabra. Normalizadas con normHeader (sin tildes,
+  // minúsculas) para comparar contra el texto también normalizado.
+  // El regex corre sobre el texto ORIGINAL sin normalizar (hace falta
+  // preservar los índices reales para paginaDeOffset) -- por eso cada vocal
+  // se vuelve tolerante a tilde en vez de normalizar el texto primero
+  // (normHeader colapsa espacios y desplazaría los índices).
+  function patronAncla(frase){
+    return frase
+      .replace(/a/g, '[aá]').replace(/e/g, '[eé]').replace(/i/g, '[ií]')
+      .replace(/o/g, '[oó]').replace(/u/g, '[uúü]').replace(/n/g, '[nñ]')
+      .replace(/\s+/g, '\\s+');
+  }
+  const ANCLAS_EXPERIENCIA = [
+    'experiencia general', 'experiencia especifica', 'experiencia del proponente',
+    'experiencia habilitante', 'requisitos de experiencia', 'experiencia minima',
+    'contratos requeridos', 'experiencia acreditable', 'valor minimo',
+    'numero minimo de contratos', 'objetos contractuales', 'actividades requeridas',
+    'codigos unspsc', 'porcentajes de participacion', 'condiciones de los contratos',
+    'condiciones tecnicas', 'experiencia relacionada'
+  ];
+  const REGEX_ANCLAS_EXPERIENCIA = new RegExp('(?:' + ANCLAS_EXPERIENCIA.map(patronAncla).join('|') + ')', 'gi');
+
+  // Techo de cuánto texto puede abarcar UNA zona (desde una ancla hasta la
+  // siguiente, o hasta el techo si no hay otra ancla cerca) -- evita
+  // arrastrar la mitad del documento cuando dos menciones de experiencia
+  // quedan muy separadas (ej. una en la tabla de contenido, otra 30 páginas
+  // después). No es un límite fino, solo una salvaguarda de costo/ruido.
+  const ZONA_EXPERIENCIA_MAX_CHARS = 6000;
+
+  // Localiza zonas del texto (Pliego o Estudio Previo) que mencionan
+  // experiencia, citando la página real de cada ancla -- NUNCA inventa una
+  // zona si no hay ninguna ancla (devuelve []). Mismo patrón que
+  // detectarRedFlags: regex sobre el texto completo + paginaDeOffset.
+  // Distancia máxima entre dos anclas para tratarlas como la MISMA zona (ej.
+  // un encabezado "Requisitos de experiencia" seguido, pocas palabras
+  // después, por "Experiencia específica" del primer ítem de la lista) --
+  // sin agruparlas, cada ancla nueva recortaría a la anterior justo antes
+  // de su propio contenido real, dejando un fragmento fantasma sin
+  // sustancia (ej. "Requisitos de experiencia: 1." solo, sin el texto que
+  // sigue). Valor inicial sin validar contra un Pliego real -- ver
+  // CLAUDE.md.
+  const GAP_MAX_CLUSTER_EXPERIENCIA = 800;
+
+  function localizarSeccionesExperiencia(text, paginaOffsets){
+    const t = String(text || '');
+    const matches = [...t.matchAll(REGEX_ANCLAS_EXPERIENCIA)];
+    if (!matches.length) return [];
+    const clusters = [];
+    matches.forEach(m => {
+      const actual = clusters[clusters.length - 1];
+      if (actual && (m.index - actual.finMatch) < GAP_MAX_CLUSTER_EXPERIENCIA){
+        actual.finMatch = m.index + m[0].length;
+      } else {
+        clusters.push({ inicio: m.index, finMatch: m.index + m[0].length, ancla: m[0] });
+      }
+    });
+    return clusters.map((c, i) => {
+      const finSiguiente = i + 1 < clusters.length ? clusters[i + 1].inicio : t.length;
+      const fin = Math.min(finSiguiente, c.inicio + ZONA_EXPERIENCIA_MAX_CHARS, t.length);
+      return { ancla: c.ancla, pagina: paginaDeOffset(paginaOffsets, c.inicio), inicio: c.inicio, fin: fin, texto: t.slice(c.inicio, fin) };
+    });
+  }
+
+  // Convierte las zonas localizadas arriba en requisitos estructurados,
+  // reutilizando construirRequisitoDesdeTexto SIN modificarla -- el único
+  // agregado es `fuente`/`pagina`/`anclaDetectada` como propiedades extra
+  // sobre el objeto que ya devuelve (wrapper, no cambio de firma: evita
+  // tocar sus otros llamadores, parsearRequisitosDeFilas). Descarta trozos
+  // cuyo rango de offsets se solapa >50% con uno ya aceptado -- dos anclas
+  // cercanas no deberían duplicar el mismo requisito.
+  function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
+    const zonas = localizarSeccionesExperiencia(text, paginaOffsets);
+    const aceptados = []; // rangos [inicio, fin] absolutos ya usados
+    const seSolapaMucho = (a0, a1) => aceptados.some(([b0, b1]) => {
+      const solape = Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
+      const largoMenor = Math.min(a1 - a0, b1 - b0);
+      return largoMenor > 0 && (solape / largoMenor) > 0.5;
+    });
+    const requisitos = [];
+    zonas.forEach(zona => {
+      const chunks = segmentarConOffsets(zona.texto);
+      chunks.forEach(chunk => {
+        const absInicio = zona.inicio + chunk.inicio;
+        const absFin = absInicio + chunk.texto.length;
+        if (seSolapaMucho(absInicio, absFin)) return;
+        aceptados.push([absInicio, absFin]);
+        const req = construirRequisitoDesdeTexto(chunk.texto, requisitos.length, {});
+        if (!req.criterio) return;
+        req.fuente = fuenteLabel;
+        req.pagina = paginaDeOffset(paginaOffsets, absInicio);
+        req.anclaDetectada = zona.ancla;
+        requisitos.push(req);
+      });
+    });
+    return { requisitos: requisitos, zonas: zonas };
+  }
+
+  // Detecta cuando el Pliego y el Estudio Previo parecen exigir cosas
+  // DISTINTAS para lo que aparenta ser el mismo requisito (sección 11 del
+  // pedido del usuario) -- nunca decide cuál prevalece, solo lo señala para
+  // revisión humana. Emparejamiento deliberadamente conservador (nunca
+  // inventar una relación que no existe, mismo principio ya aplicado en
+  // agruparAlternativos): mismo `tipo` (nunca si alguno es
+  // "no-clasificado"), Jaccard >= 0.6 de palabrasDistintivas, y al menos 2
+  // palabras compartidas (evita que 1 sola palabra en listas cortas
+  // dispare un 0.6 por casualidad).
+  function jaccard(a, b){
+    const A = new Set(a), B = new Set(b);
+    if (!A.size || !B.size) return 0;
+    let inter = 0;
+    A.forEach(x => { if (B.has(x)) inter++; });
+    return inter / (A.size + B.size - inter);
+  }
+
+  function detectarInconsistenciasPliegoEP(reqsPliego, reqsEP){
+    const inconsistencias = [];
+    (reqsPliego || []).forEach(rp => {
+      if (rp.tipo === 'no-clasificado') return;
+      (reqsEP || []).forEach(re => {
+        if (re.tipo === 'no-clasificado' || re.tipo !== rp.tipo) return;
+        const compartidas = rp.palabrasDistintivas.filter(p => re.palabrasDistintivas.includes(p));
+        if (compartidas.length < 2) return;
+        if (jaccard(rp.palabrasDistintivas, re.palabrasDistintivas) < 0.6) return;
+        const camposNumericos = [
+          { campo: 'minContratos', label: 'Número mínimo de contratos', a: rp.minContratos, b: re.minContratos },
+          { campo: 'minValor', label: 'Valor mínimo', a: rp.minValor, b: re.minValor },
+          { campo: 'minCantidad', label: 'Cantidad mínima', a: rp.minCantidad, b: re.minCantidad }
+        ];
+        camposNumericos.forEach(c => {
+          // Solo se marca conflicto cuando AMBOS lados traen un número Y
+          // difieren -- que un lado no diga nada no es evidencia de
+          // desacuerdo, el otro documento puede simplemente no repetirlo.
+          if (c.a == null || c.b == null) return;
+          const va = (c.a && typeof c.a === 'object') ? c.a.valor : c.a;
+          const vb = (c.b && typeof c.b === 'object') ? c.b.valor : c.b;
+          const ua = (c.a && typeof c.a === 'object') ? c.a.unidad : null;
+          const ub = (c.b && typeof c.b === 'object') ? c.b.unidad : null;
+          if (ua && ub && ua !== ub) return; // unidades distintas -- no comparable, no es un conflicto confirmado
+          if (va === vb) return;
+          inconsistencias.push({
+            pliego: rp, estudioPrevio: re, campo: c.campo,
+            valorPliego: va + (ua ? ' ' + ua : ''), valorEP: vb + (ub ? ' ' + ub : ''),
+            paginaPliego: rp.pagina, paginaEP: re.pagina,
+            mensaje: '⚠ POSIBLE INCONSISTENCIA -- requiere revisión del consultor: ' + c.label + ' difiere entre el Pliego (p. ' +
+              (rp.pagina || '?') + ': ' + va + (ua ? ' ' + ua : '') + ') y el Estudio Previo (p. ' + (re.pagina || '?') + ': ' + vb + (ub ? ' ' + ub : '') +
+              ') para "' + (rp.criterio.length > 100 ? rp.criterio.slice(0, 100) + '…' : rp.criterio) + '".'
+          });
+        });
+      });
+    });
+    return inconsistencias;
   }
 
   // Umbrales numéricos que EXIGE el pliego (índices financieros, K residual).
@@ -4767,11 +4912,12 @@
           g('Capacidad K residual', 'nd', 'El pliego la exige (' + ex.kResidual.valor + ' ' + ex.kResidual.unidad + ') pero tu perfil no la tiene en esa unidad.');
         }
       }
-      // Experiencia: YA NO sale del perfil (el perfil no la tiene). Sale de la
-      // evaluación independiente Excel-del-proponente-vs-matriz de la sección
-      // "Evaluación de experiencia" -- es la misma para cualquier perfil
-      // comparado, porque esa evaluación no distingue por empresa.
-      const gExp = experienciaGateDetalle();
+      // Experiencia: YA NO sale del perfil (el perfil no la tiene). Sale de
+      // los requisitos extraídos del Pliego/Estudio Previo de ESTE proceso
+      // comparados contra la experiencia acreditada de la empresa (ver
+      // "Experiencia requerida" en renderAnalysisHtml) -- por eso ahora
+      // depende de `entry`, no es la misma para cualquier proceso.
+      const gExp = experienciaGateDetalle(entry);
       g('Experiencia', gExp.estado, gExp.detalle);
 
       // Personal / equipo de trabajo (solo si el pliego menciona algo de esto).
@@ -5274,10 +5420,65 @@
   // resultado de la evaluación de experiencia independiente dentro del análisis
   // de pliego -- para que quien lo lea sepa dónde está ese dato sin tener que
   // adivinar por qué ya no aparece desglosado por empresa.
-  function bloqueExperienciaHtml(){
-    const g = experienciaGateDetalle();
-    return '<div class="analysis-sub">EXPERIENCIA (evaluación independiente — no varía por perfil)</div>' +
-      '<div style="margin-bottom:8px;">' + escapeHtml(g.detalle) + '</div>';
+  // Estado del Estudio Previo (opcional) de ESTE proceso -- upload +
+  // botón para reemplazarlo, wireados vía los listeners delegados de
+  // resultsEl (data-ep-upload-id / data-ep-id), igual que el resto de los
+  // controles dinámicos dentro de .analysis-slot.
+  function renderEstudioPrevioUploadHtml(entry){
+    const cargado = !!entry.estudioPrevioText;
+    const estado = cargado
+      ? '✓ ' + escapeHtml(entry.estudioPrevioFileName || 'Estudio Previo') + (entry.estudioPrevioViaOcr ? ' (vía OCR)' : '')
+      : 'No cargado (opcional -- si lo tienes, mejora la trazabilidad y permite detectar inconsistencias con el Pliego).';
+    return '<div style="margin-bottom:8px;">' +
+      '<strong>Documentos del proceso:</strong> Pliego de Condiciones ✓ · Estudio Previo: ' + estado + ' ' +
+      '<input type="file" accept=".pdf,.docx" data-ep-id="' + escapeHtml(entry.id || '') + '" style="display:none">' +
+      '<button class="link-btn" data-ep-upload-id="' + escapeHtml(entry.id || '') + '">' + (cargado ? '↻ Reemplazar' : '⬆ Cargar Estudio Previo') + '</button>' +
+      '</div>';
+  }
+
+  // Conflictos numéricos entre requisitos del Pliego y del Estudio Previo
+  // que parecen ser el mismo requisito (ver detectarInconsistenciasPliegoEP)
+  // -- nunca elige un lado, solo los muestra a la vez para que el consultor
+  // decida. Solo se renderiza cuando hay al menos una.
+  function renderInconsistenciasPliegoEPHtml(inconsistencias){
+    if (!inconsistencias || !inconsistencias.length) return '';
+    return '<div class="analysis-sub">POSIBLES INCONSISTENCIAS ENTRE PLIEGO Y ESTUDIO PREVIO (' + inconsistencias.length + ')</div>' +
+      '<ul class="analysis-list">' + inconsistencias.map(i =>
+        '<li><span class="tag redflag-media">REVISAR</span> ' + escapeHtml(i.mensaje) + '</li>'
+      ).join('') + '</ul>';
+  }
+
+  // Envuelve renderResultadoExperiencia (sin cambios -- ya es agnóstica de
+  // dónde salieron los requisitos) con el checklist de documentos, el
+  // conteo de requisitos por tipo, y las inconsistencias detectadas.
+  function renderRequisitosExperienciaHtml(entry){
+    const ev = entry.experienciaResultado;
+    const req = entry.requisitosExperiencia || [];
+    const general = req.filter(r => r.tipo === 'general').length;
+    const especifica = req.filter(r => r.tipo === 'especifica').length;
+    const conteoHtml = '<div class="saved-note" style="margin-bottom:8px;">Requisitos identificados: ' + req.length +
+      ' (' + general + ' de experiencia general, ' + especifica + ' de experiencia específica)' +
+      (entry.estudioPrevioText ? '.' : ' -- basado solo en el Pliego de Condiciones (sin Estudio Previo cargado).') + '</div>';
+    return conteoHtml + renderInconsistenciasPliegoEPHtml(entry.inconsistenciasPliegoEP) + renderResultadoExperiencia(ev);
+  }
+
+  function bloqueExperienciaHtml(entry){
+    const g = experienciaGateDetalle(entry);
+    const epHtml = renderEstudioPrevioUploadHtml(entry);
+    const sinExperienciaEmpresa = !expevalContratos;
+    const btnHtml = sinExperienciaEmpresa
+      ? '<div class="analysis-block analysis-warn">Carga primero la experiencia acreditada de tu empresa en "Experiencia" para poder evaluar el cumplimiento. <button class="link-btn" data-ir-a="experiencia">Ir a Experiencia</button></div>'
+      : '<button class="btn-primary analysis-experiencia-btn" data-experiencia-id="' + escapeHtml(entry.id || '') + '">' +
+        (entry.experienciaResultado ? '↻ Volver a evaluar experiencia' : '🔎 Evaluar cumplimiento de experiencia') + '</button>';
+    const informeBtnHtml = entry.experienciaResultado
+      ? ' <button class="link-btn analysis-experiencia-informe-btn" data-experiencia-informe-id="' + escapeHtml(entry.id || '') + '">⬇ Descargar informe de experiencia (.txt)</button>'
+      : '';
+    const resultadoHtml = entry.experienciaResultado ? renderRequisitosExperienciaHtml(entry) : '';
+    return '<div class="analysis-sub">EXPERIENCIA REQUERIDA (extraída del Pliego/Estudio Previo de este proceso)</div>' +
+      '<div style="margin-bottom:8px;">' + escapeHtml(g.detalle) + '</div>' +
+      epHtml +
+      '<div style="margin-bottom:8px;">' + btnHtml + informeBtnHtml + '</div>' +
+      resultadoHtml;
   }
 
   // ============================================================
@@ -5401,7 +5602,7 @@
       (sinHallazgos
         ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de capacidad K, RUP o experiencia mínima en el texto extraído — revisa el pliego completo.</li></ul>'
         : hallazgosHtml) +
-      bloqueExperienciaHtml() +
+      bloqueExperienciaHtml(entry) +
       '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' +
       perfilesHtml +
       (comps.length
@@ -5640,15 +5841,15 @@
 
   // Ajusta el puntaje según cuántos términos del perfil (RUP/K) aparecieron en
   // el análisis del pliego PDF, si se subió uno para este proceso, más el
-  // resultado de la evaluación de experiencia independiente (Excel vs matriz)
-  // si ya se corrió una. Con varios perfiles marcados se toma el MEJOR: si
-  // alguna de las empresas cubre bien los requisitos, el proceso vale la pena
-  // priorizarlo. La experiencia ya NO sale de términos del perfil (ver
-  // "Evaluación de experiencia") -- se pesa aparte, como un término más.
+  // resultado de la experiencia requerida por ESE proceso (extraída de su
+  // Pliego/Estudio Previo, ver "Experiencia requerida") si ya se evaluó. Con
+  // varios perfiles marcados se toma el MEJOR: si alguna de las empresas
+  // cubre bien los requisitos, el proceso vale la pena priorizarlo.
   function analysisScoreAdjustment(entry){
     const comps = compsDe(entry);
-    const expPeso = expevalResultado
-      ? { total: 1, matched: expevalResultado.resultadoGlobal === 'CUMPLE' ? 1 : (expevalResultado.resultadoGlobal === 'NO CUMPLE' ? 0 : 0.5) }
+    const expResultado = entry && entry.experienciaResultado;
+    const expPeso = expResultado
+      ? { total: 1, matched: expResultado.resultadoGlobal === 'CUMPLE' ? 1 : (expResultado.resultadoGlobal === 'NO CUMPLE' ? 0 : 0.5) }
       : { total: 0, matched: 0 };
     if (!comps.length && !expPeso.total) return 0;
     let best = -Infinity;
@@ -5681,12 +5882,12 @@
     const snapshotTs = new Date(DATA_SNAPSHOT_DATE + 'T00:00:00.000').getTime();
     const refNow = (isSnapshot && !isNaN(snapshotTs)) ? snapshotTs : Date.now();
 
-    // ¿algún perfil marcado tiene datos para evaluar, o hay una evaluación de
-    // experiencia independiente ya corrida? (si no hay nada de esto, no se
-    // muestra semáforo)
+    // ¿algún perfil marcado tiene datos para evaluar, o hay experiencia de
+    // la empresa cargada (con la que se podría evaluar cualquier pliego que
+    // se analice)? (si no hay nada de esto, no se muestra semáforo)
     const perfilConDatos = perfilesParaComparar().some(p =>
       (p.rup || '').trim() || (p.k || '').trim() || (p.kResidual || '').trim()) ||
-      !!(expevalResultado && expevalResultado.resultados && expevalResultado.resultados.length);
+      !!(expevalContratos && expevalContratos.contratos && expevalContratos.contratos.length);
 
     let scored = records.map(r => {
       const item = normalize(r);
@@ -6509,22 +6710,14 @@
   function renderExpEvalSteps(){
     const stepsEl = document.getElementById('bt-expeval-steps');
     if (!stepsEl) return;
-    const s1 = !!expevalContratos, s2 = !!expevalRequisitos, s3 = !!expevalResultado;
-    const states = {
-      1: s1 ? 'is-done' : 'is-active',
-      2: s2 ? 'is-done' : (s1 ? 'is-active' : ''),
-      3: s3 ? 'is-done' : (s1 && s2 ? 'is-active' : ''),
-      4: s3 ? 'is-active' : ''
-    };
+    const s1 = !!expevalContratos;
+    const states = { 1: s1 ? 'is-done' : 'is-active', 2: s1 ? 'is-active' : '' };
     Object.keys(states).forEach(n => {
       const el = stepsEl.querySelector('.step[data-step="' + n + '"]');
       if (el) el.className = 'step' + (states[n] ? ' ' + states[n] : '');
     });
-    // El aviso "siguiente paso" solo tiene sentido una vez que SÍ evaluaste
-    // -- mostrarlo antes (auditoría de usabilidad) contradecía al botón
-    // "Analizar información" deshabilitado en la misma pantalla.
     const siguientePasoEl = document.getElementById('bt-expeval-siguiente-paso');
-    if (siguientePasoEl) siguientePasoEl.hidden = !s3;
+    if (siguientePasoEl) siguientePasoEl.hidden = !s1;
   }
 
   // Etiqueta legible del origen para el título del panel de revisión --
@@ -6537,40 +6730,20 @@
     return 'Excel';
   }
 
+  // Ya no compara contra una matriz cargada aquí mismo -- ver "Experiencia
+  // requerida" en renderAnalysisHtml (Buscar procesos), que extrae los
+  // requisitos del Pliego/Estudio Previo de cada proceso puntual. Esta
+  // vista solo sigue cargando la Fuente A (experiencia de la empresa).
   function renderExpEvalReview(){
     let html = '';
-    // También restaura el texto de estado bajo cada dropzone (nombre de
-    // archivo + cantidad leída) -- si no, tras recargar la página el
-    // indicador de pasos mostraba "1/2 hechos" pero el dropzone seguía
-    // diciendo "Sin cargar.", una contradicción visual confusa.
-    //
-    // La distinción real de qué panel usar es si HAY columnas reales que
-    // mapear (Excel, o un .docx que sí traía tabla) o no (PDF, o un .docx
-    // sin tabla que cayó al camino de texto libre) -- se mira
-    // `headers.length`, no el string de `fuente` (que solo sirve para el
-    // rótulo "Word"/"PDF"/"Excel" que ve el usuario).
     if (expevalContratos){
       html += expevalContratos.headers.length
         ? renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length, CAMPOS_ESENCIALES_CONTRATO)
         : renderContratosDetectadosTexto(expevalContratos.contratos, etiquetaFuenteArchivo(expevalContratos.fuente));
       expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s).';
     }
-    if (expevalRequisitos){
-      html += expevalRequisitos.headers.length
-        ? renderColumnasDetectadas('Matriz de experiencia', expevalRequisitos.headers, expevalRequisitos.cols, ETIQUETAS_REQUISITO, expevalRequisitos.requisitos.length, CAMPOS_ESENCIALES_REQUISITO)
-        : renderRequisitosDetectadosTexto(expevalRequisitos.requisitos, etiquetaFuenteArchivo(expevalRequisitos.fuente));
-      expevalMatrizStatusEl.textContent = (expevalMeta && expevalMeta.matrizFile ? expevalMeta.matrizFile + ' · ' : '') + expevalRequisitos.requisitos.length + ' requisito(s) leído(s).';
-    }
     expevalReviewEl.innerHTML = html;
-    expevalRunBtn.disabled = !(expevalContratos && expevalRequisitos);
-    expevalClearBtn.style.display = (expevalContratos || expevalRequisitos) ? '' : 'none';
-    renderExpEvalSteps();
-  }
-
-  function renderExpEvalResultado(){
-    if (!expevalResultado){ expevalOutEl.innerHTML = ''; expevalInformeBtn.style.display = 'none'; renderExpEvalSteps(); return; }
-    expevalOutEl.innerHTML = renderResultadoExperiencia(expevalResultado);
-    expevalInformeBtn.style.display = '';
+    expevalClearBtn.style.display = expevalContratos ? '' : 'none';
     renderExpEvalSteps();
   }
 
@@ -6587,95 +6760,23 @@
       }
       expevalContratos = parsed;
       expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
-      expevalResultado = null; // el resultado anterior queda obsoleto si se cambia la fuente
       expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s).';
       renderExpEvalReview();
-      renderExpEvalResultado();
       saveExpEval();
     } catch(err){
       expevalExpStatusEl.textContent = 'No se pudo leer el Excel (' + (err && err.message ? err.message : 'error') + ').';
     }
   }
 
-  async function cargarExcelMatriz(file){
-    expevalMatrizStatusEl.textContent = 'Leyendo Excel…';
-    try {
-      const XLSX = await loadXlsxLib();
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array' });
-      const parsed = parsearMatrizExperiencia(wb);
-      if (!parsed.requisitos.length){
-        expevalMatrizStatusEl.textContent = 'Se leyó el archivo pero no se reconocieron filas de requisitos. Revisa que tenga encabezados y al menos una fila de datos.';
-        return;
-      }
-      expevalRequisitos = parsed;
-      expevalMeta = Object.assign({}, expevalMeta, { matrizFile: file.name, nRequisitos: parsed.requisitos.length });
-      expevalResultado = null;
-      expevalMatrizStatusEl.textContent = file.name + ' · ' + parsed.requisitos.length + ' requisito(s) leído(s).';
-      renderExpEvalReview();
-      renderExpEvalResultado();
-      saveExpEval();
-    } catch(err){
-      expevalMatrizStatusEl.textContent = 'No se pudo leer el Excel (' + (err && err.message ? err.message : 'error') + ').';
-    }
-  }
-
-  // Matriz de requisitos en PDF (a veces la entidad la publica así, no en
-  // Excel -- pedido explícito del usuario). Mismo patrón de "texto no
-  // extraíble -> ofrecer OCR" que ya usa procesarRUP() para el PDF del RUP:
-  // primero intenta la capa de texto real del PDF (rápido), y solo si sale
-  // vacía/corta (parece escaneado) ofrece el botón de OCR -- nunca se
-  // dispara OCR solo, es lento y el usuario debe pedirlo a sabiendas.
-  async function cargarMatrizPDF(file, viaOcr){
-    expevalMatrizStatusEl.textContent = viaOcr ? 'Leyendo el PDF con OCR (puede tardar varios minutos)…' : 'Leyendo el PDF…';
-    let text = '', numPages = 0, pagesRead = 0;
-    try {
-      await appReady;
-      if (viaOcr){
-        const r = await ocrPdfPages(file, 1, 20, (pct, page, total) => {
-          expevalMatrizStatusEl.textContent = 'OCR de la matriz… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
-        });
-        text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
-      } else {
-        const r = await extractPdfText(file, 20); // una matriz de requisitos suele ser corta (pocas páginas)
-        text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
-      }
-    } catch(err){
-      expevalMatrizStatusEl.textContent = 'No se pudo leer el PDF (' + (err && err.message ? err.message : 'error') + ').';
-      return;
-    }
-
-    if (!viaOcr && (!text || text.trim().length < 100)){
-      expevalMatrizStatusEl.innerHTML = 'El PDF no tiene texto extraíble (parece escaneado). ' +
-        '<button class="link-btn" id="bt-expeval-matriz-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
-      const b = document.getElementById('bt-expeval-matriz-ocr');
-      if (b) b.addEventListener('click', () => cargarMatrizPDF(file, true));
-      return;
-    }
-
-    const parsed = parsearMatrizExperienciaPDF(text);
-    if (!parsed.requisitos.length){
-      expevalMatrizStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' página(s) pero no reconocí ningún requisito con formato de lista numerada, con letra o viñetas. Prueba con el Excel si lo tienes, o revisa que el PDF traiga texto real (no una imagen).';
-      return;
-    }
-    expevalRequisitos = parsed;
-    expevalMeta = Object.assign({}, expevalMeta, { matrizFile: file.name, nRequisitos: parsed.requisitos.length });
-    expevalResultado = null;
-    expevalMatrizStatusEl.textContent = file.name + ' · ' + parsed.requisitos.length + ' requisito(s) detectado(s) del PDF -- revisa la interpretación abajo.';
-    renderExpEvalReview();
-    renderExpEvalResultado();
-    saveExpEval();
-  }
-
-  // Experiencia del proponente en PDF (pedido explícito del usuario, igual
-  // que la matriz). A diferencia de la matriz (una lista numerada de
-  // requisitos), "Experiencia del proponente" es casi siempre una TABLA de
-  // muchos contratos -- por eso NO reutiliza segmentarTextoEnRequisitos
-  // (pensada para marcadores de lista), sino extraerFilasPorPosicion
-  // (agrupa el texto del PDF por renglón visual según su coordenada Y).
-  // Mismo patrón de "texto no extraíble -> ofrecer OCR" que procesarRUP()
-  // y cargarMatrizPDF(); en la vía OCR, sin coordenadas disponibles, se
-  // parte por línea de texto en vez de por posición.
+  // Experiencia del proponente en PDF. A diferencia de un requisito (que
+  // hoy se extrae directo del Pliego/Estudio Previo, ver
+  // extraerRequisitosDePliego), "Experiencia del proponente" es casi
+  // siempre una TABLA de muchos contratos -- por eso usa
+  // extraerFilasPorPosicion (agrupa el texto del PDF por renglón visual
+  // según su coordenada Y) en vez de un heurístico de marcador de lista.
+  // Mismo patrón de "texto no extraíble -> ofrecer OCR" que procesarRUP();
+  // en la vía OCR, sin coordenadas disponibles, se parte por línea de
+  // texto en vez de por posición.
   async function cargarExperienciaPDF(file, viaOcr){
     expevalExpStatusEl.textContent = viaOcr ? 'Leyendo el PDF con OCR (puede tardar varios minutos)…' : 'Leyendo el PDF…';
     let filas = [], numPages = 0, pagesRead = 0;
@@ -6711,10 +6812,8 @@
     }
     expevalContratos = parsed;
     expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
-    expevalResultado = null;
     expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) detectado(s) del PDF -- revisa la interpretación abajo.';
     renderExpEvalReview();
-    renderExpEvalResultado();
     saveExpEval();
   }
 
@@ -6746,48 +6845,11 @@
       }
       expevalContratos = parsed;
       expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
-      expevalResultado = null;
       expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s) del Word' + (tabla.rows.length ? '.' : ' -- revisa la interpretación abajo.');
       renderExpEvalReview();
-      renderExpEvalResultado();
       saveExpEval();
     } catch(err){
       expevalExpStatusEl.textContent = 'No se pudo leer el Word (' + (err && err.message ? err.message : 'error') + ').';
-    }
-  }
-
-  // Word (.docx) para la Matriz de experiencia -- mismo patrón tabla-primero
-  // que cargarExperienciaDocx, con fallback a parsearMatrizExperienciaPDF
-  // (que pese al nombre solo espera texto plano, sirve igual para el texto
-  // que saca mammoth de un .docx sin tabla).
-  async function cargarMatrizDocx(file){
-    expevalMatrizStatusEl.textContent = 'Leyendo el Word…';
-    try {
-      const mammoth = await loadMammothJs();
-      const htmlResult = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
-      const tabla = leerPrimeraTablaHtml(htmlResult.value);
-      let parsed;
-      if (tabla.rows.length){
-        parsed = parsearRequisitosDeFilas(tabla);
-        parsed.fuente = 'docx';
-      } else {
-        const textResult = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-        parsed = parsearMatrizExperienciaPDF(textResult.value);
-        parsed.fuente = 'docx-texto';
-      }
-      if (!parsed.requisitos.length){
-        expevalMatrizStatusEl.textContent = 'Se leyó el Word pero no se reconoció ningún requisito -- revisa que tenga una tabla, o una lista numerada, con letra o con viñetas.';
-        return;
-      }
-      expevalRequisitos = parsed;
-      expevalMeta = Object.assign({}, expevalMeta, { matrizFile: file.name, nRequisitos: parsed.requisitos.length });
-      expevalResultado = null;
-      expevalMatrizStatusEl.textContent = file.name + ' · ' + parsed.requisitos.length + ' requisito(s) leído(s) del Word' + (tabla.rows.length ? '.' : ' -- revisa la interpretación abajo.');
-      renderExpEvalReview();
-      renderExpEvalResultado();
-      saveExpEval();
-    } catch(err){
-      expevalMatrizStatusEl.textContent = 'No se pudo leer el Word (' + (err && err.message ? err.message : 'error') + ').';
     }
   }
 
@@ -6816,17 +6878,6 @@
     return cargarExcelExperiencia(file);
   }
 
-  async function cargarMatrizArchivo(file){
-    if (!esTipoDeArchivoAceptado(file)){
-      expevalMatrizStatusEl.textContent = MSG_TIPO_NO_ACEPTADO(file);
-      return;
-    }
-    const nombre = (file.name || '').toLowerCase();
-    if (/\.docx$/.test(nombre)) return cargarMatrizDocx(file);
-    if (/\.pdf$/.test(nombre) || file.type === 'application/pdf') return cargarMatrizPDF(file, false);
-    return cargarExcelMatriz(file);
-  }
-
   if (expevalExpUploadBtn && expevalExpFileEl){
     wireDropzone(expevalExpUploadBtn, expevalExpFileEl, (file) => cargarExperienciaArchivo(file));
     expevalExpFileEl.addEventListener('change', async () => {
@@ -6835,38 +6886,98 @@
       if (file) await cargarExperienciaArchivo(file);
     });
   }
-  if (expevalMatrizUploadBtn && expevalMatrizFileEl){
-    wireDropzone(expevalMatrizUploadBtn, expevalMatrizFileEl, (file) => cargarMatrizArchivo(file));
-    expevalMatrizFileEl.addEventListener('change', async () => {
-      const file = expevalMatrizFileEl.files && expevalMatrizFileEl.files[0];
-      expevalMatrizFileEl.value = '';
-      if (file) await cargarMatrizArchivo(file);
-    });
-  }
-  if (expevalRunBtn){
-    expevalRunBtn.addEventListener('click', () => {
-      if (!expevalContratos || !expevalRequisitos) return;
-      expevalResultado = evaluarExperienciaCompleta(expevalContratos.contratos, expevalRequisitos.requisitos);
-      renderExpEvalResultado();
-      saveExpEval();
-    });
-  }
-  if (expevalInformeBtn){
-    expevalInformeBtn.addEventListener('click', () => {
-      if (!expevalResultado) return;
-      const texto = informeExperienciaTexto(expevalResultado, expevalMeta);
-      descargarTexto('informe-experiencia-' + new Date().toISOString().slice(0, 10) + '.txt', texto);
-    });
-  }
   if (expevalClearBtn){
     expevalClearBtn.addEventListener('click', () => {
-      expevalContratos = null; expevalRequisitos = null; expevalMeta = null; expevalResultado = null;
+      expevalContratos = null; expevalMeta = null;
       expevalExpStatusEl.textContent = 'Sin cargar.';
-      expevalMatrizStatusEl.textContent = 'Sin cargar.';
       renderExpEvalReview();
-      renderExpEvalResultado();
       saveExpEval();
     });
+  }
+
+  // ── Estudio Previo + "Evaluar cumplimiento de experiencia", por proceso ──
+  // A diferencia de la Fuente A (arriba, global -- se sube una vez y se
+  // reutiliza), el Estudio Previo pertenece a UN proceso puntual, igual que
+  // el Pliego mismo -- se guarda en `analisis[id]`, no en `expevalMeta`.
+  // Reutiliza extractPdfText/ocrPdfPages/mammoth tal cual, mismo patrón de
+  // "texto no extraíble -> ofrecer OCR" que ya usa "Analizar pliego". `slot`
+  // (el `.analysis-slot` de la tarjeta) lo pasa el llamador -- derivado con
+  // `.closest()` desde el elemento clicado, igual que confirmarBtn/ocrBtn,
+  // en vez de volver a buscarlo por id (evita depender de que `entry.id`
+  // sea un selector CSS válido).
+  async function cargarEstudioPrevioPDF(entry, file, viaOcr, slot){
+    try {
+      await appReady;
+      let r;
+      if (viaOcr) r = await ocrPdfPages(file, 1, 20, () => {});
+      else r = await extractPdfText(file, 20);
+      if (!viaOcr && (!r.text || r.text.trim().length < 100)){
+        if (slot) slot.insertAdjacentHTML('beforeend',
+          '<div class="analysis-block analysis-warn">El Estudio Previo no tiene texto extraíble (parece escaneado). <button class="link-btn" data-ep-ocr-id="' + escapeHtml(entry.id) + '">Intentar con OCR</button></div>');
+        return;
+      }
+      entry.estudioPrevioFileName = file.name;
+      entry.estudioPrevioText = r.text;
+      entry.estudioPrevioPaginaOffsets = r.paginaOffsets;
+      entry.estudioPrevioViaOcr = !!viaOcr;
+      entry.estudioPrevioTs = Date.now();
+      analisis[entry.id] = entry;
+      saveAnalisis();
+      if (slot){ const ctx = itemYScorePara(entry.id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
+    } catch(err){
+      alert('No se pudo leer el Estudio Previo (' + (err && err.message ? err.message : 'error') + ').');
+    }
+  }
+
+  async function cargarEstudioPrevioDocx(entry, file, slot){
+    try {
+      const mammoth = await loadMammothJs();
+      const textResult = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      entry.estudioPrevioFileName = file.name;
+      entry.estudioPrevioText = textResult.value;
+      entry.estudioPrevioPaginaOffsets = []; // un .docx no trae páginas reales -- paginaDeOffset(vacío) devuelve null, no inventa una
+      entry.estudioPrevioViaOcr = false;
+      entry.estudioPrevioTs = Date.now();
+      analisis[entry.id] = entry;
+      saveAnalisis();
+      if (slot){ const ctx = itemYScorePara(entry.id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
+    } catch(err){
+      alert('No se pudo leer el Estudio Previo (' + (err && err.message ? err.message : 'error') + ').');
+    }
+  }
+
+  async function cargarEstudioPrevioArchivo(entry, file, slot){
+    if (!esTipoDeArchivoAceptado(file) || /\.(xlsx|xls|csv)$/i.test(file.name || '')){
+      alert(MSG_TIPO_NO_ACEPTADO(file) + ' El Estudio Previo solo acepta PDF o Word.');
+      return;
+    }
+    const nombre = (file.name || '').toLowerCase();
+    if (/\.docx$/.test(nombre)) return cargarEstudioPrevioDocx(entry, file, slot);
+    return cargarEstudioPrevioPDF(entry, file, false, slot);
+  }
+
+  // Extrae los requisitos del Pliego (+ Estudio Previo si ya se cargó),
+  // detecta inconsistencias entre ambos, y corre el motor de comparación
+  // YA EXISTENTE (evaluarExperienciaCompleta) sin tocarlo -- reutiliza la
+  // experiencia de la empresa (Fuente A, global) contra los requisitos de
+  // ESTE proceso puntual. Re-ejecutable en cualquier momento (mismo botón
+  // sirve para "evaluar" y "volver a evaluar").
+  function evaluarExperienciaDeProceso(id, slot){
+    const entry = analisis[id];
+    if (!entry || !expevalContratos) return;
+    const texto = textoPliegoDe(entry);
+    const { requisitos: reqsPliego } = extraerRequisitosDePliego(texto, entry.paginaOffsets, 'Pliego de Condiciones');
+    let reqsEP = [];
+    if (entry.estudioPrevioText){
+      reqsEP = extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo').requisitos;
+    }
+    const todos = reqsPliego.concat(reqsEP);
+    entry.requisitosExperiencia = todos;
+    entry.inconsistenciasPliegoEP = detectarInconsistenciasPliegoEP(reqsPliego, reqsEP);
+    entry.experienciaResultado = evaluarExperienciaCompleta(expevalContratos.contratos, todos);
+    analisis[id] = entry;
+    saveAnalisis();
+    if (slot){ const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
   }
 
   exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
@@ -6878,6 +6989,10 @@
   // memoria: si se recarga la página antes de pulsar "Analizar pliego" hay que
   // volver a cargarlo (misma limitación ya aceptada para el OCR).
   const pendingPliegoFiles = {};
+  // Estudio Previo cargado por tanda de OCR -- mismo motivo que
+  // pendingOcrFiles: input.value se limpia tras leerlo, y el botón
+  // "Intentar con OCR" del aviso se clica más tarde, ya sin el File a mano.
+  const pendingEstudioPrevioFiles = {};
 
   function itemYScorePara(id){
     const s = (lastScored || []).find(x => x.item && x.item.id === id);
@@ -6905,6 +7020,57 @@
       return;
     }
 
+    // 0b) "Cargar/Reemplazar Estudio Previo" -- abre el selector de archivo
+    // oculto de esta misma tarjeta (mismo patrón que el botón "Analizar
+    // pliego (PDF)" de la acción de tarjeta, más abajo).
+    const epUploadBtn = e.target.closest('button[data-ep-upload-id]');
+    if (epUploadBtn){
+      const input = epUploadBtn.closest('.analysis-block').querySelector('input[type=file][data-ep-id]');
+      if (input) input.click();
+      return;
+    }
+
+    // 0c) "Intentar con OCR" del aviso de Estudio Previo sin texto extraíble
+    const epOcrBtn = e.target.closest('button[data-ep-ocr-id]');
+    if (epOcrBtn){
+      const id = epOcrBtn.getAttribute('data-ep-ocr-id');
+      const file = pendingEstudioPrevioFiles[id];
+      const entry = analisis[id];
+      const slot = epOcrBtn.closest('.row').querySelector('.analysis-slot');
+      if (!file || !entry){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a cargar el Estudio Previo.</div>';
+        return;
+      }
+      await cargarEstudioPrevioPDF(entry, file, true, slot);
+      return;
+    }
+
+    // 0d) "Evaluar cumplimiento de experiencia" -- extrae los requisitos del
+    // Pliego/Estudio Previo de este proceso y corre la comparación contra la
+    // experiencia acreditada de la empresa.
+    const experienciaBtn = e.target.closest('button.analysis-experiencia-btn');
+    if (experienciaBtn){
+      const id = experienciaBtn.getAttribute('data-experiencia-id');
+      const slot = experienciaBtn.closest('.row').querySelector('.analysis-slot');
+      evaluarExperienciaDeProceso(id, slot);
+      return;
+    }
+
+    // 0e) "Descargar informe de experiencia (.txt)" -- de este proceso puntual
+    const experienciaInformeBtn = e.target.closest('.analysis-experiencia-informe-btn');
+    if (experienciaInformeBtn){
+      const id = experienciaInformeBtn.getAttribute('data-experiencia-informe-id');
+      const entry = analisis[id];
+      if (!entry || !entry.experienciaResultado) return;
+      const meta = {
+        expFile: expevalMeta && expevalMeta.expFile, nContratos: expevalContratos && expevalContratos.contratos.length,
+        pliegoFile: entry.fileName, estudioPrevioFile: entry.estudioPrevioFileName
+      };
+      const texto = informeExperienciaTexto(entry.experienciaResultado, meta);
+      descargarTexto('informe-experiencia-' + slugArchivo(entry.fileName || 'pliego') + '-' + new Date().toISOString().slice(0, 10) + '.txt', texto);
+      return;
+    }
+
     // 1) Acciones de tarjeta
     const actionBtn = e.target.closest('button[data-action]');
     if (actionBtn){
@@ -6917,8 +7083,8 @@
         if (!flujo.listo){
           const slot = actionBtn.closest('.row').querySelector('.analysis-slot');
           slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) +
-            ' <button class="link-btn" data-ir-a="' + (!flujo.experienciaCargada || !flujo.experienciaAnalizada ? 'experiencia' : 'personal') + '">Ir a ' +
-            (!flujo.experienciaCargada || !flujo.experienciaAnalizada ? 'Experiencia' : 'Personal') + '</button></div>';
+            ' <button class="link-btn" data-ir-a="' + (!flujo.experienciaCargada ? 'experiencia' : 'personal') + '">Ir a ' +
+            (!flujo.experienciaCargada ? 'Experiencia' : 'Personal') + '</button></div>';
           return;
         }
         const input = actionBtn.closest('.row').querySelector('input[type=file][data-analyze-id]');
@@ -6955,7 +7121,11 @@
         const { comps } = compararConPerfiles(text, hallazgos);
         const redFlags = detectarRedFlags(text, paginaOffsets);
         const viabilidad = calcularViabilidad(redFlags);
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad };
+        // text/paginaOffsets se guardan también en este camino (antes solo
+        // sobrevivían en el camino OCR, ver ocrText/entry.paginaOffsets más
+        // abajo) -- hacen falta para extraer los requisitos de experiencia
+        // del pliego más tarde, incluso después de recargar la página.
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, text: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad };
         analisis[id] = entry;
         saveAnalisis();
         delete pendingPliegoFiles[id];
@@ -7103,6 +7273,24 @@
     '</div>';
   });
 
+  // Carga del Estudio Previo (opcional, por proceso) -- vive en su propio
+  // listener 'change' porque su <input> se genera dentro de
+  // renderEstudioPrevioUploadHtml, con `data-ep-id` en vez de
+  // `data-analyze-id`.
+  resultsEl.addEventListener('change', async function(e){
+    const input = e.target.closest('input[type=file][data-ep-id]');
+    if (!input) return;
+    const id = input.getAttribute('data-ep-id');
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    const entry = analisis[id];
+    const slot = input.closest('.row').querySelector('.analysis-slot');
+    if (!entry){ if (slot) slot.innerHTML = '<div class="analysis-block analysis-warn">Analiza primero el pliego de este proceso.</div>'; return; }
+    pendingEstudioPrevioFiles[id] = file;
+    await cargarEstudioPrevioArchivo(entry, file, slot);
+  });
+
   clearHistorialBtn.addEventListener('click', async function(){
     if (!confirm('¿Borrar todo el historial de vistos/descartados? Esta acción no se puede deshacer.')) return;
     await appReady;
@@ -7186,14 +7374,12 @@
     const msgEl = document.getElementById('bt-flujo-mensaje');
     if (!stepsEl || !msgEl) return;
     const flujo = estadoFlujoPliego();
-    const hayPliegoCargado = Object.keys(pendingPliegoFiles).length > 0;
     const hayPliegoAnalizado = Object.keys(analisis).length > 0;
     const estados = {
       1: flujo.experienciaCargada ? 'is-done' : 'is-active',
-      2: flujo.experienciaAnalizada ? 'is-done' : (flujo.experienciaCargada ? 'is-active' : ''),
-      3: flujo.perfilesCargados ? 'is-done' : (flujo.experienciaAnalizada ? 'is-active' : ''),
-      4: hayPliegoAnalizado ? 'is-done' : (flujo.listo ? 'is-active' : ''),
-      5: hayPliegoAnalizado ? 'is-done' : ''
+      2: flujo.perfilesCargados ? 'is-done' : (flujo.experienciaCargada ? 'is-active' : ''),
+      3: hayPliegoAnalizado ? 'is-done' : (flujo.listo ? 'is-active' : ''),
+      4: hayPliegoAnalizado ? 'is-done' : ''
     };
     Object.keys(estados).forEach(n => {
       const el = stepsEl.querySelector('.step[data-step="' + n + '"]');
@@ -7203,7 +7389,7 @@
       msgEl.innerHTML = '<div class="flujo-msg listo">✓ Ya puedes analizar cualquier pliego: baja a la lista de procesos y usa "Analizar pliego (PDF)" en la tarjeta que te interese.' +
         (hayPliegoAnalizado ? ' Puedes repetirlo con cuantos procesos quieras.' : '') + '</div>';
     } else {
-      const siguienteVista = (!flujo.experienciaCargada || !flujo.experienciaAnalizada) ? 'experiencia' : 'personal';
+      const siguienteVista = !flujo.experienciaCargada ? 'experiencia' : 'personal';
       const siguienteLabel = siguienteVista === 'experiencia' ? 'Ir a Experiencia' : 'Ir a Personal';
       msgEl.innerHTML = '<div class="flujo-msg pendiente"><span>' + escapeHtml(mensajeFlujoFaltante(flujo)) + '</span>' +
         '<button class="btn-secondary" data-ir-a-flujo="' + siguienteVista + '">' + siguienteLabel + '</button></div>';
@@ -7348,7 +7534,7 @@
   // loadPerfiles() que dejó de crear uno fantasma "Mi empresa" solo).
   function esCuentaVacia(){
     return Object.keys(perfiles || {}).length === 0 &&
-      !expevalResultado &&
+      !(expevalContratos && expevalContratos.contratos && expevalContratos.contratos.length) &&
       Object.keys(perfilesProfesionales || {}).length === 0 &&
       Object.keys(historial || {}).length === 0;
   }
@@ -7366,16 +7552,26 @@
     const analisisEl = document.getElementById('bt-dash-analisis');
     if (analisisEl) analisisEl.textContent = Object.keys(analisis || {}).length;
 
+    // Ya no hay UN resultado global de experiencia -- cada proceso analizado
+    // tiene el suyo propio (ver "Experiencia requerida"). El resumen del
+    // Dashboard cuenta cuántos procesos ya la tienen evaluada, y cuántos de
+    // esos CUMPLEN, en vez de un único veredicto.
     const expEl = document.getElementById('bt-dash-experiencia');
     const expNoteEl = document.getElementById('bt-dash-experiencia-note');
     if (expEl){
-      if (expevalResultado){
-        expEl.textContent = expevalResultado.resultadoGlobal;
-        if (expNoteEl) expNoteEl.textContent = expevalResultado.conteo['CUMPLE'] + ' cumple · ' +
-          expevalResultado.conteo['NO CUMPLE'] + ' no cumple · ' + expevalResultado.conteo['NO DETERMINABLE'] + ' no determinable';
+      if (!expevalContratos){
+        expEl.textContent = 'Sin cargar';
+        if (expNoteEl) expNoteEl.textContent = 'Carga tu experiencia acreditada para poder evaluarla contra cada pliego';
       } else {
-        expEl.textContent = 'Sin ejecutar';
-        if (expNoteEl) expNoteEl.textContent = 'Carga tus documentos para evaluarla';
+        const evaluados = Object.values(analisis || {}).filter(e => e && e.experienciaResultado);
+        if (!evaluados.length){
+          expEl.textContent = String(expevalContratos.contratos.length);
+          if (expNoteEl) expNoteEl.textContent = 'contrato(s) acreditado(s) -- analiza un pliego para evaluar el cumplimiento';
+        } else {
+          const cumplen = evaluados.filter(e => e.experienciaResultado.resultadoGlobal === 'CUMPLE').length;
+          expEl.textContent = String(evaluados.length);
+          if (expNoteEl) expNoteEl.textContent = 'proceso(s) con experiencia evaluada -- ' + cumplen + ' CUMPLE';
+        }
       }
     }
 
@@ -7431,7 +7627,6 @@
   // de solo-render) incluso si esa vista no es la que está visible.
   appReady.then(() => {
     renderExpEvalReview();
-    renderExpEvalResultado();
     renderPersonalSelect();
     renderPersonalList();
     cargarPersonalActivoEnCampos();

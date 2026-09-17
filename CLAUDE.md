@@ -3075,3 +3075,232 @@ exacto, nombrando el archivo.
 anteriores -- solo se pudo probar en Chromium emulado en este entorno,
 nunca Safari/WebKit real. El usuario probó el sitio en producción con su
 propio iPhone y confirmó que funciona bien.
+
+## Los requisitos de experiencia salen del Pliego/Estudio Previo, no de una matriz subida a mano
+
+Cambio de arquitectura pedido por el usuario en un prompt extenso (20
+secciones): hasta ahora "Experiencia" comparaba DOS Excel/PDF/Word subidos
+a mano -- la experiencia de la empresa (Fuente A) contra una "matriz de
+requisitos" (Fuente B) que alguien preparaba aparte, transcribiendo a mano
+lo que el Pliego/Estudio Previo ya decía. El pedido explícito: eliminar la
+matriz como fuente de los requisitos -- extraerlos automáticamente del
+Pliego de Condiciones y/o Estudio Previo de CADA proceso, con trazabilidad
+de documento+página por cada uno, detectar inconsistencias si Pliego y
+Estudio Previo se contradicen, y nunca inventar un requisito. Plan completo
+(auditoría del código existente + diseño, con `EnterPlanMode`/
+`ExitPlanMode`) guardado como referencia del proceso en
+`elegant-wandering-dewdrop.md` -- ese mismo archivo contenía antes la
+auditoría de coincidencia total/parcial (ya implementada e independiente de
+este cambio), reemplazada por este diseño nuevo.
+
+**Dos decisiones de alcance las confirmó el usuario directamente antes de
+tocar código**: el Estudio Previo acepta PDF y Word (no solo PDF), y el
+código de la matriz manual se elimina POR COMPLETO -- mismo criterio ya
+usado al eliminar "Competencia", sin caminos secundarios a medio construir.
+
+### Qué se reutilizó sin tocar (verificado contra el código real antes de diseñar, no descrito de memoria)
+
+- El motor de comparación (`evaluarRequisito`/`evaluarExperienciaCompleta`/
+  `agruparAlternativos`, con coincidencia TOTAL de palabras distintivas,
+  `condicionNoVerificable`, `condicionTemporal`) sigue **exactamente
+  igual** -- recibe un array `requisitos` genérico, nunca le importó de
+  dónde salieron. Solo cambió de dónde vienen esos requisitos.
+- `construirRequisitoDesdeTexto` (tipo/obligatoriedad/minContratos/
+  minValor/minCantidad/palabras distintivas/condiciones) tampoco cambió --
+  sigue convirtiendo un trozo de texto en un requisito estructurado, ahora
+  alimentada por trozos del Pliego/Estudio Previo en vez de una matriz.
+- El patrón "regex sobre el texto completo + `paginaDeOffset` para citar la
+  página real" (ya probado con `REGLAS_RED_FLAG`/`detectarRedFlags`) es
+  literalmente el mismo mecanismo que localiza las secciones de experiencia.
+- Fuente A (experiencia acreditada de la empresa) sigue siendo un dataset
+  GLOBAL sin cambios (`expevalContratos`) -- se sube una vez, se reutiliza
+  en cualquier proceso. Deliberadamente desacoplada de cualquier perfil de
+  empresa (ver punto 12 más arriba), eso no cambió.
+
+### Prerrequisito corregido: el texto del pliego no se guardaba en el camino rápido
+
+Auditando el código antes de diseñar (regla del propio pedido: "no
+dupliques, reutiliza") se encontró que `entry.text`/`entry.paginaOffsets`
+(el texto extraído por `extractPdfText`) NUNCA se guardaban en `analisis[id]`
+en el camino normal (sin OCR) -- solo se guardaba lo YA derivado
+(`redFlags`/`exigencias`/`kResidual`). Solo el camino OCR guardaba
+`entry.ocrText`. Sin corregir esto, la extracción de requisitos no tendría
+texto que leer tras recargar la página en el camino más común. Se agregó
+`entry.text`/`entry.paginaOffsets` al handler `.analysis-confirmar-btn`, y
+`textoPliegoDe(entry)` (nueva, junto a `paginaDeOffset`) centraliza la
+lectura ("`entry.viaOcr ? entry.ocrText : entry.text`") para que ningún
+llamador nuevo tenga que saber cuál de los dos campos revisar.
+
+### Localizar y extraer requisitos de texto libre
+
+- **`ANCLAS_EXPERIENCIA`** (junto a `REGLAS_RED_FLAG`): las ~17 frases
+  ancla del pedido del usuario ("experiencia general", "experiencia
+  específica", "requisitos de experiencia", "número mínimo de contratos",
+  "códigos UNSPSC"...). El regex corre sobre el texto ORIGINAL sin
+  normalizar (hace falta preservar los índices reales para
+  `paginaDeOffset`) -- **bug real encontrado por los propios tests antes de
+  cualquier prueba en navegador**: comparar contra texto normalizado
+  (`normHeader`, que quita tildes) fallaba en silencio contra un pliego
+  real, que SIEMPRE trae "específica" con tilde -- cero anclas detectadas,
+  cero requisitos, nunca CUMPLE. Corregido con `patronAncla()`: cada vocal
+  de la frase ancla se vuelve tolerante a tilde (`a`→`[aá]`, etc.) en vez de
+  normalizar el texto (que colapsa espacios y desplazaría los índices).
+- **`localizarSeccionesExperiencia(text, paginaOffsets)`**: encuentra
+  zonas del texto que mencionan experiencia, citando la página real de cada
+  ancla. **Segundo bug real encontrado por los tests**: tratar CADA ancla
+  como el inicio de una zona nueva fragmentaba el contenido cuando varias
+  anclas caen cerca (ej. un encabezado "Requisitos de experiencia:"
+  seguido, a pocas palabras, por "Experiencia específica..." del primer
+  ítem) -- la segunda ancla recortaba a la primera justo antes de su
+  contenido real, dejando un fragmento fantasma sin sustancia
+  ("Requisitos de experiencia: 1.", sin el texto que sigue). Corregido
+  agrupando anclas separadas por menos de `GAP_MAX_CLUSTER_EXPERIENCIA`
+  (800 caracteres, valor inicial sin validar contra un Pliego real) en una
+  sola zona -- anclas genuinamente lejanas (ej. mención en el índice, otra
+  20 páginas después) sí siguen generando zonas separadas.
+- **`MARCADOR_REQUISITO_LISTA`** (constante compartida, extraída de
+  `segmentarTextoEnRequisitos`) + **`segmentarConOffsets(texto)`** (nueva,
+  hermana de `segmentarTextoEnRequisitos`): misma heurística de marcador de
+  lista (1./a)/viñeta), pero preservando el índice de cada trozo dentro del
+  texto original -- necesario para resolver cada requisito a su página real.
+  `segmentarTextoEnRequisitos` en sí queda sin llamador en producción
+  (la matriz que la usaba se eliminó) pero se conserva -- es pequeña,
+  sigue bien testeada, y comparte exactamente el mismo heurístico.
+- **`extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel)`**: por
+  cada zona, segmenta y llama `construirRequisitoDesdeTexto` SIN
+  modificarla -- solo le agrega `requisito.fuente`/`.pagina`/
+  `.anclaDetectada` como propiedades extra sobre el objeto que ya devuelve
+  (wrapper, no cambio de firma). Descarta trozos cuyo rango de offsets se
+  solapa >50% con uno ya aceptado (salvaguarda defensiva; con zonas
+  agrupadas por cluster los rangos no deberían solaparse nunca en la
+  práctica, pero no cuesta nada dejarla). Cero anclas → `{requisitos: [],
+  zonas: []}`, nunca inventa un requisito.
+
+### Inconsistencias entre Pliego y Estudio Previo (punto 11 del pedido)
+
+`detectarInconsistenciasPliegoEP(reqsPliego, reqsEP)`: empareja dos
+requisitos de documentos distintos SOLO si tienen el mismo `tipo` (nunca si
+alguno es "no-clasificado"), ≥2 palabras distintivas compartidas, y
+Jaccard ≥0.6 sobre `palabrasDistintivas` -- deliberadamente conservador
+(mismo principio que `agruparAlternativos`: mejor no emparejar que inventar
+una relación que no existe). Marca conflicto SOLO cuando AMBOS lados traen
+un número Y difieren (`minContratos`/`minValor` con misma unidad/
+`minCantidad`) -- un lado sin el dato NUNCA es un conflicto, el silencio no
+es evidencia de desacuerdo. El mensaje siempre dice "⚠ POSIBLE
+INCONSISTENCIA -- requiere revisión del consultor" y nunca elige un lado
+como el correcto.
+
+### Estudio Previo: nuevo upload, por proceso (no global)
+
+Vive dentro de `.analysis-slot`, junto al análisis del pliego ya hecho --
+solo aparece una vez que ese proceso puntual ya se analizó.
+`cargarEstudioPrevioArchivo`/`PDF`/`Docx` reutilizan `extractPdfText`/
+`ocrPdfPages`/`mammoth.extractRawText` tal cual (mismo patrón "ofrecer OCR
+si <100 caracteres" que ya usa "Analizar pliego"), gateados por
+`esTipoDeArchivoAceptado` antes de despachar. Un `.docx` no trae páginas
+reales -- `estudioPrevioPaginaOffsets = []`, y `paginaDeOffset([], idx)`
+ya devuelve `null` sin inventar una página. Nuevos campos en `entry`:
+`estudioPrevioFileName/Text/PaginaOffsets/ViaOcr/Ts`.
+
+### Disparo: botón explícito, no automático junto a los red flags
+
+`evaluarExperienciaDeProceso(id, slot)` -- extrae requisitos del Pliego (+
+Estudio Previo si ya se cargó), detecta inconsistencias, corre
+`evaluarExperienciaCompleta` (SIN CAMBIOS) contra la experiencia global de
+la empresa, guarda en `entry`, re-renderiza. Se decidió un botón explícito
+("🔎 Evaluar cumplimiento de experiencia") en vez de correrlo automático
+junto a `redFlags`/`viabilidad` (que sí corren solos): el Estudio Previo
+suele subirse aparte/después del pliego mismo, y la extracción de texto
+libre es justo el tipo de cosa que este proyecto ya trata con un paso de
+revisión explícito antes de confiar (precedente: el panel de la matriz PDF,
+ya eliminada, empezaba abierto por defecto). Re-ejecutable en cualquier
+momento ("↻ Volver a evaluar experiencia"), igual que "Analizar pliego" ya
+lo es. Un resultado basado solo en el Pliego (sin Estudio Previo) es válido
+-- el panel de resultado lo etiqueta explícito ("basado solo en el Pliego
+de Condiciones") para no aparentar más completitud de la que hay.
+
+### Storage: todo dentro de `analisis[id]`, cero claves nuevas de localStorage
+
+Nuevos campos por entrada: `text`/`paginaOffsets` (prerrequisito),
+`estudioPrevio*`, `requisitosExperiencia` (Pliego + EP combinados, cada uno
+con `fuente`/`pagina`), `experienciaZonasPliego` (no usado hoy, reservado),
+`inconsistenciasPliegoEP`, `experienciaResultado` (resultado de
+`evaluarExperienciaCompleta`, por proceso). Todo viaja dentro de
+`analisis_pliegos` vía el `saveAnalisis()` que ya existía -- cero claves
+nuevas en `SYNCED_KEYS`. `expevalRequisitos`/`expevalResultado` (los
+globales viejos de la matriz) se eliminaron del código; el dato viejo que
+algún usuario ya tuviera en `localStorage` bajo `experiencia_evaluacion`
+simplemente se ignora (no-op, `loadExpEval()` ya solo lee `contratos`/
+`meta` de ese blob) -- no es una migración destructiva.
+
+### Compuerta de flujo y semáforo go/no-go, ahora por proceso
+
+`estadoFlujoPliego()` perdió `experienciaAnalizada` de su cálculo de
+`listo` -- corrige una circularidad real que este cambio introducía: antes
+"Analizar pliego" exigía que YA existiera una evaluación de experiencia,
+pero esa evaluación ahora solo puede existir DESPUÉS de analizar el pliego
+de ese proceso puntual. El único prerrequisito de Experiencia que queda es
+tener la Fuente A cargada. El stepper de 5 pasos de "Buscar procesos"
+(`#bt-flujo-steps`/`renderFlujoStepper`) bajó a 4 (se fusionó "Análisis" de
+experiencia, que ya no es un paso global aparte, con "Experiencia").
+
+`experienciaGateDetalle(entry)` ganó el parámetro `entry` -- lee
+`entry.experienciaResultado` en vez del `expevalResultado` global. Sin
+pliego analizado, o analizado pero sin evaluar experiencia todavía →
+`estado: 'nd'` ("Analiza el pliego de este proceso..."), nunca `'fail'`.
+Cambio de una línea en `evaluarProceso` (`experienciaGateDetalle()` →
+`experienciaGateDetalle(entry)` -- `entry` ya estaba en el scope de esa
+función, confirmado leyendo el código antes de asumirlo).
+`analysisScoreAdjustment(entry)` (pesa el puntaje de "Buscar procesos" por
+cuánta experiencia/RUP/K coincide) también pasó de leer el global a leer
+`entry.experienciaResultado` -- mismo motivo.
+
+### Qué se eliminó por completo (matriz manual, confirmado con el usuario)
+
+Dropzone + panel de ejemplo de "Cargar matriz" en `view-experiencia`, sus
+`id`/DOM refs, y toda la cadena `cargarExcelMatriz`/`cargarMatrizPDF`/
+`cargarMatrizDocx`/`cargarMatrizArchivo` → `parsearMatrizExperiencia`/
+`parsearMatrizExperienciaPDF` -- cero llamadores les quedaban. También
+`ETIQUETAS_REQUISITO`/`CAMPOS_ESENCIALES_REQUISITO`/
+`renderRequisitosDetectadosTexto` (solo servían al panel de revisión de la
+matriz, ya eliminado). **Se conservan explícitamente** (documentado en el
+plan aprobado, para no arrastrarlos "porque parecían co-ubicados"):
+`construirRequisitoDesdeTexto`, `segmentarTextoEnRequisitos`,
+`parsearRequisitosDeFilas`/`DICC_REQUISITO` -- reutilizables, pequeños, y
+`parsearRequisitosDeFilas` en particular sigue testeada (evalúa una tabla
+de Word contra el motor) aunque hoy no tenga llamador de producción.
+
+**`tests/smoke.mjs` actualizado en la misma pasada, no después**: el helper
+`evaluar()` y el "Caso 7" usaban `parsearMatrizExperiencia(workbook)` --
+como esa función era solo `parsearRequisitosDeFilas(leerHojaComoFilas(
+workbook))`, se compone igual en el test sin depender de la función
+eliminada (mismo resultado, cero riesgo de que las ~20 pruebas del motor de
+comparación perdieran cobertura). Los 2 tests que probaban
+`parsearMatrizExperienciaPDF` específicamente se reescribieron componiendo
+`segmentarTextoEnRequisitos` + `construirRequisitoDesdeTexto` a mano (el
+mismo par que hacía el wrapper eliminado). Se agregaron 12 tests nuevos
+para el motor de extracción (anclas, agrupamiento de zonas cercanas,
+`extraerRequisitosDePliego`, las 4 variantes de `detectarInconsistenciasPliegoEP`,
+regresión de `evaluarExperienciaCompleta` con requisitos "taggeados",
+`textoPliegoDe`) -- 62/62 en verde.
+
+**Verificado de punta a punta con documentos reales** (mismo patrón
+`fpdf2`/`openpyxl` temporales ya usado en este proyecto, desinstalados
+después): un Pliego PDF sintético de 2 páginas ("Requisitos de
+experiencia: 1. ...puentes vehiculares, mínimo 3 contratos... 2.
+...experiencia general en obras civiles...") + un Estudio Previo PDF de 2
+páginas con el MISMO requisito de puentes pero "mínimo 2 contratos"
+(inconsistencia deliberada) + un Excel de 3 contratos reales de puentes
+vehiculares, inyectados en el flujo real vía `DataTransfer` (gate de
+Personal completado registrando un profesional real primero). Resultado:
+3 requisitos identificados (1 general, 2 específica), la inconsistencia
+detectada citando p. 2 de AMBOS documentos sin resolverla, el requisito de
+puentes en CUMPLE con evidencia real (3 contratos, fila por fila), el de
+obras civiles en NO DETERMINABLE (sin contrato relacionado), global
+REQUIERE REVISIÓN -- confirmado también que el dato persiste tras recargar
+la página (`entry.text`/`requisitosExperiencia`/`experienciaResultado`
+todos presentes en `localStorage`) y que un SEGUNDO proceso sin analizar
+en la misma sesión queda sin ningún dato de experiencia (el gate es por
+proceso, no global). Dashboard actualizado correctamente ("1 proceso con
+experiencia evaluada -- 0 CUMPLE"). Sin overflow en 375px. 0 errores de
+consola en todo el flujo.

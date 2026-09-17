@@ -99,7 +99,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'estadoFlujoPliego', 'mensajeFlujoFaltante', 'renderFlujoStepper',
     'evaluarProceso', 'evaluarMejor', 'gatePersonalRequerido',
     'resumenCompatibilidad', 'renderCompatibilidadHtml',
-    'parsearExcelExperiencia', 'parsearMatrizExperiencia', 'evaluarExperienciaCompleta',
+    'parsearExcelExperiencia', 'evaluarExperienciaCompleta',
     'loadPdfJs', 'loadTesseractJs', 'loadXlsxLib', 'extractPdfText', 'ocrPdfPages',
     'loadSupabaseJs', 'bootstrapAccountSession', 'openRecoveryPanel', 'handleSetNewPassword',
     'guardarAlertaActual', 'eliminarAlerta', 'evaluarAlerta', 'revisarTodasLasAlertas',
@@ -109,15 +109,20 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'calcularSCE', 'capacidadContractualEstimada', 'renderContratosEjecucion', 'renderCapacidadEstimada',
     'agregarContratoEjecucion', 'eliminarContratoEjecucion', 'actualizarCampoContrato',
     'generarCartaTexto', 'generarHojaDeVidaTexto',
-    'segmentarTextoEnRequisitos', 'parsearMatrizExperienciaPDF', 'construirRequisitoDesdeTexto',
-    'cargarMatrizPDF', 'cargarMatrizArchivo',
+    'segmentarTextoEnRequisitos', 'construirRequisitoDesdeTexto',
     'loadMammothJs', 'leerPrimeraTablaHtml', 'parsearExperienciaDeFilas', 'parsearRequisitosDeFilas',
     'valorConfiableDeTexto', 'construirContratoDesdeTexto', 'parsearExperienciaDesdeFilasTexto',
-    'extraerFilasPorPosicion', 'cargarExperienciaPDF', 'cargarExperienciaDocx', 'cargarMatrizDocx',
+    'extraerFilasPorPosicion', 'cargarExperienciaPDF', 'cargarExperienciaDocx',
     'cargarExperienciaArchivo',
     'condicionCuantitativaSinModelar', 'extraerCantidadConUnidadContable',
     'condicionTemporalDelRequisito', 'evaluarCondicionTemporal', 'agruparAlternativos',
     'paginaDeOffset', 'detectarRedFlags', 'calcularViabilidad',
+    // Requisitos de experiencia extraídos del Pliego/Estudio Previo (ver
+    // elegant-wandering-dewdrop.md) -- reemplazan la matriz manual.
+    'textoPliegoDe', 'localizarSeccionesExperiencia', 'segmentarConOffsets',
+    'extraerRequisitosDePliego', 'detectarInconsistenciasPliegoEP',
+    'cargarEstudioPrevioPDF', 'cargarEstudioPrevioDocx', 'cargarEstudioPrevioArchivo',
+    'evaluarExperienciaDeProceso',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -194,7 +199,7 @@ await check('el SRI embebido de pdf.js/xlsx/Tesseract.js/supabase-js/mammoth.js 
 // experiencia del proponente.md") -------------------------------------------
 // A diferencia de los checks de arriba (sintaxis, ids, hosts, SRI), esto
 // prueba COMPORTAMIENTO real del motor (parsearExcelExperiencia,
-// parsearMatrizExperiencia, evaluarExperienciaCompleta) contra Excel
+// parsearRequisitosDeFilas, evaluarExperienciaCompleta) contra Excel
 // sintéticos -- el check 3 de arriba solo verifica que estas funciones
 // EXISTAN, no que decidan CUMPLE/NO CUMPLE/NO DETERMINABLE correctamente.
 // Sin esto, un cambio futuro podría romper en silencio la lógica más crítica
@@ -229,7 +234,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, parsearMatrizExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, parsearMatrizExperienciaPDF, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -265,14 +270,21 @@ let expEngine = null;
 await check('motor de "Evaluación de experiencia": se extrae y ejecuta en aislamiento (sin DOM)', () => {
   expEngine = extractExperienceEngine();
   assert(typeof expEngine.parsearExcelExperiencia === 'function', 'parsearExcelExperiencia no quedó expuesta');
-  assert(typeof expEngine.parsearMatrizExperiencia === 'function', 'parsearMatrizExperiencia no quedó expuesta');
+  assert(typeof expEngine.parsearRequisitosDeFilas === 'function', 'parsearRequisitosDeFilas no quedó expuesta');
   assert(typeof expEngine.evaluarExperienciaCompleta === 'function', 'evaluarExperienciaCompleta no quedó expuesta');
+  assert(typeof expEngine.extraerRequisitosDePliego === 'function', 'extraerRequisitosDePliego no quedó expuesta');
 });
 
+// parsearMatrizExperiencia (la matriz manual, eliminada -- ver
+// elegant-wandering-dewdrop.md) era solo parsearRequisitosDeFilas(
+// leerHojaComoFilas(workbook)) -- se compone igual acá para seguir
+// probando evaluarExperienciaCompleta/evaluarRequisito/agruparAlternativos
+// (motor SIN CAMBIOS) con fixtures tipo Excel, sin depender de la función
+// eliminada.
 function evaluar(matrizHeaders, matrizRows, expHeaders, expRows, hoy) {
   assert(expEngine, 'el motor no se pudo extraer (ver check anterior) -- no se puede continuar con este caso');
   const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(expHeaders, expRows));
-  const requisitos = expEngine.parsearMatrizExperiencia(fakeWorkbook(matrizHeaders, matrizRows));
+  const requisitos = expEngine.parsearRequisitosDeFilas(expEngine.leerHojaComoFilas(fakeWorkbook(matrizHeaders, matrizRows)));
   return Object.assign({ contratos, requisitos }, expEngine.evaluarExperienciaCompleta(contratos.contratos, requisitos.requisitos, hoy));
 }
 
@@ -360,10 +372,10 @@ await check('Caso 7 (Excel con columnas/encabezados distintos a los habituales) 
     ['Descripción del contrato', 'Entidad', 'Valor ejecutado', 'Fecha de inicio', 'Fecha de terminación'],
     [['Mantenimiento de redes de alcantarillado sanitario y pluvial', 'EMPAS S.A. E.S.P.', '420000000', '01/03/2022', '15/11/2022']]
   ));
-  const requisitos = expEngine.parsearMatrizExperiencia(fakeWorkbook(
+  const requisitos = expEngine.parsearRequisitosDeFilas(expEngine.leerHojaComoFilas(fakeWorkbook(
     ['Descripción del requisito', 'Cantidad mínima de contratos', 'Caracter'],
     [['Experiencia específica en mantenimiento de redes de alcantarillado', '1', 'Obligatorio']]
-  ));
+  )));
   assert(contratos.cols.objeto != null, '"Descripción del contrato" no se reconoció como columna de objeto');
   assert(contratos.cols.contratante != null, '"Entidad" no se reconoció como columna de contratante');
   assert(contratos.cols.valor != null, '"Valor ejecutado" no se reconoció como columna de valor');
@@ -405,8 +417,13 @@ await check('Caso 8 (la matriz trae varios requisitos de experiencia específica
 await check('PDF de matriz: lista numerada -> mismos campos que produciría el Excel equivalente', () => {
   const texto = '1. Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, obligatorio. ' +
     '2. Experiencia específica en pavimentación de vías urbanas, mínimo 2 contratos, obligatorio.';
-  const parsed = expEngine.parsearMatrizExperienciaPDF(texto);
-  assert(parsed.fuente === 'pdf', 'se esperaba fuente "pdf"');
+  // parsearMatrizExperienciaPDF (eliminada, ver elegant-wandering-dewdrop.md)
+  // era solo segmentarTextoEnRequisitos + construirRequisitoDesdeTexto por
+  // trozo -- se compone igual acá, el heurístico de segmentación sigue
+  // siendo el mismo (MARCADOR_REQUISITO_LISTA, compartido con
+  // segmentarConOffsets, ver los tests de extraerRequisitosDePliego).
+  const chunks = expEngine.segmentarTextoEnRequisitos(texto);
+  const parsed = { requisitos: chunks.map((c, i) => expEngine.construirRequisitoDesdeTexto(c, i, {})).filter(r => r.criterio) };
   assert(parsed.requisitos.length === 2, 'se esperaban 2 requisitos, fueron ' + parsed.requisitos.length);
   assert(parsed.requisitos[0].minContratos === 1, 'requisito 1: se esperaba minContratos=1, fue ' + parsed.requisitos[0].minContratos);
   assert(parsed.requisitos[1].minContratos === 2, 'requisito 2: se esperaba minContratos=2, fue ' + parsed.requisitos[1].minContratos);
@@ -533,8 +550,8 @@ await check('Experiencia del proponente de texto libre (PDF/Word sin tabla) eval
   ];
   const experiencia = expEngine.parsearExperienciaDesdeFilasTexto(filas, 'pdf');
   assert(experiencia.contratos.length === 2, 'se esperaban 2 contratos, fueron ' + experiencia.contratos.length);
-  const requisitos = expEngine.parsearMatrizExperienciaPDF('1. Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, obligatorio.');
-  const ev = expEngine.evaluarExperienciaCompleta(experiencia.contratos, requisitos.requisitos);
+  const requisito = expEngine.construirRequisitoDesdeTexto('Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, obligatorio.', 0, {});
+  const ev = expEngine.evaluarExperienciaCompleta(experiencia.contratos, [requisito]);
   assert(ev.resultadoGlobal === 'CUMPLE', 'se esperaba CUMPLE evaluando contratos de texto libre contra un requisito, fue ' + ev.resultadoGlobal);
 });
 
@@ -801,6 +818,121 @@ await check('paginaDeOffset: mapea un índice de carácter a la página real, no
   assert(expEngine.paginaDeOffset(offsets, 150) === 2, 'un índice dentro de la página 2 debería mapear a 2');
   assert(expEngine.paginaDeOffset(offsets, 399) === 3, 'un índice dentro de la página 3 debería mapear a 3');
   assert(expEngine.paginaDeOffset([], 10) === null, 'sin offsets no debería inventarse una página');
+});
+
+// 44-53) Requisitos de experiencia extraídos del Pliego/Estudio Previo (ver
+// elegant-wandering-dewdrop.md): reemplazan la matriz manual subida aparte
+// -- los requisitos salen directo del texto ya extraído del pliego (mismo
+// mecanismo de detectarRedFlags: regex sobre el texto completo +
+// paginaDeOffset), con trazabilidad de página y detección de
+// inconsistencias entre Pliego y Estudio Previo.
+await check('localizarSeccionesExperiencia: encuentra una zona por ancla, con la página real del match', () => {
+  const relleno = 'Cláusula décima. RELLENO. '.repeat(20); // empuja el texto real a la página 2
+  const texto = relleno + 'La entidad exige experiencia específica en construcción de puentes vehiculares. Fin.';
+  const paginaOffsets = [{ pagina: 1, hasta: 300 }, { pagina: 2, hasta: texto.length }];
+  const zonas = expEngine.localizarSeccionesExperiencia(texto, paginaOffsets);
+  assert(zonas.length === 1, 'se esperaba 1 zona (ancla "experiencia especifica"), se detectaron ' + zonas.length);
+  assert(zonas[0].pagina === 2, 'la zona debería citar la página 2 (donde está el match real), citó ' + zonas[0].pagina);
+});
+
+await check('localizarSeccionesExperiencia: sin ninguna ancla de experiencia en el texto -> [] (nunca inventa una zona)', () => {
+  const texto = 'Este pliego solo habla de plazos de ejecución y garantías, sin mencionar nada de experiencia exigida.';
+  assert(expEngine.localizarSeccionesExperiencia(texto, []).length === 0, 'sin anclas no debería detectarse ninguna zona');
+});
+
+await check('localizarSeccionesExperiencia: anclas cercanas (encabezado + primer ítem) se agrupan en UNA zona, no fragmentan el contenido', () => {
+  // Sin agrupar, "requisitos de experiencia" (ancla 1) recortaría la zona
+  // justo antes de "Experiencia específica..." (ancla 2, a pocos
+  // caracteres) -- dejando un fragmento fantasma sin contenido real. Ver
+  // GAP_MAX_CLUSTER_EXPERIENCIA.
+  const texto = 'Capítulo 3. Requisitos de experiencia: experiencia específica en construcción de puentes vehiculares.';
+  const zonas = expEngine.localizarSeccionesExperiencia(texto, []);
+  assert(zonas.length === 1, 'las 2 anclas cercanas deberían agruparse en 1 zona, se detectaron ' + zonas.length);
+  assert(/puentes vehiculares/.test(zonas[0].texto), 'la zona agrupada debería conservar el contenido real, no cortarlo antes: ' + zonas[0].texto);
+});
+
+await check('extraerRequisitosDePliego: lista numerada dentro de una zona -> mismos campos que construirRequisitoDesdeTexto directo, con fuente/página', () => {
+  const texto = 'Capítulo 3. Requisitos de experiencia: ' +
+    '1. Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, obligatorio. ' +
+    '2. Experiencia específica en pavimentación de vías urbanas, mínimo 2 contratos, obligatorio.';
+  const paginaOffsets = [{ pagina: 5, hasta: texto.length }];
+  const { requisitos, zonas } = expEngine.extraerRequisitosDePliego(texto, paginaOffsets, 'Pliego de Condiciones');
+  assert(zonas.length === 1, 'se esperaba 1 zona (anclas agrupadas), se detectaron ' + zonas.length);
+  assert(requisitos.length === 2, 'se esperaban 2 requisitos, fueron ' + requisitos.length);
+  assert(requisitos[0].minContratos === 1 && requisitos[1].minContratos === 2,
+    'los campos deberían coincidir con lo que produce construirRequisitoDesdeTexto directo, fueron ' + JSON.stringify(requisitos.map(r => r.minContratos)));
+  assert(requisitos.every(r => r.fuente === 'Pliego de Condiciones'), 'cada requisito debería llevar la fuente indicada');
+  assert(requisitos.every(r => r.pagina === 5), 'cada requisito debería citar la página real, fueron ' + JSON.stringify(requisitos.map(r => r.pagina)));
+});
+
+await check('extraerRequisitosDePliego: sin ninguna ancla -> {requisitos: [], zonas: []} (nunca inventa un requisito)', () => {
+  const texto = 'Este pliego no menciona experiencia en ninguna parte, solo plazos y garantías.';
+  const r = expEngine.extraerRequisitosDePliego(texto, [], 'Pliego de Condiciones');
+  assert(r.requisitos.length === 0 && r.zonas.length === 0, 'sin anclas no debería producirse ningún requisito ni zona');
+});
+
+function reqConPagina(texto, pagina){
+  const r = expEngine.construirRequisitoDesdeTexto(texto, 0, {});
+  r.pagina = pagina;
+  return r;
+}
+
+await check('detectarInconsistenciasPliegoEP: mismo requisito con un número distinto en Pliego y Estudio Previo -> 1 inconsistencia citando ambas páginas', () => {
+  const pliego = reqConPagina('Experiencia específica en construcción de puentes vehiculares, mínimo 3 contratos, obligatorio.', 12);
+  const ep = reqConPagina('Experiencia específica en construcción de puentes vehiculares, mínimo 2 contratos, obligatorio.', 4);
+  const inc = expEngine.detectarInconsistenciasPliegoEP([pliego], [ep]);
+  assert(inc.length === 1, 'se esperaba 1 inconsistencia (3 vs 2 contratos), se detectaron ' + inc.length);
+  assert(inc[0].paginaPliego === 12 && inc[0].paginaEP === 4, 'debería citar ambas páginas reales, citó ' + JSON.stringify(inc[0]));
+  assert(!/ganador|prevalece|correcto/i.test(inc[0].mensaje), 'el mensaje nunca debe elegir un lado como el correcto');
+});
+
+await check('detectarInconsistenciasPliegoEP: un lado sin el número (null) NUNCA es inconsistencia -- el silencio no es evidencia de desacuerdo', () => {
+  const pliego = reqConPagina('Experiencia específica en construcción de puentes vehiculares, mínimo 3 contratos, obligatorio.', 12);
+  const ep = reqConPagina('Experiencia específica en construcción de puentes vehiculares.', 4);
+  assert(ep.minContratos === null, 'fixture inválido -- el EP no debería traer minContratos');
+  const inc = expEngine.detectarInconsistenciasPliegoEP([pliego], [ep]);
+  assert(inc.length === 0, 'un lado sin número no debería marcarse como inconsistencia');
+});
+
+await check('detectarInconsistenciasPliegoEP: requisitos sin relación (bajo solapamiento de palabras) no se emparejan, aunque los números difieran', () => {
+  const pliego = reqConPagina('Experiencia específica en construcción de puentes vehiculares, mínimo 3 contratos, obligatorio.', 12);
+  const ep = reqConPagina('Experiencia específica en mantenimiento de redes de alcantarillado pluvial, mínimo 1 contrato, obligatorio.', 4);
+  const inc = expEngine.detectarInconsistenciasPliegoEP([pliego], [ep]);
+  assert(inc.length === 0, 'requisitos sin palabras distintivas compartidas no deberían emparejarse ni generar una inconsistencia inventada');
+});
+
+await check('detectarInconsistenciasPliegoEP: mismo valor exigido en ambos documentos -> no se marca inconsistencia', () => {
+  const pliego = reqConPagina('Experiencia específica en construcción de puentes vehiculares, mínimo 3 contratos, obligatorio.', 12);
+  const ep = reqConPagina('Experiencia específica en construcción de puentes vehiculares, mínimo 3 contratos, obligatorio.', 4);
+  assert(expEngine.detectarInconsistenciasPliegoEP([pliego], [ep]).length === 0, 'valores idénticos no deberían dispararla');
+});
+
+await check('evaluarExperienciaCompleta: requisitos con fuente/página extra (del Pliego) se comportan igual que un fixture Excel equivalente -- el wrapper no altera el motor', () => {
+  const texto = '1. Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, obligatorio.';
+  const { requisitos } = expEngine.extraerRequisitosDePliego(texto, [{ pagina: 1, hasta: texto.length }], 'Pliego de Condiciones');
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de puentes vehiculares sobre el río Pamplonita', 'Alcaldía de Cúcuta', '500000000']]
+  ));
+  const ev = expEngine.evaluarExperienciaCompleta(contratos.contratos, requisitos);
+  assert(ev.resultadoGlobal === 'CUMPLE', 'se esperaba CUMPLE (mismo caso que el Caso 1 con Excel), fue ' + ev.resultadoGlobal);
+});
+
+await check('evaluarExperienciaCompleta: cero requisitos detectados en el Pliego -> resultado global NO DETERMINABLE explícito, nunca CUMPLE trivial', () => {
+  const { requisitos } = expEngine.extraerRequisitosDePliego('Este pliego no menciona experiencia en ninguna parte.', [], 'Pliego de Condiciones');
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de puentes vehiculares', 'Alcaldía', '500000000']]
+  ));
+  const ev = expEngine.evaluarExperienciaCompleta(contratos.contratos, requisitos);
+  assert(requisitos.length === 0, 'fixture inválido -- se esperaban 0 requisitos');
+  assert(ev.resultadoGlobal === 'REQUIERE REVISIÓN', 'sin requisitos obligatorios evaluables, el global debería pedir revisión (nunca CUMPLE trivial), fue ' + ev.resultadoGlobal);
+});
+
+await check('textoPliegoDe: lee ocrText cuando el pliego se leyó vía OCR, y text en el camino normal', () => {
+  assert(expEngine.textoPliegoDe({ viaOcr: false, text: 'texto normal', ocrText: 'texto ocr' }) === 'texto normal', 'debería leer entry.text cuando viaOcr es false');
+  assert(expEngine.textoPliegoDe({ viaOcr: true, text: 'texto normal', ocrText: 'texto ocr' }) === 'texto ocr', 'debería leer entry.ocrText cuando viaOcr es true');
+  assert(expEngine.textoPliegoDe(null) === '', 'sin entry no debería fallar, devuelve string vacío');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
