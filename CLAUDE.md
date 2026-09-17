@@ -3597,3 +3597,52 @@ armar un caso de prueba aparte con evaluación completa (perfil + personal
 de una limitación de `title` en pantalla táctil real -- el usuario probó
 en su propio iPhone (no en el emulado de este entorno) y confirmó que el
 tap-to-reveal funciona bien.
+
+## Skill de Claude Code para revisar vistas en móvil
+
+Tras el fix del tooltip táctil de arriba, el usuario pidió revisar
+visualmente, una por una, cómo se veían varias vistas en viewport móvil
+(Dashboard, Buscar procesos, Perfil de la empresa, Experiencia, Personal,
+Evaluación) -- una ronda de QA visual manual repetida casi 20 veces en la
+misma sesión. Cada revisión repetía el mismo patrón: arrancar el servidor
+de preview, fijar viewport 375x812 (se resetea entre turnos), navegar el
+menú de la app, cargar datos de ejemplo si hacía falta, capturar pantalla,
+revisar la consola y limpiar al final. El usuario notó la repetición y
+sugirió: "Siento que esta constante revisión podría ser una Skill" --
+confirmó que sí, y se creó con la skill `create-skill`.
+
+Quedó documentada en `.claude/skills/revisar-vista-movil/SKILL.md`
+(project-scoped, no en `~/.claude/skills`) con el proceso completo paso a
+paso, incluyendo detalles que solo se aprendieron a base de tropiezos
+reales en esta sesión y que valía la pena dejar por escrito para no
+repetirlos:
+
+- **Navegar por JS, no por clic directo**: los clics de `computer` sobre
+  el menú hamburguesa fallaban seguido en este entorno (el menú abre/cierra
+  de forma inconsistente, las coordenadas cambian tras hacer scroll) --
+  el patrón confiable es `document.querySelector('button').click()` para
+  abrir el menú y luego buscar el botón de la vista por su texto exacto.
+- **Los filtros de la demo son restrictivos por defecto** ("Solo
+  publicados hace ≤30 días", "Solo Licitación Pública") -- hay que
+  desmarcarlos por JS o la lista de ejemplo sale vacía.
+- **Subida de archivos de prueba** vía `fetch` + `DataTransfer` + evento
+  `change` sobre el `input[type=file]`, ya que no hay selector de archivo
+  real que un navegador headless pueda operar -- y limpieza obligatoria
+  del archivo copiado al terminar, verificada con `git status --porcelain`.
+- El timeout ocasional de captura de pantalla ("Screenshot timed out
+  after 5s") es un problema transitorio conocido del entorno, no un error
+  real -- se reintenta una vez antes de reportarlo.
+- Los warnings de PDF.js en consola ("TT: undefined function"/"TT:
+  invalid function id") son ruido de librería, ya confirmados inofensivos,
+  y no deben confundirse con errores reales de la app.
+
+**Verificado**: probada en la misma sesión contra el Dashboard -- corrió
+de punta a punta sin ningún tropiezo (ni el timeout de screenshot ni
+fallas de clic que sí habían aparecido antes en la revisión manual). Se
+usó otras 3 veces más (Buscar procesos, Perfil de la empresa,
+Experiencia, Personal) con el mismo resultado limpio.
+
+No es código de la aplicación -- vive en `.claude/`, aparte de
+`index.html`, y no se hace commit/push desde dentro de la skill (es de
+solo lectura sobre el código; el commit de la skill en sí se hizo aparte,
+con la misma confirmación explícita "Sí, commit" de siempre).
