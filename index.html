@@ -1072,7 +1072,7 @@
             </div>
             <ol class="primeros-pasos-list">
               <li><button type="button" class="primeros-pasos-item" data-view="perfil"><span class="primeros-pasos-num">1</span><span><strong>Perfil de la empresa</strong> — carga el RUP o completa tu ficha (clasificación y capacidad financiera).</span></button></li>
-              <li><button type="button" class="primeros-pasos-item" data-view="experiencia"><span class="primeros-pasos-num">2</span><span><strong>Experiencia</strong> — sube la experiencia de tu empresa y evalúala contra una matriz de requisitos.</span></button></li>
+              <li><button type="button" class="primeros-pasos-item" data-view="experiencia"><span class="primeros-pasos-num">2</span><span><strong>Experiencia</strong> — sube la experiencia acreditada de tu empresa (se compara automáticamente contra cada pliego que analices).</span></button></li>
               <li><button type="button" class="primeros-pasos-item" data-view="personal"><span class="primeros-pasos-num">3</span><span><strong>Personal</strong> — registra al menos un profesional de tu equipo de trabajo.</span></button></li>
               <li><button type="button" class="primeros-pasos-item" data-view="buscar"><span class="primeros-pasos-num">4</span><span><strong>Buscar procesos</strong> — encuentra licitaciones abiertas y analiza el pliego que te interese.</span></button></li>
             </ol>
@@ -1133,7 +1133,7 @@
             <button class="quick-card" type="button" data-view="experiencia">
               <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8.5 13l2 2 4.5-4.5"/></svg></div>
               <div class="quick-card-title">Experiencia</div>
-              <div class="quick-card-desc">Cruza la experiencia acreditada contra la matriz de requisitos de un proceso.</div>
+              <div class="quick-card-desc">Carga tu experiencia acreditada -- se compara contra los requisitos de cada pliego que analices.</div>
             </button>
             <button class="quick-card" type="button" data-view="personal">
               <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/></svg></div>
@@ -1359,7 +1359,7 @@
               <button class="btn-secondary" id="bt-perfil-save">Guardar perfil</button>
               <span class="saved-note" id="bt-perfil-saved"></span>
             </div>
-            <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga y evalúa aparte, en "Experiencia" (Excel del proponente + matriz de requisitos). El RUP tampoco se usa aquí para inferir experiencia. Los datos de NIT/representante/contacto se usan solo para generar la carta de presentación (ver "Evaluación") — ningún dato sale de tu navegador salvo que actives cuenta/sincronización.</div>
+            <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga en "Experiencia" y se compara automáticamente contra cada pliego que analices. El RUP tampoco se usa aquí para inferir experiencia. Los datos de NIT/representante/contacto se usan solo para generar la carta de presentación (ver "Evaluación") — ningún dato sale de tu navegador salvo que actives cuenta/sincronización.</div>
 
             <div class="titleblock-head" style="border:none;margin:22px 0 10px;padding-bottom:0;">
               <h2 style="font-size:14.5px;">Capacidad contractual estimada</h2>
@@ -2122,8 +2122,9 @@
   // Múltiples perfiles de empresa: se guardan todos en 'perfiles_empresa' (mapa id -> perfil)
   // y cuál está activo en 'perfil_activo_id'. El perfil es SOLO información del RUP/registro
   // de la empresa (RUP-clasificador, Capacidad K, K residual) -- la experiencia general y
-  // específica NO vive aquí, se evalúa aparte en la sección "Evaluación de experiencia"
-  // (Excel del proponente + matriz de requisitos). Si el usuario ya tenía un perfil guardado
+  // específica NO vive aquí, se evalúa aparte en "Experiencia" (Excel del
+  // proponente + requisitos extraídos del Pliego/Estudio Previo de cada
+  // proceso). Si el usuario ya tenía un perfil guardado
   // con un esquema viejo (un solo perfil en la clave 'perfil_empresa', el campo único
   // 'experiencia' de antes de separar general/específica, o los campos separados
   // 'experienciaGeneral'/'experienciaEspecifica' de una versión posterior), se migra
@@ -4955,11 +4956,17 @@
       if (ex.kResidual){
         const conContratos = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
         const etiquetaPerfil = conContratos ? 'tu capacidad disponible estimada' : 'tu perfil';
+        // Auditoría UX/UI: mostraba "1200000000 COP" sin separador de miles
+        // -- confuso de leer a simple vista, e inconsistente con el resto
+        // del mismo informe (que sí usa fmtMoney en pesos). fmtCifra()
+        // separa por miles con toLocaleString sin asumir "$" (la unidad
+        // puede ser SMMLV, no siempre pesos).
+        const fmtCifra = (n, unidad) => (unidad === 'COP' ? '$' : '') + Number(n).toLocaleString('es-CO') + (unidad === 'COP' ? '' : ' ' + unidad);
         if (matriz.kResidual && matriz.kResidual.unidad === ex.kResidual.unidad){
           const pasa = matriz.kResidual.valor >= ex.kResidual.valor;
-          g('Capacidad K residual', pasa ? 'ok' : 'fail', 'Pliego: ≥ ' + ex.kResidual.valor + ' ' + ex.kResidual.unidad + ' · ' + etiquetaPerfil + ': ' + matriz.kResidual.valor + ' ' + matriz.kResidual.unidad + (pasa ? ' ✓' : ' ✗'));
+          g('Capacidad K residual', pasa ? 'ok' : 'fail', 'Pliego: ≥ ' + fmtCifra(ex.kResidual.valor, ex.kResidual.unidad) + ' · ' + etiquetaPerfil + ': ' + fmtCifra(matriz.kResidual.valor, matriz.kResidual.unidad) + (pasa ? ' ✓' : ' ✗'));
         } else {
-          g('Capacidad K residual', 'nd', 'El pliego la exige (' + ex.kResidual.valor + ' ' + ex.kResidual.unidad + ') pero tu perfil no la tiene en esa unidad.');
+          g('Capacidad K residual', 'nd', 'El pliego la exige (' + fmtCifra(ex.kResidual.valor, ex.kResidual.unidad) + ') pero tu perfil no la tiene en esa unidad.');
         }
       }
       // Experiencia: YA NO sale del perfil (el perfil no la tiene). Sale de
@@ -5006,7 +5013,7 @@
     const cls = v === 'GO' ? 'eval-go' : v === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
     const primeraRazon = (res.mejor.gates.filter(g => g.estado === 'fail')[0] ||
                           res.mejor.gates.filter(g => g.estado === 'revisar')[0] || {}).detalle || '';
-    const t = (res.porPerfil.length > 1 ? 'Mejor de ' + res.porPerfil.length + ' perfiles (' + escapeHtml(res.mejor.perfil) + '). ' : '') + primeraRazon;
+    const t = 'Cumplimiento estimado: ' + (res.porPerfil.length > 1 ? 'mejor de ' + res.porPerfil.length + ' perfiles (' + escapeHtml(res.mejor.perfil) + '). ' : '') + primeraRazon;
     return '<span class="tag eval ' + cls + '" title="' + escapeHtml(t) + '">' + v + (res.mejor.conPliego ? '' : ' ·') + '</span>';
   }
 
@@ -5438,13 +5445,23 @@
     if (prev && scored.some(s => s.item.id === prev)) evalSelectEl.value = prev;
   }
 
+  // Auditoría UX/UI: recalcula SIEMPRE en vez de preferir `s.evaluacion`
+  // (el veredicto cacheado en el último render de la lista, ver 6020) --
+  // ese caché queda obsoleto en cuanto se analiza un pliego DESPUÉS de esa
+  // búsqueda (el análisis solo redibuja la tarjeta, no vuelve a correr
+  // render()). Bug real confirmado: "Buscar procesos" mostraba el
+  // análisis completo de un pliego ya analizado, pero "Evaluación" para
+  // ese MISMO proceso seguía diciendo "sin pliego analizado". Este panel
+  // evalúa un solo proceso a la vez por clic explícito -- recalcular aquí
+  // es barato, a diferencia del render de la lista completa (esa sí sigue
+  // cacheando `s.evaluacion` a propósito, por costo).
   function runEvaluacion(){
     if (!evalOutEl) return;
     const id = evalSelectEl.value;
     const s = (lastScored || []).find(x => x.item.id === id);
     if (!s){ evalOutEl.innerHTML = '<div class="analysis-block analysis-warn">Elige un proceso de la lista.</div>'; return; }
     const entry = analisis[id];
-    const res = s.evaluacion || evaluarMejor(s.item, { daysLeft: s.daysLeft }, entry);
+    const res = evaluarMejor(s.item, { daysLeft: s.daysLeft }, entry);
     evalOutEl.innerHTML = evalDetalleHtml(s.item, res, entry);
   }
 
@@ -5452,18 +5469,30 @@
   // Experiencia NO va aquí -- el perfil ya no la tiene; sale por separado, una
   // sola vez (no por perfil), de la sección "Evaluación de experiencia" (ver
   // experienciaGateDetalle / bloqueExperienciaHtml).
+  // Auditoría UX/UI: antes también mostraba "Capacidad K / financiera: X/Y"
+  // y "· de esa, K residual: X/Y" -- una coincidencia de texto LITERAL
+  // entre lo que el usuario escribió en su perfil y el texto crudo del
+  // pliego. Para cifras financieras esa comparación es casi tautológicamente
+  // 0 (el pliego declara SU propio mínimo exigido, nunca la cifra exacta
+  // que declaró el proponente en su perfil) -- y "RESUMEN DE
+  // COMPATIBILIDAD" (evaluarProceso, arriba en la misma tarjeta) YA hace
+  // la comparación correcta (tu capacidad vs el umbral que el pliego
+  // exige) con gates como "Capacidad K residual". Bug real confirmado:
+  // un perfil con K residual que SÍ cumplía el mínimo del pliego
+  // ("Capacidad K residual: Cumple ✓" en la tabla de gates) mostraba
+  // "K residual: 0/1" unas líneas más abajo, en este mismo bloque --
+  // dos señales contradictorias sobre lo mismo, en la misma pantalla.
+  // Se quitan las líneas de K/financiera de aquí (el cálculo interno
+  // sigue existiendo, compararConPerfil() lo sigue usando para el ajuste
+  // de prioridad de la tarjeta -- ver analysisScoreAdjustment -- solo se
+  // deja de MOSTRAR como si fuera un veredicto de cumplimiento). RUP se
+  // conserva: ahí sí es razonable que un código UNSPSC del perfil
+  // aparezca literal en el texto del pliego.
   function resumenPerfilHtml(c){
-    // La indentación de la línea anidada ("de esa, K residual") es CSS
-    // (.resumen-perfil-sub), no espacios en duro dentro del string -- antes
-    // era '&nbsp;&nbsp;· ...' mezclando presentación con contenido.
-    const linea = (label, matches, total, nested) => {
-      const m = matches || [];
-      const pct = total ? (m.length + '/' + total) : 'sin datos de perfil';
-      return '<div' + (nested ? ' class="resumen-perfil-sub"' : '') + '>' + label + ': ' + pct + (m.length ? ' — ' + escapeHtml(m.join(', ')) : '') + '</div>';
-    };
-    return linea('Capacidad K / financiera', c.kMatches, c.kTotal || 0) +
-      (c.kResidualTotal ? linea('· de esa, K residual', c.kResidualMatches, c.kResidualTotal, true) : '') +
-      linea('RUP / clasificador', c.rupMatches, c.rupTotal || 0);
+    const m = c.rupMatches || [];
+    const total = c.rupTotal || 0;
+    const pct = total ? (m.length + '/' + total) : 'sin datos de perfil';
+    return '<div>RUP / clasificador: ' + pct + (m.length ? ' — ' + escapeHtml(m.join(', ')) : '') + '</div>';
   }
 
   // Bloque compartido (una sola vez por análisis, no por perfil) que muestra el
@@ -6103,7 +6132,14 @@
       return '<div class="row ' + s.tier + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
         venceAlertHtml +
         '<div class="row-head"><div class="row-ent">' + escapeHtml(it.entidad) + '</div>' +
-          '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority"' + (s.scoreAdjusted ? ' title="Prioridad ajustada por el análisis del pliego PDF"' : '') + '>' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
+          // Auditoría UX/UI: la tarjeta muestra dos "semáforos" (GO/REVISAR/
+          // NO-GO de cumplimiento, y ALTA/MEDIA/BAJA de prioridad por palabra
+          // clave) sin ninguna aclaración junto a ellos -- solo en el pie de
+          // página general de la vista, lejos de donde realmente se leen.
+          // Se le agrega un title explícito a la etiqueta de prioridad
+          // (siempre, no solo cuando el análisis la ajustó) para que quede
+          // claro que NO es un veredicto de cumplimiento.
+          '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority" title="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '">' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
         '</div>' +
         '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 220)) + '</div>' +
         '<div class="row-meta">' +
@@ -6573,8 +6609,13 @@
           if (noMatch) L.push('      NO aparecen en el pliego: ' + listar(noMatch));
         }
       };
-      bloque('Capacidad K / financiera', c.kTotal || 0, c.kMatches, c.kNoMatch);
-      if (c.kResidualTotal) bloque('  · de esa, K residual', c.kResidualTotal, c.kResidualMatches, c.kResidualNoMatch);
+      // Auditoría UX/UI: "Capacidad K / financiera"/"K residual" (coincidencia
+      // de texto LITERAL contra el pliego) se quitaron de aquí por la misma
+      // razón que en resumenPerfilHtml -- contradecían el "RESUMEN DE
+      // COMPATIBILIDAD" (gates correctos, arriba en el mismo informe) con un
+      // falso "0/N" para cifras financieras que el pliego nunca repite tal
+      // cual. RUP sí se conserva (un código UNSPSC del perfil puede aparecer
+      // literal en el pliego).
       bloque('RUP / clasificador', c.rupTotal || 0, c.rupMatches, c.rupNoMatch);
       nl();
       const cubre = [], noCubre = [];
@@ -6587,7 +6628,6 @@
       (noCubre.length ? noCubre : ['—']).forEach(x => L.push('      - ' + x));
       nl();
       const cats = [
-        ['Capacidad K', c.kTotal, (c.kMatches || []).length],
         ['RUP', c.rupTotal, (c.rupMatches || []).length]
       ].filter(x => x[1]);
       if (cats.length){
@@ -6668,7 +6708,8 @@
       const s = (lastScored || []).find(x => x.item.id === infBtn.getAttribute('data-eval-id'));
       if (!s) return;
       const entryInf = analisis[s.item.id];
-      const res = s.evaluacion || evaluarMejor(s.item, { daysLeft: s.daysLeft }, entryInf);
+      // Mismo fix que runEvaluacion() -- nunca preferir el caché obsoleto.
+      const res = evaluarMejor(s.item, { daysLeft: s.daysLeft }, entryInf);
       descargarTexto('evaluacion-' + slugArchivo((s.item.referencia || s.item.entidad)) + '-' + new Date().toISOString().slice(0, 10) + '.txt', informeEvalTexto(s.item, res, entryInf));
       return;
     }

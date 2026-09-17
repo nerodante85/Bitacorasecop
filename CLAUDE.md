@@ -3435,3 +3435,110 @@ limitación conocida.
 anteriores -- solo se pudo probar en Chromium emulado en este entorno,
 nunca Safari/WebKit real. El usuario probó el sitio en producción con su
 propio iPhone y confirmó que funciona bien.
+
+## Auditoría UX/UI: confianza de un ingeniero civil en el análisis
+
+El usuario pidió auditar la app "desde un contexto UX/UI para un ingeniero
+civil que va a usar la aplicación para buscar licitaciones... y que confía
+en los análisis de la página para saber a cuáles presentarse y si cumple"
+-- mismo método ya establecido (recorrido real en navegador, estado
+limpio, completando flujos de punta a punta con datos inyectados vía
+`DataTransfer`, no lectura de código), pero esta vez el foco explícito fue
+la CONFIANZA en el resultado, no solo la navegación. 2 hallazgos críticos,
+1 importante, 2 menores -- todos implementados.
+
+### 1. (Crítico) Dos "veredictos" de capacidad financiera que se contradecían en la misma pantalla
+
+`resumenPerfilHtml` (dentro del análisis de un pliego) mostraba "Capacidad
+K / financiera: 0/3" y "· de esa, K residual: 0/1" -- una coincidencia de
+texto LITERAL entre lo que el usuario escribió en su perfil
+(`compararConPerfil`) y el texto crudo del pliego. Para cifras financieras
+esa comparación es casi tautológicamente 0 (el pliego declara SU propio
+mínimo exigido, nunca la cifra exacta que el proponente declaró en su
+perfil) -- confirmado con un perfil real que SÍ cumplía el mínimo del
+pliego: la tabla de gates decía "Capacidad K residual: Cumple ✓" y, unas
+líneas más abajo, el mismo bloque decía "K residual: 0/1". Dos señales
+contradictorias sobre lo mismo, en la misma tarjeta.
+
+Fix: se quitaron las líneas de "Capacidad K / financiera"/"K residual" de
+`resumenPerfilHtml` y del informe `.txt` descargable
+(`informeAnalisisTexto`) -- el cálculo interno de `compararConPerfil`
+sigue existiendo (`analysisScoreAdjustment` todavía lo usa para el ajuste
+de prioridad de la tarjeta), solo se dejó de MOSTRAR como si fuera un
+veredicto de cumplimiento, porque el "RESUMEN DE COMPATIBILIDAD"
+(`evaluarProceso`, gates con umbrales reales extraídos del pliego) ya
+resuelve esto correctamente. Se conservó "RUP / clasificador" -- ahí sí es
+razonable que un código UNSPSC del perfil aparezca literal en el pliego.
+
+### 2. (Crítico) "Evaluación" no reflejaba un pliego que YA se había analizado
+
+Se analiza el pliego de un proceso en "Buscar procesos" (resultado
+completo, correcto). Se va a "Evaluación", se elige el MISMO proceso, y
+decía "Evaluación preliminar, sin pliego analizado" -- como si nada se
+hubiera hecho. Causa raíz: `runEvaluacion()` prefería `s.evaluacion` (un
+veredicto cacheado en el último `render()`/búsqueda de la lista) en vez de
+recalcular con el `entry` actual -- ese caché queda obsoleto en cuanto se
+analiza un pliego DESPUÉS de esa búsqueda, porque analizar solo redibuja
+la tarjeta puntual, no vuelve a correr `render()` para toda la lista. Ya
+estaba parcialmente documentado como limitación aceptada para cuando se
+EDITA un perfil (ver "Nota sobre re-evaluar tras editar el perfil" más
+arriba), pero no se había notado que también rompía la vista "Evaluación"
+para un pliego recién analizado -- una inconsistencia mucho más visible y
+directamente contraria a lo que el usuario pidió auditar.
+
+Fix: `runEvaluacion()` y el botón "Descargar evaluación (.txt)" ahora
+recalculan SIEMPRE con `evaluarMejor()` en vez de preferir el caché --
+este panel evalúa un solo proceso a la vez por clic explícito del
+usuario, así que recalcular es barato. El render de la LISTA completa
+(`render()`, línea ~6020) sigue cacheando `s.evaluacion` a propósito, por
+costo real de recorrer cientos de filas -- esa limitación documentada
+sigue en pie y no se tocó.
+
+### 3. (Importante) Texto desactualizado sobre una "matriz de requisitos" que ya no existe
+
+Tres textos visibles (paso 2 de "Primeros pasos" en el Dashboard, la
+tarjeta rápida "Experiencia" del Dashboard, y una nota en "Perfil de la
+empresa") seguían describiendo el flujo eliminado ("sube la experiencia...
+y evalúala contra una matriz de requisitos" / "Excel del proponente +
+matriz de requisitos") -- residuo textual del cambio de arquitectura
+documentado más arriba ("Los requisitos de experiencia salen del
+Pliego/Estudio Previo..."). Reescritos para reflejar el flujo actual (la
+comparación es automática contra el Pliego/Estudio Previo de cada
+proceso, no contra una matriz preparada aparte).
+
+### 4. (Menor) Números sin separador de miles en la fila "Capacidad K residual"
+
+"Pliego: ≥ 1200000000 COP · tu perfil: 1500000000 COP" -- inconsistente
+con el resto del mismo informe, que sí usa `fmtMoney` ("$1.850.000.000").
+Nueva función `fmtCifra(n, unidad)` (junto al gate de K residual en
+`evaluarProceso`): antepone "$" solo cuando la unidad es COP (una cifra en
+SMMLV no debe llevar "$", sería engañoso), y siempre separa por miles con
+`toLocaleString('es-CO')`.
+
+### 5. (Menor) Dos "semáforos" en cada tarjeta sin distinguirse entre sí
+
+Cada tarjeta de "Buscar procesos" muestra el sello GO/REVISAR/NO-GO
+(cumplimiento) junto a la etiqueta ALTA/MEDIA/BAJA (prioridad por
+coincidencia de palabra clave) -- dos escalas de "semáforo" distintas,
+sin ninguna aclaración junto a ellas (la explicación solo vivía en el pie
+de página general de la vista). Se agregó un `title` explícito a la
+etiqueta de prioridad (antes solo lo tenía cuando el análisis del pliego
+la ajustaba) aclarando que es un puntaje de búsqueda, no de cumplimiento,
+y se afinó el `title` del sello de cumplimiento para empezar con
+"Cumplimiento estimado:".
+
+**Verificado**: 67/67 tests de humo (ninguno de estos 5 cambios toca
+lógica de negocio evaluable por `extractExperienceEngine` -- son
+UI/estado de la app, sin tests nuevos). Probado de punta a punta en
+navegador real con datos inyectados en cada paso (perfil con K residual
+que SÍ cumple el mínimo del pliego, Excel de experiencia, personal,
+pliego PDF sintético con Capacidad K Residual exigida): confirmado que
+"Capacidad K residual: Cumple ✓" ya NO tiene un "K residual: 0/1"
+contradictorio debajo; confirmado que "Evaluación" para el mismo proceso
+ya analizado en "Buscar procesos" ahora muestra el detalle completo
+("✅ Capacidad K residual: Pliego: ≥ $1.200.000.000 · tu perfil:
+$1.500.000.000 ✓") en vez de "sin pliego analizado"; confirmado el nuevo
+formato con separador de miles; confirmados los dos `title` nuevos por
+JS (`el.title`); confirmado que "matriz de requisitos" ya no aparece en
+ningún texto del Dashboard ni de "Perfil de la empresa". Sin overflow en
+375px, 0 errores de consola en todo el recorrido.
