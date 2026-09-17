@@ -3547,3 +3547,53 @@ ningún texto del Dashboard ni de "Perfil de la empresa". Sin overflow en
 anteriores -- solo se pudo probar en Chromium emulado en este entorno,
 nunca Safari/WebKit real. El usuario probó el sitio en producción con su
 propio iPhone y confirmó que funciona bien.
+
+## Los tooltips del punto 5 (arriba) no servían en móvil -- se hicieron tap-to-reveal
+
+Durante la revisión visual de "Buscar procesos" en viewport móvil (375px),
+salió a la luz un límite real de HTML: `title` es un tooltip de HOVER de
+mouse -- en pantalla táctil nunca aparece, no hay forma de verlo. El
+usuario lo confirmó y pidió explícitamente que el mismo texto ("ese mismo
+tooltip") también sirviera en móvil.
+
+Fix: los dos elementos con `title` explicativo (`.tag.priority` en la
+generación de cada tarjeta, y `evalChipHtml` para el sello
+GO/REVISAR/NO-GO) ganaron `class="tag-tip" tabindex="0" role="button"
+data-tip="<mismo texto del title>"` -- el `title` se conserva tal cual
+(sigue sirviendo de tooltip nativo en desktop), `data-tip` es la copia que
+lee JS. Cada tarjeta gana un `<div class="tag-tip-note saved-note"
+hidden></div>` vacío justo después de `.row-head`. Un listener delegado
+nuevo en `resultsEl` (junto a los demás, antes del bloque "0) Ir a
+Experiencia/Personal") escucha click sobre `.tag-tip`, encuentra la nota
+de ESA fila (`closest('.row').querySelector('.tag-tip-note')`) y
+muestra/oculta su texto -- tocar el mismo tag dos veces lo cierra, tocar
+un tag DISTINTO de la misma tarjeta reemplaza el texto en vez de sumar
+notas. Un segundo listener de `keydown` (Enter/Espacio) reutiliza el
+mismo camino disparando `.click()` sobre el tag enfocado, ya que
+`tabindex="0" role="button"` lo vuelve alcanzable por teclado. CSS nuevo:
+`.tag-tip { cursor: pointer }` más un "ⓘ" discreto como pista visual de
+que el tag es tocable, y `.tag-tip-note { margin-top: 6px }`.
+
+Bug real encontrado de paso, sin relación con el tooltip: al tocar la
+misma línea de `evalChipHtml` para agregar `data-tip`, se vio que
+`res.mejor.perfil` se escapaba con `escapeHtml()` y LUEGO la variable
+completa se volvía a escapar con `escapeHtml(t)` -- un nombre de empresa
+con `&`/`<` habría salido doblemente escapado (`&amp;amp;`). Se quitó el
+escape interno, ya que el externo alcanza.
+
+**Verificado**: 67/67 tests de humo (cambio puramente de UI, sin tocar
+ninguna función que `extractExperienceEngine` cubra -- mismo criterio que
+el resto de esta sección). Probado en navegador real, viewport móvil
+375x812, con datos de ejemplo: tocar la etiqueta "ALTA ⓘ" de una tarjeta
+muestra la nota completa debajo del encabezado; tocarla de nuevo la
+oculta; 0 errores de consola. El sello GO/REVISAR/NO-GO usa exactamente
+el mismo `tag-tip`/`data-tip` y el mismo listener genérico (no hay código
+específico por tipo de tag), así que hereda el mismo comportamiento
+verificado -- confirmado leyendo `evalChipHtml` línea por línea, sin
+armar un caso de prueba aparte con evaluación completa (perfil + personal
++ pliego), que no aportaría una ruta de código distinta a la ya probada.
+
+**Confirmado en iPhone real por el usuario**: el pedido nació precisamente
+de una limitación de `title` en pantalla táctil real -- el usuario probó
+en su propio iPhone (no en el emulado de este entorno) y confirmó que el
+tap-to-reveal funciona bien.

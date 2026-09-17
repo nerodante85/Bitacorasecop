@@ -547,6 +547,17 @@
   #bitacora-root #bt-eval-out .analysis-list li { margin-bottom: 6px; }
   #bitacora-root .eval-adj-slot:empty { display: none; }
 
+  /* Auditoría UX/UI: los sellos GO/REVISAR/NO-GO y ALTA/MEDIA/BAJA solo
+     explicaban su significado por `title` (hover de mouse) -- invisible
+     en pantalla táctil. `.tag-tip` los hace tapeables (cursor + un
+     puntito "ⓘ" discreto como pista visual de que hay más info) y el
+     listener delegado (ver resultsEl) revela el mismo texto de `title`
+     en `.tag-tip-note`, la nota oculta que ya viene junto a cada tarjeta. */
+  #bitacora-root .tag-tip { cursor: pointer; }
+  #bitacora-root .tag-tip::after { content: 'ⓘ'; margin-left: 3px; opacity: .6; font-size: 9px; }
+  #bitacora-root .tag-tip-note { margin-top: 6px; }
+  #bitacora-root .tag-tip-note[hidden] { display: none; }
+
   #bitacora-root .row-obj {
     font-size: 13.5px;
     line-height: 1.5;
@@ -5013,8 +5024,15 @@
     const cls = v === 'GO' ? 'eval-go' : v === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
     const primeraRazon = (res.mejor.gates.filter(g => g.estado === 'fail')[0] ||
                           res.mejor.gates.filter(g => g.estado === 'revisar')[0] || {}).detalle || '';
-    const t = 'Cumplimiento estimado: ' + (res.porPerfil.length > 1 ? 'mejor de ' + res.porPerfil.length + ' perfiles (' + escapeHtml(res.mejor.perfil) + '). ' : '') + primeraRazon;
-    return '<span class="tag eval ' + cls + '" title="' + escapeHtml(t) + '">' + v + (res.mejor.conPliego ? '' : ' ·') + '</span>';
+    // Bug real corregido de paso (encontrado revisando esta misma línea
+    // para el fix de "tag-tip" en móvil): `res.mejor.perfil` se escapaba
+    // aquí Y otra vez con el resto de `t` más abajo -- un nombre de
+    // empresa con "&"/"<" habría salido doblemente escapado ("&amp;amp;").
+    const t = 'Cumplimiento estimado: ' + (res.porPerfil.length > 1 ? 'mejor de ' + res.porPerfil.length + ' perfiles (' + res.mejor.perfil + '). ' : '') + primeraRazon;
+    // Mismo problema de "title" que .tag.priority (ver comentario en
+    // render()): tap-to-reveal vía tag-tip/data-tip para que también
+    // funcione en pantalla táctil, no solo con hover de mouse.
+    return '<span class="tag eval ' + cls + ' tag-tip" tabindex="0" role="button" title="' + escapeHtml(t) + '" data-tip="' + escapeHtml(t) + '">' + v + (res.mejor.conPliego ? '' : ' ·') + '</span>';
   }
 
   // Un párrafo: "de un vistazo", para que quien decide si presentarse no tenga
@@ -6136,11 +6154,15 @@
           // NO-GO de cumplimiento, y ALTA/MEDIA/BAJA de prioridad por palabra
           // clave) sin ninguna aclaración junto a ellos -- solo en el pie de
           // página general de la vista, lejos de donde realmente se leen.
-          // Se le agrega un title explícito a la etiqueta de prioridad
-          // (siempre, no solo cuando el análisis la ajustó) para que quede
-          // claro que NO es un veredicto de cumplimiento.
-          '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority" title="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '">' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
+          // El title explica esto en desktop (hover), pero un title NUNCA
+          // se ve en pantalla táctil -- sin hover, no hay forma de
+          // disparlo. Además de "tag-tip" (clase compartida) + data-tip
+          // (mismo texto que title), tapeable: revela el mismo texto en
+          // una nota debajo de la tarjeta (ver el listener delegado
+          // "tag-tip-note" y su CSS).
+          '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority tag-tip" tabindex="0" role="button" title="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '" data-tip="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '">' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
         '</div>' +
+        '<div class="tag-tip-note saved-note" hidden></div>' +
         '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 220)) + '</div>' +
         '<div class="row-meta">' +
           '<span>' + escapeHtml(loc) + '</span>' +
@@ -7134,6 +7156,27 @@
     // plataforma con datos. Reusa el mismo loadDemo() que ese botón.
     if (e.target.closest('#bt-empty-demo')){ loadDemo(); return; }
 
+    // -0.5) Tooltip táctil: los sellos GO/REVISAR/NO-GO y ALTA/MEDIA/BAJA
+    // solo explicaban su significado por `title` (hover de mouse), invisible
+    // en celular. Un tap sobre `.tag-tip` muestra/oculta la misma nota en
+    // `.tag-tip-note` de esa tarjeta (ver CSS y generación en renderCard/
+    // evalChipHtml). Segundo tap sobre el mismo tag la vuelve a ocultar.
+    const tagTip = e.target.closest('.tag-tip');
+    if (tagTip){
+      const nota = tagTip.closest('.row').querySelector('.tag-tip-note');
+      if (nota){
+        const mismoTag = nota.dataset.tagAbierto === (tagTip.dataset.tip || '');
+        if (!nota.hidden && mismoTag){
+          nota.hidden = true;
+        } else {
+          nota.textContent = tagTip.getAttribute('data-tip') || '';
+          nota.dataset.tagAbierto = tagTip.dataset.tip || '';
+          nota.hidden = false;
+        }
+      }
+      return;
+    }
+
     // 0) "Ir a Experiencia/Personal" -- del mensaje que bloquea "Analizar pliego"
     const irABtn = e.target.closest('button[data-ir-a]');
     if (irABtn){
@@ -7366,6 +7409,17 @@
       }
       return;
     }
+  });
+
+  // Activación por teclado (Enter/Espacio) del mismo tooltip táctil de
+  // arriba -- `.tag-tip` lleva tabindex="0" role="button" para que también
+  // sea accesible sin mouse ni pantalla táctil.
+  resultsEl.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const tagTip = e.target.closest('.tag-tip');
+    if (!tagTip) return;
+    e.preventDefault();
+    tagTip.click();
   });
 
   // Solo CARGA el pliego (paso separado de analizarlo, pedido explícito del
