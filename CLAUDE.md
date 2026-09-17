@@ -3427,4 +3427,11 @@ mostrado en la justificación puede no ser confiable -- reconstruir la
 tabla real (filas/columnas por coordenada, como ya hace
 `extraerFilasPorPosicion` para "Experiencia del proponente") queda fuera
 de alcance de esta pasada; el panel de "posible tabla no leída" es la
-mitigación actual.
+mitigación actual. Se le preguntó al usuario si quería que se
+implementara esa reconstrucción ahora -- respondió que no, queda como
+limitación conocida.
+
+**Confirmado en iPhone real por el usuario**: mismo patrón que las rondas
+anteriores -- solo se pudo probar en Chromium emulado en este entorno,
+nunca Safari/WebKit real. El usuario probó el sitio en producción con su
+propio iPhone y confirmó que funciona bien.
