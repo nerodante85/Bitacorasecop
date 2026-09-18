@@ -3697,3 +3697,50 @@ reportó el usuario) para no depender de una corrida real de OCR de
 varios minutos: la advertencia aparece correctamente tanto en la tarjeta
 de "Buscar procesos" como en "Evaluación go/no-go", justo debajo del
 sello del veredicto. 0 errores de consola.
+
+## Identificar y evaluar la experiencia automáticamente al analizar el pliego
+
+El usuario pidió: "al analizar el archivo de Pliego de Condiciones o
+Estudios Previos, se identifique la experiencia y me dé los detalles...
+para comparar con la experiencia del proponente, tener una idea de si
+cumple o no". Investigando el código: esto YA existía casi por completo
+(`extraerRequisitosDePliego`, `evaluarExperienciaCompleta`, la sección
+"EXPERIENCIA REQUERIDA" del análisis) -- lo único que faltaba era que se
+disparara solo. Hasta ahora, `experienciaGateDetalle(entry)` devolvía
+siempre el mensaje genérico "Analiza el pliego de este proceso..." en el
+`RESUMEN DE COMPATIBILIDAD` (el resultado GO/NO-GO principal) hasta que
+el usuario diera un clic APARTE en el botón "🔎 Evaluar cumplimiento de
+experiencia", al final de la tarjeta -- un segundo paso manual fácil de
+no notar, sobre todo porque el resto del análisis (K residual, red
+flags, viabilidad) sí aparecía de una.
+
+Fix: `evaluarExperienciaDeProceso(id, slot)` (la función que ya hacía
+todo el trabajo -- extraer requisitos del Pliego/Estudio Previo, detectar
+inconsistencias entre ambos, correr `evaluarExperienciaCompleta` contra
+la experiencia acreditada de la empresa) ahora se llama automáticamente
+justo después de leer el pliego, en los 3 puntos donde eso pasa:
+`.analysis-confirmar-btn` (camino normal), `.analysis-ocr-btn` (primera
+tanda de OCR) y `.analysis-ocr-continue-btn` ("Seguir leyendo más
+páginas" -- cada tanda nueva se re-evalúa con el texto acumulado, por si
+las páginas siguientes traen requisitos que las anteriores no tenían).
+`expevalContratos` (la experiencia de la empresa) está garantizado en
+ese punto por `estadoFlujoPliego().listo`, el mismo gate que ya bloquea
+el botón "Analizar pliego" hasta cargar Experiencia y Personal -- pero
+se dejó la función tolerante a que falte (sigue renderizando igual, solo
+sin el resultado de experiencia) en vez de asumirlo ciegamente.
+
+El botón "🔎 Evaluar cumplimiento de experiencia" sigue existiendo como
+"↻ Volver a evaluar experiencia" para recalcular a mano (ej. después de
+cargar el Estudio Previo, que no dispara el flujo automático porque se
+sube por separado, en otro momento).
+
+**Verificado**: 67/67 tests de humo. Probado en navegador real de punta
+a punta: perfil de empresa + experiencia (Excel demo) + personal
+cargados, pliego real analizado (con cláusulas de "Experiencia general
+en obras civiles" y "Experiencia específica en pavimento") -- sin tocar
+ningún botón de experiencia, el análisis ya trae
+`entry.experienciaResultado` poblado (2 requisitos, REQUIERE REVISIÓN),
+la sección "EXPERIENCIA REQUERIDA" muestra el detalle completo (2
+evaluados, 1 cumple, 0 no cumple, 1 no determinable), y el
+`RESUMEN DE COMPATIBILIDAD` principal ya cita ese mismo resultado en vez
+del mensaje genérico de "analiza el pliego". 0 errores de consola.

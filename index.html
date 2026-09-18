@@ -7104,36 +7104,48 @@
   // experiencia de la empresa (Fuente A, global) contra los requisitos de
   // ESTE proceso puntual. Re-ejecutable en cualquier momento (mismo botón
   // sirve para "evaluar" y "volver a evaluar").
+  // Se llama automáticamente justo después de leer el pliego (ver los 3
+  // puntos donde se construye `entry` más abajo) -- el usuario pidió que
+  // "al analizar el archivo... se identifique la experiencia y dé los
+  // detalles... para comparar con la experiencia del proponente" sin un
+  // segundo clic aparte en "Evaluar cumplimiento de experiencia". El botón
+  // sigue existiendo para "volver a evaluar" manualmente (ej. después de
+  // cargar el Estudio Previo, que no dispara este flujo automático).
+  // expevalContratos está garantizado por `estadoFlujoPliego().listo`
+  // (gate que ya bloquea "Analizar pliego" hasta cargar Experiencia) --
+  // igual se revisa por si acaso, para nunca dejar de renderizar.
   function evaluarExperienciaDeProceso(id, slot){
     const entry = analisis[id];
-    if (!entry || !expevalContratos) return;
-    const texto = textoPliegoDe(entry);
-    const pliegoEx = extraerRequisitosDePliego(texto, entry.paginaOffsets, 'Pliego de Condiciones');
-    let reqsEP = [], tablasEP = [];
-    if (entry.estudioPrevioText){
-      const epEx = extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo');
-      reqsEP = epEx.requisitos;
-      tablasEP = epEx.posiblesTablasNoLeidas.map(t => Object.assign({ fuente: 'Estudio Previo' }, t));
+    if (!entry) return;
+    if (expevalContratos){
+      const texto = textoPliegoDe(entry);
+      const pliegoEx = extraerRequisitosDePliego(texto, entry.paginaOffsets, 'Pliego de Condiciones');
+      let reqsEP = [], tablasEP = [];
+      if (entry.estudioPrevioText){
+        const epEx = extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo');
+        reqsEP = epEx.requisitos;
+        tablasEP = epEx.posiblesTablasNoLeidas.map(t => Object.assign({ fuente: 'Estudio Previo' }, t));
+      }
+      const todos = pliegoEx.requisitos.concat(reqsEP);
+      entry.requisitosExperiencia = todos;
+      entry.inconsistenciasPliegoEP = detectarInconsistenciasPliegoEP(pliegoEx.requisitos, reqsEP);
+      // Tablas/matrices de experiencia mencionadas pero no interpretables
+      // como texto plano (ver pareceRequisitoDeExperienciaReal/
+      // REGEX_MENCION_TABLA_EXPERIENCIA) -- deduplicadas por fuente+página,
+      // varias anclas cercanas de la misma tabla real no deberían mostrarse
+      // como avisos repetidos.
+      const tablas = pliegoEx.posiblesTablasNoLeidas.map(t => Object.assign({ fuente: 'Pliego de Condiciones' }, t)).concat(tablasEP);
+      const vistas = new Set();
+      entry.posiblesTablasExperiencia = tablas.filter(t => {
+        const k = t.fuente + '|' + t.pagina;
+        if (vistas.has(k)) return false;
+        vistas.add(k);
+        return true;
+      });
+      entry.experienciaResultado = evaluarExperienciaCompleta(expevalContratos.contratos, todos);
+      analisis[id] = entry;
+      saveAnalisis();
     }
-    const todos = pliegoEx.requisitos.concat(reqsEP);
-    entry.requisitosExperiencia = todos;
-    entry.inconsistenciasPliegoEP = detectarInconsistenciasPliegoEP(pliegoEx.requisitos, reqsEP);
-    // Tablas/matrices de experiencia mencionadas pero no interpretables
-    // como texto plano (ver pareceRequisitoDeExperienciaReal/
-    // REGEX_MENCION_TABLA_EXPERIENCIA) -- deduplicadas por fuente+página,
-    // varias anclas cercanas de la misma tabla real no deberían mostrarse
-    // como avisos repetidos.
-    const tablas = pliegoEx.posiblesTablasNoLeidas.map(t => Object.assign({ fuente: 'Pliego de Condiciones' }, t)).concat(tablasEP);
-    const vistas = new Set();
-    entry.posiblesTablasExperiencia = tablas.filter(t => {
-      const k = t.fuente + '|' + t.pagina;
-      if (vistas.has(k)) return false;
-      vistas.add(k);
-      return true;
-    });
-    entry.experienciaResultado = evaluarExperienciaCompleta(expevalContratos.contratos, todos);
-    analisis[id] = entry;
-    saveAnalisis();
     if (slot){ const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
   }
 
@@ -7307,8 +7319,9 @@
         analisis[id] = entry;
         saveAnalisis();
         delete pendingPliegoFiles[id];
-        const ctx = itemYScorePara(id);
-        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s);
+        // Identifica y evalúa la experiencia requerida automáticamente, sin
+        // esperar un segundo clic en "Evaluar cumplimiento de experiencia".
+        evaluarExperienciaDeProceso(id, slot);
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(err.message || 'error') + ').</div>';
       }
@@ -7343,7 +7356,9 @@
         const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaOcr: true };
         analisis[id] = entry;
         saveAnalisis();
-        { const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
+        // Identifica y evalúa la experiencia requerida automáticamente, sin
+        // esperar un segundo clic en "Evaluar cumplimiento de experiencia".
+        evaluarExperienciaDeProceso(id, slot);
         // Solo se descarta el archivo en memoria si ya se leyó completo -- si quedan
         // páginas pendientes, "Seguir leyendo" lo necesita para continuar.
         if (pagesRead >= numPages) delete pendingOcrFiles[id];
@@ -7390,7 +7405,10 @@
         delete entry.comp; // por si venía del esquema viejo de un solo perfil
         analisis[id] = entry;
         saveAnalisis();
-        { const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
+        // Cada tanda nueva puede traer requisitos de experiencia que las
+        // páginas anteriores no tenían -- se re-evalúa con el texto
+        // acumulado, igual que en las otras 2 rutas de lectura del pliego.
+        evaluarExperienciaDeProceso(id, slot);
         if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
