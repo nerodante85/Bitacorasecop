@@ -3646,3 +3646,54 @@ No es código de la aplicación -- vive en `.claude/`, aparte de
 `index.html`, y no se hace commit/push desde dentro de la skill (es de
 solo lectura sobre el código; el commit de la skill en sí se hizo aparte,
 con la misma confirmación explícita "Sí, commit" de siempre).
+
+## Advertencia de lectura parcial por OCR en el resultado GO/NO-GO
+
+El usuario, revisando un pliego real ("Estudio previo Cachira (1).pdf",
+76 páginas) en producción, notó que el OCR "no lee todo el documento,
+solo unas páginas" -- el análisis mostraba "15/76 páginas leídas" y sin
+embargo, unas líneas más abajo, un "RESULTADO: GO · 100% de cumplimiento
+estimado" en letras grandes, sin ninguna señal de que ese GO se calculó
+con apenas el 20% del pliego leído.
+
+Investigando el código: el OCR sí lee el documento completo, pero en
+tandas de `OCR_BATCH_PAGES = 15` páginas (index.html:3155) para no hacer
+una sola corrida larguísima -- existe un botón "Seguir leyendo más
+páginas (15/76 leídas)" para continuar, pero vivía como link de texto
+pequeño hasta el final de toda la tarjeta, después de la tabla de gates,
+el informe descargable y el disclaimer. El bloque `RESUMEN DE
+COMPATIBILIDAD` / `RESULTADO: GO` (`renderCompatibilidadHtml`,
+index.html:5630) no sabía nada de `pagesRead`/`numPages` -- calculaba y
+mostraba el veredicto exactamente igual con 15 páginas que con las 76.
+
+Fix: `renderCompatibilidadHtml(res, entry)` ahora recibe también `entry`
+y, cuando `entry.viaOcr && entry.pagesRead < entry.numPages`, inserta un
+`analysis-block analysis-warn` (mismo estilo que los errores reales de
+la app) justo debajo del hero "RESULTADO: ...", citando cuántas páginas
+faltan y remitiendo al botón "Seguir leyendo más páginas". El mismo
+aviso se agregó en 3 sitios más para que sea imposible toparse con un
+veredicto sin la advertencia si falta texto por leer:
+- `evalDetalleHtml` (el panel "Evaluación go/no-go"), justo debajo del
+  sello GO/NO-GO/REVISAR de cada tarjeta.
+- `informeAnalisisTexto` (el .txt descargable del análisis de pliego).
+- `informeEvalTexto` (el .txt descargable de "Evaluación go/no-go") --
+  importante porque ese archivo puede compartirse o leerse fuera de la
+  app, sin el contexto visual de la tarjeta.
+
+No se movió el botón "Seguir leyendo" de su lugar: sigue rindiéndose sin
+condición en `renderAnalysisHtml` (fuera del bloque de compatibilidad),
+porque `item`/`s` pueden venir `null` desde `itemYScorePara()` en casos
+donde el proceso no está en `lastScored` -- moverlo adentro del bloque
+condicional habría podido hacerlo desaparecer en ese caso límite. La
+advertencia nueva sí depende de `entry` (siempre disponible) pero no de
+`item`/`s`, así que aparece en todos los casos donde ya se muestra un
+veredicto.
+
+**Verificado**: 67/67 tests de humo (cambio de renderizado puro, sin
+tocar la extracción/evaluación que cubren los tests). Probado en
+navegador real inyectando un `analisis_pliegos` sintético con
+`pagesRead: 15, numPages: 76, viaOcr: true` (mismo escenario real que
+reportó el usuario) para no depender de una corrida real de OCR de
+varios minutos: la advertencia aparece correctamente tanto en la tarjeta
+de "Buscar procesos" como en "Evaluación go/no-go", justo debajo del
+sello del veredicto. 0 errores de consola.

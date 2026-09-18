@@ -5093,6 +5093,9 @@
       '<div class="analysis-head">' + escapeHtml(truncate(item.entidad, 90)) + ' — veredicto: ' +
         '<span class="eval-verdict ' + (res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar') + '">' + res.mejor.veredicto + '</span>' +
         (res.porPerfil.length > 1 ? ' <span style="color:var(--text-muted);font-weight:400;">(mejor de ' + res.porPerfil.length + ' perfiles)</span>' : '') + '</div>' +
+      (entry && entry.viaOcr && entry.pagesRead < entry.numPages
+        ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este veredicto se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas por OCR -- el resto todavía no se ha analizado y podría cambiar el resultado. Ve a "Buscar procesos" y usa "Seguir leyendo más páginas" antes de decidir.</div>'
+        : '') +
       '<div class="analysis-sub">RECOMENDACIÓN</div><div style="margin-bottom:8px;">' + escapeHtml(resumenEjecutivo(res)) + '</div>' +
       notasHtml +
       res.porPerfil.map(bloquePerfil).join('') +
@@ -5119,6 +5122,7 @@
     if (item.url) L.push('  Enlace:     ' + item.url);
     L.push('');
     L.push('VEREDICTO (mejor de ' + res.porPerfil.length + ' perfil(es)): ' + res.mejor.veredicto);
+    if (entry && entry.viaOcr && entry.pagesRead < entry.numPages) L.push('⚠ ADVERTENCIA: calculado con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas por OCR -- el resto todavía no se ha analizado.');
     L.push('RECOMENDACIÓN: ' + resumenEjecutivo(res));
     const notas = notasParticipacion(entry);
     if (notas.length){
@@ -5627,20 +5631,29 @@
   // "Evaluación go/no-go". Se muestra aquí también porque el usuario pidió
   // que el resultado de compatibilidad aparezca justo después de analizar el
   // pliego, no obligarlo a ir a otra sección a buscar el mismo dato.
-  function renderCompatibilidadHtml(res){
+  function renderCompatibilidadHtml(res, entry){
     const resumen = resumenCompatibilidad(res.mejor.gates);
     const claseGlobal = res.mejor.veredicto === 'GO' ? 'expeval-cumple' : (res.mejor.veredicto === 'NO-GO' ? 'expeval-nocumple' : 'expeval-nd');
     const hero = '<div class="expeval-global ' + claseGlobal + '">RESULTADO: ' + escapeHtml(res.mejor.veredicto) +
       '<small>' + (resumen.pct != null
         ? resumen.pct + '% de cumplimiento estimado sobre lo evaluable' + (res.porPerfil.length > 1 ? ' · mejor perfil: ' + escapeHtml(res.mejor.perfil) : '')
         : 'No hay suficiente información todavía para estimar un porcentaje.') + '</small></div>';
+    // Lectura parcial por OCR (tandas de OCR_BATCH_PAGES) -- sin esto, un
+    // "RESULTADO: GO · 100%" calculado con una fracción del documento se
+    // veía igual de terminante que uno con el pliego completo leído. El
+    // usuario lo notó revisando un caso real (15/76 páginas) donde el botón
+    // "Seguir leyendo" -- que ya existía -- quedaba perdido al final de la
+    // tarjeta, después de toda la tabla de gates y el informe descargable.
+    const lecturaParcialHtml = (entry && entry.viaOcr && entry.pagesRead < entry.numPages)
+      ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas por OCR -- el resto del pliego todavía no se ha analizado y podría contener requisitos que cambien el veredicto. Usa "Seguir leyendo más páginas" (al final de esta tarjeta) antes de decidir.</div>'
+      : '';
     const lista = (titulo, arr) => arr.length ? '<div class="analysis-sub">' + titulo + '</div><ul class="analysis-list">' + arr.map(x => '<li>' + escapeHtml(x) + '</li>').join('') + '</ul>' : '';
     const filas = res.mejor.gates.map(g =>
       '<tr><td>' + escapeHtml(g.nombre) + '</td><td><span class="expeval-badge ' + ESTADO_COMPAT_CLASE[g.estado] + '">' + escapeHtml(ESTADO_COMPAT_LABEL[g.estado] || g.estado) + '</span></td><td>' + escapeHtml(g.detalle) + '</td></tr>'
     ).join('');
     const tabla = '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Estado</th><th>Evidencia y observaciones</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
     return '<div class="analysis-sub">RESUMEN DE COMPATIBILIDAD' + (res.porPerfil.length > 1 ? ' (mejor de ' + res.porPerfil.length + ' perfiles)' : '') + '</div>' +
-      hero + lista('FORTALEZAS', resumen.fortalezas) + lista('DEBILIDADES', resumen.debilidades) + lista('RIESGOS Y PENDIENTES', resumen.riesgos) + tabla;
+      hero + lecturaParcialHtml + lista('FORTALEZAS', resumen.fortalezas) + lista('DEBILIDADES', resumen.debilidades) + lista('RIESGOS Y PENDIENTES', resumen.riesgos) + tabla;
   }
 
   // item/s son OPCIONALES (compatibilidad hacia atrás): cuando no se pasan
@@ -5651,7 +5664,7 @@
     const comps = compsDe(entry);
     const primero = comps[0] || {};
     const evalParaCompat = (item && s) ? evaluarMejor(item, s, entry) : null;
-    const compatHtml = evalParaCompat ? renderCompatibilidadHtml(evalParaCompat) : '';
+    const compatHtml = evalParaCompat ? renderCompatibilidadHtml(evalParaCompat, entry) : '';
 
     // Requisitos detectados en el TEXTO -- no dependen del perfil, se listan una
     // sola vez. Bajo cada uno se indica qué perfiles marcados lo cubren.
@@ -6541,6 +6554,7 @@
       const resumen = resumenCompatibilidad(res.mejor.gates);
       L.push('RESUMEN DE COMPATIBILIDAD');
       L.push('  Resultado: ' + res.mejor.veredicto + (resumen.pct != null ? ' (' + resumen.pct + '% de cumplimiento estimado sobre lo evaluable)' : ' (sin suficiente información para un %)'));
+      if (entry.viaOcr && entry.pagesRead < entry.numPages) L.push('  ⚠ ADVERTENCIA: este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas por OCR -- el resto del pliego todavía no se ha analizado.');
       if (resumen.fortalezas.length) L.push('  Fortalezas: ' + resumen.fortalezas.join(', '));
       if (resumen.debilidades.length) L.push('  Debilidades: ' + resumen.debilidades.join(', '));
       if (resumen.riesgos.length){ L.push('  Riesgos y pendientes:'); resumen.riesgos.forEach(r => L.push('    - ' + r)); }
