@@ -4338,3 +4338,85 @@ copiado y luego borrado del directorio servido): el aviso verde muestra
 PUENTES, HOSPITALES). Revisa abajo qué columna se usó para cada campo antes
 de continuar." -- confirmado visualmente en captura de pantalla, 0 errores
 de consola.
+
+## Hacia paridad con LicitIA: Fase A -- Plan Anual de Adquisiciones (PAA)
+
+El usuario compartió 4 capturas de LicitIA (licitia.com.co, competidor
+directo) pidiendo "reestructures toda la página" para poder hacer lo mismo.
+Antes de tocar código se mapeó cada una de las 4 piezas de LicitIA contra lo
+que ya existe en esta app -- mucho ya estaba construido (análisis de pliego
+con evidencia, RUP→perfil, SECOP I+II, carta de presentación, sugerencia de
+oferta) -- y se investigó lo genuinamente nuevo antes de proponer nada:
+
+- **"Radar de Afinidad IA" y "Visión IA"** implican pagar por una API real
+  de IA (LLM/visión) -- exactamente lo que este proyecto ya construyó una
+  vez y ELIMINÓ por costo ("LLM para lenguaje natural: implementado y luego
+  eliminado", ver más arriba). Se le preguntó EXPLÍCITAMENTE al usuario
+  cómo manejar esto antes de construir nada -- confirmó que esta vez sí
+  acepta el costo.
+- **PAA**: se verificó con `curl` contra la API real de Socrata (no se
+  asumió que existiera) que hay un dataset tabular real y consultable:
+  `9sue-ezhx` "SECOPII - Plan Anual De Adquisiciones Detalle" en
+  datos.gov.co -- a diferencia de `q6ex-pjy8` ("Plan Anual de Adquisiciones
+  2026"), que resultó ser un `federated_href` (solo un enlace externo, no
+  tabular, sin filas consultables por SoQL).
+- **RUT**: se investigó (agente de exploración, solo lectura) el patrón
+  completo de `parsearRUP`/`procesarRUP` como blueprint reutilizable --
+  confirmado que las 4 librerías de terceros ya cargadas (pdf.js,
+  Tesseract.js, xlsx, mammoth.js) alcanzan, sin agregar ninguna nueva.
+
+Se entró a `EnterPlanMode` dado el tamaño real del pedido (4 piezas,
+2 de ellas con costo real e infraestructura nueva) -- plan completo
+guardado como referencia del proceso (no archivo del repo). Decisión de
+secuencia, aprobada por el usuario: cada pieza se implementa, verifica y
+confirma POR SEPARADO (mismo criterio que TODA la historia de "Fase N" de
+este archivo) -- empezando por PAA (sin costo, sin infraestructura nueva),
+después RUT (tampoco requiere IA), y solo después las 2 piezas que sí
+necesitan que el usuario cree una cuenta de Anthropic y configure un
+secret en Supabase (mismo patrón ya seguido con Resend en Fase 6).
+
+### Qué se implementó en esta pasada
+
+`PAA_DATASET = '9sue-ezhx'` (constante, junto a `SECOP_I_DATASET`).
+`normalizePAA(record)` (nueva, NO reutiliza `normalize()`) -- el esquema
+del PAA es genuinamente distinto al de SECOP I/II (sin columna de
+departamento, sin fecha de cierre de oferta real -- `fecha_esperada_de_inicio`
+suele venir como nombre de mes, "Agosto", no una fecha completa) --
+forzarlo por `normalize()` habría inventado datos donde el dataset no los
+tiene. `buscarPAA(keywords)` reutiliza `fetchAllForDataset`/`matchesTerm`
+tal cual (mismo criterio de siempre: el `$q` de Socrata es solo un ancla
+gruesa del servidor, el filtro fino real es client-side) -- cero motor de
+búsqueda paralelo. Sin columna de departamento, esta búsqueda NO filtra
+por geografía (decisión explícita del plan, para no arriesgar el mismo
+tipo de falso positivo ya documentado con "Santander" en el punto 6 de
+"Cosas aprendidas por las malas").
+
+**UI**: un panel nuevo "Plan Anual de Adquisiciones (PAA)" dentro de
+"Buscar procesos" (no una 8va sección de nav -- el costo real de un ítem
+de nav nuevo en móvil ya se pagó dos veces, Fase 11/13), reutilizando las
+Especialidades del formulario de arriba como ancla (sin campo de búsqueda
+propio) y el componente `.recent-item` ya usado por "Alertas guardadas"
+(cero CSS nuevo). Cada resultado: entidad, objeto, fecha esperada (tal
+cual la trae el dataset), valor esperado, modalidad, badge "PAA <año>", y
+-- cuando `procesos_relacionados` no es el valor centinela "No Definido"
+(confirmado contra filas reales) -- un aviso ámbar explícito de que ese
+plan YA tiene un proceso asociado, para no hacerle creer al usuario que
+es una oportunidad nueva cuando puede que ya esté publicada.
+
+**Verificado**: 70/70 tests de humo (sin tests nuevos -- cambio de
+integración de datos/UI, no de lógica evaluable por `extractExperienceEngine`).
+Probado en navegador real contra la API en vivo (no un mock): búsqueda con
+"pavimentación, alcantarillado" trajo 301 resultados reales, con entidad/
+objeto/fecha esperada/valor/modalidad/badge todos poblados correctamente,
+y el aviso de "ya tiene un proceso relacionado" disparando en filas reales
+que sí lo traían (ej. "206-2025"). 0 errores de consola. Sin desbordamiento
+horizontal en 375px real (`scrollWidth - clientWidth = 0`) -- el
+envolvimiento palabra-por-palabra de nombres de entidad largos a ese ancho
+es el mismo comportamiento ya existente de `.recent-item` (Alertas
+guardadas), no una regresión nueva.
+
+**Pendiente, fases siguientes** (cada una con su propio ciclo
+plan→build→verify, ver el plan aprobado): RUT como documento nuevo, Radar
+de Afinidad IA (Edge Function + Claude Haiku + límite de uso, blueprint
+recuperado del propio historial git del `nl-search` eliminado), "Visión
+IA" del evaluador, y el paquete completo de "Generador de Propuestas".

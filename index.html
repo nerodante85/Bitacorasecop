@@ -1247,6 +1247,26 @@
             <div class="recent-list" id="bt-alertas-list"></div>
           </div>
 
+          <!-- Plan Anual de Adquisiciones (PAA): lo que las entidades YA
+               PLANEARON comprar, con frecuencia meses antes de publicar el
+               proceso -- para anticiparse, no solo reaccionar a lo ya
+               abierto. Reutiliza las Especialidades del formulario de
+               arriba como ancla de búsqueda; el dataset del PAA no trae
+               columna de departamento, así que esta búsqueda NO filtra por
+               geografía (ver CLAUDE.md, "Fase A -- Plan Anual de
+               Adquisiciones"). -->
+          <div class="titleblock" id="bt-paa-panel">
+            <div class="titleblock-head">
+              <h2>Plan Anual de Adquisiciones (PAA)</h2>
+              <span>Anticípate a compras que las entidades ya planearon, antes de que publiquen el proceso -- datos abiertos, Colombia Compra Eficiente</span>
+            </div>
+            <div class="actions">
+              <button class="btn-secondary" id="bt-paa-buscar" type="button">🔮 Buscar en el PAA (con las especialidades de arriba)</button>
+            </div>
+            <div class="saved-note" id="bt-paa-status" style="margin-top:8px;"></div>
+            <div class="recent-list" id="bt-paa-list"></div>
+          </div>
+
           <div id="bt-demo-banner" style="display:none" class="demo-banner">Estás viendo datos de ejemplo — no provienen de SECOP II en vivo. Úsalos solo para ver cómo luce la plataforma.</div>
 
           <div class="status-row" id="bt-status" style="display:none">
@@ -2034,6 +2054,9 @@
   const alertaSavedEl = document.getElementById('bt-alerta-saved');
   const alertasRevisarBtn = document.getElementById('bt-alertas-revisar');
   const alertasListEl = document.getElementById('bt-alertas-list');
+  const paaBuscarBtn = document.getElementById('bt-paa-buscar');
+  const paaStatusEl = document.getElementById('bt-paa-status');
+  const paaListEl = document.getElementById('bt-paa-list');
   const dashAlertasEl = document.getElementById('bt-dash-alertas');
   const resultsEl = document.getElementById('bt-results');
   const statusEl = document.getElementById('bt-status');
@@ -5526,6 +5549,49 @@
     return out;
   }
 
+  // Plan Anual de Adquisiciones (PAA): lo que las entidades YA PLANEARON
+  // comprar, con frecuencia meses antes de publicar el proceso -- para
+  // anticiparse, no solo reaccionar a lo ya abierto. Dataset verificado
+  // contra la API real antes de integrarlo (no supuesto): "SECOPII - Plan
+  // Anual De Adquisiciones Detalle", filas reales confirmadas con
+  // descripcion/fecha_esperada_de_inicio/valor_total_esperado/modalidad/
+  // nombre_entidad/categorias_unspsc/procesos_relacionados.
+  const PAA_DATASET = '9sue-ezhx';
+
+  // Esquema propio, distinto al de SECOP I/II -- NO pasa por normalize()
+  // (que asume columnas como "departamento"/fechas de cierre de oferta que
+  // este dataset simplemente no tiene; forzarlo ahí habría inventado datos
+  // donde no los hay). `fecha_esperada_de_inicio` suele venir como un
+  // nombre de mes ("Agosto"), no una fecha completa -- se muestra tal
+  // cual, no se intenta parsear como fecha real.
+  function normalizePAA(record){
+    const entidad = findField(record, ['nombre_entidad'], 'entidad') || 'Entidad no especificada';
+    const objeto = findField(record, ['descripcion'], 'descripcion') || 'Sin descripción disponible';
+    const modalidad = findField(record, ['modalidad'], 'modalidad') || null;
+    const valor = findField(record, ['valor_total_esperado', 'valor_esperado_de_presupuesto'], 'valor');
+    const fechaEsperada = findField(record, ['fecha_esperada_de_inicio'], 'fecha_esperada') || null;
+    const unspsc = findField(record, ['categorias_unspsc'], 'unspsc') || null;
+    const annio = findField(record, ['annio'], 'annio') || null;
+    const url = extractUrl(record);
+    // "No Definido" es un valor centinela real de este dataset (confirmado
+    // en filas reales) -- no cuenta como que ya existe un proceso.
+    const relacionadoRaw = findField(record, ['procesos_relacionados'], 'relacionad');
+    const yaTieneProceso = !!(relacionadoRaw && !/no\s+definid/i.test(String(relacionadoRaw)));
+    const searchable = JSON.stringify(record).toLowerCase();
+    return { entidad, objeto, modalidad, valor, fechaEsperada, unspsc, annio, url, yaTieneProceso, procesoRelacionado: yaTieneProceso ? relacionadoRaw : null, searchable };
+  }
+
+  // Mismo criterio de siempre: el $q de Socrata es solo un ancla gruesa del
+  // lado del servidor, matchesTerm() (raíz de 6 letras, misma que usa
+  // runSearch) hace el filtro fino real del lado del cliente.
+  async function buscarPAA(keywords){
+    if (!keywords.length) return [];
+    const registros = await fetchAllForDataset(PAA_DATASET, keywords, 'PAA', 'fecha_de_carga_del_paa');
+    return registros
+      .map(normalizePAA)
+      .filter(item => keywords.some(k => matchesTerm(item.searchable, k)));
+  }
+
   // Banda de "razonablemente comparable" entre valor adjudicado y precio
   // base -- fuera de esto son casos multi-lote/acuerdo marco donde la
   // relación se dispara y no dice nada real sobre el % de descuento de la
@@ -6653,6 +6719,51 @@
     renderDashAlertas();
   }
 
+  function renderPAAItem(item){
+    const partes = [];
+    if (item.fechaEsperada) partes.push('Esperado: ' + item.fechaEsperada);
+    if (item.valor != null && item.valor !== '') partes.push(fmtMoney(Number(item.valor)) || String(item.valor));
+    if (item.modalidad) partes.push(item.modalidad);
+    const sub = truncate(item.objeto, 160) + (partes.length ? ' — ' + partes.join(' · ') : '');
+    const nota = item.yaTieneProceso
+      ? '<div class="recent-item-sub" style="color:var(--warning);">⚠ Ya tiene un proceso relacionado (' + escapeHtml(String(item.procesoRelacionado)) + ') -- puede que ya esté publicado en "Buscar procesos".</div>'
+      : '';
+    return '<div class="recent-item"><div class="recent-item-body">' +
+      '<div class="recent-item-title">' + escapeHtml(item.entidad) + '</div>' +
+      '<div class="recent-item-sub">' + escapeHtml(sub) + '</div>' +
+      nota +
+      '</div><span class="tag fuente">PAA' + (item.annio ? ' ' + escapeHtml(String(item.annio)) : '') + '</span>' +
+      (item.url ? ' <a class="link-btn" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">Ver en SECOP →</a>' : '') +
+      '</div>';
+  }
+
+  // Reutiliza las Especialidades del formulario de "Filtros de búsqueda" de
+  // arriba (mismo `kwInput`/`getInputs()`) -- sin un motor de búsqueda
+  // paralelo. Sin ninguna especialidad escrita, se pide al menos una en vez
+  // de traer una muestra nacional de 300 filas sin filtrar (poco útil, y
+  // caro de leer para el usuario).
+  async function runBuscarPAA(){
+    const { keywords } = getInputs();
+    if (!keywords.length){
+      paaStatusEl.textContent = 'Escribe al menos una especialidad en "Filtros de búsqueda" arriba antes de buscar en el PAA.';
+      paaListEl.innerHTML = '';
+      return;
+    }
+    paaStatusEl.textContent = 'Consultando el Plan Anual de Adquisiciones…';
+    paaListEl.innerHTML = '';
+    try {
+      const items = await buscarPAA(keywords);
+      if (!items.length){
+        paaStatusEl.textContent = 'Sin resultados del PAA para "' + keywords.join(', ') + '". Puede que ninguna entidad haya planeado todavía una compra con esas palabras.';
+        return;
+      }
+      paaStatusEl.textContent = items.length + ' planeación(es) encontrada(s) para "' + keywords.join(', ') + '".';
+      paaListEl.innerHTML = items.map(renderPAAItem).join('');
+    } catch(e){
+      paaStatusEl.textContent = 'No se pudo consultar el Plan Anual de Adquisiciones (' + (e && e.message ? e.message : 'error') + ').';
+    }
+  }
+
   async function runSearch(){
     isDemo = false;
     isSnapshot = false;
@@ -6999,6 +7110,7 @@
   searchBtn.addEventListener('click', runSearch);
   if (procesoInput) procesoInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
   demoBtn.addEventListener('click', loadDemo);
+  if (paaBuscarBtn) paaBuscarBtn.addEventListener('click', runBuscarPAA);
 
   if (alertaGuardarBtn) alertaGuardarBtn.addEventListener('click', () => {
     const resultado = guardarAlertaActual(alertaNombreEl ? alertaNombreEl.value : '');
