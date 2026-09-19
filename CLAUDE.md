@@ -4232,3 +4232,74 @@ compatibilidad se etiqueta "Cumple parcialmente" -- el mapeo genérico del
 estado interno `revisar` puede sonar más optimista de lo que es cuando en
 realidad ningún requisito tuvo ni siquiera una coincidencia parcial real.
 Pendiente si el usuario decide atacarlo.
+
+## Dos bugs reales de compatibilidad, encontrados con el Excel de experiencia REAL del usuario
+
+El usuario compartió su Excel real de experiencia ("CUADROS EXPERIENCIA
+OBRAS EJECUTADAS CLARENT.xlsx") diciendo "este es el formato que yo uso" --
+se inspeccionó con `openpyxl` (instalado temporalmente, desinstalado
+después) para confirmar contra la estructura REAL, no una suposición.
+Encontró 2 problemas de compatibilidad reales con `parsearExcelExperiencia`/
+`leerHojaComoFilas`, ambos corregidos.
+
+**Estructura real del archivo**: 5 hojas -- `COLEGIOS`, `ACUEDCUTOS`,
+`PUENTES`, `HOSPITALES` (cada una con sus propios contratos, encabezados
+típicos como "OBJETO DEL CONTRATO"/"ENTIDAD CONTRATANTE"/"VALOR DEL
+CONTRATO", 2-3 filas de título arriba, fila "TOTAL" al final) y `CUPS
+COLEGIOS` (un listado de códigos UNSPSC de un solo valor por fila, sin
+tabla real -- no son contratos).
+
+**Bug 1 -- solo se leía la primera hoja**: `leerHojaComoFilas` siempre usaba
+`workbook.SheetNames[0]`. Muchas constructoras organizan su experiencia por
+especialidad (una hoja por categoría, como este archivo) -- con el
+comportamiento anterior, solo `COLEGIOS` (2 contratos) se habría leído;
+`ACUEDCUTOS`/`PUENTES`/`HOSPITALES` (3 de las 4 categorías reales de
+experiencia) habrían quedado invisibles para la evaluación, sin ningún
+aviso. Fix: `leerHojaPorNombre(workbook, nombreHoja)` (el heurístico de
+encabezado de siempre, extraído para reutilizarse) + `leerTodasLasHojasComoFilas`
+(nueva, itera TODAS las hojas, cada una con su propio encabezado detectado
+por separado -- confirmado que no siempre coinciden entre hojas: `COLEGIOS`
+trae una columna "ESPECIALIDAD" que las demás no tienen). Una hoja sin
+tabla reconocible (como `CUPS COLEGIOS`, ninguna fila con ≥2 celdas no
+vacías) simplemente no aporta filas, con el mismo heurístico ya probado --
+no hace falta filtrar por nombre de hoja ni adivinar cuáles "sí son de
+contratos". `parsearExcelExperiencia` ahora combina los contratos de todas
+las hojas con datos (`nHojas` en el resultado); el panel "Revisar
+interpretación" y el texto de estado muestran "de N hojas" cuando aplica.
+
+**Bug 2 -- ambigüedad entre "valor del contrato" y "valor ajustado por
+participación"**: el archivo real trae DOS columnas con "valor" en el
+nombre por cada hoja de contratos: `VALOR DEL CONTRATO` (el valor total del
+contrato/consorcio) y `VALOR CONTRATO ACTUALIZADO (Según % Participación)`
+(la parte que le corresponde a la empresa del usuario cuando participa como
+socia minoritaria de un consorcio/UT -- en las filas reales, 50%, 2%, 20%,
+73%). `detectarColumnas()` hacía match EXACTO contra `'valor del contrato'`
+(score 1000+) y solo match parcial contra la segunda (score bajo por la
+palabra "contrato" compartida) -- así que SIEMPRE elegía el valor TOTAL,
+nunca el ajustado. Para un contrato donde la empresa es socia minoritaria
+(ej. 2% de participación en uno de los contratos reales), esto sobrestima
+muchísimo el valor acreditable -- riesgo real de que el motor comparara un
+valor mínimo exigido contra una cifra que no le corresponde de verdad a la
+empresa, el peor tipo de error posible en esta app (falso CUMPLE por un
+valor inflado). Fix: `preferirColumnaValorActualizado(headers, cols)`
+(nueva, junto a `detectarColumnas`) -- cuando existe una columna de "valor"
+adicional que menciona "actualiz..." o "participac...", la prefiere
+explícitamente sobre la genérica, sin tocar `DICC_CONTRATO` ni el resto de
+`cols` (el resto de campos no tiene esta ambigüedad). Se aplica solo dentro
+de `parsearExperienciaDeFilas` (Fuente A) -- `DICC_REQUISITO` (columna de
+"valor mínimo exigido" de un requisito) no tiene este problema, es un solo
+valor por definición.
+
+**Verificado**: 70/70 tests de humo (3 nuevos: combinar contratos de varias
+hojas con una hoja sin tabla real de por medio -- usando el objeto/entidad/
+valor EXACTOS del archivo real del usuario --, preferir la columna de valor
+ajustada cuando existe -- con los headers y valores reales de la hoja
+`ACUEDCUTOS` --, y que sin columna ajustada el comportamiento no cambia,
+sin regresión). No se subió el archivo real al navegador en esta pasada
+(son datos de un usuario real, no un fixture del proyecto) -- la
+verificación se hizo reproduciendo exactamente sus encabezados y valores
+reales en fixtures sintéticos del arnés de tests, mismo criterio ya usado
+para los pliegos reales de Zapatoca/Norte de Santander (ver la sección de
+"Extracción de requisitos... probada contra pliegos reales" más arriba, que
+sí pudo leer los PDF directamente porque no traían el mismo tipo de dato
+sensible de participación societaria).

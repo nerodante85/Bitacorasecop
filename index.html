@@ -3396,11 +3396,35 @@
     return resultado;
   }
 
-  // Lee la primera hoja de un workbook como filas. La fila de encabezados es
-  // la primera con al menos 2 celdas no vacías (evita confundir una fila-título
-  // suelta arriba con el encabezado real).
-  function leerHojaComoFilas(workbook){
-    const nombreHoja = workbook.SheetNames[0];
+  // Un formato real de constructora puede traer DOS columnas de "valor": el
+  // valor total del contrato/consorcio ("VALOR DEL CONTRATO") y otra
+  // ajustada por el % de participación de la empresa cuando actuó como
+  // socia minoritaria de un consorcio/UT ("VALOR CONTRATO ACTUALIZADO
+  // SEGÚN % PARTICIPACIÓN", redacción real muy común). detectarColumnas()
+  // por sí solo prefiere la primera (coincide EXACTO con un candidato de
+  // DICC_CONTRATO, score alto) sobre la segunda (solo coincidencia parcial,
+  // score bajo) -- eso sobrestima el valor acreditable de un socio
+  // minoritario (bug real, encontrado con un Excel real de un usuario: un
+  // contrato con 2% de participación se habría comparado con su valor
+  // TOTAL, no el 2% que de verdad le corresponde a la empresa). Se prefiere
+  // explícitamente la columna "actualizada"/"participación" cuando existe,
+  // sin tocar el resto de `cols` ni DICC_CONTRATO (el resto de campos no
+  // tiene esta ambigüedad).
+  function preferirColumnaValorActualizado(headers, cols){
+    if (cols.valor == null) return cols;
+    const normed = headers.map(normHeader);
+    const esValorAjustado = h => /valor/.test(h) && (/actualiz/.test(h) || /participac/.test(h));
+    if (esValorAjustado(normed[cols.valor])) return cols;
+    const idxAjustado = normed.findIndex((h, i) => i !== cols.valor && esValorAjustado(h));
+    return idxAjustado === -1 ? cols : Object.assign({}, cols, { valor: idxAjustado });
+  }
+
+  // Lee UNA hoja (por nombre) de un workbook como filas. La fila de
+  // encabezados es la primera con al menos 2 celdas no vacías (evita
+  // confundir una fila-título suelta arriba con el encabezado real). Una
+  // hoja sin ninguna fila así (ej. un listado de un solo valor por fila,
+  // sin tabla real) devuelve headers/rows vacíos, no inventa un encabezado.
+  function leerHojaPorNombre(workbook, nombreHoja){
     const hoja = workbook.Sheets[nombreHoja];
     const filas = window.XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
     const idxHeader = filas.findIndex(f => f.filter(c => String(c).trim() !== '').length >= 2);
@@ -3408,6 +3432,32 @@
     const headers = filas[idxHeader].map(h => String(h || '').trim());
     const rows = filas.slice(idxHeader + 1).filter(f => f.some(c => String(c).trim() !== ''));
     return { headers: headers, rows: rows, hojaNombre: nombreHoja };
+  }
+
+  // Lee solo la PRIMERA hoja -- sigue existiendo tal cual para quien no
+  // necesita combinar varias (ver leerTodasLasHojasComoFilas más abajo,
+  // usada por Experiencia del proponente).
+  function leerHojaComoFilas(workbook){
+    return leerHojaPorNombre(workbook, workbook.SheetNames[0]);
+  }
+
+  // Varias empresas organizan su Excel de experiencia por especialidad --
+  // una hoja por categoría ("COLEGIOS", "PUENTES", "ACUEDUCTOS"...) en vez
+  // de una sola tabla. Leer solo SheetNames[0] (lo que hacía
+  // leerHojaComoFilas) dejaba las demás hojas completamente invisibles
+  // para la evaluación, SIN NINGÚN aviso -- bug real, encontrado con un
+  // Excel real de un usuario (3 de sus 4 hojas de experiencia se perdían
+  // en silencio). Cada hoja detecta su propio encabezado por separado (no
+  // asume que todas comparten la misma fila/columnas -- confirmado que no
+  // siempre es así: una hoja puede traer una columna "ESPECIALIDAD" que
+  // otra no tiene). Una hoja sin ninguna tabla reconocible (ej. un listado
+  // de códigos UNSPSC de un solo valor por fila) simplemente no aporta
+  // filas, con el mismo heurístico ya probado -- se omite sola, sin
+  // filtrar por nombre de hoja ni adivinar cuáles "sí son de contratos".
+  function leerTodasLasHojasComoFilas(workbook){
+    return workbook.SheetNames
+      .map(nombre => leerHojaPorNombre(workbook, nombre))
+      .filter(h => h.headers.length && h.rows.length);
   }
 
   // Lee la PRIMERA tabla de un HTML (el que produce mammoth.convertToHtml a
@@ -3451,7 +3501,7 @@
   // objeto contrato, reutilizado por cada origen de archivo.
   function parsearExperienciaDeFilas(datos){
     const headers = datos.headers, rows = datos.rows;
-    const cols = detectarColumnas(headers, DICC_CONTRATO);
+    const cols = preferirColumnaValorActualizado(headers, detectarColumnas(headers, DICC_CONTRATO));
     const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
     const contratos = rows.map((row, i) => {
       const valorObj = parseValorUnidad(String(get(row, 'valor') || ''));
@@ -3480,8 +3530,26 @@
     return { headers: headers, cols: cols, contratos: contratos };
   }
 
+  // Combina los contratos de TODAS las hojas del Excel (ver
+  // leerTodasLasHojasComoFilas) -- cada hoja se parsea con SU PROPIO
+  // encabezado/columnas detectadas (`parsearExperienciaDeFilas`), porque
+  // no siempre coinciden entre hojas. El panel "Revisar interpretación"
+  // muestra las columnas de la PRIMERA hoja con datos (mostrar una tabla
+  // de columnas por cada hoja sería mucho ruido para lo que aporta) más
+  // `nHojas`, para que el usuario sepa que se combinaron varias.
   function parsearExcelExperiencia(workbook){
-    return parsearExperienciaDeFilas(leerHojaComoFilas(workbook));
+    const hojas = leerTodasLasHojasComoFilas(workbook);
+    if (!hojas.length) return parsearExperienciaDeFilas({ headers: [], rows: [] });
+    const contratos = [];
+    let primeraConDatos = null;
+    hojas.forEach(h => {
+      const parsed = parsearExperienciaDeFilas(h);
+      if (!primeraConDatos) primeraConDatos = parsed;
+      parsed.contratos.forEach(c => {
+        contratos.push(Object.assign({}, c, { hoja: h.hojaNombre, fila: contratos.length + 1 }));
+      });
+    });
+    return { headers: primeraConDatos.headers, cols: primeraConDatos.cols, contratos: contratos, nHojas: hojas.length };
   }
 
   const STOPWORDS_ES = new Set(['de','del','la','el','los','las','en','y','o','para','con','por','a','al','un','una','que','se','su','sus','como','entre','sobre','este','esta','estos','estas','sea','ser','mas','no']);
@@ -7118,10 +7186,11 @@
   function renderExpEvalReview(){
     let html = '';
     if (expevalContratos){
+      const sufijoHojas = expevalContratos.nHojas > 1 ? ' de ' + expevalContratos.nHojas + ' hojas' : '';
       html += expevalContratos.headers.length
-        ? renderColumnasDetectadas('Experiencia del proponente', expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length, CAMPOS_ESENCIALES_CONTRATO)
+        ? renderColumnasDetectadas('Experiencia del proponente' + sufijoHojas, expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length, CAMPOS_ESENCIALES_CONTRATO)
         : renderContratosDetectadosTexto(expevalContratos.contratos, etiquetaFuenteArchivo(expevalContratos.fuente));
-      expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s).';
+      expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';
     }
     expevalReviewEl.innerHTML = html;
     expevalClearBtn.style.display = expevalContratos ? '' : 'none';
@@ -7141,7 +7210,8 @@
       }
       expevalContratos = parsed;
       expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
-      expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s).';
+      const sufijoHojas = parsed.nHojas > 1 ? ' de ' + parsed.nHojas + ' hojas' : '';
+      expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';
       renderExpEvalReview();
       saveExpEval();
     } catch(err){

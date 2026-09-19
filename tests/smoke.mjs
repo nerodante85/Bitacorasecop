@@ -234,7 +234,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -263,6 +263,17 @@ function extractExperienceEngine() {
 // la "hoja" ya es el array de filas que sheet_to_json({header:1}) devolvería.
 function fakeWorkbook(headers, rows) {
   return { SheetNames: ['Hoja1'], Sheets: { Hoja1: [headers, ...rows] } };
+}
+
+// hojas: [{ nombre, headers, rows }, ...] -> "workbook" falso con varias
+// hojas, misma forma que fakeWorkbook. Para probar leerTodasLasHojasComoFilas/
+// parsearExcelExperiencia combinando contratos de varias hojas, como un
+// Excel real organizado por especialidad (ver CLAUDE.md).
+function fakeWorkbookMultiHoja(hojas) {
+  const SheetNames = hojas.map(h => h.nombre);
+  const Sheets = {};
+  hojas.forEach(h => { Sheets[h.nombre] = [h.headers, ...h.rows]; });
+  return { SheetNames, Sheets };
 }
 
 let expEngine = null;
@@ -515,6 +526,52 @@ await check('Tabla de un .docx (vía leerPrimeraTablaHtml) evaluada como matriz 
   const requisitos = expEngine.parsearRequisitosDeFilas(tabla);
   assert(requisitos.requisitos.length === 1, 'se esperaba 1 requisito, fueron ' + requisitos.requisitos.length);
   assert(requisitos.requisitos[0].minContratos === 1, 'se esperaba minContratos=1, fue ' + requisitos.requisitos[0].minContratos);
+});
+
+// Regresión de un bug real encontrado con un Excel real de un usuario:
+// varias empresas organizan su experiencia por especialidad (una hoja por
+// categoría) -- leer solo SheetNames[0] dejaba las demás invisibles, sin
+// ningún aviso. Ver "leerTodasLasHojasComoFilas" / CLAUDE.md.
+await check('parsearExcelExperiencia: combina contratos de TODAS las hojas, no solo la primera', () => {
+  const wb = fakeWorkbookMultiHoja([
+    { nombre: 'COLEGIOS', headers: ['Objeto del contrato', 'Entidad contratante', 'Valor del contrato'],
+      rows: [['Construcción de aulas en el colegio Simón Bolívar', 'Alcaldía de Cúcuta', '5.930.400.645']] },
+    { nombre: 'PUENTES', headers: ['Objeto del contrato', 'Entidad contratante', 'Valor del contrato'],
+      rows: [['Construcción de puente sobre la quebrada Buturama', 'Municipio de Aguachica', '410.944.603']] },
+    // Hoja sin ninguna tabla real (ej. un listado de códigos UNSPSC de un
+    // solo valor por fila) -- debe omitirse sola, sin romper nada.
+    { nombre: 'CUPS', headers: [], rows: [['11 10 17 00 : METALES DE BASE'], ['11 11 15 00 : BARRO Y TIERRA']] }
+  ]);
+  const parsed = expEngine.parsearExcelExperiencia(wb);
+  assert(parsed.nHojas === 2, 'se esperaban 2 hojas con datos (CUPS se omite), fueron ' + parsed.nHojas);
+  assert(parsed.contratos.length === 2, 'se esperaban 2 contratos combinados, fueron ' + parsed.contratos.length);
+  const objetos = parsed.contratos.map(c => c.objeto);
+  assert(objetos.some(o => /Simón Bolívar|Simon Bolivar/.test(o)), 'falta el contrato de la hoja COLEGIOS: ' + objetos.join(' | '));
+  assert(objetos.some(o => /Buturama/.test(o)), 'falta el contrato de la hoja PUENTES: ' + objetos.join(' | '));
+  assert(parsed.contratos.some(c => c.valor === 5930400645), 'el valor del contrato de COLEGIOS no se leyó bien');
+});
+
+// Regresión de un segundo bug real, mismo Excel: cuando hay DOS columnas de
+// "valor" (el total del contrato y otra ajustada por % de participación en
+// un consorcio), detectarColumnas() por sí solo prefería la del total
+// (coincidencia exacta) sobre la ajustada (coincidencia parcial) --
+// sobrestimando el valor acreditable de un socio minoritario.
+await check('parsearExcelExperiencia: con dos columnas de "valor", prefiere la ajustada por % de participación', () => {
+  const wb = fakeWorkbook(
+    ['Objeto del contrato', 'Valor del contrato', 'Valor contrato actualizado según % participación'],
+    [['Optimización de acueducto urbano', '5.208.733.400', '179.072.304']]
+  );
+  const parsed = expEngine.parsearExcelExperiencia(wb);
+  assert(parsed.contratos.length === 1, 'se esperaba 1 contrato, fueron ' + parsed.contratos.length);
+  assert(parsed.contratos[0].valor === 179072304, 'se esperaba el valor AJUSTADO (179072304), fue ' + parsed.contratos[0].valor);
+});
+
+await check('preferirColumnaValorActualizado: sin columna ajustada, deja el valor detectado tal cual (sin regresión)', () => {
+  const cols = expEngine.preferirColumnaValorActualizado(
+    ['Objeto', 'Valor del contrato'],
+    { objeto: 0, valor: 1 }
+  );
+  assert(cols.valor === 1, 'no debía cambiar cols.valor sin una columna ajustada presente, quedó ' + cols.valor);
 });
 
 await check('valorConfiableDeTexto: un número agrupado en miles (formato colombiano) SÍ se extrae como valor', () => {
