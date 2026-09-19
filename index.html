@@ -3569,7 +3569,13 @@
     const patrones = [
       new RegExp('cantidad\\s+m[ií]nim[oa]\\s+(?:de\\s+)?(\\d[\\d.,]*)\\s*(?:' + UNIDADES_CONTABLES + ')', 'i'),
       new RegExp('m[ií]nim[oa]\\s+(?:de\\s+)?(\\d[\\d.,]*)\\s*(?:' + UNIDADES_CONTABLES + ')', 'i'),
-      new RegExp('(\\d[\\d.,]*)\\s*(?:' + UNIDADES_CONTABLES + ')\\s*como\\s*m[ií]nim[oa]', 'i')
+      new RegExp('(\\d[\\d.,]*)\\s*(?:' + UNIDADES_CONTABLES + ')\\s*como\\s*m[ií]nim[oa]', 'i'),
+      // Auditoría (motor de extracción): misma convención legal "palabra
+      // (dígito)" ya manejada en minContratos/condicionTemporalDelRequisito
+      // -- faltaba aquí. Sin ella, "cantidad mínima de diez (10) viviendas"
+      // no extraía ningún minCantidad, dejando el requisito sin criterio
+      // numérico que comparar.
+      new RegExp('m[ií]nim[oa]\\s+(?:de\\s+)?[a-záéíóúñ]+\\s*\\((\\d[\\d.,]*)\\)\\s*(?:' + UNIDADES_CONTABLES + ')', 'i')
     ];
     for (const p of patrones){
       const m = texto.match(p);
@@ -3582,7 +3588,15 @@
   // requisito (ver comentario largo arriba) -- devuelve el fragmento
   // literal que la disparó (ej. "50 metros"), o null si no hay ninguna.
   function condicionCuantitativaSinModelar(texto){
-    const m = new RegExp('\\d[\\d.,]*\\s*(?:' + UNIDADES_DIMENSIONALES + ')\\b', 'i').exec(texto || '');
+    // Auditoría (motor de extracción): esta es la red de seguridad que
+    // evita un CUMPLE automático en un requisito dimensional (ver
+    // comentario largo arriba) -- solo reconocía "50 metros" con dígito
+    // suelto, no "cincuenta (50) metros" (misma convención legal ya
+    // manejada en minContratos/minValor/minCantidad). Sin esto, un
+    // requisito como "longitud mínima de cincuenta (50) metros" pasaba
+    // desapercibido y el motor podía dar CUMPLE sin haber verificado la
+    // dimensión real.
+    const m = new RegExp('(?:\\d[\\d.,]*|[a-záéíóúñ]+\\s*\\(\\d[\\d.,]*\\))\\s*(?:' + UNIDADES_DIMENSIONALES + ')\\b', 'i').exec(texto || '');
     return m ? m[0].trim().replace(/\s+/g, ' ') : null;
   }
 
@@ -3713,8 +3727,15 @@
       return m ? parseInt(m[1], 10) : null;
     })();
     const minValor = parseValorUnidad(String(celdas.minValor || '')) || (function(){
-      const m = criterioTexto.match(/(\d[\d.,]*)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i);
-      return m ? parseValorUnidad(m[0]) : null;
+      // Auditoría (motor de extracción): igual que minContratos, "valor
+      // mínimo de quince mil (15.000) SMMLV" no se reconocía -- solo la
+      // forma con dígito suelto. Se agrega la misma convención legal como
+      // alternativa; el grupo 1 (el dígito, venga de donde venga) se
+      // reconstruye junto a la unidad para que parseValorUnidad la
+      // detecte igual que con la forma directa.
+      const m = criterioTexto.match(/(\d[\d.,]*)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i) ||
+        criterioTexto.match(/[a-záéíóúñ]+\s*\((\d[\d.,]*)\)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i);
+      return m ? parseValorUnidad(m[1] + ' ' + m[2]) : null;
     })();
     // Respaldo de texto libre para minCantidad (antes solo venía de una
     // celda de Excel explícita -- en un PDF/Word, o un Excel sin esa
@@ -5066,8 +5087,14 @@
     const quien = res.porPerfil.length > 1 ? ' con ' + m.perfil : '';
     if (m.veredicto === 'GO') return 'SÍ vale la pena participar' + quien + ': no se detectó ningún incumplimiento en los puntos evaluados.';
     if (m.veredicto === 'NO-GO') return 'NO se recomienda participar' + quien + (fails.length ? ' — no cumple: ' + fails.join(', ') + '.' : '.');
+    // Auditoría (texto de UI): "en esta tarjeta" solo tenía sentido cuando
+    // este texto vivía junto al dropzone de PDF -- sus 2 únicos call sites
+    // reales (evalDetalleHtml y informeEvalTexto, ambos de "Evaluación")
+    // NO tienen ningún control de carga de PDF, así que quien lo leyera
+    // ahí buscaba un botón que no existe en esa pantalla. Apunta ahora a
+    // "Buscar procesos", que es donde sí vive ese control.
     return !m.conPliego
-      ? 'Evaluación preliminar, sin pliego analizado. Sube y analiza el PDF del pliego en esta tarjeta para saber con certeza si vale la pena participar.'
+      ? 'Evaluación preliminar, sin pliego analizado. Ve a "Buscar procesos" y sube/analiza el PDF del pliego de este proceso para saber con certeza si vale la pena participar.'
       : 'Antes de decidir, confirma' + quien + ': ' + (revisar.length ? revisar.join(', ') : 'los puntos marcados como "revisar"') + '.';
   }
 
@@ -5085,22 +5112,30 @@
     return L;
   }
 
+  // Auditoría UX/UI para ingenieros civiles: el texto de
+  // experienciaGateDetalle() dice "Ver detalle... debajo del análisis del
+  // pliego" -- correcto en "Buscar procesos" (donde SÍ hay algo debajo),
+  // pero fuera de esa tarjeta (la vista "Evaluación" y sus DOS informes
+  // descargables/copiables, informeEvalTexto e informeAnalisisTexto) no
+  // existe ningún bloque debajo -- quien lo lea ahí buscaría algo que no
+  // está en esa pantalla ni en ese archivo. Un solo helper compartido para
+  // los 3 sitios (antes solo estaba parchado en evalDetalleHtml, dejando
+  // los 2 informes .txt con el texto crudo sin adaptar), sin tocar
+  // experienciaGateDetalle() (que sigue sirviendo bien donde sí aplica:
+  // dentro de renderAnalysisHtml/informeAnalisisTexto's "MATRIZ DE
+  // REQUISITOS", que si tiene el bloque debajo).
+  function textoExperienciaFueraDeAnalisis(gExp, entry){
+    return (entry && entry.experienciaResultado)
+      ? gExp.detalle.replace(/ Ver detalle en "Experiencia requerida" debajo del análisis del pliego\./, ' Ver el detalle completo en "Buscar procesos", dentro del análisis de este pliego.')
+      : 'Analiza el pliego de este proceso en "Buscar procesos" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
+  }
+
   const EVAL_ICONO = { ok: '✅', fail: '❌', revisar: '⚠', nd: '·' };
   function evalDetalleHtml(item, res, entry){
     if (!res) return '<div class="analysis-block analysis-warn">No hay perfiles para evaluar. Marca al menos uno en "Comparar en el análisis de pliegos".</div>';
-    // Auditoría UX/UI para ingenieros civiles: el texto de
-    // experienciaGateDetalle() dice "Ver detalle... debajo del análisis del
-    // pliego" -- correcto en "Buscar procesos" (donde SÍ hay algo debajo),
-    // pero en esta vista ("Evaluación", vista aparte) no existe ningún
-    // bloque debajo -- quien lea esto aquí buscaría algo que no está en la
-    // pantalla. Se reemplaza solo en este contexto, sin tocar
-    // experienciaGateDetalle() (que sigue sirviendo bien donde sí aplica).
-    const detalleExperienciaAqui = (gExp) => (entry && entry.experienciaResultado)
-      ? gExp.detalle.replace(/ Ver detalle en "Experiencia requerida" debajo del análisis del pliego\./, ' Ver el detalle completo en "Buscar procesos", dentro del análisis de este pliego.')
-      : 'Analiza el pliego de este proceso en "Buscar procesos" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
     const bloquePerfil = r => {
       const filas = r.gates.map(x =>
-        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? detalleExperienciaAqui(x) : x.detalle) + '</li>'
+        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry) : x.detalle) + '</li>'
       ).join('');
       const cls = r.veredicto === 'GO' ? 'eval-go' : r.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
       // El botón de carta es POR PERFIL (r.perfilId) porque los datos de NIT/
@@ -5166,7 +5201,7 @@
       L.push('');
       L.push('────────────────────────────────────────────────────────');
       L.push('EMPRESA: ' + r.perfil + '  →  ' + r.veredicto + (r.conPliego ? '' : '  (evaluación ligera, sin pliego)'));
-      r.gates.forEach(x => L.push('  [' + x.estado.toUpperCase() + '] ' + x.nombre + ': ' + x.detalle));
+      r.gates.forEach(x => L.push('  [' + x.estado.toUpperCase() + '] ' + x.nombre + ': ' + (x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry) : x.detalle)));
     });
     L.push('');
     L.push('════════════════════════════════════════════════════════');
@@ -5634,8 +5669,18 @@
       ? ' <button class="link-btn analysis-experiencia-informe-btn" data-experiencia-informe-id="' + escapeHtml(entry.id || '') + '">⬇ Descargar informe de experiencia (.txt)</button>'
       : '';
     const resultadoHtml = entry.experienciaResultado ? renderRequisitosExperienciaHtml(entry) : '';
+    // Auditoría (texto de UI): cuando ya hay resultado, `g.detalle` repetía
+    // el mismo conteo CUMPLE/NO CUMPLE/NO DETERMINABLE que el stat-grid de
+    // `resultadoHtml` muestra unas líneas más abajo, EN EL MISMO bloque --
+    // y encima terminaba en "ver detalle... debajo del análisis del
+    // pliego", una frase circular (el lector ya está adentro de esa
+    // sección). Se omite el intro duplicado cuando el detalle completo
+    // está a punto de renderizarse; sin resultado todavía, `g.detalle` SÍ
+    // aporta algo nuevo (dirige al botón "Evaluar" de abajo), así que se
+    // conserva en ese caso.
+    const introHtml = entry.experienciaResultado ? '' : '<div style="margin-bottom:8px;">' + escapeHtml(g.detalle) + '</div>';
     return '<div class="analysis-sub">EXPERIENCIA REQUERIDA (extraída del Pliego/Estudio Previo de este proceso)</div>' +
-      '<div style="margin-bottom:8px;">' + escapeHtml(g.detalle) + '</div>' +
+      introHtml +
       epHtml +
       '<div style="margin-bottom:8px;">' + btnHtml + informeBtnHtml + '</div>' +
       resultadoHtml;
@@ -5880,10 +5925,22 @@
     } catch(e){ return null; }
   }
 
+  // Auditoría UX/UI (cálculos financieros): `!v` trataba 0 como "sin
+  // valor" -- una capacidad disponible o un valor de proceso EXACTAMENTE
+  // en cero (caso real: contratos en ejecución que consumen justo el K
+  // residual declarado) devolvía `null`, y dos gates de evaluarProceso
+  // interpolaban ese `null` sin respaldo -- el ingeniero veía literalmente
+  // "Tu capacidad disponible estimada (null) es menor que el valor de la
+  // obra." Ahora solo `null`/`undefined`/cadena vacía cuentan como "sin
+  // valor"; 0 es un número real y se formatea como $0. De paso, el signo
+  // negativo quedaba pegado después del "$" ("$-100.000") en vez de antes
+  // ("-$100.000") -- cosmético, pero se corrige de una vez.
   function fmtMoney(v){
+    if (v === null || v === undefined || v === '') return null;
     const n = Number(v);
-    if (!v || isNaN(n)) return null;
-    return '$' + n.toLocaleString('es-CO');
+    if (isNaN(n)) return null;
+    const signo = n < 0 ? '-' : '';
+    return signo + '$' + Math.abs(n).toLocaleString('es-CO');
   }
 
   function normalize(record){
@@ -6686,8 +6743,17 @@
     // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí -- "MATRIZ DE
     // REQUISITOS" (arriba, dentro de RESUMEN DE COMPATIBILIDAD) ya cita el
     // mismo valor exigido y lo compara contra el perfil.
+    // Auditoría (texto de UI): experienciaGateDetalle().detalle dice "Ver
+    // detalle... debajo del análisis del pliego" -- correcto dentro de la
+    // tarjeta HTML (donde sí hay algo debajo), pero ESTE es un .txt plano
+    // descargado aparte -- no tiene ningún "debajo". El detalle completo
+    // por requisito vive en un archivo DISTINTO ("Descargar informe de
+    // experiencia (.txt)"), así que se corrige el puntero para apuntar ahí.
     L.push('EXPERIENCIA (evaluación independiente — no varía por perfil)');
-    L.push('  ' + experienciaGateDetalle(entry).detalle);
+    L.push('  ' + experienciaGateDetalle(entry).detalle.replace(
+      / Ver detalle en "Experiencia requerida" debajo del análisis del pliego\./,
+      ' Descarga "Informe de experiencia (.txt)" desde la tarjeta de este pliego en "Buscar procesos" para el detalle completo por requisito.'
+    ));
     nl();
 
     const primero = comps[0] || {};

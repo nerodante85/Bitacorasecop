@@ -3965,3 +3965,102 @@ muestra "$610.000.000 · 0.0% vs. presupuesto oficial" (consistente);
 "Competitivo" seguía igual ("$610.000.000 · 0.0%"); "Agresivo" no
 cambió ("$500.200.000 · -18.0%", ese escenario nunca necesitó el tope,
 así que no tenía el bug). 0 errores de consola.
+
+## Tercera pasada de la auditoría UX/UI: 3 agentes en paralelo, 5 correcciones
+
+El usuario pidió seguir auditando "hasta que no encuentres errores,
+discrepancias o redundancias" y explícitamente ofreció usar varios
+agentes. Se lanzaron 3 agentes en paralelo (`isolation: worktree`,
+solo lectura, sin editar nada), cada uno con un área distinta para no
+duplicar trabajo: (1) motor de extracción/evaluación, (2) texto de UI y
+redundancia, (3) cálculos financieros y puntajes -- cada uno con
+instrucciones explícitas de dar ejemplos CONCRETOS (entrada → salida),
+no hallazgos hipotéticos, y de reportar también lo que revisaron y NO
+encontraron nada mal (para saber qué quedó realmente cubierto). Los 3
+volvieron con hallazgos reales. Se consolidaron, se presentaron al
+usuario, y se implementaron los 5 tras su confirmación.
+
+### 1. (Crítico) `fmtMoney(0)` devolvía `null` -- aparecía la palabra "null" en el veredicto
+
+`fmtMoney` (index.html:5883) usaba `if (!v || isNaN(n)) return null;` --
+como `!0` es `true`, una capacidad disponible o un valor de proceso
+EXACTAMENTE en cero se trataba igual que "sin dato". Dos gates de
+`evaluarProceso` (línea ~4953 "Valor de la obra" y ~4963 "Capacidad vs
+valor") interpolan el resultado de `fmtMoney` SIN el `|| valorCrudo` de
+respaldo que sí tienen otros call sites -- así que un caso real (una
+empresa cuyos contratos en ejecución consumen exactamente su K residual
+declarado, capacidad disponible = $0) hacía que el ingeniero viera
+literalmente *"Tu capacidad disponible estimada (**null**) es menor que
+el valor de la obra."* Corregido: solo `null`/`undefined`/cadena vacía
+cuentan como "sin valor" ahora; 0 es un número real y se formatea como
+`$0`. De paso se corrigió el signo negativo, que quedaba pegado después
+del "$" (`"$-100.000"` en vez de `"-$100.000"`) -- cosmético, mismo sitio.
+
+### 2. (Crítico) Números en letras con dígito entre paréntesis ("diez (10)") solo se manejaban para `minContratos`
+
+Esta convención de redacción legal colombiana ("mínimo uno (1) y máximo
+cinco (5) contratos") ya se había corregido una vez, pero solo para
+`minContratos` (`construirRequisitoDesdeTexto`, index.html:3699) --
+`minValor` (extracción SMMLV, ~3729), `extraerCantidadConUnidadContable`
+(~3568) y, el más peligroso, `condicionCuantitativaSinModelar` (~3584 --
+la red de seguridad que impide un CUMPLE automático en un requisito
+DIMENSIONAL como metros/km/m²) seguían exigiendo el dígito suelto. Un
+requisito real como *"longitud mínima de cincuenta (50) metros"* no
+activaba esa red de seguridad -- el motor podía dar CUMPLE en un puente
+que en realidad no llega a los 50 metros, sin ninguna advertencia. Se
+agregó la misma alternativa de regex en los 3 sitios. Para
+`condicionCuantitativaSinModelar` no hacía falta resolver el número
+(solo detectar que existe uno, dígito o "palabra (dígito)", cerca de una
+unidad dimensional), así que se amplió el regex sin agregar grupos de
+captura nuevos.
+
+**Verificado con un script Node ad-hoc** (mismo patrón de extracción por
+anclas que usa `tests/smoke.mjs`, ejecutado y luego descartado): las 3
+formas nuevas ("quince mil (15.000) SMMLV", "diez (10) viviendas",
+"cincuenta (50) metros") ahora extraen el número correctamente, Y las
+formas con dígito suelto que ya funcionaban (incluida la de
+`minContratos`) siguen funcionando exactamente igual -- sin regresión.
+
+### 3. (Crítico) Dos informes .txt remitían a secciones que no existen en ese archivo
+
+- `resumenEjecutivo()` (index.html:5083) decía "Sube y analiza el PDF del
+  pliego **en esta tarjeta**" -- sus 2 únicos call sites reales
+  (`evalDetalleHtml`, la vista "Evaluación", y `informeEvalTexto`, su
+  .txt descargable) no tienen ningún control de carga de PDF (eso solo
+  existe en "Buscar procesos"). Corregido para apuntar ahí.
+- El texto de `experienciaGateDetalle()` ("...ver detalle... debajo del
+  análisis del pliego") ya se había adaptado para la vista HTML
+  "Evaluación" en una pasada anterior, pero **no** para sus dos primos
+  .txt: `informeEvalTexto` imprimía `x.detalle` crudo, e
+  `informeAnalisisTexto` imprimía `experienciaGateDetalle(entry).detalle`
+  crudo bajo su propio encabezado "EXPERIENCIA" -- en ninguno de los dos
+  archivos existe una sección "debajo" a la que ir. Se extrajo el parche
+  que antes vivía solo dentro de `evalDetalleHtml` a una función
+  compartida, `textoExperienciaFueraDeAnalisis(gExp, entry)`, y se
+  reusó en los 3 sitios -- para el informe de "Buscar procesos" el
+  puntero corregido remite al archivo correcto ("Informe de experiencia
+  (.txt)", que es donde de verdad vive el detalle completo).
+
+### 4. (Menor) `bloqueExperienciaHtml()` repetía el mismo conteo dos veces, y la primera vez se remitía a sí misma
+
+Con resultado ya calculado, el bloque mostraba el conteo completo de
+`experienciaGateDetalle()` (con su coletilla "ver detalle... debajo")
+justo arriba del stat-grid de `renderResultadoExperiencia`, que
+muestra el MISMO conteo unas líneas más abajo, en el mismo bloque --
+circular, sin aportar nada la segunda vez. Se omite ese intro cuando ya
+hay resultado (el stat-grid habla por sí solo); sin resultado todavía,
+se conserva porque ahí sí dirige a algo nuevo (el botón "Evaluar" de
+abajo).
+
+**Verificado**: 67/67 tests de humo (cambios de renderizado/texto y 3
+regexes de extracción, sin alterar ningún resultado ya cubierto por los
+tests existentes). Probado en navegador real de punta a punta: la
+tarjeta de "Buscar procesos" ya no repite el conteo de experiencia; en
+"Evaluación", tanto el caso "sin pliego" como el caso "Experiencia"
+muestran los textos corregidos; los dos informes .txt (interceptando
+`URL.createObjectURL`) confirman los punteros corregidos; y, para el
+bug de `fmtMoney`, se armó un perfil real con capacidad disponible en
+$0 exacto (K residual $500M menos un contrato en ejecución de $500M) y
+se confirmó que tanto "Capacidad disponible (estimada)" como los gates
+"Capacidad vs valor" y "Capacidad K residual" muestran "$0" -- nunca la
+palabra "null". 0 errores de consola.
