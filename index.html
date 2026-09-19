@@ -5446,12 +5446,24 @@
     const mediana = descuentos[Math.floor(descuentos.length / 2)];
     const masSuave = descuentos[descuentos.length - 1];  // el descuento más leve visto (el menos negativo)
     const masFuerte = descuentos[0];                     // el descuento más fuerte visto (el más negativo)
-    const escenario = d => Math.min(presupuesto, Math.round(presupuesto * (1 + d)));
+    // Auditoría UX/UI para ingenieros civiles: el % mostrado se calculaba
+    // sobre `d` crudo, sin el mismo tope que ya se le aplica al valor en
+    // pesos -- cuando una entidad tiene alguna adjudicación histórica por
+    // ENCIMA de su presupuesto oficial (d positivo, dato real aunque
+    // inusual), el valor en pesos topaba correctamente en el presupuesto
+    // pero el % seguía mostrando la cifra sin topar (ej. "$610.000.000 ·
+    // 29.0% vs. presupuesto oficial" siendo el mismo número que el
+    // presupuesto -- contradictorio). Ahora el % se deriva del valor YA
+    // topado, así los dos números de la tarjeta siempre concuerdan.
+    const paraEscenario = d => {
+      const valor = Math.min(presupuesto, Math.round(presupuesto * (1 + d)));
+      return { valor: valor, pct: (valor / presupuesto - 1) * 100 };
+    };
     return {
       aplica: true, muestra: descuentos.length, presupuestoOficial: presupuesto,
-      conservador: { valor: escenario(masSuave), pct: masSuave * 100 },
-      competitivo: { valor: escenario(mediana), pct: mediana * 100 },
-      agresivo: { valor: escenario(masFuerte), pct: masFuerte * 100 }
+      conservador: paraEscenario(masSuave),
+      competitivo: paraEscenario(mediana),
+      agresivo: paraEscenario(masFuerte)
     };
   }
 

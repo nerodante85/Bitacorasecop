@@ -3923,3 +3923,45 @@ detalle en cada proceso)"; y en "Evaluación", la fila de Experiencia
 ahora dice "Ver el detalle completo en 'Buscar procesos', dentro del
 análisis de este pliego" en vez de remitir a un "debajo" que no existe
 en esa pantalla. 0 errores de consola.
+
+## Segunda pasada de la auditoría UX/UI: bug real en "Sugerencia de oferta económica"
+
+El usuario pidió seguir auditando. Se revisaron zonas de la app no
+cubiertas en la primera pasada: el modal "Iniciar sesión" (claro, sin
+jerga -- sin cambios), "Ver ejemplo de formato aceptado" en Experiencia
+(ejemplo concreto y legible -- sin cambios), y "Ver adjudicaciones de
+esta entidad" en Evaluación (nunca antes probado en este proyecto).
+
+**Bug real encontrado probando "Ver adjudicaciones" con datos en vivo**
+(`sugerenciaOfertaEconomica`, index.html:5439): la tarjeta "Conservador"
+mostraba el mismo valor en pesos que "Presupuesto oficial"
+($610.000.000 en ambos) pero decía "29.0% vs. presupuesto oficial" --
+contradictorio a simple vista (si son el mismo número, ¿por qué 29%?).
+Causa: el valor en pesos de cada escenario se topa correctamente al
+presupuesto oficial (`Math.min(presupuesto, ...)` -- ofertar por encima
+descalifica la propuesta en la mayoría de modalidades), pero el
+porcentaje mostrado se calculaba directo del descuento histórico crudo
+(`d`), sin ese mismo tope -- cuando una entidad tiene alguna
+adjudicación histórica real por ENCIMA de su presupuesto oficial (dato
+inusual pero real, ej. por adenda que subió el presupuesto a mitad de
+proceso), el valor topaba pero el % no, y los dos números de la misma
+tarjeta dejaban de concordar. Esto es sobre una función que sugiere
+CUÁNTO ofertar -- una inconsistencia visible ahí es particularmente
+grave porque mina la confianza en un número con consecuencias
+económicas reales.
+
+Fix: el % ahora se deriva del valor YA topado
+(`pct = (valor / presupuesto - 1) * 100`) en vez de calcularse aparte
+del `d` crudo -- los dos números de cada tarjeta (Conservador/
+Competitivo/Agresivo) siempre van a concordar entre sí, sin importar si
+el escenario necesitó tope o no.
+
+**Verificado**: 67/67 tests de humo (no hay tests de humo específicos
+para `sugerenciaOfertaEconomica`, que no forma parte de
+`extractExperienceEngine`). Probado en navegador real contra el mismo
+caso que reveló el bug (Área Metropolitana de Cúcuta, datos reales de
+SECOP vía "Ver adjudicaciones de esta entidad"): "Conservador" ahora
+muestra "$610.000.000 · 0.0% vs. presupuesto oficial" (consistente);
+"Competitivo" seguía igual ("$610.000.000 · 0.0%"); "Agresivo" no
+cambió ("$500.200.000 · -18.0%", ese escenario nunca necesitó el tope,
+así que no tenía el bug). 0 errores de consola.
