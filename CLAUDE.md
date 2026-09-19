@@ -3872,3 +3872,54 @@ ahora dice "Ver detalle completo más abajo..." en vez del conteo
 repetido, la sección "CAPACIDAD K RESIDUAL EXIGIDA" ya no existe, y la
 sección "EXPERIENCIA" (más abajo, gracias al fix del bug) muestra el
 resultado real y completo por primera vez. 0 errores de consola.
+
+## Auditoría UX/UI para ingenieros civiles: 4 hallazgos reales
+
+El usuario pidió una auditoría explícita "como si fueras un desarrollador
+UX/UI", con foco en que ingenieros civiles (el usuario real de la app)
+entiendan fácil su uso. Recorrido real en navegador móvil con datos
+inyectados en cada pantalla (Dashboard, Buscar procesos con pliego
+analizado, Perfil, Experiencia, Personal, Evaluación), leyendo cada
+pantalla como la leería alguien tomando una decisión de ir/no ir a una
+licitación, no como desarrollador. 2 hallazgos críticos, 2 menores --
+todos implementados.
+
+1. **(Crítico) Texto obsoleto "...satisface la matriz"** --
+   `renderResultadoExperiencia` (index.html:4200) cerraba la nota que
+   explica el desglose de contratos del Excel con una referencia a "la
+   matriz", concepto eliminado hace varias sesiones (los requisitos ya
+   no salen de una matriz subida a mano, se extraen automáticamente del
+   pliego). Podía hacer pensar que falta cargar algo que ya no existe.
+   Se reescribió en dos frases cortas, sin el residuo.
+
+2. **(Crítico) Referencia cruzada rota entre "Evaluación" y "Buscar
+   procesos"** -- el gate de Experiencia (`experienciaGateDetalle`) dice
+   "Ver detalle... debajo del análisis del pliego", correcto en "Buscar
+   procesos" (donde sí hay algo debajo) pero sin sentido en "Evaluación"
+   (vista aparte, sin ese bloque) -- quien lo leyera ahí buscaría algo
+   que no está en la pantalla. Se agregó `detalleExperienciaAqui()`
+   dentro de `evalDetalleHtml`, que sustituye el texto SOLO en esta
+   vista (sin tocar `experienciaGateDetalle`, que sigue sirviendo bien
+   donde sí aplica) -- apunta correctamente a "Buscar procesos".
+
+3. **(Menor) Oración densa estilo "debug"** -- el desglose de contratos
+   del Excel ("Experiencia general identificada: 0 contrato(s)... sin
+   distinguir general/específica en el Excel: 2 (de 2 contrato(s) en
+   total)") era una sola oración larga con cifras encadenadas. Se separó
+   en desglose + una frase que explica qué significa el CUMPLE/NO CUMPLE
+   de abajo.
+
+4. **(Menor) "0 CUMPLE" en el Dashboard sonaba a nota reprobatoria** --
+   aparecía sin contexto de que puede deberse a datos faltantes (NO
+   DETERMINABLE), no a un incumplimiento real. Se cambió a fracción ("X
+   de Y cumple(n) del todo") con una invitación a revisar el detalle.
+
+**Verificado**: 67/67 tests de humo (cambios de texto/renderizado, sin
+tocar ningún motor de extracción/evaluación). Probado en navegador real:
+confirmé por búsqueda de texto que "satisface la matriz" ya no aparece
+en ningún lado; la nota nueva del desglose de Excel se ve en dos frases
+claras; el Dashboard muestra "0 de 1 cumple(n) del todo (revisa el
+detalle en cada proceso)"; y en "Evaluación", la fila de Experiencia
+ahora dice "Ver el detalle completo en 'Buscar procesos', dentro del
+análisis de este pliego" en vez de remitir a un "debajo" que no existe
+en esa pantalla. 0 errores de consola.

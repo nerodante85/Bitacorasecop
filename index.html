@@ -4199,10 +4199,17 @@
 
   function renderResultadoExperiencia(ev){
     const rc = ev.resumenContratos || {};
-    const identificacion = '<div class="saved-note" style="margin-bottom:8px;">Experiencia general identificada: ' + (rc.general || 0) + ' contrato(s) del Excel' +
-      ' · Experiencia específica identificada: ' + (rc.especifica || 0) + ' contrato(s)' +
-      (rc.noClasificado ? ' · sin distinguir general/específica en el Excel: ' + rc.noClasificado : '') +
-      ' (de ' + (rc.total || 0) + ' contrato(s) en total). El CUMPLE/NO CUMPLE de cada requisito de abajo es el que decide si la experiencia acreditada satisface la matriz.</div>';
+    // Auditoría UX/UI para ingenieros civiles: esta nota mezclaba el
+    // desglose de contratos (general/específica/sin clasificar) con una
+    // sola oración larga y cerraba con "...satisface la matriz" -- residuo
+    // del diseño anterior (matriz subida a mano), que ya no existe. Se
+    // separan las dos ideas en frases cortas y se quita la referencia
+    // obsoleta.
+    const desglose = (rc.general || 0) + ' clasificado(s) como experiencia general, ' + (rc.especifica || 0) + ' como específica' +
+      (rc.noClasificado ? ', y ' + rc.noClasificado + ' sin esa distinción en el Excel' : '') +
+      ' (' + (rc.total || 0) + ' contrato(s) en total).';
+    const identificacion = '<div class="saved-note" style="margin-bottom:8px;">Contratos de tu Excel de experiencia: ' + desglose +
+      ' Cada requisito de abajo se marca CUMPLE o NO CUMPLE según si encontramos contratos que lo satisfagan.</div>';
     const resumen = '<div class="expeval-summary">' +
       '<div class="stat">' + ev.resultados.length + '<span>REQUISITOS EVALUADOS</span></div>' +
       '<div class="stat" style="color:var(--success)">' + ev.conteo['CUMPLE'] + '<span>CUMPLE</span></div>' +
@@ -5081,9 +5088,19 @@
   const EVAL_ICONO = { ok: '✅', fail: '❌', revisar: '⚠', nd: '·' };
   function evalDetalleHtml(item, res, entry){
     if (!res) return '<div class="analysis-block analysis-warn">No hay perfiles para evaluar. Marca al menos uno en "Comparar en el análisis de pliegos".</div>';
+    // Auditoría UX/UI para ingenieros civiles: el texto de
+    // experienciaGateDetalle() dice "Ver detalle... debajo del análisis del
+    // pliego" -- correcto en "Buscar procesos" (donde SÍ hay algo debajo),
+    // pero en esta vista ("Evaluación", vista aparte) no existe ningún
+    // bloque debajo -- quien lea esto aquí buscaría algo que no está en la
+    // pantalla. Se reemplaza solo en este contexto, sin tocar
+    // experienciaGateDetalle() (que sigue sirviendo bien donde sí aplica).
+    const detalleExperienciaAqui = (gExp) => (entry && entry.experienciaResultado)
+      ? gExp.detalle.replace(/ Ver detalle en "Experiencia requerida" debajo del análisis del pliego\./, ' Ver el detalle completo en "Buscar procesos", dentro del análisis de este pliego.')
+      : 'Analiza el pliego de este proceso en "Buscar procesos" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
     const bloquePerfil = r => {
       const filas = r.gates.map(x =>
-        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.detalle) + '</li>'
+        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? detalleExperienciaAqui(x) : x.detalle) + '</li>'
       ).join('');
       const cls = r.veredicto === 'GO' ? 'eval-go' : r.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
       // El botón de carta es POR PERFIL (r.perfilId) porque los datos de NIT/
@@ -7833,9 +7850,14 @@
           expEl.textContent = String(expevalContratos.contratos.length);
           if (expNoteEl) expNoteEl.textContent = 'contrato(s) acreditado(s) -- analiza un pliego para evaluar el cumplimiento';
         } else {
+          // Auditoría UX/UI para ingenieros civiles: "0 CUMPLE" a secas, sin
+          // contexto, se leía como una nota reprobatoria -- incluso cuando
+          // la causa real era falta de datos (NO DETERMINABLE), no un
+          // incumplimiento real. Se muestra como fracción ("X de Y") y se
+          // remite al detalle en vez de dejar el número solo.
           const cumplen = evaluados.filter(e => e.experienciaResultado.resultadoGlobal === 'CUMPLE').length;
           expEl.textContent = String(evaluados.length);
-          if (expNoteEl) expNoteEl.textContent = 'proceso(s) con experiencia evaluada -- ' + cumplen + ' CUMPLE';
+          if (expNoteEl) expNoteEl.textContent = 'proceso(s) con experiencia evaluada -- ' + cumplen + ' de ' + evaluados.length + ' cumple(n) del todo (revisa el detalle en cada proceso)';
         }
       }
     }
