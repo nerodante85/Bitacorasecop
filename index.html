@@ -4319,12 +4319,27 @@
   // una sola lista -- el usuario pidió explícitamente poder distinguir Capacidad K
   // Residual, Experiencia General y Experiencia Específica como cosas separadas,
   // no como una bolsa genérica de "requisitos habilitantes".
+  // Capacidad Organizacional se separó de Capacidad K/Financiera (Fase de
+  // "requisitos habilitantes reales") tras confirmar contra fuente oficial
+  // (Ley 1150 de 2007 art. 5 y el Manual de Colombia Compra Eficiente) que
+  // son las 4 categorías legales distintas: Jurídica, Financiera,
+  // Organizacional y Experiencia -- antes "capacidad organizacional" vivía
+  // mezclada como un trigger más dentro de Financiera. Capacidad Jurídica
+  // no se modela aparte porque casi nunca aparece como cláusula numérica
+  // comparable en el texto del pliego (es un requisito de estar inscrito
+  // y sin inhabilidades, no algo que se compare contra un perfil).
   const REQUISITO_CATEGORIAS = [
     { categoria: 'Capacidad K / Financiera', triggers: [
       'capacidad k residual', 'k residual', 'capacidad residual de contratación',
-      'capacidad residual', 'capacidad organizacional', 'capacidad financiera',
+      'capacidad residual', 'capacidad financiera',
       'capacidad k', 'índice de liquidez', 'nivel de endeudamiento', 'patrimonio',
       'razón de cobertura'
+    ]},
+    { categoria: 'Capacidad Organizacional', triggers: [
+      'capacidad organizacional', 'rentabilidad sobre el patrimonio',
+      'rentabilidad sobre patrimonio', 'rentabilidad del patrimonio',
+      'rentabilidad sobre activos', 'rentabilidad sobre el activo',
+      'rentabilidad del activo', 'rentabilidad operacional'
     ]},
     { categoria: 'Experiencia', triggers: [
       'experiencia específica', 'experiencia general', 'experiencia mínima',
@@ -5632,7 +5647,20 @@
   // que el resultado de compatibilidad aparezca justo después de analizar el
   // pliego, no obligarlo a ir a otra sección a buscar el mismo dato.
   function renderCompatibilidadHtml(res, entry){
-    const resumen = resumenCompatibilidad(res.mejor.gates);
+    // El gate "Experiencia" trae por defecto el mismo texto completo
+    // (conteos, obligatorios) que ya se usa en "Evaluación go/no-go" --
+    // ahí sigue haciendo falta, porque esa vista no tiene el bloque de
+    // experiencia aparte. Pero AQUÍ (análisis de pliego), ese bloque
+    // detallado ahora se muestra justo arriba (ver renderAnalysisHtml) --
+    // repetir el mismo conteo en la fila de la tabla es ruido, así que se
+    // acorta solo en esta copia local de gates, sin tocar `res.mejor.gates`
+    // (evita efectos secundarios en quien más use este mismo `res`).
+    const gatesParaMostrar = (entry && entry.experienciaResultado)
+      ? res.mejor.gates.map(g => g.nombre === 'Experiencia'
+          ? Object.assign({}, g, { detalle: 'Ver detalle completo arriba, en "Experiencia requerida".' })
+          : g)
+      : res.mejor.gates;
+    const resumen = resumenCompatibilidad(gatesParaMostrar);
     const claseGlobal = res.mejor.veredicto === 'GO' ? 'expeval-cumple' : (res.mejor.veredicto === 'NO-GO' ? 'expeval-nocumple' : 'expeval-nd');
     const hero = '<div class="expeval-global ' + claseGlobal + '">RESULTADO: ' + escapeHtml(res.mejor.veredicto) +
       '<small>' + (resumen.pct != null
@@ -5648,7 +5676,7 @@
       ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas por OCR -- el resto del pliego todavía no se ha analizado y podría contener requisitos que cambien el veredicto. Usa "Seguir leyendo más páginas" (al final de esta tarjeta) antes de decidir.</div>'
       : '';
     const lista = (titulo, arr) => arr.length ? '<div class="analysis-sub">' + titulo + '</div><ul class="analysis-list">' + arr.map(x => '<li>' + escapeHtml(x) + '</li>').join('') + '</ul>' : '';
-    const filas = res.mejor.gates.map(g =>
+    const filas = gatesParaMostrar.map(g =>
       '<tr><td>' + escapeHtml(g.nombre) + '</td><td><span class="expeval-badge ' + ESTADO_COMPAT_CLASE[g.estado] + '">' + escapeHtml(ESTADO_COMPAT_LABEL[g.estado] || g.estado) + '</span></td><td>' + escapeHtml(g.detalle) + '</td></tr>'
     ).join('');
     const tabla = '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Estado</th><th>Evidencia y observaciones</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
@@ -5675,7 +5703,13 @@
         .map(c => c.perfilNombre || 'Perfil');
       (porCategoria[h.categoria] = porCategoria[h.categoria] || []).push(Object.assign({}, h, { cubiertoPor: cubiertoPor }));
     });
-    const ordenCategorias = ['Capacidad K / Financiera', 'Experiencia', 'RUP / Clasificador', 'Personal / Equipo de trabajo'];
+    // Capacidad K/Financiera y Experiencia ya NO se repiten aquí -- tienen su
+    // propio bloque más completo arriba (la fila de gates con comparación
+    // real contra el perfil, y "EXPERIENCIA REQUERIDA" con el detalle
+    // completo). Esta lista se deja solo para las categorías que NO tienen
+    // tratamiento propio en otro lado del análisis (pedido del usuario tras
+    // notar "redundancia en todo").
+    const ordenCategorias = ['RUP / Clasificador', 'Personal / Equipo de trabajo', 'Capacidad Organizacional'];
     const hallazgosHtml = ordenCategorias
       .filter(cat => porCategoria[cat] && porCategoria[cat].length)
       .map(cat => {
@@ -5687,7 +5721,7 @@
         return '<div class="analysis-sub">' + escapeHtml(cat.toUpperCase()) + '</div><ul class="analysis-list">' + items + '</ul>';
       }).join('');
 
-    const sinHallazgos = !primero.hallazgosAnotados || primero.hallazgosAnotados.length === 0;
+    const sinHallazgos = ordenCategorias.every(cat => !porCategoria[cat] || !porCategoria[cat].length);
     const fecha = fmtDate(new Date(entry.ts).toISOString()) || '';
 
     // Alertas de garantías por debajo del mínimo legal (ver detectarRedFlags) +
@@ -5721,13 +5755,26 @@
     return '<div class="analysis-block">' +
       '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' · <span style="color:var(--warning);">vía OCR</span>' : '') + ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
       redFlagsHtml +
-      compatHtml +
-      (entry.kResidual ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(entry.kResidual) + '</div>' : '') +
-      '<div class="analysis-sub">REQUISITOS HABILITANTES DETECTADOS</div>' +
-      (sinHallazgos
-        ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de capacidad K, RUP o experiencia mínima en el texto extraído — revisa el pliego completo.</li></ul>'
-        : hallazgosHtml) +
+      // El usuario pidió explícitamente hacer énfasis en esta sección: "es
+      // de vital importancia conocer ese análisis comparativo para que la
+      // empresa tenga información suficiente para tomar la decisión de
+      // participar o no". Antes vivía al final de la tarjeta, después de
+      // todo el resumen de compatibilidad y la lista cruda de requisitos --
+      // se mueve arriba, justo después de las alertas, para que sea de lo
+      // primero que se ve al abrir el análisis. La fila "Experiencia" de la
+      // tabla de gates más abajo (dentro de compatHtml) sigue existiendo,
+      // pero ahora apunta a este bloque en vez de repetir el mismo conteo.
       bloqueExperienciaHtml(entry) +
+      compatHtml +
+      // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí -- la fila
+      // "Capacidad K residual" de la tabla de gates (dentro de compatHtml,
+      // arriba) ya cita el mismo valor exigido Y lo compara contra el
+      // perfil, lo cual es estrictamente más útil que la cita suelta que
+      // había aquí.
+      '<div class="analysis-sub">OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional)</div>' +
+      (sinHallazgos
+        ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de RUP, personal mínimo o capacidad organizacional en el texto extraído — revisa el pliego completo. (Capacidad K/Financiera y Experiencia se muestran arriba, en sus propios bloques.)</li></ul>'
+        : hallazgosHtml) +
       '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' +
       perfilesHtml +
       (comps.length
@@ -6551,7 +6598,16 @@
     const resCompat = (it && s) ? evaluarMejor(it, s, entry) : null;
     if (resCompat){
       const res = resCompat;
-      const resumen = resumenCompatibilidad(res.mejor.gates);
+      // Mismo criterio que renderCompatibilidadHtml: la sección
+      // "EXPERIENCIA" de este mismo informe (más abajo) ya trae el detalle
+      // completo -- repetirlo aquí en la matriz es ruido. Copia local, no
+      // se toca res.mejor.gates (mismo motivo: evitar efectos secundarios).
+      const gatesParaMostrar = (entry && entry.experienciaResultado)
+        ? res.mejor.gates.map(g => g.nombre === 'Experiencia'
+            ? Object.assign({}, g, { detalle: 'Ver detalle completo más abajo, en la sección "EXPERIENCIA" de este mismo informe.' })
+            : g)
+        : res.mejor.gates;
+      const resumen = resumenCompatibilidad(gatesParaMostrar);
       L.push('RESUMEN DE COMPATIBILIDAD');
       L.push('  Resultado: ' + res.mejor.veredicto + (resumen.pct != null ? ' (' + resumen.pct + '% de cumplimiento estimado sobre lo evaluable)' : ' (sin suficiente información para un %)'));
       if (entry.viaOcr && entry.pagesRead < entry.numPages) L.push('  ⚠ ADVERTENCIA: este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas por OCR -- el resto del pliego todavía no se ha analizado.');
@@ -6560,7 +6616,7 @@
       if (resumen.riesgos.length){ L.push('  Riesgos y pendientes:'); resumen.riesgos.forEach(r => L.push('    - ' + r)); }
       nl();
       L.push('  MATRIZ DE REQUISITOS');
-      res.mejor.gates.forEach(g => L.push('    [' + (ESTADO_COMPAT_LABEL[g.estado] || g.estado).toUpperCase() + '] ' + g.nombre + ' — ' + g.detalle));
+      gatesParaMostrar.forEach(g => L.push('    [' + (ESTADO_COMPAT_LABEL[g.estado] || g.estado).toUpperCase() + '] ' + g.nombre + ' — ' + g.detalle));
       nl();
       L.push(sub);
       nl();
@@ -6598,22 +6654,24 @@
       nl();
     }
 
-    L.push('CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)');
-    L.push('  ' + (entry.kResidual || 'No detectada explícitamente en las páginas leídas.'));
-    nl();
-
+    // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí -- "MATRIZ DE
+    // REQUISITOS" (arriba, dentro de RESUMEN DE COMPATIBILIDAD) ya cita el
+    // mismo valor exigido y lo compara contra el perfil.
     L.push('EXPERIENCIA (evaluación independiente — no varía por perfil)');
-    L.push('  ' + experienciaGateDetalle().detalle);
+    L.push('  ' + experienciaGateDetalle(entry).detalle);
     nl();
 
     const primero = comps[0] || {};
     const ha = primero.hallazgosAnotados || [];
-    L.push('REQUISITOS HABILITANTES DETECTADOS EN EL PLIEGO');
-    if (!ha.length){
-      L.push('  No se detectaron menciones explícitas de capacidad K, RUP o experiencia');
-      L.push('  mínima en el texto extraído. Revisa el pliego completo.');
+    const categoriasOtras = ['RUP / Clasificador', 'Personal / Equipo de trabajo', 'Capacidad Organizacional'];
+    const sinOtrosHallazgos = categoriasOtras.every(cat => !ha.some(h => h.categoria === cat));
+    L.push('OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional)');
+    if (sinOtrosHallazgos){
+      L.push('  No se detectaron menciones explícitas de RUP, personal mínimo o');
+      L.push('  capacidad organizacional en el texto extraído. Revisa el pliego completo.');
+      L.push('  (Capacidad K/Financiera y Experiencia se muestran arriba.)');
     } else {
-      ['Capacidad K / Financiera', 'Experiencia', 'RUP / Clasificador'].forEach(cat => {
+      categoriasOtras.forEach(cat => {
         const delCat = ha.filter(h => h.categoria === cat);
         if (!delCat.length) return;
         L.push('  [' + cat.toUpperCase() + ']');

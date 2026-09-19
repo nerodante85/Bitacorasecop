@@ -3744,3 +3744,131 @@ la sección "EXPERIENCIA REQUERIDA" muestra el detalle completo (2
 evaluados, 1 cumple, 0 no cumple, 1 no determinable), y el
 `RESUMEN DE COMPATIBILIDAD` principal ya cita ese mismo resultado en vez
 del mensaje genérico de "analiza el pliego". 0 errores de consola.
+
+## El bloque de experiencia se mueve arriba: "es de vital importancia para decidir si participar"
+
+El usuario pidió explícitamente hacer énfasis en el bloque de
+comparación de experiencia recién automatizado (arriba): "es de vital
+importancia conocer ese análisis comparativo para que la empresa tenga
+información suficiente para tomar la decisión de participar o no". El
+bloque (`bloqueExperienciaHtml`, con el "RESULTADO GLOBAL" en grande y
+la tabla de requisitos evaluados) vivía al final de la tarjeta -- después
+de las alertas, del `RESUMEN DE COMPATIBILIDAD` completo (GO/NO-GO + tabla
+de gates) y de la lista cruda de "Requisitos habilitantes detectados".
+Alguien que solo quería saber si cumplía la experiencia tenía que
+scrollear bastante.
+
+Fix: en `renderAnalysisHtml`, `bloqueExperienciaHtml(entry)` se movió
+para renderizarse justo después de `redFlagsHtml` (alertas + viabilidad)
+y ANTES de `compatHtml` -- es de lo primero que se ve al abrir el
+análisis, junto con las alertas, en vez de ser lo último.
+
+Al preguntarle al usuario cómo resolver la redundancia que eso crea (la
+fila "Experiencia" dentro de la tabla de gates de `RESUMEN DE
+COMPATIBILIDAD`, más abajo, repetía el mismo conteo completo), se acordó
+acortarla: en `renderCompatibilidadHtml(res, entry)`, cuando
+`entry.experienciaResultado` ya existe, se construye una copia local de
+`res.mejor.gates` (`gatesParaMostrar`) donde SOLO la fila "Experiencia"
+cambia su `detalle` por "Ver detalle completo arriba, en 'Experiencia
+requerida'." -- sin tocar `res.mejor.gates` original, para no afectar a
+quien más reutilice ese mismo `res` (evita efectos secundarios).
+Importante: `experienciaGateDetalle()` (la función que arma el texto
+completo) NO se tocó -- sigue devolviendo el conteo completo, porque
+"Evaluación go/no-go" (`evalDetalleHtml`) también usa ese mismo gate y
+ahí SÍ hace falta el detalle completo, ya que esa vista no tiene el
+bloque de experiencia aparte arriba. El acortado es exclusivo de
+`renderCompatibilidadHtml`, la única función que lo llama.
+
+**Verificado**: 67/67 tests de humo (cambio de orden de renderizado +
+texto, sin tocar ningún motor de extracción/evaluación). Probado en
+navegador real de punta a punta: en el análisis de pliego, "EXPERIENCIA
+REQUERIDA" ahora aparece antes que "RESUMEN DE COMPATIBILIDAD"
+(confirmado visualmente); la fila "Experiencia" de la tabla de gates
+dentro del resumen ya dice "Ver detalle completo arriba..." en vez de
+repetir el conteo; y por separado, en "Evaluación go/no-go" (que no pasa
+por `renderCompatibilidadHtml`), la misma fila sigue mostrando el texto
+completo con el conteo -- confirmado programáticamente
+(`bt-eval-out.innerHTML.includes('Experiencia requerida por este
+proceso')` → `true`, `.includes('Ver detalle completo arriba')` →
+`false`). 0 errores de consola.
+
+## Investigación de qué requisitos habilitantes importan de verdad, y limpieza de la redundancia restante
+
+Tras mover el bloque de experiencia arriba, el usuario dijo "siento que
+hay redundancia en todo". Antes de tocar código, pidió explícitamente
+"revisa cuáles son los requisitos habilitantes que realmente importan a
+la hora de decir quién puede participar" -- investigación con fuentes
+oficiales (búsqueda web), no solo memoria, dado que esto tiene
+consecuencias reales para la decisión de un ingeniero civil.
+
+**Hallazgo** (Ley 1150 de 2007 art. 5 + Manual de Colombia Compra
+Eficiente): los requisitos habilitantes son "la aptitud del proponente
+para participar... referida a su capacidad jurídica, financiera,
+organizacional y su experiencia" -- 4 categorías legales. La app ya
+tenía 4 categorías (`REQUISITO_CATEGORIAS`) pero mezclaba "capacidad
+organizacional" como un trigger más dentro de "Capacidad K / Financiera"
+en vez de como su propia categoría. Capacidad Residual de Contratación
+(K residual, Decreto 791/2014) NO es una 5ta categoría -- es un cálculo
+derivado de Experiencia + Financiera + Técnica + Organizacional,
+específico y obligatorio para obra pública, que la app ya trataba bien
+aparte. Capacidad Jurídica no se modela como categoría de comparación
+porque casi nunca aparece como cláusula numérica en el texto del pliego
+(es un requisito de estar inscrito/sin inhabilidades, no algo
+comparable contra un perfil). Personal mínimo/equipo de trabajo NO es
+uno de los 4 oficiales -- depende de cada pliego (a veces pondera, a
+veces es pasa/no-pasa) -- el diseño ya existente de la app (solo
+aparece como gate si ESE pliego puntual lo exige explícitamente, nunca
+por defecto) ya es el enfoque correcto.
+
+**Fix 1 -- separar Capacidad Organizacional**: nueva categoría en
+`REQUISITO_CATEGORIAS` con sus propios triggers ("rentabilidad sobre
+patrimonio", "rentabilidad sobre activos", etc.), sacados de donde
+vivían mezclados dentro de "Capacidad K / Financiera".
+
+**Fix 2 -- limpiar la redundancia real** (confirmada al revisar la
+tarjeta completa, no solo la sección de experiencia):
+- Se eliminó la sección suelta "CAPACIDAD K RESIDUAL EXIGIDA (detectada
+  en el texto)" -- la fila "Capacidad K residual" de la tabla de gates
+  (dentro de `RESUMEN DE COMPATIBILIDAD`) ya cita el mismo valor exigido
+  Y lo compara contra el perfil, estrictamente más útil que la cita
+  suelta que había aparte.
+- La lista cruda "REQUISITOS HABILITANTES DETECTADOS" se renombró a
+  "OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal,
+  organizacional)" y su `ordenCategorias` ya NO incluye "Capacidad K /
+  Financiera" ni "Experiencia" -- esas dos categorías tienen su propio
+  bloque más completo en otro lado de la tarjeta (la tabla de gates y el
+  bloque "EXPERIENCIA REQUERIDA" respectivamente); repetir su cita cruda
+  aquí no agregaba nada. Quedan solo RUP/Clasificador, Personal/Equipo
+  de trabajo y la nueva Capacidad Organizacional, que no tienen
+  tratamiento propio en otro lado. `sinHallazgos` se recalculó para
+  juzgar solo estas 3 categorías (antes contaba TODOS los hallazgos,
+  incluyendo K/Financiera y Experiencia, lo que podía mostrar "no se
+  detectó nada" en esta sección aunque sí se hubiera detectado K o
+  Experiencia -- mostrados arriba, solo no en ESTA lista).
+- Mismo criterio aplicado al informe descargable/copiable (.txt,
+  `informeAnalisisTexto`): se quitó la sección "CAPACIDAD K RESIDUAL
+  EXIGIDA" duplicada, y la fila "Experiencia" de "MATRIZ DE REQUISITOS"
+  ahora apunta a la sección "EXPERIENCIA" del mismo informe (más abajo)
+  en vez de repetir el conteo completo -- mismo patrón `gatesParaMostrar`
+  que ya usa `renderCompatibilidadHtml`, sin tocar `res.mejor.gates`
+  original.
+
+**Bug real encontrado de paso** (no pedido, pero en la misma línea que
+ya se estaba tocando): `informeAnalisisTexto` llamaba
+`experienciaGateDetalle()` **sin pasarle `entry`**, a pesar de que
+`entry` es un parámetro de esa misma función -- el informe de texto
+SIEMPRE mostraba el mensaje genérico "Analiza el pliego..." para
+Experiencia, nunca el resultado real, aunque `entry.experienciaResultado`
+ya existiera. Corregido a `experienciaGateDetalle(entry)`.
+
+**Verificado**: 67/67 tests de humo. Probado en navegador real de punta
+a punta: en el análisis de pliego (HTML), ya no aparece
+"CAPACIDAD K RESIDUAL EXIGIDA" en ningún lado, y "OTROS REQUISITOS
+HABILITANTES DETECTADOS" solo lista RUP/Personal/Organizacional. En el
+informe .txt descargado (capturado interceptando `URL.createObjectURL`,
+ya que el portapapeles no es accesible en este entorno de pruebas): la
+fila "Experiencia" de "MATRIZ DE REQUISITOS" y de "Riesgos y pendientes"
+ahora dice "Ver detalle completo más abajo..." en vez del conteo
+repetido, la sección "CAPACIDAD K RESIDUAL EXIGIDA" ya no existe, y la
+sección "EXPERIENCIA" (más abajo, gracias al fix del bug) muestra el
+resultado real y completo por primera vez. 0 errores de consola.
