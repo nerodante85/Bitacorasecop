@@ -4163,3 +4163,72 @@ pasadas de esta sección, se confió en la cobertura de los 67 tests
 existentes + la revisión línea por línea de cada condición contra el
 hallazgo `CONFIRMED` del verificador, dado que son cambios de lógica
 condicional acotados y no nuevas ramas del motor de evaluación.
+
+## Verificación de punta a punta del objetivo real, y bug crítico encontrado: CUMPLE casi inalcanzable con un valor mínimo en pesos
+
+El usuario pidió correr un agente que probara, de punta a punta en
+navegador real (no lectura de código), si la app cumple su objetivo
+central: decirle a una empresa si cumple los requisitos de experiencia de
+una licitación real que encontró. El agente siguió el flujo completo
+(Perfil → Experiencia → Personal → Buscar procesos → Analizar pliego →
+veredicto) con datos inyectados vía `DataTransfer` (mismo patrón ya
+establecido) y probó 2 casos: uno que debía dar CUMPLE (contrato real que
+sí satisface el requisito) y uno que nunca debía dar CUMPLE (sin contrato
+relacionado). El Caso B (falso positivo) nunca ocurrió -- el motor se
+mantuvo conservador. Pero antes de llegar al Caso A que sí funcionó, el
+agente probó 3 redacciones más realistas de la misma cláusula (con "valor
+acumulado mínimo" en la misma frase que el objeto y el número de
+contratos, el patrón más común en pliegos reales) y las 3 dieron
+**NO DETERMINABLE** a pesar de que el contrato sí cumplía objeto, cantidad
+de contratos y valor acumulado.
+
+**Causa raíz** (`palabrasClaveDe()`, index.html:3517-3518): filtra tokens
+por longitud (`> 3` caracteres) y contra `STOPWORDS_ES`, pero nunca excluye
+tokens puramente numéricos. Como el motor exige coincidencia TOTAL de
+`palabrasDistintivas` (ver "Auditoría crítica del motor de evaluación" más
+arriba), una cifra como "500000000" (sin separador de miles -- redacción
+muy común, ej. "Valor mínimo 500000000") se volvía una palabra distintiva
+OBLIGATORIA -- y ningún contrato real repite esa cifra literal en la
+descripción de su objeto. Con separador de miles ("500.000.000") el bug no
+se notaba: `normHeader` parte el número en trozos de 3 dígitos que el
+filtro de longitud ya descartaba, por accidente, no por diseño -- por eso
+pasó inadvertido hasta que el agente probó la redacción sin puntos.
+**Impacto real**: el motor caía casi siempre en NO DETERMINABLE para el
+tipo de cláusula más común (objeto + mínimo de contratos + valor mínimo en
+la misma frase), obligando a revisión manual justo en el caso donde el
+motor debería poder decir CUMPLE automáticamente.
+
+**Fix**: `esTokenNumerico(w)` (nueva, junto a `palabrasClaveDe`) --
+`/^\d+%?$/.test(w)` -- se agrega al filtro de `distintivas` en
+`construirRequisitoDesdeTexto` (junto a `PALABRAS_GENERICAS_OBRA`/
+`PALABRAS_META_REQUISITO`/`palabrasCondicionTemporal`, mismo patrón ya
+establecido) y en `gatePersonalRequerido` (mismo problema de raíz al
+resaltar palabras distintivas de un hallazgo de "Personal/Equipo de
+trabajo" contra el texto libre de un perfil profesional). El valor/cantidad
+exigido ya se compara aparte, por número (`minValor`/`minContratos`/
+`minCantidad`) -- nunca por coincidencia de palabra clave -- así que
+excluir los tokens numéricos de `palabrasDistintivas` no pierde ninguna
+verificación real, solo quita un requisito de coincidencia textual que
+ningún contrato real podía satisfacer de todos modos.
+
+**Verificado**: 67/67 tests de humo (ninguno de los existentes ejercitaba
+este caso específico -- una cláusula con "valor mínimo" como número plano
+en la misma oración que el objeto -- así que no falló antes, pero tampoco
+protegía contra él). Script Node ad-hoc (mismo patrón de
+`extractExperienceEngine`, descartado después de usarlo) reproduciendo
+exactamente la cláusula que encontró el agente
+("Experiencia especifica en vias urbanas. Minimo 3 contratos. Valor
+minimo 500000000.") contra 3 contratos reales de vías urbanas ($570M
+acumulado): `palabrasDistintivas` pasó de `['vias','urbanas','500000000']`
+a `['vias','urbanas']`, y el resultado pasó de NO DETERMINABLE a **CUMPLE**
+con evidencia real (3 contratos relevantes, justificación citando cada
+uno). Caso de control (mismo requisito, contrato sin relación) confirmado
+sin regresión: sigue en NO DETERMINABLE, nunca CUMPLE.
+
+**Hallazgo menor, no corregido en esta pasada** (reportado por el mismo
+agente, fuera del alcance de "el bug crítico"): con el Caso B (0 CUMPLE, 0
+NO CUMPLE, 2 NO DETERMINABLE), la fila "Experiencia" del resumen de
+compatibilidad se etiqueta "Cumple parcialmente" -- el mapeo genérico del
+estado interno `revisar` puede sonar más optimista de lo que es cuando en
+realidad ningún requisito tuvo ni siquiera una coincidencia parcial real.
+Pendiente si el usuario decide atacarlo.

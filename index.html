@@ -3518,6 +3518,26 @@
     return Array.from(new Set(normHeader(texto).split(' ').filter(w => w.length > 3 && !STOPWORDS_ES.has(w))));
   }
 
+  // Un token puramente numérico (con o sin "%") nunca es una palabra
+  // distintiva real: el valor/cantidad exigido por un requisito ya se
+  // compara aparte, por número (minValor/minContratos/minCantidad), nunca
+  // por coincidencia de palabra clave -- y ningún contrato real repite esa
+  // cifra literal en la descripción de su objeto. Bug real encontrado por
+  // /code-review probando la app de punta a punta: "valor minimo
+  // 500000000" (sin separador de miles, redacción muy común en pliegos
+  // reales) volvía la cifra misma una palabra distintiva OBLIGATORIA (la
+  // exigencia de coincidencia TOTAL, ver más abajo, la incluía junto con
+  // "minimo"/"contratos", ya excluidas por PALABRAS_META_REQUISITO) --
+  // NO DETERMINABLE incluso cuando el contrato sí cumplía objeto y valor
+  // acumulado. Con separador de miles ("500.000.000") el bug no se veía,
+  // porque normHeader parte el número en trozos de 3 dígitos que el
+  // filtro de longitud (`length > 3`) ya descartaba por accidente, no por
+  // diseño -- por eso pasó inadvertido hasta probarse contra la redacción
+  // real más común (sin puntos). Ver CLAUDE.md.
+  function esTokenNumerico(w){
+    return /^\d+%?$/.test(w);
+  }
+
   // Bug real encontrado con un PDF real (matriz del sector educativo, vía
   // OCR): un criterio largo/ruidoso produce decenas de "palabras clave" (el
   // OCR mete de vez en cuando una palabra rota como "hnotecion" o
@@ -3756,7 +3776,7 @@
     // números en letras ("diez") varían según cómo lo redacte cada pliego
     // -- se excluye el fragmento completo en vez de mantener una lista fija.
     const palabrasCondicionTemporal = condicionTemporal ? new Set(palabrasClaveDe(condicionTemporal.texto)) : new Set();
-    const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PALABRAS_META_REQUISITO.has(p) && !palabrasCondicionTemporal.has(p));
+    const distintivas = palabras.filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PALABRAS_META_REQUISITO.has(p) && !palabrasCondicionTemporal.has(p) && !esTokenNumerico(p));
     // "Requisitos alternativos": si la matriz trae una columna explícita de
     // grupo, se guarda tal cual (texto crudo, para mostrarlo legible más
     // adelante) -- ver agruparAlternativos() y DICC_REQUISITO.grupo arriba.
@@ -4933,7 +4953,7 @@
     }
     const coincidencias = [];
     hallazgos.forEach(h => {
-      const distintivas = palabrasClaveDe(h.snippet).filter(p => !PALABRAS_GENERICAS_OBRA.has(p));
+      const distintivas = palabrasClaveDe(h.snippet).filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !esTokenNumerico(p));
       Object.keys(perfilesProfesionales).forEach(pid => {
         const pp = perfilesProfesionales[pid];
         const texto = normHeader([pp.cargo, pp.formacion, pp.especializaciones, pp.experiencia, pp.competencias].filter(Boolean).join(' '));
