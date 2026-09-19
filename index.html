@@ -1327,6 +1327,18 @@
               <div class="saved-note" id="bt-perfil-rup-status" style="margin-top:8px;">Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa Guardar perfil).</div>
             </div>
 
+            <div class="field full" style="margin-bottom:18px;">
+              <label>Autocompletar desde el RUT</label>
+              <div class="dropzone" id="bt-perfil-rut-upload" tabindex="0" role="button" aria-label="Cargar el RUT en PDF">
+                <div class="dropzone-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.6-2 4.5 4.5 0 0 1 1.4 8.7"/><path d="M12 21v-8"/><path d="M9 16l3-3 3 3"/></svg></div>
+                <div class="dropzone-title">Cargar RUT</div>
+                <div class="dropzone-sub">Arrastra el archivo aquí o haz clic para seleccionarlo</div>
+                <div class="dropzone-types">PDF</div>
+              </div>
+              <input type="file" accept="application/pdf" id="bt-perfil-rut-file" hidden>
+              <div class="saved-note" id="bt-perfil-rut-status" style="margin-top:8px;">Sube el RUT y se rellenan NIT/dirección/ciudad/teléfono/correo (revisa y pulsa Guardar perfil).</div>
+            </div>
+
             <div class="field-grid">
               <div class="field full">
                 <label>RUP / clasificador (códigos UNSPSC o actividades, separados por coma)</label>
@@ -2093,6 +2105,9 @@
   const perfilNuevoBtn = document.getElementById('bt-perfil-nuevo');
   const perfilEliminarBtn = document.getElementById('bt-perfil-eliminar');
   const perfilRupUploadBtn = document.getElementById('bt-perfil-rup-upload');
+  const perfilRutUploadBtn = document.getElementById('bt-perfil-rut-upload');
+  const perfilRutFileEl = document.getElementById('bt-perfil-rut-file');
+  const perfilRutStatusEl = document.getElementById('bt-perfil-rut-status');
   const contratosListEl = document.getElementById('bt-contratos-ejecucion-list');
   const contratoNuevoBtn = document.getElementById('bt-contrato-nuevo');
   const capacidadEstimadaOutEl = document.getElementById('bt-capacidad-estimada-out');
@@ -2860,6 +2875,268 @@
     perfilRupStatusEl.textContent = 'RUP leído (' + pagesRead + '/' + numPages + ' págs' + (viaOcr ? ', vía OCR' : '') + '). ' +
       (partes.length ? partes.join(' · ') + '. ' : '') +
       'La capacidad K/financiera y la capacidad residual del RUP salen de una tabla y pueden no leerse bien: revísalas contra el PDF antes de pulsar Guardar perfil.';
+  }
+
+  // --- RUT (Registro Único Tributario, DIAN): autocompletar NIT/dirección/
+  // ciudad/teléfono/correo -----------------------------------------------
+  //
+  // A diferencia del RUP (donde pdf.js real deja cada renglón como
+  // "ETIQUETA : valor" pegados, ver comentario de extraerIndicadoresRUP),
+  // el RUT de la DIAN es un formulario de CASILLAS: el texto plano que
+  // produce extractPdfText (concatenar todo sin posición) deja TODAS las
+  // etiquetas juntas primero y TODOS los valores juntos después -- ningún
+  // regex de "etiqueta seguida del valor" funciona aquí. Confirmado contra
+  // un RUT real (persona natural) inspeccionando la posición (x,y) de cada
+  // fragmento de texto que pdf.js sí reporta: el valor llenado de un campo
+  // aparece cerca de su etiqueta numerada (casi siempre justo debajo, en
+  // la misma columna; a veces a la derecha, en el mismo renglón, para
+  // campos de una sola línea como el correo o el teléfono) -- nunca pegado
+  // como texto plano. Por eso este parser NECESITA la posición de cada
+  // fragmento (mismo mecanismo interno que ya usa extraerFilasPorPosicion
+  // para "Experiencia del proponente", pero con una regla de emparejamiento
+  // distinta: ahí se agrupan fragmentos en la MISMA fila visual; aquí se
+  // busca el valor más cercano a una etiqueta conocida, no una fila).
+
+  async function extraerCamposConPosicion(file, maxPages){
+    const pdfjsLib = await loadPdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const n = Math.min(pdf.numPages, maxPages || 3); // el RUT normal cabe en 1-2 páginas
+    const items = [];
+    for (let p = 1; p <= n; p++){
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      content.items.forEach(it => {
+        const s = (it.str || '').trim();
+        if (s) items.push({ str: s, x: it.transform[4], y: it.transform[5], pagina: p });
+      });
+    }
+    return { items: items, numPages: pdf.numPages, pagesRead: n };
+  }
+
+  // "5. Número de Identificación..." / "22- Obligado a..." -- una etiqueta
+  // numerada nunca es el VALOR de otra etiqueta (evita, ej., que "6. DV"
+  // se lea como si fuera el valor de "5. NIT" cuando ambas comparten
+  // renglón).
+  function pareceEtiquetaRUT(s){
+    return /^\d{1,4}\.\s|^\d{2,3}\s*-\s/.test(s);
+  }
+
+  // Un valor de texto llenado a mano en una casilla del RUT casi nunca
+  // empieza o termina en un dígito suelto -- los dígitos sueltos que
+  // aparecen pegados a los bordes son casi siempre el CÓDIGO numérico de
+  // un campo de opción múltiple vecino (ej. "2" de "Persona natural...",
+  // "1" de "Cédula de Ciudadanía") que cae dentro de la misma ventana por
+  // lo apretado del formulario -- se recortan de los bordes, nunca del
+  // medio (donde sí pueden ser parte real del valor, ej. un número de
+  // dirección).
+  function limpiarValorTextoRUT(s){
+    if (!s) return null;
+    const out = s.replace(/^(?:\d+\s+)+/, '').replace(/(?:\s+\d+)+$/, '').trim();
+    return out || null;
+  }
+
+  // Límites [xMin,xMax] de la columna de UNA etiqueta dentro de su renglón
+  // -- se calculan encadenados con las demás etiquetas del MISMO renglón
+  // (izquierda a derecha), no con un margen fijo alrededor de la propia
+  // etiqueta. Bug real encontrado probando contra el RUT real: con un
+  // margen fijo ("etiqueta.x - 20"), "6. DV" (una etiqueta corta, pegada
+  // justo después de "5. NIT") terminaba invadiendo la columna del NIT
+  // vecino -- su xMin quedaba a la IZQUIERDA de los últimos dígitos del
+  // NIT, así que el valor de DV se comía 2 dígitos que en realidad eran
+  // del NIT ("784" en vez de "4"). El xMax de cada etiqueta (limitado por
+  // la SIGUIENTE etiqueta del renglón) ya evitaba el problema por la
+  // derecha -- encadenar el xMin al xMax YA CALCULADO de la etiqueta
+  // ANTERIOR cierra el mismo hueco por la izquierda, sin importar cuánto
+  // mida el texto de cada etiqueta (que no tiene por qué coincidir con el
+  // ancho real de su casilla en el formulario).
+  function limitesColumnaRUT(mismaPagina, etiqueta){
+    const filaEtiquetas = mismaPagina
+      .filter(it => Math.abs(it.y - etiqueta.y) <= 3 && pareceEtiquetaRUT(it.str))
+      .sort((a, b) => a.x - b.x);
+    let prevXMax = etiqueta.x - 20; // margen por defecto para la primera etiqueta del renglón
+    for (let i = 0; i < filaEtiquetas.length; i++){
+      const lab = filaEtiquetas[i];
+      const next = filaEtiquetas[i + 1];
+      const xMax = next ? next.x - 5 : lab.x + 260;
+      if (lab === etiqueta) return { xMin: Math.max(lab.x - 20, prevXMax), xMax: xMax };
+      prevXMax = xMax;
+    }
+    return { xMin: etiqueta.x - 20, xMax: etiqueta.x + 260 };
+  }
+
+  // Encuentra los fragmentos que forman el VALOR llenado de una etiqueta
+  // numerada del RUT (ver comentario largo arriba). `etiquetaRegex` debe
+  // anclar el texto EXACTO de la etiqueta (ej. /^35\.\s*Raz[oó]n social/i)
+  // -- nunca coordenadas fijas, para no depender de que la DIAN nunca
+  // mueva un píxel el formulario.
+  function itemsDeCampoRUT(items, etiquetaRegex){
+    const etiqueta = items.find(it => etiquetaRegex.test(it.str));
+    if (!etiqueta) return null;
+    const mismaPagina = items.filter(it => it.pagina === etiqueta.pagina);
+    const { xMin, xMax } = limitesColumnaRUT(mismaPagina, etiqueta);
+
+    // 1) Mismo renglón, a la derecha, dentro de la columna -- campos de una
+    //    sola línea (correo, teléfono, folios, firma...).
+    const mismoRenglon = mismaPagina.filter(it => it !== etiqueta && Math.abs(it.y - etiqueta.y) <= 3 &&
+      it.x > etiqueta.x && it.x <= xMax && !pareceEtiquetaRUT(it.str));
+    if (mismoRenglon.length) return mismoRenglon.sort((a, b) => a.x - b.x);
+
+    // 2) El renglón inmediatamente debajo (patrón más común: número/etiqueta
+    //    arriba, valor llenado abajo), dentro de la misma columna.
+    const debajo = mismaPagina.filter(it => it !== etiqueta &&
+      etiqueta.y - it.y > 3 && etiqueta.y - it.y <= 20 &&
+      it.x >= xMin && it.x <= xMax && !pareceEtiquetaRUT(it.str));
+    return debajo.sort((a, b) => a.x - b.x);
+  }
+
+  function campoTextoRUT(items, etiquetaRegex){
+    const found = itemsDeCampoRUT(items, etiquetaRegex);
+    if (!found || !found.length) return null;
+    return limpiarValorTextoRUT(found.map(d => d.str).join(' ').replace(/\s+/g, ' ').trim());
+  }
+
+  // Para campos numéricos (NIT, DV, teléfono, código de actividad) se
+  // descarta TODO lo que no sea dígito en vez de solo recortar bordes --
+  // un valor numérico real nunca trae letras, así que cualquier letra en
+  // la ventana es ruido de un campo vecino, no parte del número.
+  function campoNumericoRUT(items, etiquetaRegex){
+    const found = itemsDeCampoRUT(items, etiquetaRegex);
+    if (!found || !found.length) return null;
+    const digitos = found.map(d => d.str).join('').replace(/[^\d]/g, '');
+    return digitos || null;
+  }
+
+  function parsearRUT(items){
+    const nit = campoNumericoRUT(items, /^5\.\s*N[uú]mero de Identificaci[oó]n Tributaria/i);
+    const dv = campoNumericoRUT(items, /^6\.\s*DV/i);
+    const tipoDocumento = campoTextoRUT(items, /^25\.\s*Tipo de documento/i);
+    const razonSocial = campoTextoRUT(items, /^35\.\s*Raz[oó]n social/i);
+    const primerApellido = campoTextoRUT(items, /^31\.\s*Primer apellido/i);
+    const segundoApellido = campoTextoRUT(items, /^32\.\s*Segundo apellido/i);
+    const primerNombre = campoTextoRUT(items, /^33\.\s*Primer nombre/i);
+    const otrosNombres = campoTextoRUT(items, /^34\.\s*Otros nombres/i);
+    // Persona jurídica: trae "35. Razón social". Persona natural: ese campo
+    // queda vacío y el nombre se arma con apellidos+nombres -- mismo criterio
+    // ya usado en informeAnalisisTexto/etc. de preferir el dato específico
+    // antes que ensamblar uno genérico.
+    const nombre = razonSocial || [primerApellido, segundoApellido, primerNombre, otrosNombres].filter(Boolean).join(' ') || null;
+    const direccion = campoTextoRUT(items, /^41\.\s*Direcci[oó]n principal/i);
+    const ciudad = campoTextoRUT(items, /^40\.\s*Ciudad\/Municipio/i);
+    const departamento = campoTextoRUT(items, /^39\.\s*Departamento/i);
+    const correo = campoTextoRUT(items, /^42\.\s*Correo electr[oó]nico/i);
+    const telefono = campoNumericoRUT(items, /^44\.\s*Tel[eé]fono\s*1/i);
+    const actividadPrincipal = campoNumericoRUT(items, /^46\.\s*C[oó]digo/i);
+    // Responsabilidades ya vienen como una sola línea "código- descripción"
+    // (ej. "05- Impto. renta y compl. régimen ordinario") -- no hace falta
+    // emparejar etiqueta+valor, solo filtrar por esa forma.
+    const responsabilidades = items
+      .filter(it => /^\d{2}\s*-\s*\S/.test(it.str))
+      .map(it => it.str.trim());
+
+    return {
+      nit: nit, dv: dv, tipoDocumento: tipoDocumento, nombre: nombre,
+      direccion: direccion, ciudad: ciudad, departamento: departamento,
+      correo: correo, telefono: telefono, actividadPrincipal: actividadPrincipal,
+      responsabilidades: responsabilidades,
+      encontrado: [nit, nombre, direccion, correo, telefono].filter(Boolean).length
+    };
+  }
+
+  // Mismo criterio "solo si está vacío" que aplicarRUPaCampos -- nunca pisa
+  // un dato que el usuario ya escribió a mano.
+  function aplicarRUTaCampos(data){
+    const partes = [];
+    if (data.nit){
+      const nitCompleto = data.nit + (data.dv ? '-' + data.dv : '');
+      if (!getCampo(perfilNitEl)){ setCampo(perfilNitEl, nitCompleto); partes.push('NIT'); }
+      else partes.push('NIT no sobrescrito (ya tenía datos); en el RUT: ' + nitCompleto);
+    }
+    if (data.nombre && !getCampo(perfilNombreEl)){ setCampo(perfilNombreEl, data.nombre); partes.push('nombre/razón social'); }
+    if (data.direccion){
+      if (!getCampo(perfilDireccionEl)){ setCampo(perfilDireccionEl, data.direccion); partes.push('dirección'); }
+      else partes.push('dirección no sobrescrita (ya tenía datos)');
+    }
+    if (data.ciudad){
+      const ciudadCompleta = data.departamento ? data.ciudad + ', ' + data.departamento : data.ciudad;
+      if (!getCampo(perfilCiudadEl)){ setCampo(perfilCiudadEl, ciudadCompleta); partes.push('ciudad'); }
+      else partes.push('ciudad no sobrescrita (ya tenía datos)');
+    }
+    if (data.correo){
+      if (!getCampo(perfilCorreoEl)){ setCampo(perfilCorreoEl, data.correo); partes.push('correo'); }
+      else partes.push('correo no sobrescrito (ya tenía datos)');
+    }
+    if (data.telefono){
+      if (!getCampo(perfilTelefonoEl)){ setCampo(perfilTelefonoEl, data.telefono); partes.push('teléfono'); }
+      else partes.push('teléfono no sobrescrito (ya tenía datos)');
+    }
+    return partes;
+  }
+
+  async function procesarRUT(file, viaOcr){
+    perfilRutStatusEl.textContent = viaOcr ? 'Leyendo el RUT con OCR (puede tardar varios minutos)…' : 'Leyendo el RUT…';
+    let items = [], numPages = 0, pagesRead = 0;
+    try {
+      await appReady;
+      if (viaOcr){
+        // Sin coordenadas x,y disponibles en la vía OCR (Tesseract no las
+        // expone igual que pdf.js) -- se cae al texto plano por línea,
+        // mismo respaldo ya usado para "Experiencia del proponente" vía
+        // OCR. El RUT escaneado es mucho menos común que uno generado
+        // digitalmente (que es como la DIAN lo entrega siempre), así que
+        // este camino es solo un respaldo honesto, no la vía principal.
+        const r = await ocrPdfPages(file, 1, 3, (pct, page, total) => {
+          perfilRutStatusEl.textContent = 'OCR del RUT… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
+        });
+        numPages = r.numPages; pagesRead = r.pagesRead;
+        const data = parsearRUTTextoPlano(r.text);
+        if (!data.encontrado){
+          perfilRutStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' páginas del RUT (vía OCR) pero no reconocí los datos con este formato. Rellena las casillas a mano.';
+          return;
+        }
+        const partesOcr = aplicarRUTaCampos(data);
+        if (perfilSavedEl) perfilSavedEl.textContent = '';
+        perfilRutStatusEl.textContent = 'RUT leído (' + pagesRead + '/' + numPages + ' págs, vía OCR). ' +
+          (partesOcr.length ? partesOcr.join(' · ') + '. ' : '') + 'Revisa los datos contra el PDF antes de pulsar Guardar perfil.';
+        return;
+      }
+      const r = await extraerCamposConPosicion(file, 3);
+      items = r.items; numPages = r.numPages; pagesRead = r.pagesRead;
+    } catch(err){
+      perfilRutStatusEl.textContent = 'No se pudo leer el RUT (' + (err && err.message ? err.message : 'error') + ').';
+      return;
+    }
+
+    if (!items.length){
+      perfilRutStatusEl.innerHTML = 'El PDF del RUT no tiene texto extraíble (parece escaneado). ' +
+        '<button class="link-btn" id="bt-perfil-rut-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
+      const b = document.getElementById('bt-perfil-rut-ocr');
+      if (b) b.addEventListener('click', () => procesarRUT(file, true));
+      return;
+    }
+
+    const data = parsearRUT(items);
+    if (!data.encontrado){
+      perfilRutStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' páginas del RUT pero no reconocí los datos con este formato. Rellena las casillas a mano.';
+      return;
+    }
+    const partes = aplicarRUTaCampos(data);
+    if (perfilSavedEl) perfilSavedEl.textContent = '';
+    perfilRutStatusEl.textContent = 'RUT leído (' + pagesRead + '/' + numPages + ' págs). ' +
+      (partes.length ? partes.join(' · ') + '. ' : '') +
+      'Revisa los datos contra el PDF antes de pulsar Guardar perfil.';
+  }
+
+  // Respaldo de texto plano para la vía OCR (sin posición x,y disponible):
+  // mucho menos confiable que parsearRUT (posición), así que solo intenta
+  // el NIT (patrón "NIT" seguido de dígitos, frecuente incluso en texto
+  // reconocido con ruido) -- mejor un dato menos que uno inventado.
+  function parsearRUTTextoPlano(texto){
+    const flat = String(texto || '').replace(/\s+/g, ' ');
+    const mNit = flat.match(/\bNIT\b[^\d]{0,15}(\d[\d.]{5,12})[\s-]*(\d)?/i);
+    const nit = mNit ? mNit[1].replace(/\D/g, '') : null;
+    const dv = mNit && mNit[2] ? mNit[2] : null;
+    return { nit: nit, dv: dv, nombre: null, direccion: null, ciudad: null, departamento: null, correo: null, telefono: null, actividadPrincipal: null, responsabilidades: [], encontrado: nit ? 1 : 0 };
   }
 
   let analisis = {};
@@ -7261,6 +7538,15 @@
       const file = perfilRupFileEl.files && perfilRupFileEl.files[0];
       perfilRupFileEl.value = '';
       if (file) await procesarRUP(file, false);
+    });
+  }
+
+  if (perfilRutUploadBtn && perfilRutFileEl){
+    wireDropzone(perfilRutUploadBtn, perfilRutFileEl, (file) => procesarRUT(file, false));
+    perfilRutFileEl.addEventListener('change', async () => {
+      const file = perfilRutFileEl.files && perfilRutFileEl.files[0];
+      perfilRutFileEl.value = '';
+      if (file) await procesarRUT(file, false);
     });
   }
 

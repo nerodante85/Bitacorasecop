@@ -4420,3 +4420,108 @@ plan→build→verify, ver el plan aprobado): RUT como documento nuevo, Radar
 de Afinidad IA (Edge Function + Claude Haiku + límite de uso, blueprint
 recuperado del propio historial git del `nl-search` eliminado), "Visión
 IA" del evaluador, y el paquete completo de "Generador de Propuestas".
+
+## Fase B -- RUT (Registro Único Tributario) como documento nuevo
+
+El usuario compartió su propio RUT real (persona natural, generado por la
+DIAN) para no adivinar el formato -- mismo principio ya aplicado al RUP
+(punto 11 de "Cosas aprendidas por las malas"). Se inspeccionó primero con
+`pypdf` (instalado temporalmente) y luego, crucialmente, con **pdf.js
+real en el navegador** (el mismo motor que usa la app) inyectando el
+archivo real -- las dos extracciones coincidieron: el RUT es un
+formulario de CASILLAS NUMERADAS donde `extractPdfText` (concatenar todo
+el texto de la página sin posición) deja TODAS las etiquetas juntas
+primero y TODOS los valores juntos después. A diferencia del RUP (donde
+pdf.js real ya deja cada renglón como "ETIQUETA : valor" pegados, ver
+`extraerIndicadoresRUP`), aquí ningún regex de "etiqueta seguida del
+valor" funciona -- hacía falta la POSICIÓN (x,y) de cada fragmento.
+
+**Investigación de posición, confirmada contra el archivo real** (no
+supuesta): el valor llenado de un campo aparece cerca de su etiqueta
+numerada -- casi siempre justo DEBAJO, en la misma columna (ej. "31.
+Primer apellido" en y=532 → "GALVIS" en y=521, misma x); a veces a la
+DERECHA, en el mismo renglón, para campos de una sola línea (correo,
+teléfono, folios, firma) -- nunca pegado como texto plano.
+
+**`extraerCamposConPosicion(file, maxPages)`** (nueva, junto a
+`extraerFilasPorPosicion`): mismo mecanismo de lectura por posición ya
+usado para "Experiencia del proponente", pero sin agrupar en filas (esa
+agrupación es para tablas; aquí cada CAMPO necesita su propio
+emparejamiento etiqueta→valor, no una fila completa).
+
+**`itemsDeCampoRUT(items, etiquetaRegex)`**: ancla por TEXTO de la
+etiqueta (ej. `/^35\.\s*Raz[oó]n social/i`), nunca por coordenadas fijas
+-- el RUT es un formulario nacional estandarizado, pero anclar por
+coordenada fija habría sido frágil ante cualquier cambio futuro del PDF
+de la DIAN. Devuelve los fragmentos "mismo renglón, a la derecha" o "el
+renglón de debajo, misma columna", lo que exista.
+
+**Bug real encontrado y corregido probando contra el RUT real**: con un
+margen fijo alrededor de cada etiqueta (`etiqueta.x - 20`), la columna de
+"6. DV" (una etiqueta corta, pegada justo después de "5. NIT" en el mismo
+renglón) invadía la columna del NIT vecino -- su límite izquierdo quedaba
+a la izquierda de los ÚLTIMOS DÍGITOS del NIT, así que DV se leía como
+"784" en vez de "4" (los dígitos "7" y "8" eran en realidad del NIT).
+`limitesColumnaRUT` corrige esto encadenando los límites: el límite
+izquierdo de una etiqueta es el límite DERECHO ya calculado de la
+etiqueta anterior del mismo renglón, nunca un margen fijo -- cierra el
+mismo hueco que el límite derecho (acotado por la SIGUIENTE etiqueta) ya
+resolvía por el otro lado. Confirmado tras el fix: NIT = "5401578",
+DV = "4", exactamente los del documento real.
+
+**`campoTextoRUT` vs `campoNumericoRUT`**: para campos de texto,
+`limpiarValorTextoRUT` recorta dígitos sueltos de los BORDES (nunca del
+medio) -- un valor real de texto casi nunca empieza/termina en un dígito
+suelto; los que aparecen pegados a los bordes son casi siempre el CÓDIGO
+numérico de un campo de opción múltiple vecino (ej. el "2" de "Persona
+natural..." o el "1" de "Cédula de Ciudadanía") que cae dentro de la
+misma ventana. Para campos numéricos (NIT, DV, teléfono, código de
+actividad), se descarta TODO lo que no sea dígito en vez de recortar
+bordes -- un número real nunca trae letras, así que cualquier letra en la
+ventana es ruido de un campo de texto vecino.
+
+**Campos extraídos**: NIT+DV, nombre (razón social si es persona jurídica;
+si no, apellidos+nombres combinados -- mismo criterio "preferir el dato
+específico" ya usado en otras partes de la app), dirección, ciudad+
+departamento, correo, teléfono, código de actividad económica principal, y
+responsabilidades tributarias (estas últimas no necesitan emparejamiento
+posicional -- ya vienen como una sola línea "código- descripción", ej.
+"05- Impto. renta y compl. régimen ordinario"). Se descartó a propósito
+extraer "26. Número de Identificación" (documento de identidad) por
+separado -- confirmado en las pruebas que, a diferencia del NIT (aislado
+limpiamente por `limitesColumnaRUT`), esa columna comparte renglón con los
+CÓDIGOS de "Tipo de contribuyente"/"Tipo de documento" (radio buttons) de
+forma que no se puede separar con confianza -- mejor omitir un campo
+redundante (el NIT de persona natural ya es ese mismo número + DV) que
+exponer uno con ruido silencioso.
+
+**Vía OCR** (RUT escaneado, sin coordenadas x,y disponibles vía
+Tesseract): respaldo mucho más limitado, solo intenta reconocer el NIT
+por patrón de texto ("NIT" seguido de dígitos) -- mejor un dato menos que
+uno inventado, mismo criterio de siempre. Poco común en la práctica: la
+DIAN siempre entrega el RUT generado digitalmente, nunca escaneado.
+
+**UI**: dropzone "Autocompletar desde el RUT" (mismo componente
+`.dropzone`/`wireDropzone` que ya usa "Cargar certificado RUP", justo
+debajo de él) en "Perfil de la empresa". `aplicarRUTaCampos` sigue el
+mismo criterio "solo rellena si el campo está vacío" que ya usa
+`aplicarRUPaCampos` -- nunca pisa un dato que el usuario ya escribió a
+mano. Rellena NIT (con DV, formato "5401578-4"), nombre, dirección,
+ciudad (con departamento si lo hay, ej. "Cúcuta, Norte de Santander"),
+correo y teléfono -- todos campos que `PERFIL_VACIO` ya tenía desde Fase
+10 (carta de presentación), así que no hizo falta ningún campo nuevo en
+el perfil.
+
+**Verificado**: 70/70 tests de humo (sin tests nuevos -- mismo precedente
+que `parsearRUP`, que tampoco tiene cobertura en `tests/smoke.mjs`; se
+verifica contra documentos reales en el navegador, no con fixtures
+sintéticos, dado que el layout de un formulario PDF real es imposible de
+recrear a mano con fidelidad). `node --check` sin errores. Probado en
+navegador real con el RUT REAL del usuario (inyectado vía `DataTransfer`,
+copiado y luego borrado del directorio servido): NIT, nombre, dirección,
+ciudad, correo y teléfono se rellenaron correctamente y coinciden
+exactamente con el documento real (confirmado también contra el nombre
+del "CONTRIBUYENTE" firmante al final del PDF, que coincide con el
+nombre armado desde apellidos+nombres). Con un perfil ya con datos
+("Empresa 2" como nombre por defecto), confirmado que `aplicarRUTaCampos`
+respeta "solo si vacío" y no lo sobrescribe. 0 errores de consola.
