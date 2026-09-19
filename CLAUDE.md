@@ -4064,3 +4064,102 @@ $0 exacto (K residual $500M menos un contrato en ejecución de $500M) y
 se confirmó que tanto "Capacidad disponible (estimada)" como los gates
 "Capacidad vs valor" y "Capacidad K residual" muestran "$0" -- nunca la
 palabra "null". 0 errores de consola.
+
+## `/code-review` (multi-agente) sobre la tercera pasada de auditoría UX/UI: 5 correcciones
+
+Se corrió `/code-review high` (8 ángulos vía agentes en paralelo — 3
+correctness, reuse/simplification/efficiency, altitude/conventions —, con
+verificación de 1 voto sesgada a favor de recall) sobre el diff de la
+"Tercera pasada de la auditoría UX/UI" (commit `256c16b`, la sección
+inmediatamente anterior a esta). Los 5 fixes de esa pasada, aunque
+correctos en sí mismos, introdujeron 5 bugs nuevos por el mismo patrón: al
+quitar una sección/valor que "ya se mostraba en otro lado", ese "otro
+lado" no está garantizado en todos los casos reales -- la redundancia que
+se estaba eliminando a veces era, en realidad, la única red de seguridad
+para un caso límite. Los 5 hallazgos fueron confirmados por un verificador
+independiente antes de implementarse (proceso `CONFIRMED`, no
+especulativo) y corregidos tras la aprobación del usuario.
+
+1. **"Capacidad K residual exigida" podía no mostrarse en ningún lado.**
+   Al quitar la sección suelta que citaba `entry.kResidual` (razón:
+   "la fila de gates ya lo muestra"), no se contempló que la tabla de
+   gates (`compatHtml`) solo se calcula si `item`/`s` están disponibles
+   (`itemYScorePara(id)` puede devolver `null` -- proceso reabierto que ya
+   no está en `lastScored`, caso ya documentado en la sección anterior
+   sobre la advertencia de OCR parcial) Y si hay al menos un perfil
+   marcado para comparar. Sin esas dos condiciones, `entry.kResidual`
+   quedaba invisible en toda la tarjeta y en el `.txt`. Fix:
+   `kResidualFallbackHtml`/su equivalente en `informeAnalisisTexto`
+   restauran la sección solo cuando la fila "Capacidad K residual" de la
+   tabla de gates NO se pudo calcular (`evalParaCompat.mejor.gates.some(g
+   => g.nombre === 'Capacidad K residual')`) -- en el caso normal (gates sí
+   calculados) sigue sin duplicarse.
+
+2. **Hallazgos de "Capacidad K/Financiera" y "Experiencia" podían quedar
+   invisibles del todo.** La lista cruda "OTROS REQUISITOS HABILITANTES
+   DETECTADOS" dejó de listar estas 2 categorías asumiendo que su
+   contenido siempre aparece en la tabla de gates o en "EXPERIENCIA
+   REQUERIDA" -- pero `hallazgosAnotados` (triggers de texto libre, ej.
+   "patrimonio", "capacidad financiera") es un pipeline independiente de
+   `extraerExigencias` (que solo reconoce liquidez/endeudamiento/
+   cobertura/K residual con un número cerca) y de
+   `pareceRequisitoDeExperienciaReal` (que exige un número verificable).
+   Un trigger sin su contraparte estructurada -- ej. "el patrimonio neto
+   mínimo exigido es..." sin que `extraerExigencias` lo reconozca -- quedaba
+   detectado pero mostrado en ningún lado. Fix: `kFinancieraSinDatosEstructurados`/
+   `experienciaSinRequisitos` (y sus equivalentes en el `.txt`) devuelven
+   estas 2 categorías a la lista SOLO cuando de verdad no tienen ningún
+   dato estructurado mostrado arriba -- si sí lo tienen, se omiten como
+   antes (sin reintroducir la redundancia que la pasada anterior quería
+   evitar). El texto de "sin hallazgos" también se ajustó para no afirmar
+   "se muestran arriba" cuando en realidad no hay nada mostrado arriba.
+
+3. **`textoExperienciaFueraDeAnalisis()` decidía con una condición distinta
+   a la de `experienciaGateDetalle()`, y el `.replace()` fallaba en
+   silencio.** El helper compartido (creado en la pasada anterior para
+   corregir referencias cruzadas rotas) branchaba en
+   `entry && entry.experienciaResultado` (truthy/falsy), pero
+   `experienciaGateDetalle()` -- la función que produce el texto que se le
+   pasa -- branchea en `resultados.length` (si de verdad se extrajo algún
+   requisito). Cuando el pliego se analiza y se evalúa pero se extraen 0
+   requisitos (caso real, ver "Zapatoca" en la sección de pliegos reales
+   más arriba), `entry.experienciaResultado` es un objeto truthy con
+   `resultados: []` -- el helper tomaba la rama de `.replace()`, pero el
+   texto que recibía era el de la rama "nd" de `experienciaGateDetalle()`
+   (que no contiene el literal buscado), así que el `.replace()` no hacía
+   nada y se mostraba texto crudo con una referencia a un "debajo" que no
+   existe en esa pantalla. Fix: la condición ahora es EXACTAMENTE la misma
+   (`entry.experienciaResultado.resultados.length`), y se agregó una
+   tercera rama de texto específica para "analizado pero 0 requisitos
+   extraídos" (antes solo existían "sin analizar" y "con requisitos").
+
+4. **`informeAnalisisTexto` no usaba el helper compartido, así que heredó
+   el mismo bug del punto 3 por partida doble.** Tenía su propio
+   `.replace()` inline (repetido, no factorizado) que tampoco cubría la
+   rama "nd" de `experienciaGateDetalle()`. Fix: ahora llama a
+   `textoExperienciaFueraDeAnalisis(experienciaGateDetalle(entry), entry,
+   puntero)` como los otros 2 sitios, con su propio texto de puntero (a
+   "Informe de experiencia (.txt)", el archivo donde sí vive el detalle).
+
+5. **La fila "Valor de la obra" podía desaparecer con un valor de $0
+   exacto.** El fix anterior de `fmtMoney(0)` (sección "Tercera pasada...")
+   corrigió el FORMATEO de 0, pero no el gate hermano que decide si
+   mostrar la fila: `else if (valor)` seguía tratando 0 como falsy, así
+   que con `item.valor === 0` y sin rango min/max configurado, ninguna
+   rama del if/else-if aplicaba y la fila desaparecía por completo (ni
+   siquiera como 'nd'). Fix: `else if (valor)` → `else` -- ya no hace
+   falta la condición ahí, las dos ramas anteriores (`minV`/`maxV`) ya
+   filtraron los casos fuera de rango.
+
+**Verificado**: 67/67 tests de humo (los 5 fixes son de renderizado/texto
+condicional, ninguno toca las funciones que cubre
+`extractExperienceEngine`). `node --check` sobre el `<script>` extraído,
+sin errores de sintaxis. Probado en navegador real (demo cargada, filtros
+restrictivos desmarcados): la app carga y navega sin errores de consola
+nuevos. No se armó un caso sintético de punta a punta para cada uno de los
+5 casos límite (K residual sin gates, hallazgo de patrimonio sin
+exigencias, experiencia con 0 resultados) -- a diferencia de otras
+pasadas de esta sección, se confió en la cobertura de los 67 tests
+existentes + la revisión línea por línea de cada condición contra el
+hallazgo `CONFIRMED` del verificador, dado que son cambios de lógica
+condicional acotados y no nuevas ramas del motor de evaluación.

@@ -4973,7 +4973,11 @@
     if (valor == null) g('Valor de la obra', 'nd', 'El proceso no reporta valor base.');
     else if (minV && valor < minV) g('Valor de la obra', 'revisar', fmtMoney(valor) + ' por debajo de tu mínimo (' + fmtMoney(minV) + ').');
     else if (maxV && valor > maxV) g('Valor de la obra', 'revisar', fmtMoney(valor) + ' por encima de tu máximo (' + fmtMoney(maxV) + ').');
-    else if (valor) g('Valor de la obra', 'ok', fmtMoney(valor) + (minV || maxV ? ' dentro de tu rango.' : '.'));
+    // `else` (no `else if (valor)`): un valor exactamente en $0 es un dato
+    // real (ver el fix de fmtMoney(0) más abajo) y ya pasó los dos filtros
+    // de rango de arriba -- con `else if (valor)` esta fila desaparecía por
+    // completo en vez de mostrar $0 (bug real corregido, ver CLAUDE.md).
+    else g('Valor de la obra', 'ok', fmtMoney(valor) + (minV || maxV ? ' dentro de tu rango.' : '.'));
 
     // Capacidad (K residual en COP, o la capacidad disponible ESTIMADA si hay
     // contratos en ejecución registrados -- ver matrizCapacidad) vs valor de la obra
@@ -5124,10 +5128,24 @@
   // experienciaGateDetalle() (que sigue sirviendo bien donde sí aplica:
   // dentro de renderAnalysisHtml/informeAnalisisTexto's "MATRIZ DE
   // REQUISITOS", que si tiene el bloque debajo).
-  function textoExperienciaFueraDeAnalisis(gExp, entry){
-    return (entry && entry.experienciaResultado)
-      ? gExp.detalle.replace(/ Ver detalle en "Experiencia requerida" debajo del análisis del pliego\./, ' Ver el detalle completo en "Buscar procesos", dentro del análisis de este pliego.')
-      : 'Analiza el pliego de este proceso en "Buscar procesos" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
+  // La condición de abajo (resultados.length, no solo experienciaResultado
+  // truthy) tiene que ser EXACTAMENTE la misma que usa experienciaGateDetalle
+  // para decidir qué texto devuelve -- si divergen, gExp.detalle puede ser el
+  // texto de la rama "nd" (que no contiene el literal buscado) mientras esta
+  // función asume la rama "con resultado", y el .replace() no hace nada en
+  // silencio (bug real encontrado y corregido: ver CLAUDE.md).
+  function textoExperienciaFueraDeAnalisis(gExp, entry, puntero){
+    const tieneResultado = entry && entry.experienciaResultado && entry.experienciaResultado.resultados && entry.experienciaResultado.resultados.length;
+    if (tieneResultado){
+      return gExp.detalle.replace(/ Ver detalle en "Experiencia requerida" debajo del análisis del pliego\./, ' ' + puntero);
+    }
+    if (entry && entry.experienciaResultado){
+      // Ya se analizó el pliego y se evaluó la experiencia, pero no se
+      // extrajo ningún requisito verificable del texto (caso real,
+      // documentado en CLAUDE.md) -- distinto de "nunca se analizó".
+      return 'El pliego de este proceso ya se analizó, pero no se detectó ningún requisito de experiencia verificable en el texto extraído. ' + puntero;
+    }
+    return 'Analiza el pliego de este proceso en "Buscar procesos" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
   }
 
   const EVAL_ICONO = { ok: '✅', fail: '❌', revisar: '⚠', nd: '·' };
@@ -5135,7 +5153,7 @@
     if (!res) return '<div class="analysis-block analysis-warn">No hay perfiles para evaluar. Marca al menos uno en "Comparar en el análisis de pliegos".</div>';
     const bloquePerfil = r => {
       const filas = r.gates.map(x =>
-        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry) : x.detalle) + '</li>'
+        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry, 'Ver el detalle completo en "Buscar procesos", dentro del análisis de este pliego.') : x.detalle) + '</li>'
       ).join('');
       const cls = r.veredicto === 'GO' ? 'eval-go' : r.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
       // El botón de carta es POR PERFIL (r.perfilId) porque los datos de NIT/
@@ -5201,7 +5219,7 @@
       L.push('');
       L.push('────────────────────────────────────────────────────────');
       L.push('EMPRESA: ' + r.perfil + '  →  ' + r.veredicto + (r.conPliego ? '' : '  (evaluación ligera, sin pliego)'));
-      r.gates.forEach(x => L.push('  [' + x.estado.toUpperCase() + '] ' + x.nombre + ': ' + (x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry) : x.detalle)));
+      r.gates.forEach(x => L.push('  [' + x.estado.toUpperCase() + '] ' + x.nombre + ': ' + (x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry, 'Ver el detalle completo en "Buscar procesos", dentro del análisis de este pliego.') : x.detalle)));
     });
     L.push('');
     L.push('════════════════════════════════════════════════════════');
@@ -5767,6 +5785,17 @@
     const primero = comps[0] || {};
     const evalParaCompat = (item && s) ? evaluarMejor(item, s, entry) : null;
     const compatHtml = evalParaCompat ? renderCompatibilidadHtml(evalParaCompat, entry) : '';
+    // Red de seguridad: sin item/s (proceso reabierto que ya no está en
+    // lastScored) o con 0 perfiles marcados para comparar, evalParaCompat/
+    // compatHtml quedan vacíos y la fila "Capacidad K residual" de la tabla
+    // de gates -- que hasta ahora era el ÚNICO lugar donde se mostraba
+    // entry.kResidual -- no aparece en ningún lado. Se restaura como
+    // respaldo SOLO quand esa fila no se está mostrando (bug real
+    // corregido, ver CLAUDE.md).
+    const kResidualEnTabla = evalParaCompat && evalParaCompat.mejor.gates.some(g => g.nombre === 'Capacidad K residual');
+    const kResidualFallbackHtml = (entry.kResidual && !kResidualEnTabla)
+      ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(entry.kResidual) + '</div>'
+      : '';
 
     // Requisitos detectados en el TEXTO -- no dependen del perfil, se listan una
     // sola vez. Bajo cada uno se indica qué perfiles marcados lo cubren.
@@ -5777,13 +5806,20 @@
         .map(c => c.perfilNombre || 'Perfil');
       (porCategoria[h.categoria] = porCategoria[h.categoria] || []).push(Object.assign({}, h, { cubiertoPor: cubiertoPor }));
     });
-    // Capacidad K/Financiera y Experiencia ya NO se repiten aquí -- tienen su
-    // propio bloque más completo arriba (la fila de gates con comparación
-    // real contra el perfil, y "EXPERIENCIA REQUERIDA" con el detalle
-    // completo). Esta lista se deja solo para las categorías que NO tienen
-    // tratamiento propio en otro lado del análisis (pedido del usuario tras
-    // notar "redundancia en todo").
-    const ordenCategorias = ['RUP / Clasificador', 'Personal / Equipo de trabajo', 'Capacidad Organizacional'];
+    // Capacidad K/Financiera y Experiencia se omiten de esta lista SOLO
+    // cuando sí tienen un bloque más completo mostrado en otro lado (la
+    // tabla de gates, "EXPERIENCIA REQUERIDA") -- si no lo tienen (ej. un
+    // hallazgo detectado por trigger de texto como "patrimonio" sin ningún
+    // gate/requisito estructurado correspondiente), vuelven a esta lista
+    // para que ese hallazgo no quede invisible en TODA la tarjeta (bug real
+    // corregido, ver CLAUDE.md -- antes se omitían siempre, sin importar si
+    // había algo real mostrado arriba o no).
+    const ex = entry.exigencias || {};
+    const kFinancieraSinDatosEstructurados = !ex.liquidez && !ex.endeudamiento && !ex.cobertura && !ex.kResidual && !entry.kResidual;
+    const experienciaSinRequisitos = !entry.experienciaResultado || !entry.experienciaResultado.resultados || !entry.experienciaResultado.resultados.length;
+    const ordenCategorias = ['RUP / Clasificador', 'Personal / Equipo de trabajo', 'Capacidad Organizacional']
+      .concat(kFinancieraSinDatosEstructurados ? ['Capacidad K / Financiera'] : [])
+      .concat(experienciaSinRequisitos ? ['Experiencia'] : []);
     const hallazgosHtml = ordenCategorias
       .filter(cat => porCategoria[cat] && porCategoria[cat].length)
       .map(cat => {
@@ -5796,6 +5832,9 @@
       }).join('');
 
     const sinHallazgos = ordenCategorias.every(cat => !porCategoria[cat] || !porCategoria[cat].length);
+    const notaElsewhere = [];
+    if (!kFinancieraSinDatosEstructurados) notaElsewhere.push('Capacidad K/Financiera');
+    if (!experienciaSinRequisitos) notaElsewhere.push('Experiencia');
     const fecha = fmtDate(new Date(entry.ts).toISOString()) || '';
 
     // Alertas de garantías por debajo del mínimo legal (ver detectarRedFlags) +
@@ -5840,14 +5879,17 @@
       // pero ahora apunta a este bloque en vez de repetir el mismo conteo.
       bloqueExperienciaHtml(entry) +
       compatHtml +
-      // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí -- la fila
-      // "Capacidad K residual" de la tabla de gates (dentro de compatHtml,
-      // arriba) ya cita el mismo valor exigido Y lo compara contra el
-      // perfil, lo cual es estrictamente más útil que la cita suelta que
-      // había aquí.
-      '<div class="analysis-sub">OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional)</div>' +
+      // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí como sección FIJA --
+      // la fila "Capacidad K residual" de la tabla de gates (dentro de
+      // compatHtml, arriba) normalmente ya cita el mismo valor exigido Y lo
+      // compara contra el perfil. kResidualFallbackHtml restaura esta misma
+      // sección SOLO cuando esa fila no se pudo calcular (ver arriba).
+      kResidualFallbackHtml +
+      '<div class="analysis-sub">OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ', experiencia' : '') + ')</div>' +
       (sinHallazgos
-        ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de RUP, personal mínimo o capacidad organizacional en el texto extraído — revisa el pliego completo. (Capacidad K/Financiera y Experiencia se muestran arriba, en sus propios bloques.)</li></ul>'
+        ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de RUP, personal mínimo, capacidad organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ' o experiencia' : '') + ' en el texto extraído — revisa el pliego completo.' +
+          (notaElsewhere.length ? ' (' + notaElsewhere.join(' y ') + ' se muestra' + (notaElsewhere.length > 1 ? 'n' : '') + ' arriba, en su' + (notaElsewhere.length > 1 ? 's' : '') + ' propio' + (notaElsewhere.length > 1 ? 's' : '') + ' bloque' + (notaElsewhere.length > 1 ? 's' : '') + '.)' : '') +
+          '</li></ul>'
         : hallazgosHtml) +
       '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' +
       perfilesHtml +
@@ -6740,31 +6782,55 @@
       nl();
     }
 
-    // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí -- "MATRIZ DE
-    // REQUISITOS" (arriba, dentro de RESUMEN DE COMPATIBILIDAD) ya cita el
-    // mismo valor exigido y lo compara contra el perfil.
+    // "CAPACIDAD K RESIDUAL EXIGIDA" como sección fija se quitó de aquí --
+    // normalmente "MATRIZ DE REQUISITOS" (arriba, dentro de RESUMEN DE
+    // COMPATIBILIDAD) ya cita el mismo valor exigido y lo compara contra el
+    // perfil. Restaurada como respaldo cuando esa sección no se pudo
+    // calcular (sin item/s, o sin la fila "Capacidad K residual") -- mismo
+    // fix que renderAnalysisHtml, bug real corregido, ver CLAUDE.md.
+    const kResidualEnMatriz = resCompat && resCompat.mejor.gates.some(g => g.nombre === 'Capacidad K residual');
+    if (entry.kResidual && !kResidualEnMatriz){
+      L.push('CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)');
+      L.push('  ' + entry.kResidual);
+      nl();
+    }
     // Auditoría (texto de UI): experienciaGateDetalle().detalle dice "Ver
     // detalle... debajo del análisis del pliego" -- correcto dentro de la
     // tarjeta HTML (donde sí hay algo debajo), pero ESTE es un .txt plano
     // descargado aparte -- no tiene ningún "debajo". El detalle completo
     // por requisito vive en un archivo DISTINTO ("Descargar informe de
     // experiencia (.txt)"), así que se corrige el puntero para apuntar ahí.
+    // Usa el mismo helper compartido que evalDetalleHtml/informeEvalTexto
+    // (antes tenía su propio .replace() inline, que no cubría la rama "nd"
+    // de experienciaGateDetalle() -- bug real corregido, ver CLAUDE.md).
     L.push('EXPERIENCIA (evaluación independiente — no varía por perfil)');
-    L.push('  ' + experienciaGateDetalle(entry).detalle.replace(
-      / Ver detalle en "Experiencia requerida" debajo del análisis del pliego\./,
-      ' Descarga "Informe de experiencia (.txt)" desde la tarjeta de este pliego en "Buscar procesos" para el detalle completo por requisito.'
-    ));
+    L.push('  ' + textoExperienciaFueraDeAnalisis(experienciaGateDetalle(entry), entry,
+      'Descarga "Informe de experiencia (.txt)" desde la tarjeta de este pliego en "Buscar procesos" para el detalle completo por requisito.'));
     nl();
 
     const primero = comps[0] || {};
     const ha = primero.hallazgosAnotados || [];
-    const categoriasOtras = ['RUP / Clasificador', 'Personal / Equipo de trabajo', 'Capacidad Organizacional'];
+    // Mismo criterio que renderAnalysisHtml: 'Capacidad K / Financiera' y
+    // 'Experiencia' solo se omiten de esta lista cuando sí tienen un bloque
+    // propio mostrado arriba -- si no (ej. un hallazgo detectado por
+    // trigger de texto sin gate/requisito estructurado correspondiente),
+    // vuelven aquí para no quedar invisibles en todo el informe (bug real
+    // corregido, ver CLAUDE.md).
+    const exTxt = entry.exigencias || {};
+    const kFinancieraSinDatosEstructuradosTxt = !exTxt.liquidez && !exTxt.endeudamiento && !exTxt.cobertura && !exTxt.kResidual && !entry.kResidual;
+    const experienciaSinRequisitosTxt = !entry.experienciaResultado || !entry.experienciaResultado.resultados || !entry.experienciaResultado.resultados.length;
+    const categoriasOtras = ['RUP / Clasificador', 'Personal / Equipo de trabajo', 'Capacidad Organizacional']
+      .concat(kFinancieraSinDatosEstructuradosTxt ? ['Capacidad K / Financiera'] : [])
+      .concat(experienciaSinRequisitosTxt ? ['Experiencia'] : []);
     const sinOtrosHallazgos = categoriasOtras.every(cat => !ha.some(h => h.categoria === cat));
-    L.push('OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional)');
+    const notaElsewhereTxt = [];
+    if (!kFinancieraSinDatosEstructuradosTxt) notaElsewhereTxt.push('Capacidad K/Financiera');
+    if (!experienciaSinRequisitosTxt) notaElsewhereTxt.push('Experiencia');
+    L.push('OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional' + (kFinancieraSinDatosEstructuradosTxt ? ', capacidad financiera' : '') + (experienciaSinRequisitosTxt ? ', experiencia' : '') + ')');
     if (sinOtrosHallazgos){
-      L.push('  No se detectaron menciones explícitas de RUP, personal mínimo o');
-      L.push('  capacidad organizacional en el texto extraído. Revisa el pliego completo.');
-      L.push('  (Capacidad K/Financiera y Experiencia se muestran arriba.)');
+      L.push('  No se detectaron menciones explícitas de RUP, personal mínimo,');
+      L.push('  capacidad organizacional' + (kFinancieraSinDatosEstructuradosTxt ? ', capacidad financiera' : '') + (experienciaSinRequisitosTxt ? ' o experiencia' : '') + ' en el texto extraído. Revisa el pliego completo.');
+      if (notaElsewhereTxt.length) L.push('  (' + notaElsewhereTxt.join(' y ') + ' se muestra' + (notaElsewhereTxt.length > 1 ? 'n' : '') + ' arriba.)');
     } else {
       categoriasOtras.forEach(cat => {
         const delCat = ha.filter(h => h.categoria === cat);
