@@ -7187,7 +7187,25 @@
     let html = '';
     if (expevalContratos){
       const sufijoHojas = expevalContratos.nHojas > 1 ? ' de ' + expevalContratos.nHojas + ' hojas' : '';
-      html += expevalContratos.headers.length
+      const conColumnas = expevalContratos.headers.length > 0;
+      // El único rastro de que el archivo se leyó bien era el texto de
+      // #bt-expeval-exp-status -- un .saved-note (12.5px, gris), el mismo
+      // estilo que cualquier ayuda menor de la app. Un usuario real subió su
+      // Excel y no notó ninguna confirmación clara ("como si no lo supiera
+      // interpretar"), aunque el archivo SÍ se leyó bien (9 contratos de 4
+      // hojas). Se agrega un aviso positivo prominente (mismo componente
+      // .account-notice ya usado para confirmaciones, ej. "cuenta creada") --
+      // el panel técnico "Revisar interpretación" sigue existiendo abajo tal
+      // cual, colapsado salvo que falte un campo esencial (ver
+      // renderColumnasDetectadas), pero ya no es la ÚNICA señal de éxito.
+      const nombresHojas = expevalContratos.nHojas > 1
+        ? Array.from(new Set(expevalContratos.contratos.map(c => c.hoja).filter(Boolean)))
+        : [];
+      html += '<div class="account-notice" style="margin-bottom:10px;">✓ Se leyeron ' + expevalContratos.contratos.length + ' contrato(s) de tu experiencia' +
+        (nombresHojas.length ? ' (hojas: ' + nombresHojas.map(escapeHtml).join(', ') + ')' : '') + '.' +
+        (conColumnas ? ' Revisa abajo qué columna se usó para cada campo antes de continuar.' : ' Revisa abajo cada contrato detectado antes de continuar.') +
+        '</div>';
+      html += conColumnas
         ? renderColumnasDetectadas('Experiencia del proponente' + sufijoHojas, expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length, CAMPOS_ESENCIALES_CONTRATO)
         : renderContratosDetectadosTexto(expevalContratos.contratos, etiquetaFuenteArchivo(expevalContratos.fuente));
       expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';

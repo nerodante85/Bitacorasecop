@@ -4303,3 +4303,38 @@ para los pliegos reales de Zapatoca/Norte de Santander (ver la sección de
 "Extracción de requisitos... probada contra pliegos reales" más arriba, que
 sí pudo leer los PDF directamente porque no traían el mismo tipo de dato
 sensible de participación societaria).
+
+## La confirmación de carga del Excel era invisible en la práctica (encontrado por el usuario, con su propio archivo)
+
+El usuario subió su Excel real (el mismo del hallazgo anterior) a la app ya
+con los 2 fixes aplicados, y reportó: "no siento que me dé un output... es
+como si no lo supiera interpretar". El archivo SÍ se había leído bien (9
+contratos de las 4 hojas, columna de valor correcta -- confirmado con una
+captura de pantalla real) -- el problema no era de interpretación sino de
+comunicación: la única señal de que algo pasó era el texto de
+`#bt-expeval-exp-status`, un `.saved-note` (12.5px, gris, `var(--text-muted)`)
+-- el mismo estilo visual que cualquier ayuda menor de la app (ej. "Sube el
+certificado del RUP..."), sin distinguirse en nada de un texto informativo
+cualquiera. El panel "Revisar interpretación" (que sí prueba que todo
+funcionó) queda colapsado por defecto salvo que falte un campo esencial, así
+que tampoco aparecía como confirmación a simple vista.
+
+**Fix**: `renderExpEvalReview()` agrega un aviso positivo prominente
+(`.account-notice`, el mismo componente verde ya usado para confirmaciones
+como "cuenta creada, revisa tu correo" -- ver Fase 1) justo después de
+cargar el archivo: "✓ Se leyeron N contrato(s) de tu experiencia (hojas:
+X, Y, Z)." + una frase que dirige a revisar el panel de abajo. Distingue el
+caso "con columnas" (Excel/`.docx` con tabla) del caso "texto libre"
+(PDF/`.docx` sin tabla, que ya tenía su propio panel abierto con más
+detalle) para no repetir la palabra "columna" donde no aplica. El panel
+técnico "Revisar interpretación" sigue existiendo tal cual, colapsado salvo
+que falte un campo esencial -- este aviso no lo reemplaza, solo deja de ser
+la ÚNICA señal de que algo pasó.
+
+**Verificado**: 70/70 tests de humo (cambio de renderizado puro). Probado en
+navegador real con el Excel REAL del usuario (inyectado vía `DataTransfer`,
+copiado y luego borrado del directorio servido): el aviso verde muestra
+"✓ Se leyeron 9 contrato(s) de tu experiencia (hojas: COLEGIOS, ACUEDCUTOS,
+PUENTES, HOSPITALES). Revisa abajo qué columna se usó para cada campo antes
+de continuar." -- confirmado visualmente en captura de pantalla, 0 errores
+de consola.
