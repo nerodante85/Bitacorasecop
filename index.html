@@ -1183,6 +1183,10 @@
                 <label>Cobertura geográfica (departamentos, separados por coma)</label>
                 <input id="bt-geo" type="text" placeholder="Norte de Santander, Santander" value="Norte de Santander">
               </div>
+              <div class="field full">
+                <label>Municipio (opcional, separados por coma -- aproximado: "Cúcuta" también encuentra "San José de Cúcuta")</label>
+                <input id="bt-municipio" type="text" placeholder="ej. Cúcuta, Ocaña">
+              </div>
               <div class="field-row2 full">
                 <div class="field">
                   <label>Valor mínimo (COP)</label>
@@ -1192,6 +1196,15 @@
                   <label>Valor máximo (COP)</label>
                   <input id="bt-max" type="number" placeholder="Sin límite">
                 </div>
+              </div>
+              <div class="field full">
+                <label>Ordenar por</label>
+                <select id="bt-orden">
+                  <option value="prioridad">Prioridad (por defecto)</option>
+                  <option value="cuantia_desc">Cuantía -- mayor a menor</option>
+                  <option value="cierre_asc">Fecha de cierre -- más próxima primero</option>
+                  <option value="reciente">Publicación -- más reciente primero</option>
+                </select>
               </div>
             </div>
             <div class="actions">
@@ -2059,8 +2072,10 @@
   const procesoInput = document.getElementById('bt-proceso');
   const kwInput = document.getElementById('bt-kw');
   const geoInput = document.getElementById('bt-geo');
+  const municipioInput = document.getElementById('bt-municipio');
   const minInput = document.getElementById('bt-min');
   const maxInput = document.getElementById('bt-max');
+  const ordenEl = document.getElementById('bt-orden');
   const searchBtn = document.getElementById('bt-search');
   const demoBtn = document.getElementById('bt-demo');
   const alertaNombreEl = document.getElementById('bt-alerta-nombre');
@@ -3342,8 +3357,8 @@
 
   function rerender(){
     if (lastRecords){
-      const { keywords, geos, minV, maxV, numProceso } = getInputs();
-      render(lastRecords, keywords, geos, minV, maxV, numProceso);
+      const { keywords, geos, municipios, minV, maxV, numProceso } = getInputs();
+      render(lastRecords, keywords, geos, municipios, minV, maxV, numProceso);
     }
   }
 
@@ -6814,7 +6829,7 @@
     return -2;
   }
 
-  function render(records, keywords, geos, minV, maxV, numProceso){
+  function render(records, keywords, geos, municipios, minV, maxV, numProceso){
     const hideClosed = hideClosedEl.checked;
     const hideOld = hideOldEl.checked;
     const onlyLicitacion = onlyLicitacionEl.checked;
@@ -6856,6 +6871,12 @@
       // procesos que no mencionan ninguno.
       if (keywords.length) scored = scored.filter(s => s.keywordHits > 0);
       if (geos.length) scored = scored.filter(s => s.geoHits > 0);
+      // Municipio: filtro aparte del departamento (más fino), con
+      // coincidencia tolerante (ver matchesMunicipio) -- nunca contra el
+      // registro completo, solo contra `item.ciudad`, mismo criterio ya
+      // aplicado al departamento para no repetir el falso positivo de
+      // "Santander de Quilichao" (punto 6 de "Cosas aprendidas por las malas").
+      if (municipios && municipios.length) scored = scored.filter(s => municipios.some(m => matchesMunicipio(s.item.ciudad, m)));
 
       if (hideClosed) scored = scored.filter(s => s.daysLeft === null || s.daysLeft >= 0);
       // "Solo publicados hace ≤30 días": si no se sabe la fecha de publicación, se
@@ -6914,7 +6935,22 @@
     if (hideDiscarded && !buscandoProceso) scored = scored.filter(s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
     if (hideNoGo) scored = scored.filter(s => !(s.evaluacion && s.evaluacion.mejor.veredicto === 'NO-GO'));
 
-    scored.sort((a,b) => b.score - a.score || (a.daysLeft ?? 999) - (b.daysLeft ?? 999) || (a.daysSincePub ?? 999) - (b.daysSincePub ?? 999));
+    // Orden por defecto (prioridad): score primero, cierre más próximo y
+    // publicación más reciente como desempate -- sin cambios. "Ordenar
+    // por" (nuevo) deja elegir un criterio explícito en vez del implícito;
+    // en los 3 casos, la prioridad queda como desempate final, así que dos
+    // procesos con el mismo valor/fecha no quedan en un orden arbitrario.
+    const ordenSel = ordenEl ? ordenEl.value : 'prioridad';
+    const ordenPrioridad = (a, b) => b.score - a.score || (a.daysLeft ?? 999) - (b.daysLeft ?? 999) || (a.daysSincePub ?? 999) - (b.daysSincePub ?? 999);
+    if (ordenSel === 'cuantia_desc'){
+      scored.sort((a, b) => (Number(b.item.valor) || 0) - (Number(a.item.valor) || 0) || ordenPrioridad(a, b));
+    } else if (ordenSel === 'cierre_asc'){
+      scored.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999) || ordenPrioridad(a, b));
+    } else if (ordenSel === 'reciente'){
+      scored.sort((a, b) => (a.daysSincePub ?? 999) - (b.daysSincePub ?? 999) || ordenPrioridad(a, b));
+    } else {
+      scored.sort(ordenPrioridad);
+    }
     scored = scored.slice(0, 40);
 
     statusEl.style.display = 'flex';
@@ -6933,7 +6969,7 @@
     if (scored.length === 0){
       const sugerencia = buscandoProceso
         ? 'No apareció ningún proceso con ese número/referencia entre los datos consultados. Revisa que esté bien escrito, o prueba solo con una parte (por ejemplo, sin el año).'
-        : 'Prueba con menos palabras clave, quita el filtro de departamento, o desmarca "Solo Licitación Pública" / "Solo publicados hace ≤30 días" / vencidos / descartados.';
+        : 'Prueba con menos palabras clave, quita el filtro de departamento o municipio, o desmarca "Solo Licitación Pública" / "Solo publicados hace ≤30 días" / vencidos / descartados.';
       resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Instrument Serif\',serif;font-style:italic;font-weight:400;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + sugerencia +
         ' Puede que ahora mismo no haya ninguna licitación abierta con esos criterios -- no es un error.' +
         '<div style="margin-top:10px;"><button type="button" class="link-btn" id="bt-empty-demo">Ver datos de ejemplo</button> para ver cómo luce la plataforma mientras tanto.</div></div>';
@@ -7030,10 +7066,28 @@
   function getInputs(){
     const keywords = kwInput.value.split(',').map(s => s.trim()).filter(Boolean);
     const geos = geoInput.value.split(',').map(s => s.trim()).filter(Boolean);
+    const municipios = municipioInput ? municipioInput.value.split(',').map(s => s.trim()).filter(Boolean) : [];
     const minV = Number(minInput.value) || 0;
     const maxV = Number(maxInput.value) || 0;
     const numProceso = procesoInput ? procesoInput.value.trim() : '';
-    return { keywords, geos, minV, maxV, numProceso };
+    return { keywords, geos, municipios, minV, maxV, numProceso };
+  }
+
+  // "Cúcuta" también debe encontrar "San José de Cúcuta" -- una comparación
+  // EXACTA (como matchesGeo, adecuada para departamento) sería demasiado
+  // estricta para municipios, que casi siempre traen un nombre oficial más
+  // largo del que la gente usa a diario. Mismo criterio de coincidencia
+  // tolerante por palabras ya probado en prepararBusquedaPorNombre() para
+  // nombres de entidad: toda palabra significativa (>=4 letras) del término
+  // buscado debe aparecer en el nombre del municipio.
+  function matchesMunicipio(ciudad, term){
+    const c = normalizeGeo(ciudad);
+    const t = normalizeGeo(term);
+    if (!c || !t) return false;
+    if (c === t) return true;
+    const palabras = t.split(' ').filter(w => w.length >= 4);
+    if (!palabras.length) return c.indexOf(t) !== -1;
+    return palabras.every(w => c.indexOf(w) !== -1);
   }
 
   // Búsqueda directa por Nº de proceso / referencia: substring simple (sin la
@@ -7202,7 +7256,9 @@
     // anterior, podían ocultar justo los procesos nuevos que la alerta
     // encontró (bug real visto al probar: alerta con "121 nuevos" mostraba
     // "0 procesos" en pantalla por esto). "Ocultar vencidos" sí se deja tal
-    // cual -- un proceso ya vencido no sirve aunque sea "nuevo".
+    // cual -- un proceso ya vencido no sirve aunque sea "nuevo". Municipio
+    // (nuevo, tampoco es parte de la alerta) se limpia por el mismo motivo.
+    if (municipioInput) municipioInput.value = '';
     hideOldEl.checked = false;
     onlyLicitacionEl.checked = false;
     await runSearch();
@@ -7276,7 +7332,7 @@
     isDemo = false;
     isSnapshot = false;
     demoBanner.style.display = 'none';
-    const { keywords, geos, minV, maxV, numProceso } = getInputs();
+    const { keywords, geos, municipios, minV, maxV, numProceso } = getInputs();
 
     // IMPORTANTE: se ancla la consulta en vivo por ESPECIALIDAD cuando hay alguna
     // (una consulta $q por palabra clave), no por departamento. Anclar solo por
@@ -7297,7 +7353,7 @@
     try {
       const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
       lastRecords = live;
-      render(live, keywords, geos, minV, maxV, numProceso);
+      render(live, keywords, geos, municipios, minV, maxV, numProceso);
       dataFreshnessEl.textContent = 'Datos en vivo (' + live.length + ' procesos) — consultados justo ahora en datos.gov.co.';
     } catch(err){
       // Sin conexión en vivo (p.ej. corriendo dentro de un artifact de Claude.ai):
@@ -7306,7 +7362,7 @@
         const snapshot = await loadEmbeddedSnapshot();
         isSnapshot = true;
         lastRecords = snapshot;
-        render(lastRecords, keywords, geos, minV, maxV, numProceso);
+        render(lastRecords, keywords, geos, municipios, minV, maxV, numProceso);
         const freshDate = fmtDate(DATA_SNAPSHOT_DATE + 'T00:00:00.000');
         dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (' + (err.message || 'error de red') + '). Mostrando snapshot de respaldo: ' + snapshot.length + ' procesos, actualizado el ' + freshDate + '. Los filtros de "vencido" y "≤30 días" se miden contra esa fecha.';
       } catch(err2){
@@ -7333,10 +7389,10 @@
       { entidad: 'Municipio de Los Patios', objeto_del_proceso: 'Construcción de la primera etapa del edificio administrativo municipal', modalidad_de_contratacion: 'Licitación pública', departamento: 'Norte de Santander', ciudad: 'Los Patios', precio_base: 2600000000, urlproceso: { url: 'https://community.secop.gov.co' }, fecha_de_publicacion_del: '2026-07-30T00:00:00.000', fecha_de_recepcion_de: pastDate(4) },
       { entidad: 'Área Metropolitana de Cúcuta', objeto_del_proceso: 'Interventoría técnica, administrativa y financiera a obras de pavimentación en vías terciarias', modalidad_de_contratacion: 'Concurso de méritos', departamento: 'Norte de Santander', ciudad: 'Cúcuta', precio_base: 610000000, urlproceso: { url: 'https://community.secop.gov.co' }, fecha_de_publicacion_del: '2026-08-18T00:00:00.000', fecha_de_recepcion_de: futureDate(18) }
     ];
-    const { keywords, geos, minV, maxV, numProceso } = getInputs();
+    const { keywords, geos, municipios, minV, maxV, numProceso } = getInputs();
     lastRecords = demo;
     await appReady;
-    render(demo, keywords, geos, minV, maxV, numProceso);
+    render(demo, keywords, geos, municipios, minV, maxV, numProceso);
   }
 
   function futureDate(days){ const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString(); }
@@ -7664,6 +7720,7 @@
   hideOldEl.addEventListener('change', rerender);
   onlyLicitacionEl.addEventListener('change', rerender);
   hideDiscardedEl.addEventListener('change', rerender);
+  if (ordenEl) ordenEl.addEventListener('change', rerender);
   if (hideNoGoEl) hideNoGoEl.addEventListener('change', rerender);
   if (evalRunBtn) evalRunBtn.addEventListener('click', runEvaluacion);
   if (evalSelectEl) evalSelectEl.addEventListener('change', runEvaluacion);

@@ -4681,3 +4681,58 @@ desmarcado).
 checkbox carga desmarcado, y una búsqueda con los filtros por defecto (ya
 sin "Solo Licitación Pública") trae los mismos 2 procesos reales que se
 habían confirmado manualmente. 0 errores de consola.
+
+## Análisis de un competidor (Colombia Licita) y 2 filtros nuevos: municipio y ordenar resultados
+
+El usuario compartió un enlace de "Colombia Licita" (competidor directo,
+también consulta SECOP 1 y 2) y pidió analizar sus filtros para ver qué
+agregar a los nuestros. Investigación real contra el sitio (no descrita de
+memoria): sus páginas `/resumen/tipos`, `/resumen/estados`, `/resumen/
+tipos_fecha` listan sus categorías exactas -- confirmó, entre otras cosas,
+que su filtro de "Estado" tiene 19 valores y el nuestro (`estadoTogglesEl`,
+checkboxes dinámicos según lo que traiga cada búsqueda) **ya existía**,
+solo no se había detectado bien en el primer análisis -- se corrigió antes
+de proponer nada, para no reconstruir algo que ya funcionaba.
+
+De lo genuinamente nuevo, el usuario pidió 2: **municipio** y **ordenar
+resultados** (dejó fuera, por ahora: filtro por entidad específica, rango
+de fechas explícito, y "fecha de detección" -- este último no aplica, ya
+que Colombia Licita tiene un rastreador con historial propio y esta app
+consulta en vivo, sin ese concepto).
+
+**Filtro por municipio** (`#bt-municipio`, junto a Cobertura geográfica):
+a diferencia del departamento (`matchesGeo`, coincidencia EXACTA a
+propósito, ver punto 6 de "Cosas aprendidas por las malas"), un municipio
+casi siempre se escribe más corto de lo que dice su nombre oficial en el
+dataset ("Cúcuta" vs "San José de Cúcuta") -- exigir coincidencia exacta
+ahí habría sido inútil en la práctica. `matchesMunicipio(ciudad, term)`
+(nueva) reutiliza el mismo criterio de coincidencia tolerante por palabras
+ya probado en `prepararBusquedaPorNombre()` para nombres de entidad: toda
+palabra significativa (≥4 letras) del término buscado debe aparecer en el
+nombre del municipio. Se compara SOLO contra `item.ciudad` (nunca contra
+el registro completo), mismo cuidado ya aplicado al departamento.
+
+**Ordenar resultados** (`#bt-orden`, select con 4 opciones): Prioridad
+(el orden de siempre, sin cambios de comportamiento si no se toca),
+Cuantía (mayor a menor), Fecha de cierre (más próxima primero),
+Publicación (más reciente primero) -- en los 3 casos nuevos, el orden de
+prioridad queda como criterio de DESEMPATE final, para que dos procesos
+con el mismo valor/fecha no quedan en un orden arbitrario.
+
+**Cambios de plomería, no de diseño**: `render()` ganó el parámetro
+`municipios` (los 4 call sites -- `rerender`, en vivo, snapshot de
+respaldo, demo -- se actualizaron igual); `getInputs()` devuelve
+`municipios` junto a `keywords`/`geos`. `verNuevosDeAlerta()` limpia
+`municipioInput` igual que ya limpiaba "≤30 días"/"Solo Licitación
+Pública" -- mismo bug ya documentado (un filtro de una búsqueda anterior
+podía ocultar los "nuevos" reales de una alerta) aplicado por adelantado a
+un filtro que todavía no existía cuando se corrigió la primera vez.
+
+**Verificado**: 70/70 tests de humo (`matchesMunicipio` agregada a la
+lista de funciones clave). Probado en navegador real con datos de ejemplo
+(6 procesos, ciudades distintas): "Cúcuta" filtró correctamente a los 3
+procesos de esa ciudad (excluyendo Pamplona/Girón/Los Patios), y "Ordenar
+por Cuantía" devolvió los 6 en el orden numérico exacto esperado
+(4.200M → 2.600M → 1.850M → 980M → 610M → 120M). Probado también contra
+la API en vivo: "Ocaña" (Norte de Santander) trajo 9 resultados reales,
+todos con esa ciudad. 0 errores de consola en ambas pruebas.
