@@ -123,6 +123,11 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'extraerRequisitosDePliego', 'detectarInconsistenciasPliegoEP',
     'cargarEstudioPrevioPDF', 'cargarEstudioPrevioDocx', 'cargarEstudioPrevioArchivo',
     'evaluarExperienciaDeProceso', 'pareceRequisitoDeExperienciaReal',
+    // Hacia paridad con LicitIA (ver CLAUDE.md): Fase A (PAA), Fase B (RUT),
+    // Fase E (Generador de Propuestas, paquete completo).
+    'normalizePAA', 'buscarPAA',
+    'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
+    'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));

@@ -4525,3 +4525,68 @@ del "CONTRIBUYENTE" firmante al final del PDF, que coincide con el
 nombre armado desde apellidos+nombres). Con un perfil ya con datos
 ("Empresa 2" como nombre por defecto), confirmado que `aplicarRUTaCampos`
 respeta "solo si vacío" y no lo sobrescribe. 0 errores de consola.
+
+## Fase E -- Generador de Propuestas (paquete completo)
+
+El usuario pidió saltar las fases C/D (Radar de Afinidad IA, Visión IA --
+ambas requieren saldo real en la cuenta de Anthropic, que decidió activar
+más adelante) y seguir con la última fase del plan: el paquete de
+propuestas. Antes de construir se preguntó explícitamente qué anexos
+incluir (mismo criterio que Fase 9/10: presentar opciones concretas antes
+de construir, no adivinar el alcance) -- el usuario respondió "saca los
+anexos que hagan falta que piden normalmente", interpretado como los 3
+anexos marcados como "casi universales" en la pregunta (se dejó fuera la
+"Declaración de origen de fondos", marcada explícitamente como menos
+universal/más propia de procesos de mayor cuantía). Punto de entrada: un
+solo botón "Generar paquete de propuesta" (no uno por documento).
+
+**3 anexos nuevos, mismo criterio "plantilla orientativa" ya establecido
+por `generarCartaTexto`/`generarHojaDeVidaTexto` (Fase 10)**:
+
+- `generarAnticorrupcionTexto(perfil, item)` -- compromiso anticorrupción
+  (Ley 190 de 1995 art. 78, Ley 1474 de 2011), estructura y compromisos
+  estándar de este documento en la contratación pública colombiana.
+- `generarParafiscalesTexto(perfil, item)` -- certificación de pago de
+  aportes a seguridad social y parafiscales (Ley 789 de 2002 art. 50, Ley
+  828 de 2003). A diferencia de los demás, esta app NO puede saber si la
+  empresa está obligada a tener revisor fiscal (depende de si es sociedad
+  por acciones, o si supera los topes de activos/ingresos del art. 203 del
+  Código de Comercio) -- en vez de asumir una de las dos firmas posibles,
+  el documento deja explícito `[COMPLETAR: marca cuál de los dos firma...]`
+  y remite a consultarlo con el contador. Mismo principio de "mejor no
+  inventar" ya aplicado en el motor de evaluación, llevado aquí a un
+  documento legal.
+- `generarFormatoExperienciaTexto(perfil, item, entry)` -- el único de los
+  3 que NO inventa ningún dato nuevo: reutiliza tal cual
+  `entry.experienciaResultado` (el mismo resultado que "EXPERIENCIA
+  REQUERIDA" en Buscar procesos ya calculó automáticamente contra el
+  pliego de ESE proceso) -- cero motor de evaluación paralelo. Sin
+  resultado todavía (pliego sin analizar/evaluar), el documento lo dice
+  explícito en vez de generar una tabla vacía o inventar un cumplimiento.
+
+**`generarPaqueteTexto(perfil, item, entry)`**: concatena la carta (Fase
+10) + los 3 anexos nuevos en un solo `.txt`, con un índice al inicio y
+separadores dobles entre documentos (para que se noten con claridad al
+copiarlos a Word/PDF por separado). El botón `.eval-paquete-btn` vive
+junto a `.eval-carta-btn` en `evalDetalleHtml` (mismo criterio: por
+PERFIL, no por proceso, porque NIT/representante/contacto son de una
+empresa puntual) -- su handler reutiliza exactamente el mismo patrón que
+ya usa `cartaBtn` (`lastScored` + `perfiles[...]` + `migrarPerfil`), y le
+agrega `entry = analisis[s.item.id]` (el análisis del pliego de ese
+proceso, si existe) para poder generar el anexo de experiencia.
+
+**Verificado**: 70/70 tests de humo (`generarAnticorrupcionTexto`/
+`generarParafiscalesTexto`/`generarFormatoExperienciaTexto`/
+`generarPaqueteTexto` agregadas a la lista de funciones clave del check 3,
+junto con `normalizePAA`/`buscarPAA`/`parsearRUT` y sus helpers de las
+Fases A/B, que se habían quedado fuera de esa lista). Probado en navegador
+real de punta a punta: perfil completo (NIT, representante, dirección,
+ciudad, teléfono, correo) + datos de ejemplo + evaluación corrida →
+"Generar paquete de propuesta" descargó un `.txt` de 9.374 caracteres con
+los 4 documentos, cada uno con los datos reales del perfil sustituidos
+correctamente (confirmado interceptando `URL.createObjectURL`, ya que el
+portapapeles no es accesible en este entorno de pruebas) -- incluido el
+caso "sin experiencia evaluada todavía" (el proceso de la demo no tenía
+pliego analizado), que mostró el aviso explícito en vez de una tabla vacía
+o inventada. Sin `undefined` ni `NaN` en ningún punto del texto generado.
+0 errores de consola.

@@ -5552,10 +5552,16 @@
       const cartaBtn = r.perfilId
         ? ' <button type="button" class="link-btn eval-carta-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(r.perfilId) + '">⬇ Generar carta de presentación (.txt)</button>'
         : '';
+      // Mismo criterio que cartaBtn (por perfil, no por proceso) -- el
+      // paquete completo incluye la carta, así que necesita los mismos
+      // datos de NIT/representante/contacto de UNA empresa puntual.
+      const paqueteBtn = r.perfilId
+        ? ' <button type="button" class="link-btn eval-paquete-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(r.perfilId) + '">📦 Generar paquete de propuesta (.txt)</button>'
+        : '';
       return '<div class="analysis-sub">' + escapeHtml(r.perfil) + ' — <span class="eval-verdict ' + cls + '">' + r.veredicto + '</span>' +
         (r.conPliego ? '' : ' <span style="color:var(--text-muted);font-weight:400;">(evaluación ligera — sin pliego analizado)</span>') + '</div>' +
         '<ul class="analysis-list">' + filas + '</ul>' +
-        '<div style="margin:-4px 0 10px;">' + cartaBtn + '</div>';
+        '<div style="margin:-4px 0 10px;">' + cartaBtn + paqueteBtn + '</div>';
     };
     const notas = notasParticipacion(entry);
     const notasHtml = notas.length
@@ -5677,6 +5683,180 @@
     L.push('════════════════════════════════════════════════════════');
     L.push('PLANTILLA ORIENTATIVA -- generada a partir de los datos de tu perfil de empresa y del proceso seleccionado. NO es el formato oficial exacto de esta entidad ni de Colombia Compra Eficiente: cada pliego trae su propio Anexo/Formato de carta de presentación (numeración, y a veces firma digital) -- compáralo contra el pliego real antes de presentarla. Los campos marcados [COMPLETAR] no se pueden inferir de los datos ya cargados en la app (el valor de tu oferta lo decides tú, no es el presupuesto oficial del proceso).');
     return L.join('\n');
+  }
+
+  // Fase E (Generador de Propuestas, paquete completo): compromiso
+  // anticorrupción -- exigido en prácticamente todo pliego de obra pública
+  // (Ley 190 de 1995 art. 78, Ley 1474 de 2011 "Estatuto Anticorrupción").
+  // Mismo criterio de siempre: plantilla orientativa con la estructura y el
+  // compromiso estándar, no el Anexo/Formato exacto de cada entidad.
+  function generarAnticorrupcionTexto(perfil, item){
+    const p = perfil;
+    const L = [];
+    L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
+    L.push('');
+    L.push('COMPROMISO ANTICORRUPCIÓN');
+    L.push('');
+    L.push('Señores');
+    L.push(item.entidad || '[ENTIDAD CONTRATANTE]');
+    L.push('Referencia: ' + (item.modalidad || '[MODALIDAD]') + (item.referencia ? ' No. ' + item.referencia : ' No. [NÚMERO DE PROCESO]'));
+    L.push('Objeto: ' + (item.objeto || '[OBJETO DEL PROCESO]'));
+    L.push('');
+    L.push('El(la) suscrito(a) ' + (p.representanteLegal || '[REPRESENTANTE LEGAL]') +
+      ', identificado(a) con cédula de ciudadanía No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]') +
+      ', obrando en calidad de representante legal de ' + (p.nombre || '[RAZÓN SOCIAL]') +
+      ', identificada con NIT ' + (p.nit || '[NIT]') +
+      ', manifiesto mi voluntad de asumir compromisos en orden a la búsqueda de la transparencia en el proceso de contratación de la referencia, así:');
+    L.push('');
+    L.push('1. Apoyaré las acciones que la entidad contratante emprenda para combatir la corrupción y agilizar las relaciones entre el proponente y la entidad.');
+    L.push('2. No ofreceré ni daré dádivas, sobornos o cualquier tipo de beneficio a los servidores públicos que participan en este proceso de contratación, ni a terceros que puedan influir en su resultado.');
+    L.push('3. No permitiré que a nombre de ' + (p.nombre || '[RAZÓN SOCIAL]') + ' se ofrezca u otorgue dádiva alguna a ningún servidor público, ni a terceros, en relación con este proceso.');
+    L.push('4. No efectuaré acuerdos, ni realizaré actos o conductas que tengan por objeto o efecto la colusión con otros proponentes en este proceso.');
+    L.push('5. En caso de conocer situaciones irregulares en el desarrollo del proceso de contratación, informaré de manera inmediata a la entidad contratante y a los organismos de control del Estado.');
+    L.push('6. Declaro que ' + (p.nombre || '[RAZÓN SOCIAL]') + ' no ha sido sancionada por prácticas corruptas ni sometida a investigaciones por hechos que constituyan corrupción, en Colombia o en el exterior.');
+    L.push('');
+    L.push('En constancia de lo anterior, firmo el presente documento en la fecha señalada.');
+    L.push('');
+    L.push('Atentamente,');
+    L.push('');
+    L.push('');
+    L.push('_______________________________________');
+    L.push(p.representanteLegal || '[REPRESENTANTE LEGAL]');
+    L.push('C.C. No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]'));
+    L.push('Representante Legal');
+    L.push(p.nombre || '[RAZÓN SOCIAL]');
+    L.push('NIT: ' + (p.nit || '[NIT]'));
+    L.push('');
+    L.push('════════════════════════════════════════════════════════');
+    L.push('PLANTILLA ORIENTATIVA -- estructura y compromisos estándar de un pacto/compromiso anticorrupción (Ley 190 de 1995, Ley 1474 de 2011). NO es el Anexo/Formato exacto de esta entidad -- compáralo contra el pliego real antes de presentarlo.');
+    return L.join('\n');
+  }
+
+  // Certificación de pago de aportes al sistema de seguridad social integral
+  // y parafiscales (Ley 789 de 2002 art. 50, Ley 828 de 2003) -- también
+  // casi universal. La firma esperada depende de si la empresa está
+  // obligada a tener revisor fiscal (sociedades por acciones, o que superen
+  // los topes de activos/ingresos de la Ley 43 de 1990/Código de Comercio
+  // art. 203) -- dato que esta app no tiene forma de conocer con certeza,
+  // así que se deja como una decisión explícita para el usuario en vez de
+  // asumir una de las dos.
+  function generarParafiscalesTexto(perfil, item){
+    const p = perfil;
+    const L = [];
+    L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
+    L.push('');
+    L.push('CERTIFICACIÓN DE PAGO DE APORTES AL SISTEMA DE SEGURIDAD SOCIAL INTEGRAL Y PARAFISCALES');
+    L.push('(Ley 789 de 2002, art. 50 · Ley 828 de 2003)');
+    L.push('');
+    L.push('Señores');
+    L.push(item.entidad || '[ENTIDAD CONTRATANTE]');
+    L.push('Referencia: ' + (item.modalidad || '[MODALIDAD]') + (item.referencia ? ' No. ' + item.referencia : ' No. [NÚMERO DE PROCESO]'));
+    L.push('Objeto: ' + (item.objeto || '[OBJETO DEL PROCESO]'));
+    L.push('');
+    L.push('[COMPLETAR: marca cuál de los dos firma esta certificación -- depende de si ' + (p.nombre || 'tu empresa') + ' está obligada a tener revisor fiscal (sociedades por acciones, o que superen los topes de activos/ingresos del art. 203 del Código de Comercio). Si no estás seguro, consúltalo con tu contador antes de presentar.]');
+    L.push('');
+    L.push('El(la) suscrito(a) [COMPLETAR: nombre de quien certifica -- representante legal, o revisor fiscal si aplica], identificado(a) con cédula de ciudadanía No. [COMPLETAR] y tarjeta profesional No. [COMPLETAR, solo si firma el revisor fiscal], certifico:');
+    L.push('');
+    L.push('1. Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ', identificada con NIT ' + (p.nit || '[NIT]') + ', ha efectuado el pago de los aportes a los sistemas de salud, pensión y riesgos laborales de sus empleados, correspondientes a los últimos seis (6) meses anteriores a la fecha de cierre del presente proceso.');
+    L.push('2. Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ' ha efectuado el pago de los aportes parafiscales (Cajas de Compensación Familiar, ICBF y SENA) a que esté obligada, correspondientes al mismo período.');
+    L.push('3. Que no existen sumas pendientes de pago por concepto de aportes al sistema de seguridad social integral y parafiscales, o que las diferencias existentes no superan los límites legalmente aceptados.');
+    L.push('');
+    L.push('Se expide la presente certificación a solicitud del interesado, para efectos de acreditar el cumplimiento del artículo 50 de la Ley 789 de 2002 ante ' + (item.entidad || '[ENTIDAD CONTRATANTE]') + '.');
+    L.push('');
+    L.push('Atentamente,');
+    L.push('');
+    L.push('');
+    L.push('_______________________________________');
+    L.push('[COMPLETAR: nombre de quien certifica]');
+    L.push('C.C. No. [COMPLETAR]');
+    L.push('[COMPLETAR: "Representante Legal" o "Revisor Fiscal, T.P. No. ..."]');
+    L.push(p.nombre || '[RAZÓN SOCIAL]');
+    L.push('NIT: ' + (p.nit || '[NIT]'));
+    L.push('');
+    L.push('════════════════════════════════════════════════════════');
+    L.push('PLANTILLA ORIENTATIVA -- estructura estándar de esta certificación (Ley 789 de 2002 art. 50). Quién debe firmarla (representante legal o revisor fiscal) depende de la situación legal/tributaria puntual de tu empresa -- esta app no tiene ese dato, revísalo con tu contador antes de presentarla. NO es el Anexo/Formato exacto de esta entidad.');
+    return L.join('\n');
+  }
+
+  // Resumen firmable de experiencia -- a diferencia de los otros 2 anexos,
+  // este NO inventa ningún dato nuevo: reutiliza tal cual el resultado que
+  // "EXPERIENCIA REQUERIDA" (Buscar procesos) YA calculó automáticamente
+  // contra el pliego de este proceso (entry.experienciaResultado) -- mismo
+  // motor, cero lógica paralela. Sin ese resultado (pliego sin analizar, o
+  // analizado pero sin evaluar experiencia todavía) no se puede generar un
+  // resumen real -- se avisa explícito en vez de generar una tabla vacía.
+  function generarFormatoExperienciaTexto(perfil, item, entry){
+    const p = perfil;
+    const L = [];
+    L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
+    L.push('');
+    L.push('FORMATO DE EXPERIENCIA ACREDITADA');
+    L.push('');
+    L.push('Señores');
+    L.push(item.entidad || '[ENTIDAD CONTRATANTE]');
+    L.push('Referencia: ' + (item.modalidad || '[MODALIDAD]') + (item.referencia ? ' No. ' + item.referencia : ' No. [NÚMERO DE PROCESO]'));
+    L.push('Objeto: ' + (item.objeto || '[OBJETO DEL PROCESO]'));
+    L.push('Proponente: ' + (p.nombre || '[RAZÓN SOCIAL]') + ' · NIT ' + (p.nit || '[NIT]'));
+    L.push('');
+    const ev = entry && entry.experienciaResultado;
+    if (!ev || !ev.resultados || !ev.resultados.length){
+      L.push('[No se pudo generar este anexo: todavía no se evaluó la experiencia de este proceso. Ve a "Buscar procesos", analiza el pliego y evalúa la experiencia -- luego vuelve a generar el paquete.]');
+    } else {
+      L.push('Con base en el análisis automático de "Experiencia requerida" (extraído del Pliego/Estudio Previo de este proceso) y los contratos ejecutados registrados en "Experiencia", se relaciona a continuación el cumplimiento de cada requisito:');
+      L.push('');
+      ev.resultados.forEach((r, i) => {
+        L.push((i + 1) + '. ' + truncate(r.requisito.criterio, 200));
+        L.push('   Resultado: ' + r.resultado);
+        if (r.contratosEvaluados.length){
+          L.push('   Contratos que lo acreditan:');
+          r.contratosEvaluados.forEach(c => L.push('     - ' + truncate(c.objeto || '(sin objeto)', 140) + (c.contratante ? ' · ' + c.contratante : '') + (c.valor != null ? ' · ' + (fmtMoney(c.valor) || c.valor) : '')));
+        } else {
+          L.push('   Sin contratos relacionados encontrados en el Excel de experiencia.');
+        }
+        L.push('');
+      });
+      L.push('Resultado global: ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' + ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' + ev.resultados.length + ' requisito(s)).');
+    }
+    L.push('');
+    L.push('Atentamente,');
+    L.push('');
+    L.push('');
+    L.push('_______________________________________');
+    L.push(p.representanteLegal || '[REPRESENTANTE LEGAL]');
+    L.push('C.C. No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]'));
+    L.push('Representante Legal');
+    L.push(p.nombre || '[RAZÓN SOCIAL]');
+    L.push('NIT: ' + (p.nit || '[NIT]'));
+    L.push('');
+    L.push('════════════════════════════════════════════════════════');
+    L.push('PLANTILLA ORIENTATIVA -- el CUMPLE/NO CUMPLE/NO DETERMINABLE de cada requisito y los contratos citados salen del mismo motor de evaluación automática de "Experiencia requerida" (Buscar procesos), no se recalculan aparte. Revísalo contra tus contratos reales y contra el pliego antes de presentarlo -- un NO DETERMINABLE significa que el sistema no tuvo información suficiente, no que no cumples: confírmalo a mano. NO es el Anexo/Formato exacto de esta entidad.');
+    return L.join('\n');
+  }
+
+  // Paquete completo: un solo .txt con la carta de presentación + los 3
+  // anexos base, en el orden en que normalmente se anexan a una oferta.
+  // Un solo botón/archivo (pedido explícito del usuario) en vez de 4
+  // descargas sueltas -- más fácil de copiar a Word/PDF de una sola vez.
+  function generarPaqueteTexto(perfil, item, entry){
+    const p = perfil;
+    const sep = '\n\n════════════════════════════════════════════════════════\n════════════════════════════════════════════════════════\n\n';
+    const L = [];
+    L.push('PAQUETE DE PROPUESTA — ' + (p.nombre || 'Proponente'));
+    L.push((item.entidad || 'Entidad') + ' · ' + (item.referencia || item.objeto || 'Proceso'));
+    L.push('Generado: ' + new Date().toLocaleString('es-CO'));
+    L.push('');
+    L.push('Contenido de este paquete:');
+    L.push('  1. Carta de presentación de la oferta');
+    L.push('  2. Compromiso anticorrupción');
+    L.push('  3. Certificación de pago de aportes parafiscales');
+    L.push('  4. Formato de experiencia acreditada');
+    L.push('');
+    L.push('Cada documento es una PLANTILLA ORIENTATIVA (ver el aviso al final de cada uno) -- revisa los campos [COMPLETAR] y compara contra el pliego real antes de presentar la oferta. Ninguno reemplaza el Anexo/Formato exacto que pida esta entidad en particular.');
+    return L.join('\n') + sep +
+      generarCartaTexto(p, item) + sep +
+      generarAnticorrupcionTexto(p, item) + sep +
+      generarParafiscalesTexto(p, item) + sep +
+      generarFormatoExperienciaTexto(p, item, entry);
   }
 
   // Segunda mitad de la Fase 10 (generación de documentos CCE): hoja de vida
@@ -7436,6 +7616,7 @@
     const infBtn = e.target.closest('.eval-informe-btn');
     const adjBtn = e.target.closest('.eval-adj-btn');
     const cartaBtn = e.target.closest('.eval-carta-btn');
+    const paqueteBtn = e.target.closest('.eval-paquete-btn');
     if (infBtn){
       const s = (lastScored || []).find(x => x.item.id === infBtn.getAttribute('data-eval-id'));
       if (!s) return;
@@ -7450,6 +7631,14 @@
       const p = perfiles[cartaBtn.getAttribute('data-perfil-id')];
       if (!s || !p) return;
       descargarTexto('carta-presentacion-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarCartaTexto(migrarPerfil(p), s.item));
+      return;
+    }
+    if (paqueteBtn){
+      const s = (lastScored || []).find(x => x.item.id === paqueteBtn.getAttribute('data-eval-id'));
+      const p = perfiles[paqueteBtn.getAttribute('data-perfil-id')];
+      if (!s || !p) return;
+      const entryPaquete = analisis[s.item.id];
+      descargarTexto('paquete-propuesta-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarPaqueteTexto(migrarPerfil(p), s.item, entryPaquete));
       return;
     }
     if (adjBtn){
