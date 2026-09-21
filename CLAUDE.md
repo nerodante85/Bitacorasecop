@@ -4645,3 +4645,39 @@ vivo: sin cobertura geográfica, 301 resultados (sin regresión); con "Norte
 de Santander", 19 resultados reales de entidades de ese departamento
 confirmadas; "Borrar resultados" limpia la lista sin necesitar recargar la
 página. 0 errores de consola.
+
+## "Solo Licitación Pública" ya no viene marcado por defecto
+
+El usuario reportó "Buscar procesos" sin resultados. Investigado contra la
+API en vivo (no local): el fetch sí trae datos reales ("1025 procesos
+consultados justo ahora"), pero los 5 filtros activos a la vez
+(especialidades + Norte de Santander + "Solo Licitación Pública" + "≤30
+días" + "Ocultar vencidos") no tenían ningún proceso que los cumpliera
+todos simultáneamente ese día. Aislando cada toggle se confirmó que "Solo
+Licitación Pública" era el filtro que vaciaba la lista -- al desmarcarlo
+aparecían 2 procesos reales de obra civil en Norte de Santander (un
+colegio, un hospital), publicados bajo otra modalidad (Mínima Cuantía/
+Selección Abreviada, típico de obras más pequeñas).
+
+**No era un bug** -- el mensaje "SIN RESULTADOS" ya sugería desmarcar ese
+filtro. Pero se discutió con el usuario si valía la pena cambiar el
+default, aclarando primero una distinción importante: desmarcarlo por
+defecto **no abre la app a otros sectores** (consultoría, suministros...)
+-- el motor de evaluación completo (K residual, específico de obra pública
+por el Decreto 791 de 2014; priorización de RUP por segmento de
+construcción; vocabulario de coincidencia de experiencia) sigue construido
+exclusivamente para constructoras. Lo que sí logra es no perder
+oportunidades REALES del mismo sector -- muchas obras públicas salen por
+Mínima Cuantía o Selección Abreviada, no solo por Licitación Pública. El
+usuario confirmó desmarcarlo con ese entendimiento.
+
+**Fix**: se quitó el atributo `checked` del checkbox `#bt-only-licitacion`
+en el HTML -- cambio de una línea, sin tocar JS (la lógica de filtrado
+(`onlyLicitacionEl.checked`) y su único otro `.checked = false`
+programático, en `verNuevosDeAlerta`, ya asumían que podía estar
+desmarcado).
+
+**Verificado**: 70/70 tests de humo. Probado en navegador real: el
+checkbox carga desmarcado, y una búsqueda con los filtros por defecto (ya
+sin "Solo Licitación Pública") trae los mismos 2 procesos reales que se
+habían confirmado manualmente. 0 errores de consola.
