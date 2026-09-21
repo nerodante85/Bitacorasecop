@@ -1250,18 +1250,20 @@
           <!-- Plan Anual de Adquisiciones (PAA): lo que las entidades YA
                PLANEARON comprar, con frecuencia meses antes de publicar el
                proceso -- para anticiparse, no solo reaccionar a lo ya
-               abierto. Reutiliza las Especialidades del formulario de
-               arriba como ancla de búsqueda; el dataset del PAA no trae
-               columna de departamento, así que esta búsqueda NO filtra por
-               geografía (ver CLAUDE.md, "Fase A -- Plan Anual de
-               Adquisiciones"). -->
+               abierto. Reutiliza las Especialidades Y la Cobertura
+               geográfica del formulario de arriba -- el dataset del PAA no
+               trae columna de departamento propia, así que el filtro
+               geográfico se aproxima cruzando el nombre de la entidad
+               contra SECOP II (ver `departamentoPorEntidad`/CLAUDE.md,
+               "Fase A -- Plan Anual de Adquisiciones"). -->
           <div class="titleblock" id="bt-paa-panel">
             <div class="titleblock-head">
               <h2>Plan Anual de Adquisiciones (PAA)</h2>
               <span>Anticípate a compras que las entidades ya planearon, antes de que publiquen el proceso -- datos abiertos, Colombia Compra Eficiente</span>
             </div>
             <div class="actions">
-              <button class="btn-secondary" id="bt-paa-buscar" type="button">🔮 Buscar en el PAA (con las especialidades de arriba)</button>
+              <button class="btn-secondary" id="bt-paa-buscar" type="button">🔮 Buscar en el PAA (con las especialidades y la cobertura de arriba)</button>
+              <button type="button" class="link-btn" id="bt-paa-borrar">🗑 Borrar resultados</button>
             </div>
             <div class="saved-note" id="bt-paa-status" style="margin-top:8px;"></div>
             <div class="recent-list" id="bt-paa-list"></div>
@@ -2067,6 +2069,7 @@
   const alertasRevisarBtn = document.getElementById('bt-alertas-revisar');
   const alertasListEl = document.getElementById('bt-alertas-list');
   const paaBuscarBtn = document.getElementById('bt-paa-buscar');
+  const paaBorrarBtn = document.getElementById('bt-paa-borrar');
   const paaStatusEl = document.getElementById('bt-paa-status');
   const paaListEl = document.getElementById('bt-paa-list');
   const dashAlertasEl = document.getElementById('bt-dash-alertas');
@@ -6049,6 +6052,41 @@
       .filter(item => keywords.some(k => matchesTerm(item.searchable, k)));
   }
 
+  // El PAA no trae columna de departamento propia (ver normalizePAA) -- se
+  // aproxima cruzando el NOMBRE de cada entidad contra el dataset principal
+  // de SECOP II (que sí trae "departamento"), con las mismas palabras clave
+  // ya usadas para no traer un universo desconectado de entidades. Una
+  // entidad que ya planea una compra casi siempre ha publicado algún
+  // proceso real en SECOP II alguna vez, así que su nombre debería
+  // aparecer también ahí. Es una aproximación, no un dato exacto del PAA
+  // mismo -- una entidad que nunca publicó nada en SECOP II (poco común)
+  // queda sin departamento resuelto; runBuscarPAA la excluye igual que
+  // cualquier otra que no coincida, y lo dice explícito en el status
+  // (mismo criterio de siempre: mejor excluir con aviso que mostrar un
+  // dato sin verificar). matchesGeo() exige coincidencia EXACTA de
+  // departamento (mismo criterio ya documentado en el punto 6 de "Cosas
+  // aprendidas por las malas" -- nunca contra el registro completo).
+  //
+  // Bug real encontrado probando contra la API en vivo: un primer intento
+  // comparaba el nombre de la entidad por IGUALDAD EXACTA (normalizeGeo)
+  // entre los dos datasets -- dio 0 coincidencias de 301 filas del PAA,
+  // porque el mismo ente público casi nunca se escribe IDÉNTICO en ambos
+  // (ej. abreviaturas, orden de palabras distinto) -- exactamente el
+  // problema que ya resolvió `prepararBusquedaPorNombre`/`coincide()` para
+  // "Ver adjudicaciones de esta entidad" (Fase 2). Se reutiliza esa misma
+  // coincidencia tolerante en vez de igualdad exacta de texto.
+  async function departamentoPorEntidad(keywords){
+    const registros = await fetchAllForDataset('p6dx-8zbt', keywords.length ? keywords : [null], 'II');
+    const vistos = new Set();
+    const entidades = [];
+    registros.forEach(r => {
+      const n = normalize(r);
+      const key = normalizeGeo(n.entidad);
+      if (key && n.departamento && !vistos.has(key)){ vistos.add(key); entidades.push({ entidad: n.entidad, departamento: n.departamento }); }
+    });
+    return entidades;
+  }
+
   // Banda de "razonablemente comparable" entre valor adjudicado y precio
   // base -- fuera de esto son casos multi-lote/acuerdo marco donde la
   // relación se dispara y no dice nada real sobre el % de descuento de la
@@ -7194,13 +7232,14 @@
       '</div>';
   }
 
-  // Reutiliza las Especialidades del formulario de "Filtros de búsqueda" de
-  // arriba (mismo `kwInput`/`getInputs()`) -- sin un motor de búsqueda
-  // paralelo. Sin ninguna especialidad escrita, se pide al menos una en vez
-  // de traer una muestra nacional de 300 filas sin filtrar (poco útil, y
-  // caro de leer para el usuario).
+  // Reutiliza las Especialidades Y la Cobertura geográfica del formulario
+  // de "Filtros de búsqueda" de arriba (mismo `kwInput`/`geoInput`/
+  // `getInputs()`) -- sin un motor de búsqueda paralelo. Sin ninguna
+  // especialidad escrita, se pide al menos una en vez de traer una
+  // muestra nacional de 300 filas sin filtrar (poco útil, y caro de leer
+  // para el usuario).
   async function runBuscarPAA(){
-    const { keywords } = getInputs();
+    const { keywords, geos } = getInputs();
     if (!keywords.length){
       paaStatusEl.textContent = 'Escribe al menos una especialidad en "Filtros de búsqueda" arriba antes de buscar en el PAA.';
       paaListEl.innerHTML = '';
@@ -7209,12 +7248,24 @@
     paaStatusEl.textContent = 'Consultando el Plan Anual de Adquisiciones…';
     paaListEl.innerHTML = '';
     try {
-      const items = await buscarPAA(keywords);
+      let items = await buscarPAA(keywords);
+      let notaGeo = '';
+      if (geos.length && items.length){
+        const antes = items.length;
+        const entidadesConDepto = await departamentoPorEntidad(keywords);
+        items = items.filter(it => {
+          const coincide = prepararBusquedaPorNombre(it.entidad).coincide;
+          const match = entidadesConDepto.find(e => coincide(e.entidad));
+          return match && geos.some(g => matchesGeo(match.departamento, g));
+        });
+        notaGeo = ' El PAA no trae departamento propio -- se aproximó cruzando el nombre de cada entidad contra SECOP II: ' +
+          (antes - items.length) + ' de ' + antes + ' se excluyeron por no coincidir con "' + geos.join(', ') + '" o no poder confirmarse.';
+      }
       if (!items.length){
-        paaStatusEl.textContent = 'Sin resultados del PAA para "' + keywords.join(', ') + '". Puede que ninguna entidad haya planeado todavía una compra con esas palabras.';
+        paaStatusEl.textContent = 'Sin resultados del PAA para "' + keywords.join(', ') + '"' + (geos.length ? ' en ' + geos.join(', ') : '') + '. Puede que ninguna entidad haya planeado todavía una compra con esos criterios.' + notaGeo;
         return;
       }
-      paaStatusEl.textContent = items.length + ' planeación(es) encontrada(s) para "' + keywords.join(', ') + '".';
+      paaStatusEl.textContent = items.length + ' planeación(es) encontrada(s) para "' + keywords.join(', ') + '".' + notaGeo;
       paaListEl.innerHTML = items.map(renderPAAItem).join('');
     } catch(e){
       paaStatusEl.textContent = 'No se pudo consultar el Plan Anual de Adquisiciones (' + (e && e.message ? e.message : 'error') + ').';
@@ -7568,6 +7619,10 @@
   if (procesoInput) procesoInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
   demoBtn.addEventListener('click', loadDemo);
   if (paaBuscarBtn) paaBuscarBtn.addEventListener('click', runBuscarPAA);
+  if (paaBorrarBtn) paaBorrarBtn.addEventListener('click', () => {
+    paaListEl.innerHTML = '';
+    paaStatusEl.textContent = '';
+  });
 
   if (alertaGuardarBtn) alertaGuardarBtn.addEventListener('click', () => {
     const resultado = guardarAlertaActual(alertaNombreEl ? alertaNombreEl.value : '');

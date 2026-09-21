@@ -4590,3 +4590,58 @@ caso "sin experiencia evaluada todavía" (el proceso de la demo no tenía
 pliego analizado), que mostró el aviso explícito en vez de una tabla vacía
 o inventada. Sin `undefined` ni `NaN` en ningún punto del texto generado.
 0 errores de consola.
+
+## PAA: borrar resultados y filtro por cobertura geográfica
+
+El usuario probó el panel del PAA (Fase A) y reportó dos problemas reales:
+la lista de resultados podía salir muy larga sin forma de limpiarla (había
+que recargar la página), y la búsqueda ignoraba la "Cobertura geográfica"
+del formulario -- a propósito, en su momento, porque el dataset del PAA no
+trae columna de departamento (ver Fase A). El usuario pidió explícitamente
+que sí se tuviera en cuenta.
+
+**Botón "🗑 Borrar resultados"**: trivial -- limpia `paaListEl`/`paaStatusEl`,
+junto al botón de búsqueda.
+
+**Filtro geográfico, aproximado por cruce con SECOP II**: ya que el PAA no
+trae departamento propio, `departamentoPorEntidad(keywords)` (nueva)
+consulta el dataset principal de SECOP II (`p6dx-8zbt`, que sí trae
+`departamento_entidad`) con las mismas palabras clave, y arma una lista
+`{entidad, departamento}` por cada entidad distinta encontrada -- una
+entidad que ya planea una compra casi siempre ha publicado algún proceso
+real en SECOP II alguna vez.
+
+**Bug real encontrado probando contra la API en vivo, no en el diseño en
+papel**: el primer intento comparaba el nombre de la entidad por IGUALDAD
+EXACTA (`normalizeGeo`) entre los dos datasets -- resultado: **0 de 301**
+coincidencias para "Norte de Santander", un filtro que en la práctica
+vaciaba la lista siempre. Causa: el mismo ente público casi nunca se
+escribe IDÉNTICO en dos datasets distintos de Colombia Compra Eficiente
+(abreviaturas, orden de palabras) -- exactamente el problema que ya había
+resuelto `prepararBusquedaPorNombre()`/`coincide()` para "Ver
+adjudicaciones de esta entidad" (Fase 2), y que se me olvidó reutilizar en
+el primer intento. Corregido reutilizando esa misma función de
+coincidencia tolerante en vez de igualdad exacta de texto. Confirmado
+contra la API real: "pavimentación, alcantarillado" + "Norte de Santander"
+pasó de 0 a **19 resultados reales** (ALCALDÍA MUNICIPAL DE OCAÑA, un
+municipio real de ese departamento, entre otros).
+
+`matchesGeo()` en sí (coincidencia EXACTA de departamento ya resuelto,
+nunca contra el registro completo -- mismo criterio del punto 6 de "Cosas
+aprendidas por las malas") no cambió; el bug estaba en cómo se encontraba
+el departamento de cada entidad del PAA, no en cómo se comparaba una vez
+encontrado.
+
+**Honestidad sobre el método**: el status siempre dice explícito cuántos
+resultados se excluyeron y por qué ("el PAA no trae departamento propio --
+se aproximó cruzando el nombre de cada entidad contra SECOP II") -- una
+entidad que nunca publicó nada en SECOP II (poco común, pero posible)
+queda sin departamento resuelto y se excluye igual que cualquier otra que
+no coincida, en vez de mostrarse sin verificar.
+
+**Verificado**: 70/70 tests de humo (`departamentoPorEntidad` agregada a
+la lista de funciones clave). Probado en navegador real contra la API en
+vivo: sin cobertura geográfica, 301 resultados (sin regresión); con "Norte
+de Santander", 19 resultados reales de entidades de ese departamento
+confirmadas; "Borrar resultados" limpia la lista sin necesitar recargar la
+página. 0 errores de consola.

@@ -125,7 +125,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'evaluarExperienciaDeProceso', 'pareceRequisitoDeExperienciaReal',
     // Hacia paridad con LicitIA (ver CLAUDE.md): Fase A (PAA), Fase B (RUT),
     // Fase E (Generador de Propuestas, paquete completo).
-    'normalizePAA', 'buscarPAA',
+    'normalizePAA', 'buscarPAA', 'departamentoPorEntidad',
     'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
   ];
