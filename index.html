@@ -4820,7 +4820,9 @@
   function parseValorUnidad(s){
     if (!s) return null;
     const smmlv = /smmlv|smlmv|s\.?m\.?m\.?l\.?v|salarios?\s+m[ií]nimos/i.test(s);
-    const nums = (s.match(/\d[\d.,]*\d|\d/g) || []).map(parseNumCO).filter(n => n != null && n > 0);
+    // n >= 0, no n > 0: un valor de $0 exacto (ej. K residual agotado) es
+    // un dato real, no "sin dato" -- ver CLAUDE.md, hallazgo crítico.
+    const nums = (s.match(/\d[\d.,]*\d|\d/g) || []).map(parseNumCO).filter(n => n != null && n >= 0);
     if (!nums.length) return null;
     return { valor: Math.max.apply(null, nums), unidad: smmlv ? 'SMMLV' : 'COP' };
   }
@@ -5453,9 +5455,13 @@
 
     const hayFail = gates.some(x => x.estado === 'fail');
     const hayRevisar = gates.some(x => x.estado === 'revisar');
+    const hayND = gates.some(x => x.estado === 'nd');
     let veredicto;
     if (hayFail) veredicto = 'NO-GO';
-    else if (hayRevisar || !entry) veredicto = 'REVISAR'; // sin pliego nunca se afirma un GO pleno
+    // Un gate "nd" (no determinable / requiere verificación) nunca debe
+    // dejar pasar un GO pleno -- falta información, no evidencia de
+    // cumplimiento. Ver CLAUDE.md, hallazgo crítico de la auditoría.
+    else if (hayRevisar || hayND || !entry) veredicto = 'REVISAR'; // sin pliego nunca se afirma un GO pleno
     else veredicto = 'GO';
     return { veredicto: veredicto, gates: gates, conPliego: !!entry, perfil: matriz.nombre, perfilId: matriz.id };
   }

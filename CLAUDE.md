@@ -4736,3 +4736,50 @@ por Cuantía" devolvió los 6 en el orden numérico exacto esperado
 (4.200M → 2.600M → 1.850M → 980M → 610M → 120M). Probado también contra
 la API en vivo: "Ocaña" (Norte de Santander) trajo 9 resultados reales,
 todos con esa ciudad. 0 errores de consola en ambas pruebas.
+
+## Auditoría integral full-stack: los 2 hallazgos críticos, corregidos
+
+El usuario pidió una auditoría de 40 secciones cubriendo toda la app
+(arquitectura, extracción de datos, motor CUMPLE/NO CUMPLE/NO
+DETERMINABLE, seguridad, UX, testing) -- entregada primero como informe
+(sin tocar código, instrucción explícita), y luego el usuario pidió
+corregir los 2 hallazgos marcados como críticos, ambos confirmados en
+vivo durante la auditoría (no solo leídos en el código).
+
+1. **`parseValorUnidad(s)` descartaba el valor 0** (index.html, la
+   función que convierte "K residual = 1.200.000.000" o similar en
+   `{valor, unidad}`): el filtro `n > 0` trataba un K residual/valor
+   exigido declarado en $0 EXACTO como "sin dato" en vez de un valor real
+   -- el mismo patrón de "0 tratado como falsy" que ya se había corregido
+   una vez en `fmtMoney`, pero que nunca se corrigió aquí. Con eso, los
+   gates "Capacidad vs valor"/"Capacidad K residual" desaparecían en
+   silencio para una empresa cuya capacidad estuviera exactamente
+   agotada, en vez de mostrar el fallo real. Fix: `n >= 0`.
+
+2. **El veredicto GO/NO-GO no bloqueaba con gates en estado "nd" (no
+   determinable/requiere verificación)** (`evaluarProceso`, la regla de
+   agregación final): `si hay 'fail' → NO-GO; si hay 'revisar' → REVISAR;
+   si no → GO` -- un gate "nd" (ej. Experiencia sin poder determinarse,
+   indicadores financieros sin detectar) no contaba como bloqueo, así que
+   el veredicto podía mostrar "GO · 100% de cumplimiento" con 3 de 6
+   gates en "Requiere verificación" -- reproducido en vivo durante la
+   auditoría con un pliego real. Es el hallazgo más grave de toda la
+   auditoría: el veredicto es lo único que un ingeniero civil necesita
+   mirar para decidir si participa. Fix: se agregó `hayND` a la condición
+   que fuerza REVISAR -- cualquier gate "nd" en un requisito obligatorio
+   ahora bloquea el GO pleno, igual que "revisar"/sin pliego.
+
+**Verificado**: 70/70 tests de humo (ninguno cubre específicamente estos
+dos caminos -- ver "Cobertura de tests" en el propio informe de auditoría,
+sigue pendiente como hallazgo importante separado). Reproducidos
+directamente los 2 escenarios que la auditoría había confirmado en vivo:
+`parseValorUnidad("0")` pasó de `null` a `{"valor":0,"unidad":"COP"}`
+(ejecutado con Node contra la función real extraída del archivo); la
+regla de agregación del veredicto, leída línea por línea tras el cambio,
+ahora incluye `hayND` en la condición de REVISAR -- el escenario real de
+la auditoría (Experiencia/liquidez/endeudamiento en "nd", sin ningún
+"fail") pasaría de GO a REVISAR. No se armó un caso de extremo a extremo
+en navegador para esta pasada (el bug y el fix son ambos de una sola
+condición booleana, ya verificados por separado); el resto de hallazgos
+del informe (importantes/menores) queda pendiente de que el usuario
+decida cuáles atacar.
