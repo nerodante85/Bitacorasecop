@@ -4783,3 +4783,69 @@ en navegador para esta pasada (el bug y el fix son ambos de una sola
 condición booleana, ya verificados por separado); el resto de hallazgos
 del informe (importantes/menores) queda pendiente de que el usuario
 decida cuáles atacar.
+
+## Auditoría integral: 2 de los hallazgos importantes, corregidos
+
+Al pedir revisar los hallazgos "importantes" del informe, se releyó cada
+uno contra el código real (no contra la memoria del informe) -- uno
+(SECOP-003, hero "GO" contradiciendo la lista de riesgos) resultó ya
+resuelto como efecto colateral del fix crítico de `hayND`. De los que
+seguían abiertos, el usuario pidió corregir los 2 con el mismo patrón de
+"ausencia silenciosa" que los críticos ya corregidos:
+
+1. **SECOP-006 -- el gate "Capacidad vs valor" desaparecía con K residual
+   en SMMLV** (`evaluarProceso`, ~línea 5392): la condición exigía
+   `matriz.kResidual.unidad === 'COP'` -- con K residual en SMMLV, el gate
+   simplemente no se agregaba a la tabla (ni como fail, ni como nd), así
+   que la capacidad financiera podía quedar sin verificar sin que nada lo
+   dijera. Fix: separar la condición de entrada (`matriz.kResidual &&
+   valor`) del chequeo de unidad -- si no es COP, ahora cae a `'nd'` con un
+   mensaje explícito ("está en SMMLV... no se pueden comparar
+   directamente"), nunca desaparece.
+
+2. **SECOP-010 -- un pliego con texto real (no escaneado) de más de
+   `TEXT_BATCH_PAGES` (40) páginas se truncaba en silencio**: el camino
+   OCR ya tenía aviso + botón "Seguir leyendo más páginas" (agregado en una
+   pasada anterior, ver "Advertencia de lectura parcial por OCR..." más
+   arriba), pero el camino de texto normal (`extractPdfText`, la vía más
+   común) no tenía NINGUNO de los dos -- ni aviso de que faltaban páginas,
+   ni forma de leer el resto. Fix:
+   - `extractPdfText(file, maxPages, fromPage)` ganó un tercer parámetro
+     opcional `fromPage` (default 1) -- mismo patrón que ya usaba
+     `ocrPdfPages(file, fromPage, toPage, ...)` para continuar una lectura
+     anterior en vez de repetirla. Los 2 llamadores existentes (RUP con 45
+     páginas, Estudio Previo con 20) no cambian de comportamiento -- sin
+     `fromPage`, sigue leyendo desde la página 1.
+   - Nuevo botón `.analysis-continue-btn` (hermano de
+     `.analysis-ocr-continue-btn`, mismo mecanismo: acumula texto/
+     paginaOffsets, re-evalúa con `evaluarExperienciaDeProceso`, mantiene el
+     archivo en `pendingPliegoFiles` hasta terminar de leer).
+   - `lecturaParcial(entry)` (nueva, junto a `textoPliegoDe`): punto único
+     que decide si aplica el aviso de "lectura parcial", reemplazando la
+     condición `entry.viaOcr && entry.pagesRead < entry.numPages` (que
+     antes solo cubría OCR) en los 5 lugares que muestran un veredicto --
+     el mensaje ahora dice "por OCR" solo cuando corresponde, y aplica
+     igual para el camino de texto normal.
+
+**Verificado en vivo, de punta a punta** (no solo lectura de código): un
+pliego PDF sintético real de 45 páginas (texto real, sin escanear;
+requisito de experiencia deliberadamente puesto en la página 45, fuera del
+rango por defecto de 40) inyectado en el flujo real de "Analizar pliego"
+(gate de Experiencia/Personal satisfecho vía `localStorage`), con un
+perfil cuyo K residual está en SMMLV. Confirmado:
+- Tras el primer análisis: "40/45 páginas leídas", aviso "⚠ Este resultado
+  se calculó con solo 40 de 45 páginas leídas" (sin decir "por OCR", texto
+  correcto para este camino), botón "Seguir leyendo más páginas (40/45
+  leídas)" presente.
+- Gate "Capacidad vs valor": `Requiere verificación` -- "Tu K residual está
+  en SMMLV, pero el valor de la obra está en pesos -- no se pueden
+  comparar directamente. Revísalo manualmente." (antes: ausente por
+  completo de la tabla).
+- Tras pulsar "Seguir leyendo más páginas": "45/45 páginas leídas", aviso y
+  botón desaparecen; `localStorage` confirma `pagesRead: 45, numPages: 45`
+  y el texto acumulado (94.954 caracteres) contiene el texto completo de
+  las 5 páginas nuevas, incluida la página 45.
+- 70/70 tests de humo (incluye `node --check` sobre el script completo).
+
+Limpieza confirmada: servidor local detenido, fixture PDF eliminado del
+directorio servido, `git status --porcelain` sin cambios espurios.

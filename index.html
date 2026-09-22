@@ -3471,6 +3471,7 @@
   }
 
   const OCR_BATCH_PAGES = 15; // páginas por tanda -- tanto la primera pasada como cada "seguir leyendo" usan este mismo tamaño
+  const TEXT_BATCH_PAGES = 40; // mismo criterio que OCR_BATCH_PAGES, pero para la capa de texto normal (extractPdfText)
 
   // Lee un RANGO de páginas [fromPage, toPage] (ambos inclusive), no siempre desde
   // la página 1 -- así "Seguir leyendo más páginas" puede continuar donde quedó
@@ -3545,21 +3546,29 @@
     return { text: text, numPages: pdf.numPages, pagesRead: to, paginaOffsets: paginaOffsets };
   }
 
-  async function extractPdfText(file, maxPages){
+  // maxPages = tamaño de la tanda a leer en ESTE llamado (no un tope
+  // absoluto del documento); fromPage (opcional, default 1) permite
+  // continuar donde quedó una lectura anterior -- mismo patrón ya usado en
+  // ocrPdfPages(file, fromPage, toPage, ...) para "Seguir leyendo más
+  // páginas". Con fromPage=1 (el default, y el único uso que tenían los
+  // llamadores existentes de RUP/Estudio Previo) el comportamiento es
+  // idéntico al de antes: leer las primeras `maxPages` páginas.
+  async function extractPdfText(file, maxPages, fromPage){
     maxPages = maxPages || 40;
+    fromPage = fromPage || 1;
     const pdfjsLib = await loadPdfJs();
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     let text = '';
     const paginaOffsets = []; // [{ pagina, hasta }] -- ver detectarRedFlags/paginaDeOffset
-    const n = Math.min(pdf.numPages, maxPages);
-    for (let i = 1; i <= n; i++){
+    const to = Math.min(pdf.numPages, fromPage - 1 + maxPages);
+    for (let i = fromPage; i <= to; i++){
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
       text += content.items.map(it => it.str).join(' ') + '\n';
       paginaOffsets.push({ pagina: i, hasta: text.length });
     }
-    return { text: text, numPages: pdf.numPages, pagesRead: n, paginaOffsets: paginaOffsets };
+    return { text: text, numPages: pdf.numPages, pagesRead: to, paginaOffsets: paginaOffsets };
   }
 
   // Reconstruye FILAS de una tabla de PDF por posición -- a diferencia de
@@ -4937,6 +4946,18 @@
     return entry ? (entry.viaOcr ? entry.ocrText : entry.text) : '';
   }
 
+  // Un pliego puede quedar con lectura parcial por DOS caminos distintos:
+  // OCR por tandas (ya avisaba) o la capa de texto normal, que también tiene
+  // un tope de páginas por lectura (TEXT_BATCH_PAGES) pero antes truncaba en
+  // silencio, sin aviso ni forma de continuar -- ver CLAUDE.md, hallazgo
+  // "SECOP-010". Punto único para decidir si aplica el aviso y con qué texto,
+  // para no repetir la condición (y el error de solo cubrir el camino OCR)
+  // en cada uno de los lugares que muestran un veredicto.
+  function lecturaParcial(entry){
+    if (!entry || entry.pagesRead == null || entry.numPages == null || entry.pagesRead >= entry.numPages) return null;
+    return { pagesRead: entry.pagesRead, numPages: entry.numPages, viaOcr: !!entry.viaOcr };
+  }
+
   // ── Requisitos de experiencia extraídos del Pliego/Estudio Previo ───────
   // Reemplaza la "matriz de requisitos" subida a mano: los requisitos que
   // exige un proceso YA están en su Pliego de Condiciones y/o Estudio
@@ -5388,13 +5409,21 @@
     else g('Valor de la obra', 'ok', fmtMoney(valor) + (minV || maxV ? ' dentro de tu rango.' : '.'));
 
     // Capacidad (K residual en COP, o la capacidad disponible ESTIMADA si hay
-    // contratos en ejecución registrados -- ver matrizCapacidad) vs valor de la obra
-    if (matriz.kResidual && matriz.kResidual.unidad === 'COP' && valor){
+    // contratos en ejecución registrados -- ver matrizCapacidad) vs valor de la obra.
+    // Si hay K residual pero está en SMMLV (no COP), antes este gate simplemente
+    // no se agregaba -- desaparecía en silencio de la tabla en vez de avisar que
+    // hace falta revisar a mano (mismo patrón de "ausencia silenciosa" que el
+    // hallazgo crítico de parseValorUnidad, ver CLAUDE.md). Ahora cae a 'nd'.
+    if (matriz.kResidual && valor){
       const conContratos = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
       const etiqueta = conContratos ? 'Tu capacidad disponible estimada' : 'Tu K residual';
-      if (matriz.kResidual.valor < valor)
+      if (matriz.kResidual.unidad !== 'COP'){
+        g('Capacidad vs valor', 'nd', etiqueta + ' está en ' + matriz.kResidual.unidad + ', pero el valor de la obra está en pesos -- no se pueden comparar directamente. Revísalo manualmente.');
+      } else if (matriz.kResidual.valor < valor){
         g('Capacidad vs valor', 'revisar', etiqueta + ' (' + fmtMoney(matriz.kResidual.valor) + ') es menor que el valor de la obra.' + (conContratos ? ' (K residual declarado menos tus contratos en ejecución.)' : ''));
-      else g('Capacidad vs valor', 'ok', etiqueta + ' cubre el valor de la obra.');
+      } else {
+        g('Capacidad vs valor', 'ok', etiqueta + ' cubre el valor de la obra.');
+      }
     }
 
     // Clasificación UNSPSC (solo si hay pliego analizado y menciona códigos)
@@ -5596,8 +5625,8 @@
       '<div class="analysis-head">' + escapeHtml(truncate(item.entidad, 90)) + ' — veredicto: ' +
         '<span class="eval-verdict ' + (res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar') + '">' + res.mejor.veredicto + '</span>' +
         (res.porPerfil.length > 1 ? ' <span style="color:var(--text-muted);font-weight:400;">(mejor de ' + res.porPerfil.length + ' perfiles)</span>' : '') + '</div>' +
-      (entry && entry.viaOcr && entry.pagesRead < entry.numPages
-        ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este veredicto se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas por OCR -- el resto todavía no se ha analizado y podría cambiar el resultado. Ve a "Buscar procesos" y usa "Seguir leyendo más páginas" antes de decidir.</div>'
+      (lecturaParcial(entry)
+        ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este veredicto se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (entry.viaOcr ? ' por OCR' : '') + ' -- el resto todavía no se ha analizado y podría cambiar el resultado. Ve a "Buscar procesos" y usa "Seguir leyendo más páginas" antes de decidir.</div>'
         : '') +
       '<div class="analysis-sub">RECOMENDACIÓN</div><div style="margin-bottom:8px;">' + escapeHtml(resumenEjecutivo(res)) + '</div>' +
       notasHtml +
@@ -5625,7 +5654,7 @@
     if (item.url) L.push('  Enlace:     ' + item.url);
     L.push('');
     L.push('VEREDICTO (mejor de ' + res.porPerfil.length + ' perfil(es)): ' + res.mejor.veredicto);
-    if (entry && entry.viaOcr && entry.pagesRead < entry.numPages) L.push('⚠ ADVERTENCIA: calculado con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas por OCR -- el resto todavía no se ha analizado.');
+    if (lecturaParcial(entry)) L.push('⚠ ADVERTENCIA: calculado con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (entry.viaOcr ? ' por OCR' : '') + ' -- el resto todavía no se ha analizado.');
     L.push('RECOMENDACIÓN: ' + resumenEjecutivo(res));
     const notas = notasParticipacion(entry);
     if (notas.length){
@@ -6428,14 +6457,17 @@
       '<small>' + (resumen.pct != null
         ? resumen.pct + '% de cumplimiento estimado sobre lo evaluable' + (res.porPerfil.length > 1 ? ' · mejor perfil: ' + escapeHtml(res.mejor.perfil) : '')
         : 'No hay suficiente información todavía para estimar un porcentaje.') + '</small></div>';
-    // Lectura parcial por OCR (tandas de OCR_BATCH_PAGES) -- sin esto, un
-    // "RESULTADO: GO · 100%" calculado con una fracción del documento se
-    // veía igual de terminante que uno con el pliego completo leído. El
-    // usuario lo notó revisando un caso real (15/76 páginas) donde el botón
-    // "Seguir leyendo" -- que ya existía -- quedaba perdido al final de la
-    // tarjeta, después de toda la tabla de gates y el informe descargable.
-    const lecturaParcialHtml = (entry && entry.viaOcr && entry.pagesRead < entry.numPages)
-      ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas por OCR -- el resto del pliego todavía no se ha analizado y podría contener requisitos que cambien el veredicto. Usa "Seguir leyendo más páginas" (al final de esta tarjeta) antes de decidir.</div>'
+    // Lectura parcial (tandas de OCR_BATCH_PAGES/TEXT_BATCH_PAGES, cualquiera
+    // haya sido el camino) -- sin esto, un "RESULTADO: GO · 100%" calculado
+    // con una fracción del documento se veía igual de terminante que uno con
+    // el pliego completo leído. El usuario lo notó revisando un caso real
+    // (15/76 páginas) donde el botón "Seguir leyendo" -- que ya existía para
+    // OCR -- quedaba perdido al final de la tarjeta; la auditoría posterior
+    // encontró que el camino de texto normal ni siquiera tenía ese aviso ni
+    // botón (SECOP-010), truncando en silencio pliegos de más de 40 páginas.
+    const lp = lecturaParcial(entry);
+    const lecturaParcialHtml = lp
+      ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este resultado se calculó con solo ' + lp.pagesRead + ' de ' + lp.numPages + ' páginas leídas' + (lp.viaOcr ? ' por OCR' : '') + ' -- el resto del pliego todavía no se ha analizado y podría contener requisitos que cambien el veredicto. Usa "Seguir leyendo más páginas" (al final de esta tarjeta) antes de decidir.</div>'
       : '';
     const lista = (titulo, arr) => arr.length ? '<div class="analysis-sub">' + titulo + '</div><ul class="analysis-list">' + arr.map(x => '<li>' + escapeHtml(x) + '</li>').join('') + '</ul>' : '';
     const filas = gatesParaMostrar.map(g =>
@@ -6574,6 +6606,13 @@
         : '<div class="analysis-disclaimer">Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.</div>') +
       (entry.viaOcr && entry.pagesRead < entry.numPages
         ? '<div style="margin-top:8px;"><button class="link-btn analysis-ocr-continue-btn" data-ocr-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
+        : '') +
+      // Mismo botón para el camino de texto normal (sin OCR) -- antes un
+      // pliego con texto real de más de TEXT_BATCH_PAGES páginas se
+      // truncaba en silencio, sin aviso ni forma de seguir leyendo
+      // (SECOP-010, ver CLAUDE.md).
+      (!entry.viaOcr && entry.pagesRead < entry.numPages
+        ? '<div style="margin-top:8px;"><button class="link-btn analysis-continue-btn" data-analisis-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
         : '') +
     '</div>';
   }
@@ -7507,7 +7546,7 @@
       const resumen = resumenCompatibilidad(gatesParaMostrar);
       L.push('RESUMEN DE COMPATIBILIDAD');
       L.push('  Resultado: ' + res.mejor.veredicto + (resumen.pct != null ? ' (' + resumen.pct + '% de cumplimiento estimado sobre lo evaluable)' : ' (sin suficiente información para un %)'));
-      if (entry.viaOcr && entry.pagesRead < entry.numPages) L.push('  ⚠ ADVERTENCIA: este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas por OCR -- el resto del pliego todavía no se ha analizado.');
+      if (lecturaParcial(entry)) L.push('  ⚠ ADVERTENCIA: este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' por OCR' : '') + ' -- el resto del pliego todavía no se ha analizado.');
       if (resumen.fortalezas.length) L.push('  Fortalezas: ' + resumen.fortalezas.join(', '));
       if (resumen.debilidades.length) L.push('  Debilidades: ' + resumen.debilidades.join(', '));
       if (resumen.riesgos.length){ L.push('  Riesgos y pendientes:'); resumen.riesgos.forEach(r => L.push('    - ' + r)); }
@@ -8329,7 +8368,7 @@
       slot.innerHTML = '<div class="analysis-loading">Leyendo PDF…</div>';
       try {
         await appReady;
-        const { text, numPages, pagesRead, paginaOffsets } = await extractPdfText(file);
+        const { text, numPages, pagesRead, paginaOffsets } = await extractPdfText(file, TEXT_BATCH_PAGES);
         if (!text || text.trim().length < 200){
           pendingOcrFiles[id] = file;
           const blobUrl = URL.createObjectURL(file);
@@ -8350,7 +8389,11 @@
         const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, text: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad };
         analisis[id] = entry;
         saveAnalisis();
-        delete pendingPliegoFiles[id];
+        // El archivo solo se descarta de memoria si ya se leyó completo --
+        // si quedan páginas pendientes, "Seguir leyendo más páginas" (ver
+        // .analysis-continue-btn más abajo) lo necesita para continuar. Mismo
+        // criterio ya usado en el camino OCR (pendingOcrFiles).
+        if (pagesRead >= numPages) delete pendingPliegoFiles[id];
         // Identifica y evalúa la experiencia requerida automáticamente, sin
         // esperar un segundo clic en "Evaluar cumplimiento de experiencia".
         evaluarExperienciaDeProceso(id, slot);
@@ -8442,6 +8485,56 @@
         // acumulado, igual que en las otras 2 rutas de lectura del pliego.
         evaluarExperienciaDeProceso(id, slot);
         if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
+      } catch(err){
+        const ctx = itemYScorePara(id);
+        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
+      }
+      return;
+    }
+
+    // 3b) "Seguir leyendo más páginas" -- siguiente tanda de la capa de texto
+    // normal (sin OCR). Mismo mecanismo que el bloque anterior, pero con
+    // extractPdfText en vez de ocrPdfPages -- corrige SECOP-010: antes un
+    // pliego con texto real de más de TEXT_BATCH_PAGES páginas se truncaba
+    // en silencio, sin ningún botón para seguir leyendo el resto.
+    const contTextBtn = e.target.closest('.analysis-continue-btn');
+    if (contTextBtn){
+      const btn = contTextBtn;
+      const id = btn.getAttribute('data-analisis-id');
+      const file = pendingPliegoFiles[id];
+      const entry = analisis[id];
+      const slot = btn.closest('.analysis-block').parentElement;
+      if (!file || !entry){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para continuar leyéndolo.</div>';
+        return;
+      }
+      const from = entry.pagesRead + 1;
+      try {
+        await appReady;
+        slot.innerHTML = '<div class="analysis-loading">Leyendo el resto del PDF…</div>';
+        const result = await extractPdfText(file, TEXT_BATCH_PAGES, from);
+        const baseLen = (entry.text || '').length;
+        const fullText = (entry.text || '') + result.text;
+        entry.text = fullText;
+        entry.paginaOffsets = (entry.paginaOffsets || []).concat(
+          (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
+        );
+        entry.pagesRead = result.pagesRead;
+        entry.ts = Date.now();
+        const { hallazgos: nuevosHallazgos, kResidual, exigencias } = analizarTexto(fullText);
+        entry.kResidual = kResidual;
+        entry.exigencias = exigencias;
+        entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
+        entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
+        entry.viabilidad = calcularViabilidad(entry.redFlags);
+        delete entry.comp; // por si venía del esquema viejo de un solo perfil
+        analisis[id] = entry;
+        saveAnalisis();
+        // Cada tanda nueva puede traer requisitos de experiencia que las
+        // páginas anteriores no tenían -- se re-evalúa con el texto
+        // acumulado, igual que en las otras 2 rutas de lectura del pliego.
+        evaluarExperienciaDeProceso(id, slot);
+        if (entry.pagesRead >= entry.numPages) delete pendingPliegoFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
         slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
