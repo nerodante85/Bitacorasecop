@@ -2307,7 +2307,7 @@
   function renderPerfilSelect(){
     const ids = Object.keys(perfiles);
     perfilSelectEl.innerHTML = ids.length
-      ? ids.map(id => '<option value="' + id + '"' + (id === perfilActivoId ? ' selected' : '') + '>' + escapeHtml(perfiles[id].nombre || 'Sin nombre') + '</option>').join('')
+      ? ids.map(id => '<option value="' + escapeHtml(id) + '"' + (id === perfilActivoId ? ' selected' : '') + '>' + escapeHtml(perfiles[id].nombre || 'Sin nombre') + '</option>').join('')
       : '<option value="">Sin perfiles todavía -- usa "+ Nuevo perfil"</option>';
   }
 
@@ -2617,7 +2617,7 @@
     if (!personalSelectEl) return;
     const ids = Object.keys(perfilesProfesionales);
     personalSelectEl.innerHTML = ids.length
-      ? ids.map(id => '<option value="' + id + '"' + (id === personalActivoId ? ' selected' : '') + '>' + escapeHtml(perfilesProfesionales[id].nombre || 'Sin nombre') + '</option>').join('')
+      ? ids.map(id => '<option value="' + escapeHtml(id) + '"' + (id === personalActivoId ? ' selected' : '') + '>' + escapeHtml(perfilesProfesionales[id].nombre || 'Sin nombre') + '</option>').join('')
       : '<option value="">Sin perfiles todavía</option>';
   }
 
@@ -2870,7 +2870,7 @@
         text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
       }
     } catch(err){
-      perfilRupStatusEl.textContent = 'No se pudo leer el RUP (' + (err && err.message ? err.message : 'error') + ').';
+      perfilRupStatusEl.textContent = 'No se pudo leer el RUP (' + mensajeErrorPdf(err) + ').';
       return;
     }
 
@@ -3121,7 +3121,7 @@
       const r = await extraerCamposConPosicion(file, 3);
       items = r.items; numPages = r.numPages; pagesRead = r.pagesRead;
     } catch(err){
-      perfilRutStatusEl.textContent = 'No se pudo leer el RUT (' + (err && err.message ? err.message : 'error') + ').';
+      perfilRutStatusEl.textContent = 'No se pudo leer el RUT (' + mensajeErrorPdf(err) + ').';
       return;
     }
 
@@ -3546,6 +3546,20 @@
     return { text: text, numPages: pdf.numPages, pagesRead: to, paginaOffsets: paginaOffsets };
   }
 
+  // Antes, un PDF protegido con contraseña caía en el mismo mensaje crudo
+  // de pdf.js ("PasswordException" o similar) que cualquier otro error --
+  // confuso para alguien sin conocimiento técnico. pdf.js SIEMPRE nombra
+  // esta excepción `PasswordException` (NEED_PASSWORD o INCORRECT_PASSWORD,
+  // no hace falta distinguir cuál para el mensaje al usuario) -- un solo
+  // punto para traducirla a español claro, reutilizado en todos los
+  // catch de lectura de PDF (RUP, RUT, Estudio Previo, pliego, OCR).
+  function mensajeErrorPdf(err){
+    if (err && err.name === 'PasswordException'){
+      return 'Este PDF está protegido con contraseña -- quítasela (por ejemplo, abriéndolo en un lector de PDF y guardando una copia sin contraseña) antes de subirlo aquí.';
+    }
+    return (err && (err.message || err.toString())) || 'error desconocido';
+  }
+
   // maxPages = tamaño de la tanda a leer en ESTE llamado (no un tope
   // absoluto del documento); fromPage (opcional, default 1) permite
   // continuar donde quedó una lectura anterior -- mismo patrón ya usado en
@@ -3612,14 +3626,20 @@
   }
 
   // ==========================================================================
-  // EVALUACIÓN DE EXPERIENCIA: cruce Excel "Experiencia del proponente" (Fuente
-  // A) contra Excel "Matriz de experiencia / Formato" (Fuente B). A diferencia
-  // del análisis de pliegos PDF de arriba (que compara texto libre por palabra
-  // suelta), este motor trabaja con datos ESTRUCTURADOS fila por fila y evalúa
-  // criterio por criterio, con evidencia trazable (qué contrato, qué campo) y
-  // tres estados: CUMPLE / NO CUMPLE / NO DETERMINABLE. NO DETERMINABLE nunca
-  // se convierte automáticamente en NO CUMPLE -- si falta un dato para decidir,
-  // se dice explícitamente qué falta, tal como se pidió.
+  // EVALUACIÓN DE EXPERIENCIA: motor de comparación estructurado, fila por
+  // fila -- la experiencia acreditada de la empresa (Excel/PDF/Word de
+  // "Experiencia del proponente", Fuente A, ver más abajo) contra los
+  // requisitos de experiencia, que YA NO se suben a mano en un Excel aparte
+  // (esa "Matriz de experiencia / Formato" -- antes Fuente B -- se eliminó;
+  // ver "Los requisitos de experiencia salen del Pliego/Estudio Previo" en
+  // CLAUDE.md) -- ahora se extraen automáticamente del Pliego de Condiciones
+  // y/o Estudio Previo de CADA proceso (extraerRequisitosDePliego). A
+  // diferencia del análisis de pliegos PDF de arriba (que compara texto
+  // libre por palabra suelta), este motor evalúa criterio por criterio, con
+  // evidencia trazable (qué contrato, qué campo) y tres estados: CUMPLE /
+  // NO CUMPLE / NO DETERMINABLE. NO DETERMINABLE nunca se convierte
+  // automáticamente en NO CUMPLE -- si falta un dato para decidir, se dice
+  // explícitamente qué falta.
   // ==========================================================================
 
   function loadXlsxLib(){
@@ -4886,42 +4906,57 @@
     return paginaOffsets[paginaOffsets.length - 1].pagina;
   }
 
-  // Busca la PRIMERA mención de cada regla que traiga un número junto a la
+  // Busca TODAS las menciones de cada regla que traigan un número junto a la
   // etiqueta (el regex exige ambos en el mismo fragmento -- una mención suelta
   // sin cifra cercana no dispara nada, no se inventa un valor). Reporta dos
   // situaciones bien distintas -- ver el comentario de REGLAS_RED_FLAG arriba:
   // por debajo del mínimo legal (cifra objetiva, cita el artículo exacto), o
   // muy por encima de `umbralProporcion` veces el mínimo (criterio orientativo
   // nuestro, cita el principio general, nunca "infringe la ley").
+  //
+  // Antes se usaba `t.match(regla.regex)` con un regex SIN el flag 'g' --
+  // eso se detiene en la primera coincidencia; un pliego que repitiera la
+  // misma cláusula dos veces (ej. una vez en el cuerpo y otra en un anexo,
+  // con cifras distintas) solo evaluaba la primera mención, dejando la
+  // segunda sin revisar en silencio. Se clona el regex con 'g' en cada
+  // llamada (los objetos de REGLAS_RED_FLAG se dejan sin 'g' a propósito,
+  // para no arrastrar estado -- `lastIndex` -- entre distintas llamadas ni
+  // entre pasadas de este mismo texto).
   function detectarRedFlags(text, paginaOffsets){
     const t = String(text || '');
     const hallazgos = [];
     const unidadTxt = (regla) => regla.unidad === '%' ? '%' : ' SMMLV';
     REGLAS_RED_FLAG.forEach(regla => {
-      const m = t.match(regla.regex);
-      if (!m) return;
-      const valor = parseNumCO(m[1]);
-      if (valor == null) return;
-      const base = {
-        pagina: paginaDeOffset(paginaOffsets, m.index),
-        snippet: (function(){ const s = m[0].trim().replace(/\s+/g, ' '); return s.length > 200 ? s.slice(0, 200) + '…' : s; })()
-      };
-      if (valor < regla.minimo){
-        hallazgos.push(Object.assign({}, base, {
-          id: regla.id + '-baja', severidad: regla.severidadMinimo,
-          mensaje: regla.etiqueta + ' por debajo del mínimo legal: el pliego exige ' + valor + unidadTxt(regla) +
-            ' (el mínimo legal es ' + regla.minimo + unidadTxt(regla) +
-            '). Puede ser un error de redacción del pliego (revisa si el valor del contrato es el que parece) o una irregularidad real -- confírmalo con la entidad antes de ofertar.',
-          articulo: regla.articulo
-        }));
-      } else if (regla.umbralProporcion && valor >= regla.minimo * regla.umbralProporcion){
-        hallazgos.push(Object.assign({}, base, {
-          id: regla.id + '-alta', severidad: 'baja',
-          mensaje: regla.etiqueta + ' muy por encima del mínimo legal: el pliego exige ' + valor + unidadTxt(regla) +
-            ' (el mínimo legal es ' + regla.minimo + unidadTxt(regla) + ', más de ' + regla.umbralProporcion + 'x). ' +
-            'No es necesariamente una infracción -- el decreto no fija un techo -- pero vale la pena revisar si es proporcional al objeto del contrato (a veces refleja un pliego hecho a la medida de un proponente específico).',
-          articulo: CITA_PROPORCIONALIDAD
-        }));
+      const re = new RegExp(regla.regex.source, regla.regex.flags.replace('g', '') + 'g');
+      let m;
+      let cuenta = 0; // solo cuenta menciones que SÍ resultaron en un hallazgo -- así la primera nunca lleva sufijo, igual que antes
+      while ((m = re.exec(t)) !== null){
+        if (m[0].length === 0){ re.lastIndex++; continue; } // salvaguarda: evita un loop infinito si algún regex futuro pudiera matchear vacío
+        const valor = parseNumCO(m[1]);
+        if (valor == null) continue;
+        const base = {
+          pagina: paginaDeOffset(paginaOffsets, m.index),
+          snippet: (function(){ const s = m[0].trim().replace(/\s+/g, ' '); return s.length > 200 ? s.slice(0, 200) + '…' : s; })()
+        };
+        if (valor < regla.minimo){
+          cuenta++;
+          hallazgos.push(Object.assign({}, base, {
+            id: regla.id + '-baja' + (cuenta > 1 ? '-' + cuenta : ''), severidad: regla.severidadMinimo,
+            mensaje: regla.etiqueta + ' por debajo del mínimo legal: el pliego exige ' + valor + unidadTxt(regla) +
+              ' (el mínimo legal es ' + regla.minimo + unidadTxt(regla) +
+              '). Puede ser un error de redacción del pliego (revisa si el valor del contrato es el que parece) o una irregularidad real -- confírmalo con la entidad antes de ofertar.',
+            articulo: regla.articulo
+          }));
+        } else if (regla.umbralProporcion && valor >= regla.minimo * regla.umbralProporcion){
+          cuenta++;
+          hallazgos.push(Object.assign({}, base, {
+            id: regla.id + '-alta' + (cuenta > 1 ? '-' + cuenta : ''), severidad: 'baja',
+            mensaje: regla.etiqueta + ' muy por encima del mínimo legal: el pliego exige ' + valor + unidadTxt(regla) +
+              ' (el mínimo legal es ' + regla.minimo + unidadTxt(regla) + ', más de ' + regla.umbralProporcion + 'x). ' +
+              'No es necesariamente una infracción -- el decreto no fija un techo -- pero vale la pena revisar si es proporcional al objeto del contrato (a veces refleja un pliego hecho a la medida de un proponente específico).',
+            articulo: CITA_PROPORCIONALIDAD
+          }));
+        }
       }
     });
     return hallazgos;
@@ -5383,7 +5418,14 @@
   function evaluarProceso(item, s, matriz, entry){
     const gates = [];
     const g = (nombre, estado, detalle) => gates.push({ nombre: nombre, estado: estado, detalle: detalle });
-    const valor = Number(item.valor) || null;
+    // No `Number(item.valor) || null`: un proceso con valor base EXACTAMENTE
+    // en $0 (dato real, aunque inusual) volvía a caer en "sin valor" por el
+    // mismo patrón de "0 tratado como falsy" ya corregido en parseValorUnidad/
+    // fmtMoney (ver CLAUDE.md). No producía un falso GO por sí solo (cae a
+    // 'nd', que el fix del veredicto ya bloquea), pero mostraba un dato
+    // impreciso ("no reporta valor base" en vez de "$0").
+    const valorNum = Number(item.valor);
+    const valor = (item.valor != null && !isNaN(valorNum)) ? valorNum : null;
     const { minV, maxV } = getInputs();
     const daysLeft = s ? s.daysLeft : null;
 
@@ -5981,6 +6023,18 @@
     return { ancla, coincide };
   }
 
+  // La más reciente de las fechas plausibles del registro (findAllDates ya
+  // descarta fechas centinela/basura) -- para un contrato ya adjudicado o
+  // ejecutado, suele ser la fecha de firma/terminación, una referencia
+  // razonable de "cuándo pasó esto" sin depender de un nombre de columna
+  // exacto (que difiere entre SECOP I y SECOP II). Se usa solo para mostrar
+  // la antigüedad de la muestra en "Sugerencia de oferta económica" -- ver
+  // sugerenciaOfertaEconomica/CLAUDE.md, hallazgo SECOP-019.
+  function fechaMasRecienteDe(record){
+    const fechas = findAllDates(record).map(d => d.val).sort();
+    return fechas.length ? fechas[fechas.length - 1] : null;
+  }
+
   async function buscarAdjudicaciones(entidad){
     const { ancla, coincide } = prepararBusquedaPorNombre(entidad);
 
@@ -6007,7 +6061,8 @@
           fuente: 'II', objeto: obj, referencia: ref,
           adjudicatario: prove,
           valorAdj: adjValN > 0 ? adjValN : null,
-          precioBase: base2N > 0 ? base2N : null
+          precioBase: base2N > 0 ? base2N : null,
+          fecha: fechaMasRecienteDe(r)
         });
       });
       return out;
@@ -6041,7 +6096,8 @@
           fuente: 'I', objeto: obj, referencia: ref,
           adjudicatario: prove,
           valorAdj: adjValN > 0 ? adjValN : null,
-          precioBase: base2N > 0 ? base2N : null
+          precioBase: base2N > 0 ? base2N : null,
+          fecha: fechaMasRecienteDe(r)
         });
       });
       return out;
@@ -6191,10 +6247,24 @@
   function sugerenciaOfertaEconomica(lista, presupuestoOficial){
     const presupuesto = Number(presupuestoOficial);
     if (!presupuesto || presupuesto <= 0) return { aplica: false, motivo: 'Este proceso no tiene un presupuesto oficial detectado para comparar.' };
-    const descuentos = lista.map(descuentoComparable).filter(d => d !== null).sort((a, b) => a - b);
+    // Adjudicaciones que SÍ entran en la muestra (mismas que dan un descuento
+    // no-null) -- se filtran una sola vez para poder sacar tanto los
+    // descuentos como el rango de fechas de EXACTAMENTE el mismo conjunto.
+    const comparables = lista.filter(a => descuentoComparable(a) !== null);
+    const descuentos = comparables.map(descuentoComparable).sort((a, b) => a - b);
     if (descuentos.length < OFERTA_MIN_MUESTRA){
       return { aplica: false, motivo: 'Solo ' + descuentos.length + ' adjudicación(es) comparable(s) de esta entidad -- muy pocas para sugerir un patrón (mínimo ' + OFERTA_MIN_MUESTRA + ').' };
     }
+    // Antigüedad de la muestra -- antes la sugerencia no decía si el
+    // "patrón histórico" venía de hace 2 meses o de hace 8 años (una
+    // entidad puede cambiar de política de descuentos con el tiempo). Solo
+    // se cuentan las adjudicaciones que SÍ tienen una fecha plausible
+    // (fechaMasRecienteDe puede devolver null) -- si ninguna la tiene, se
+    // dice explícitamente en vez de omitirlo en silencio.
+    const fechasMuestra = comparables.map(a => a.fecha).filter(Boolean).sort();
+    const rangoFechas = fechasMuestra.length
+      ? { desde: fechasMuestra[0], hasta: fechasMuestra[fechasMuestra.length - 1], conFecha: fechasMuestra.length, sinFecha: comparables.length - fechasMuestra.length }
+      : null;
     const mediana = descuentos[Math.floor(descuentos.length / 2)];
     const masSuave = descuentos[descuentos.length - 1];  // el descuento más leve visto (el menos negativo)
     const masFuerte = descuentos[0];                     // el descuento más fuerte visto (el más negativo)
@@ -6212,7 +6282,7 @@
       return { valor: valor, pct: (valor / presupuesto - 1) * 100 };
     };
     return {
-      aplica: true, muestra: descuentos.length, presupuestoOficial: presupuesto,
+      aplica: true, muestra: descuentos.length, presupuestoOficial: presupuesto, rangoFechas: rangoFechas,
       conservador: paraEscenario(masSuave),
       competitivo: paraEscenario(mediana),
       agresivo: paraEscenario(masFuerte)
@@ -6237,7 +6307,19 @@
         tarjeta('oferta-competitivo', 'Competitivo', sug.competitivo) +
         tarjeta('oferta-agresivo', 'Agresivo', sug.agresivo) +
       '</div>' +
-      '<div class="analysis-disclaimer">Basado en ' + sug.muestra + ' adjudicación(es) comparables de esta entidad (SECOP I+II): "conservador" = el descuento más leve que esta entidad ha aplicado sobre su presupuesto oficial; "competitivo" = la mediana; "agresivo" = el descuento más fuerte visto. Es una referencia estadística sobre el comportamiento HISTÓRICO de la entidad, no una predicción ni garantía de adjudicación -- verifica siempre las condiciones específicas del pliego (fórmula de evaluación económica, causales de rechazo por oferta artificialmente baja, presupuesto oficial exacto) antes de decidir cuánto ofertar.</div>';
+      '<div class="analysis-disclaimer">Basado en ' + sug.muestra + ' adjudicación(es) comparables de esta entidad (SECOP I+II)' + rangoFechasTexto(sug.rangoFechas) + ': "conservador" = el descuento más leve que esta entidad ha aplicado sobre su presupuesto oficial; "competitivo" = la mediana; "agresivo" = el descuento más fuerte visto. Es una referencia estadística sobre el comportamiento HISTÓRICO de la entidad, no una predicción ni garantía de adjudicación -- verifica siempre las condiciones específicas del pliego (fórmula de evaluación económica, causales de rechazo por oferta artificialmente baja, presupuesto oficial exacto) antes de decidir cuánto ofertar.</div>';
+  }
+
+  // Antes la sugerencia no decía si la muestra venía de hace 2 meses o de
+  // hace 8 años -- una entidad puede cambiar de política de descuentos con
+  // el tiempo, y un patrón muy antiguo pesa distinto que uno reciente.
+  // Solo cuenta las adjudicaciones con fecha reconocida; si ninguna la
+  // tiene, lo dice explícito en vez de omitir la antigüedad en silencio.
+  function rangoFechasTexto(rango){
+    if (!rango) return ', antigüedad no determinable (sin fecha reconocida en los registros)';
+    const desde = fmtDate(rango.desde), hasta = fmtDate(rango.hasta);
+    const periodo = desde === hasta ? desde : (desde + ' a ' + hasta);
+    return ', entre ' + periodo + (rango.sinFecha ? ' -- ' + rango.sinFecha + ' de la muestra sin fecha reconocida' : '');
   }
 
   // Llena el desplegable de la sección de evaluación con los procesos en pantalla.
@@ -7221,9 +7303,21 @@
     const seen = new Set();
     const deduped = [];
     merged.forEach(r => {
-      const key = (extractUrl(r) || '') + '|' + JSON.stringify(r).slice(0, 200);
+      // Sin truncar a 200 caracteres (como antes): dos registros distintos
+      // que compartieran ese mismo prefijo (posible cuando no hay URL y el
+      // resto de los campos difiere más adelante en el JSON) se habrían
+      // deduplicado como si fueran el mismo, perdiendo uno en silencio.
+      const key = (extractUrl(r) || '') + '|' + JSON.stringify(r);
       if (!seen.has(key)){ seen.add(key); deduped.push(r); }
     });
+    // Si ALGUNA de las anclas trajo exactamente 300 filas (el $limit de
+    // fetchSecopDataset), es señal de que esa ancla probablemente tiene MÁS
+    // resultados reales que los traídos -- sin esto, una palabra clave muy
+    // común a nivel nacional podía quedarse corta sin ningún aviso. Se
+    // adjunta como propiedad del array (no cambia su forma ni rompe a
+    // ningún llamador existente que solo lo recorra/mapee) -- solo
+    // runSearch() la lee, para mostrarla en el status de la búsqueda.
+    deduped.truncado = batches.some(b => b.length >= 300);
     return deduped;
   }
 
@@ -7399,7 +7493,8 @@
       const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
       lastRecords = live;
       render(live, keywords, geos, municipios, minV, maxV, numProceso);
-      dataFreshnessEl.textContent = 'Datos en vivo (' + live.length + ' procesos) — consultados justo ahora en datos.gov.co.';
+      dataFreshnessEl.textContent = 'Datos en vivo (' + live.length + ' procesos) — consultados justo ahora en datos.gov.co.' +
+        (live.truncado ? ' ⚠ Alguna de tus palabras clave trajo el máximo de filas por consulta -- puede haber más procesos reales de los que se muestran aquí; prueba con una palabra más específica si buscas algo puntual.' : '');
     } catch(err){
       // Sin conexión en vivo (p.ej. corriendo dentro de un artifact de Claude.ai):
       // usa el snapshot de respaldo (snapshot.json) sin dejar la pantalla vacía.
@@ -7443,8 +7538,16 @@
   function futureDate(days){ const d = new Date(); d.setDate(d.getDate() + days); return d.toISOString(); }
   function pastDate(days){ const d = new Date(); d.setDate(d.getDate() - days); return d.toISOString(); }
 
+  // Mitigación estándar de "CSV/Formula Injection": Excel/LibreOffice
+  // interpretan una celda que EMPIEZA con =, +, -, @ (o tab/CR) como una
+  // fórmula, no como texto -- un objeto de un proceso real que por
+  // casualidad empiece así (ej. "-Interventoría...") se ejecutaría como
+  // fórmula al abrir el CSV exportado en vez de mostrarse como texto. Anteponer
+  // un apóstrofo fuerza la interpretación como texto en ambos programas, sin
+  // alterar el valor visible de la celda.
   function csvEscape(v){
-    const s = (v === null || v === undefined) ? '' : String(v);
+    let s = (v === null || v === undefined) ? '' : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
   }
@@ -8006,7 +8109,7 @@
         filas = r.filas; numPages = r.numPages; pagesRead = r.pagesRead;
       }
     } catch(err){
-      expevalExpStatusEl.textContent = 'No se pudo leer el PDF (' + (err && err.message ? err.message : 'error') + ').';
+      expevalExpStatusEl.textContent = 'No se pudo leer el PDF (' + mensajeErrorPdf(err) + ').';
       return;
     }
 
@@ -8138,7 +8241,7 @@
       saveAnalisis();
       if (slot){ const ctx = itemYScorePara(entry.id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
     } catch(err){
-      alert('No se pudo leer el Estudio Previo (' + (err && err.message ? err.message : 'error') + ').');
+      alert('No se pudo leer el Estudio Previo (' + mensajeErrorPdf(err) + ').');
     }
   }
 
@@ -8398,7 +8501,7 @@
         // esperar un segundo clic en "Evaluar cumplimiento de experiencia".
         evaluarExperienciaDeProceso(id, slot);
       } catch(err){
-        slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(err.message || 'error') + ').</div>';
+        slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(mensajeErrorPdf(err)) + ').</div>';
       }
       return;
     }
@@ -8438,7 +8541,7 @@
         // páginas pendientes, "Seguir leyendo" lo necesita para continuar.
         if (pagesRead >= numPages) delete pendingOcrFiles[id];
       } catch(err){
-        slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
+        slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
       }
       return;
     }
@@ -8487,7 +8590,7 @@
         if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
-        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
+        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo.</div>';
       }
       return;
     }
@@ -8537,7 +8640,7 @@
         if (entry.pagesRead >= entry.numPages) delete pendingPliegoFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
-        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml((err && (err.message || err.toString())) || 'error desconocido') + '). Puedes intentar de nuevo.</div>';
+        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo.</div>';
       }
       return;
     }

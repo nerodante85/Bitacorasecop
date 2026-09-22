@@ -4849,3 +4849,90 @@ perfil cuyo K residual está en SMMLV. Confirmado:
 
 Limpieza confirmada: servidor local detenido, fixture PDF eliminado del
 directorio servido, `git status --porcelain` sin cambios espurios.
+
+## Auditoría integral: los 9 hallazgos menores restantes, corregidos
+
+Al pedir revisar los hallazgos "menores" del informe, se releyó cada uno
+contra el código real -- uno (SECOP-015, PAA sin departamento propio) ya
+estaba resuelto de una pasada anterior (`departamentoPorEntidad`, con
+aviso explícito de la aproximación). El usuario pidió corregir los 9 que
+seguían abiertos:
+
+1. **SECOP-013 -- PDF con contraseña mostraba el mensaje crudo de pdf.js.**
+   Nueva `mensajeErrorPdf(err)` (junto a `extractPdfText`): detecta
+   `err.name === 'PasswordException'` (el nombre que pdf.js SIEMPRE usa
+   para esto) y devuelve un mensaje claro en español; para cualquier otro
+   error, el comportamiento es idéntico a antes. Aplicada en los 8 catch
+   de lectura de PDF (RUP, RUT, Excel-experiencia vía PDF, Estudio Previo,
+   Analizar pliego, OCR, y los 2 "seguir leyendo").
+2. **SECOP-014 -- deduplicación frágil de `fetchAllForDataset`.** La clave
+   de dedup truncaba el JSON del registro a 200 caracteres
+   (`JSON.stringify(r).slice(0, 200)`) -- dos registros distintos que
+   compartieran ese prefijo (sin URL, con el resto de los campos
+   distintos más adelante) se habrían deduplicado como si fueran el
+   mismo. Se quitó el `.slice(0, 200)`.
+3. **SECOP-016 -- `$limit=300` sin ningún aviso de "hay más resultados".**
+   `fetchAllForDataset` ahora adjunta `.truncado` (booleano) al array que
+   devuelve (sin cambiar su forma para los demás llamadores) -- `true` si
+   alguna ancla trajo exactamente 300 filas. `runSearch` lo usa para
+   agregar un aviso al status cuando aplica.
+4. **SECOP-017 -- CSV/Formula Injection sin neutralizar.** `csvEscape`
+   antepone un apóstrofo cuando el valor empieza con `=`, `+`, `-`, `@`,
+   tab o retorno de carro -- mitigación estándar (fuerza texto en vez de
+   fórmula en Excel/LibreOffice), sin alterar el valor visible.
+5. **SECOP-018 -- un proceso con valor base en `$0` exacto se trataba
+   como "sin valor".** Mismo patrón de "0 como falsy" que los críticos ya
+   corregidos, aquí en `evaluarProceso`: `Number(item.valor) || null` →
+   ahora solo `null` cuando `item.valor` de verdad no existe o no es un
+   número válido.
+6. **SECOP-019 -- la sugerencia de oferta económica no citaba la
+   antigüedad de la muestra histórica.** `buscarAdjudicaciones` ahora
+   extrae `fecha` por registro (`fechaMasRecienteDe`, reutiliza
+   `findAllDates` -- la más reciente de las fechas plausibles del
+   registro, sin depender de un nombre de columna exacto, distinto entre
+   SECOP I/II). `sugerenciaOfertaEconomica` calcula el rango de fechas de
+   la muestra COMPARABLE (mismo filtro que ya decide qué adjudicaciones
+   entran) y `rangoFechasTexto()` lo agrega al disclaimer ("...entre 01
+   de jun de 2022 a 10 de mar de 2024") o dice explícitamente que no se
+   pudo determinar si ninguna adjudicación comparable tiene fecha.
+7. **SECOP-020 -- `detectarRedFlags` solo detectaba la primera mención de
+   cada regla por documento** (los regex de `REGLAS_RED_FLAG` no tienen
+   el flag `g`, a propósito, para no arrastrar estado entre llamadas).
+   Ahora se clona cada regex con `g` DENTRO de cada llamada a
+   `detectarRedFlags` y se itera con `exec()` en un `while` -- un pliego
+   que repita la misma cláusula (ej. cuerpo + anexo) con cifras distintas
+   ya no pierde la segunda mención. El primer hallazgo válido de cada
+   regla conserva el mismo `id` que antes (`<regla>-baja`/`<regla>-alta`,
+   sin sufijo) -- coincide con los tests existentes; el segundo en
+   adelante gana un sufijo `-2`, `-3`...
+8. **SECOP-021 -- comentario desactualizado sobre la "matriz manual"
+   (Fuente B) ya eliminada**, en el encabezado de la sección de
+   "Evaluación de experiencia". Reescrito para describir la arquitectura
+   actual (requisitos extraídos automáticamente del Pliego/Estudio
+   Previo, no subidos a mano).
+9. **SECOP-022 -- `id` de perfil (empresa y personal) sin `escapeHtml` en
+   `<option value>`.** No explotable (siempre un ID interno generado por
+   la app), pero corregido por consistencia con el resto del código.
+
+**Verificado**: 70/70 tests de humo (sin regresión en los tests ya
+existentes de `detectarRedFlags`, que exigían que el primer hallazgo
+válido conservara su `id` sin sufijo). Además, verificación directa en
+Node de las funciones reales extraídas del archivo (mismo patrón ya
+usado para los hallazgos críticos):
+- `detectarRedFlags` con una cláusula de garantía de cumplimiento
+  repetida dos veces (5% y 3%, ambas por debajo del mínimo) → 2
+  hallazgos (`garantia-cumplimiento-baja` y `-baja-2`), antes solo 1.
+- `csvEscape('=SUM(A1:A9)')` → `"'=SUM(A1:A9)"`; `csvEscape('-Interventoría...')`
+  → con apóstrofo antepuesto; texto normal sin tocar.
+- `sugerenciaOfertaEconomica` con una muestra de 4 adjudicaciones (3 con
+  fecha, 1 sin) → `rangoFechasTexto` da "entre 01 de jun de 2022 a 10 de
+  mar de 2024 -- 1 de la muestra sin fecha reconocida"; sin ninguna fecha
+  en la muestra → "antigüedad no determinable...".
+- `mensajeErrorPdf({name:'PasswordException'})` → mensaje claro en
+  español; cualquier otro error → se comporta igual que antes.
+
+No se armó un caso de extremo a extremo en navegador para estos 9 (a
+diferencia de los críticos/importantes) -- ninguno puede producir un
+CUMPLE/GO falso, así que se consideró suficiente la verificación directa
+de cada función real más los 70 tests de humo. `git status --porcelain`
+confirma que no quedaron archivos de prueba sueltos en el repositorio.
