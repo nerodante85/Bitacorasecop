@@ -11,3 +11,11 @@
 # ============================================================================
 [functions.daily-digest]
 verify_jwt = false
+
+# radar-afinidad la llama el navegador con la sesión activa del usuario
+# (supabase-js adjunta el JWT automáticamente) -- verify_jwt = true es el
+# default de Supabase, se declara explícito para no depender del default
+# y no repetir el diagnóstico de la fase 6 (un 401 misterioso porque no
+# estaba declarado).
+[functions.radar-afinidad]
+verify_jwt = true

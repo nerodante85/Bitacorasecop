@@ -19,7 +19,7 @@
      vacíos, porque olvidar esto es exactamente el tipo de bug silencioso que
      ya se vio antes con Tesseract.js: la CSP bloquea la llamada sin que la
      app muestre error propio, solo un mensaje suelto en la consola. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.supabase.co https://*.functions.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
 <title>Bitácora — Consultoría en contratación pública</title>
 <!-- Favicon: el monograma B (ver "Logo: monograma B" en CLAUDE.md) sobre
      cuadrado redondeado tinta -- SVG embebido en base64 porque es la única
@@ -557,6 +557,14 @@
   #bitacora-root .tag-tip::after { content: 'ⓘ'; margin-left: 3px; opacity: .6; font-size: 9px; }
   #bitacora-root .tag-tip-note { margin-top: 6px; }
   #bitacora-root .tag-tip-note[hidden] { display: none; }
+
+  #bitacora-root .afinidad-badge { margin: 8px 0; padding: 8px 10px; border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.5; }
+  #bitacora-root .afinidad-badge[hidden] { display: none; }
+  #bitacora-root .afinidad-badge .afinidad-score { font-weight: 700; margin-right: 6px; }
+  #bitacora-root .afinidad-badge ul { margin: 4px 0 0; padding-left: 18px; }
+  #bitacora-root .afinidad-badge.afinidad-alta { background: var(--success-bg, rgba(30,122,69,.1)); color: var(--success); }
+  #bitacora-root .afinidad-badge.afinidad-media { background: var(--warning-bg, rgba(166,114,42,.1)); color: var(--warning); }
+  #bitacora-root .afinidad-badge.afinidad-baja { background: var(--danger-bg, rgba(155,44,32,.1)); color: var(--danger); }
 
   #bitacora-root .row-obj {
     font-size: 13.5px;
@@ -1210,6 +1218,7 @@
             <div class="actions">
               <button class="btn-primary" id="bt-search">Aplicar filtros</button>
               <button class="btn-secondary" id="bt-demo">Ver datos de ejemplo</button>
+              <button class="btn-secondary" id="bt-radar">🎯 Radar de Afinidad IA</button>
             </div>
             <div class="saved-note" id="bt-data-freshness" style="margin-top:8px;"></div>
           </div>
@@ -1411,6 +1420,10 @@
                   <label>Correo electrónico</label>
                   <input id="bt-perfil-correo" type="email" placeholder="ej. contacto@empresa.com">
                 </div>
+              </div>
+              <div class="field full">
+                <label>Objeto social / actividad principal</label>
+                <textarea id="bt-perfil-objeto-social" rows="3" placeholder="ej. Construcción de obras civiles, mantenimiento vial y consultoría en ingeniería"></textarea>
               </div>
             </div>
             <div class="actions">
@@ -2078,6 +2091,7 @@
   const ordenEl = document.getElementById('bt-orden');
   const searchBtn = document.getElementById('bt-search');
   const demoBtn = document.getElementById('bt-demo');
+  const radarBtn = document.getElementById('bt-radar');
   const alertaNombreEl = document.getElementById('bt-alerta-nombre');
   const alertaGuardarBtn = document.getElementById('bt-alerta-guardar');
   const alertaSavedEl = document.getElementById('bt-alerta-saved');
@@ -2116,6 +2130,7 @@
   const perfilDireccionEl = document.getElementById('bt-perfil-direccion');
   const perfilCiudadEl = document.getElementById('bt-perfil-ciudad');
   const perfilCorreoEl = document.getElementById('bt-perfil-correo');
+  const perfilObjetoSocialEl = document.getElementById('bt-perfil-objeto-social');
   const perfilSaveBtn = document.getElementById('bt-perfil-save');
   const perfilSavedEl = document.getElementById('bt-perfil-saved');
   const perfilSelectEl = document.getElementById('bt-perfil-select');
@@ -2208,7 +2223,7 @@
     // Datos de contacto/legales -- solo se usan para generar la carta de
     // presentación (Fase 10, ver generarCartaTexto), no entran en ningún
     // gate go/no-go.
-    nit: '', representanteLegal: '', representanteCedula: '', telefono: '', direccion: '', ciudad: '', correo: ''
+    nit: '', representanteLegal: '', representanteCedula: '', telefono: '', direccion: '', ciudad: '', correo: '', objeto_social: ''
   };
   let perfiles = {}; // { id: { nombre, rup, k, kResidual, contratosEnEjecucion } }
   let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
@@ -2352,6 +2367,7 @@
     setCampo(perfilDireccionEl, perfil.direccion);
     setCampo(perfilCiudadEl, perfil.ciudad);
     setCampo(perfilCorreoEl, perfil.correo);
+    setCampo(perfilObjetoSocialEl, perfil.objeto_social);
     renderContratosEjecucion();
     if (perfilSavedEl) perfilSavedEl.textContent = '';
     if (perfilRupStatusEl) perfilRupStatusEl.textContent = 'Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa Guardar perfil).';
@@ -2373,6 +2389,7 @@
       direccion: getCampo(perfilDireccionEl),
       ciudad: getCampo(perfilCiudadEl),
       correo: getCampo(perfilCorreoEl),
+      objeto_social: getCampo(perfilObjetoSocialEl),
       // Los contratos en ejecución se gestionan aparte (agregarContratoEjecucion/
       // eliminarContratoEjecucion/actualizarCampoContrato, con su propio
       // autoguardado) -- si "Guardar perfil" reconstruyera el objeto sin este
@@ -7163,6 +7180,7 @@
           '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority tag-tip" tabindex="0" role="button" title="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '" data-tip="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '">' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
         '</div>' +
         '<div class="tag-tip-note saved-note" hidden></div>' +
+        '<div class="afinidad-badge" hidden></div>' +
         '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 220)) + '</div>' +
         '<div class="row-meta">' +
           '<span>' + escapeHtml(loc) + '</span>' +
@@ -7464,6 +7482,92 @@
       paaListEl.innerHTML = items.map(renderPAAItem).join('');
     } catch(e){
       paaStatusEl.textContent = 'No se pudo consultar el Plan Anual de Adquisiciones (' + (e && e.message ? e.message : 'error') + ').';
+    }
+  }
+
+  // --- RADAR DE AFINIDAD IA (Fase C) ---
+  // Evalúa hasta MAX_RESULTS_PER_CALL_RADAR resultados visibles contra el
+  // "objeto social" configurado en el Perfil de la empresa, vía la Edge
+  // Function radar-afinidad (protegida con la sesión del usuario -- ver
+  // supabase/functions/radar-afinidad/index.ts). El límite de 10 lo aplica
+  // igual la propia función del lado del servidor; se corta aquí también
+  // para no mandar de más.
+  const MAX_RESULTS_PER_CALL_RADAR = 10;
+
+  async function runRadarAfinidad(){
+    if (!SUPABASE_ENABLED){
+      dataFreshnessEl.textContent = 'El Radar de Afinidad IA requiere una cuenta conectada -- inicia sesión desde "Tu cuenta".';
+      return;
+    }
+    if (!lastScored.length){
+      dataFreshnessEl.textContent = 'Primero haz una búsqueda -- el Radar evalúa los procesos que ves en pantalla.';
+      return;
+    }
+    const client = await getSupabaseClient();
+    const { data: { session } } = await client.auth.getSession();
+    if (!session){
+      dataFreshnessEl.textContent = 'Inicia sesión desde "Tu cuenta" para usar el Radar de Afinidad IA.';
+      return;
+    }
+
+    const resultados = lastScored.slice(0, MAX_RESULTS_PER_CALL_RADAR).map(it => ({
+      id: it.id,
+      objeto: it.objeto,
+      entidad: it.entidad,
+      valor: it.valor,
+    }));
+
+    const textoOriginal = radarBtn.textContent;
+    radarBtn.disabled = true;
+    radarBtn.textContent = '⏳ Evaluando afinidad...';
+    dataFreshnessEl.textContent = 'Evaluando afinidad de ' + resultados.length + ' proceso(s) con IA...';
+
+    try {
+      const { data, error } = await client.functions.invoke('radar-afinidad', {
+        body: { resultados },
+        headers: { 'x-radar-debug': '1' },
+      });
+      if (error){
+        let msg = error.message || 'Error al invocar el Radar de Afinidad IA.';
+        // supabase-js no expone directo el body del error en invoke(); se
+        // intenta leer el mensaje real que devolvió la función (422/503/...),
+        // incluido el "log" de depuración (?debug=1 / x-radar-debug) para
+        // diagnosticar sin necesitar `supabase functions logs`.
+        try {
+          const ctx = error.context;
+          if (ctx && typeof ctx.json === 'function'){
+            const body = await ctx.json();
+            if (body && body.error) msg = body.error;
+            if (body && body.log) msg += ' | detalle: ' + JSON.stringify(body.log);
+          }
+        } catch(_e){ /* se conserva el mensaje genérico */ }
+        dataFreshnessEl.textContent = '⚠ ' + msg;
+        return;
+      }
+      if (!data || !Array.isArray(data.scores)){
+        dataFreshnessEl.textContent = '⚠ Respuesta inesperada del Radar de Afinidad IA.';
+        return;
+      }
+      data.scores.forEach(s => {
+        const rowEl = resultsEl.querySelector('.row[data-id="' + CSS.escape(String(s.id)) + '"]');
+        if (!rowEl) return;
+        const badgeEl = rowEl.querySelector('.afinidad-badge');
+        if (!badgeEl) return;
+        const score = Number(s.score) || 0;
+        const nivel = score >= 70 ? 'alta' : (score >= 40 ? 'media' : 'baja');
+        badgeEl.className = 'afinidad-badge afinidad-' + nivel;
+        badgeEl.innerHTML = '<span class="afinidad-score">🎯 Afinidad: ' + score + '/100</span>' +
+          (Array.isArray(s.razones) && s.razones.length
+            ? '<ul>' + s.razones.map(r => '<li>' + escapeHtml(r) + '</li>').join('') + '</ul>'
+            : '');
+        badgeEl.hidden = false;
+      });
+      dataFreshnessEl.textContent = 'Afinidad evaluada para ' + data.scores.length + ' proceso(s).';
+    } catch(e){
+      dataFreshnessEl.textContent = '⚠ No se pudo consultar el Radar de Afinidad IA (' + (e && e.message ? e.message : 'error') + ').';
+    } finally {
+      radarBtn.disabled = false;
+      radarBtn.textContent = textoOriginal;
     }
   }
 
@@ -7822,6 +7926,7 @@
   searchBtn.addEventListener('click', runSearch);
   if (procesoInput) procesoInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
   demoBtn.addEventListener('click', loadDemo);
+  if (radarBtn) radarBtn.addEventListener('click', runRadarAfinidad);
   if (paaBuscarBtn) paaBuscarBtn.addEventListener('click', runBuscarPAA);
   if (paaBorrarBtn) paaBorrarBtn.addEventListener('click', () => {
     paaListEl.innerHTML = '';

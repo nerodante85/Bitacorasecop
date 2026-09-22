@@ -128,6 +128,8 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'normalizePAA', 'buscarPAA', 'departamentoPorEntidad', 'matchesMunicipio',
     'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
+    // Fase C (Radar de Afinidad IA).
+    'runRadarAfinidad',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
