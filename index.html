@@ -557,14 +557,11 @@
   #bitacora-root .tag-tip::after { content: 'ⓘ'; margin-left: 3px; opacity: .6; font-size: 9px; }
   #bitacora-root .tag-tip-note { margin-top: 6px; }
   #bitacora-root .tag-tip-note[hidden] { display: none; }
-
-  #bitacora-root .afinidad-badge { margin: 8px 0; padding: 8px 10px; border-radius: var(--radius-sm); font-size: 12.5px; line-height: 1.5; }
-  #bitacora-root .afinidad-badge[hidden] { display: none; }
-  #bitacora-root .afinidad-badge .afinidad-score { font-weight: 700; margin-right: 6px; }
-  #bitacora-root .afinidad-badge ul { margin: 4px 0 0; padding-left: 18px; }
-  #bitacora-root .afinidad-badge.afinidad-alta { background: var(--success-bg, rgba(30,122,69,.1)); color: var(--success); }
-  #bitacora-root .afinidad-badge.afinidad-media { background: var(--warning-bg, rgba(166,114,42,.1)); color: var(--warning); }
-  #bitacora-root .afinidad-badge.afinidad-baja { background: var(--danger-bg, rgba(155,44,32,.1)); color: var(--danger); }
+  #bitacora-root .ia-controles { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+  #bitacora-root .ia-controles label { font-size: 12.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 3px; }
+  #bitacora-root .ia-cita { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  #bitacora-root .ia-cita summary { cursor: pointer; }
+  #bitacora-root .ia-confirmar { display: flex; gap: 6px; align-items: flex-start; font-size: 12px; margin-top: 4px; }
 
   #bitacora-root .row-obj {
     font-size: 13.5px;
@@ -1218,7 +1215,6 @@
             <div class="actions">
               <button class="btn-primary" id="bt-search">Aplicar filtros</button>
               <button class="btn-secondary" id="bt-demo">Ver datos de ejemplo</button>
-              <button class="btn-secondary" id="bt-radar">🎯 Radar de Afinidad IA</button>
             </div>
             <div class="saved-note" id="bt-data-freshness" style="margin-top:8px;"></div>
           </div>
@@ -2091,7 +2087,6 @@
   const ordenEl = document.getElementById('bt-orden');
   const searchBtn = document.getElementById('bt-search');
   const demoBtn = document.getElementById('bt-demo');
-  const radarBtn = document.getElementById('bt-radar');
   const alertaNombreEl = document.getElementById('bt-alerta-nombre');
   const alertaGuardarBtn = document.getElementById('bt-alerta-guardar');
   const alertaSavedEl = document.getElementById('bt-alerta-saved');
@@ -4098,6 +4093,31 @@
     return (c && (c.fechaFin || c.fechaInicio)) || null;
   }
 
+  // Salario mínimo mensual legal vigente (COP) por año, para convertir el
+  // valor de un contrato (en pesos) a SMMLV cuando un requisito lo exige en
+  // SMMLV. Antes el motor comparaba el valor en PESOS del contrato contra la
+  // cifra en SMMLV del requisito como si fueran la misma unidad (ej. 1.200.000.000
+  // >= 15.000 -> CUMPLE), un falso positivo latente. Valores confirmados en
+  // varias fuentes (Wikipedia "Anexo:Salario mínimo en Colombia", Actualícese,
+  // Decreto 159 de 2026 para 2026).
+  const SMMLV_POR_ANIO = {
+    2015: 644350, 2016: 689455, 2017: 737717, 2018: 781242, 2019: 828116, 2020: 877803,
+    2021: 908526, 2022: 1000000, 2023: 1160000, 2024: 1300000, 2025: 1423500, 2026: 1750905
+  };
+
+  // Convierte el valor de un contrato a SMMLV con el SMMLV del año de la fecha
+  // que dice el pliego (`regla`: 'fecha_terminacion' | 'fecha_inicio'). Sin
+  // regla explícita del pliego, o sin esa fecha, o con un año fuera de la
+  // tabla, devuelve null: no se adivina con qué salario mínimo convertir.
+  function valorContratoEnSmmlv(c, regla){
+    if (!c || c.valor == null) return null;
+    const fecha = regla === 'fecha_terminacion' ? c.fechaFin : (regla === 'fecha_inicio' ? c.fechaInicio : null);
+    if (!fecha) return null;
+    const anio = parseInt(String(fecha).slice(0, 4), 10);
+    const smmlv = SMMLV_POR_ANIO[anio];
+    return smmlv ? { smmlv: c.valor / smmlv, anio: anio } : null;
+  }
+
   // Evalúa la condición temporal de un requisito (si la trae) contra los
   // contratos con coincidencia TOTAL -- análogo a condicionNoVerificable
   // pero con un desenlace adicional: si TODOS los contratos relevantes que
@@ -4416,6 +4436,32 @@
         faltantes.push('No hay contratos relevantes por objeto para comparar contra el valor mínimo exigido (' + req.minValor.valor + ' ' + req.minValor.unidad + ').');
       } else if (relevantes.every(c => c.valor == null)){
         faltantes.push('Los contratos relevantes no tienen un valor reconocido en el Excel (columna de valor no detectada o vacía).');
+        numericoOk = (numericoOk === false) ? false : null; // criterio no verificable: no puede quedar CUMPLE por otro criterio
+      } else if (req.minValor.unidad === 'SMMLV'){
+        // El valor del contrato viene en PESOS y el requisito en SMMLV: nunca
+        // se comparan como número plano. Se convierte con el SMMLV del año
+        // que indica el propio pliego (req.reglaSmmlv); sin esa regla o sin
+        // la fecha del contrato, no se decide (NO DETERMINABLE).
+        const convertidos = relevantes.map(c => Object.assign({ contrato: c }, valorContratoEnSmmlv(c, req.reglaSmmlv))).filter(x => x.smmlv != null);
+        if (!req.reglaSmmlv){
+          faltantes.push('El requisito exige ' + req.minValor.valor + ' SMMLV, pero el pliego no indica con qué salario mínimo convertir el valor de los contratos (fecha de terminación, de inicio...) -- compáralo a mano.');
+          numericoOk = (numericoOk === false) ? false : null;
+        } else if (!convertidos.length){
+          faltantes.push('No se pudo convertir a SMMLV el valor de los contratos relevantes (falta la fecha de ' + (req.reglaSmmlv === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' o el año no está en la tabla de SMMLV).');
+          numericoOk = (numericoOk === false) ? false : null;
+        } else {
+          const suma = convertidos.reduce((a, x) => a + x.smmlv, 0);
+          const mejorIndividual = Math.max.apply(null, convertidos.map(x => x.smmlv));
+          const cumpleValor = req.acumulable ? (suma >= req.minValor.valor) : (mejorIndividual >= req.minValor.valor);
+          const redondear = n => Math.round(n * 10) / 10;
+          evidencia.push((req.acumulable ? 'Suma de los contratos relevantes: ' : 'Mejor contrato individual: ') +
+            redondear(req.acumulable ? suma : mejorIndividual) + ' SMMLV (valor en pesos convertido con el SMMLV del año de ' +
+            (req.reglaSmmlv === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' de cada contrato; exige ' + req.minValor.valor + ' SMMLV' +
+            (req.acumulable ? ', acumulable entre contratos' : ', por contrato individual') + ').');
+          // Si algún contrato relevante no se pudo convertir, un "no alcanza" no es concluyente.
+          numericoOk = (numericoOk === false) ? false : (cumpleValor ? true : (convertidos.length < relevantes.length ? null : false));
+          if (!cumpleValor && convertidos.length < relevantes.length) faltantes.push('Algún contrato relevante no se pudo convertir a SMMLV; el resultado no es concluyente.');
+        }
       } else {
         const conValor = relevantes.filter(c => c.valor != null);
         const suma = conValor.reduce((a, c) => a + c.valor, 0);
@@ -4431,6 +4477,7 @@
       const conCantidad = relevantes.filter(c => c.cantidad && c.cantidad.valor != null);
       if (!conCantidad.length){
         faltantes.push('Ningún contrato relevante trae una cantidad reconocida para comparar contra el mínimo exigido (' + req.minCantidad.valor + ').');
+        numericoOk = (numericoOk === false) ? false : null;
       } else {
         const suma = conCantidad.reduce((a, c) => a + c.cantidad.valor, 0);
         evidencia.push('Cantidad acumulada en contratos relevantes: ' + suma + ' (exige ' + req.minCantidad.valor + ').');
@@ -4504,6 +4551,19 @@
     } else {
       resultado = 'NO DETERMINABLE';
       justificacion = 'Hay contratos con coincidencia total de palabras distintivas, pero falta información en el Excel/PDF/Word para confirmar el criterio numérico exigido. ' + faltantes.join(' ');
+    }
+
+    // Gancho para requisitos extraídos por IA cuya cita no se pudo verificar
+    // contra el PDF (o con confianza baja) y el usuario aún no confirmó: nunca
+    // producen CUMPLE ni NO CUMPLE automático -- el motivo va explícito.
+    if (req.forzarNoDeterminable){
+      if (resultado !== 'NO DETERMINABLE'){
+        justificacion = req.forzarNoDeterminable + ' (Resultado provisional del motor: ' + resultado + '. ' + justificacion + ')';
+        resultado = 'NO DETERMINABLE';
+      } else {
+        justificacion = req.forzarNoDeterminable + ' ' + justificacion;
+      }
+      faltantes.push('Verificar a mano la cita de este requisito en el PDF y confirmarla.');
     }
 
     return {
@@ -5212,6 +5272,185 @@
     return inconsistencias;
   }
 
+  // ── Requisitos extraídos por IA (Edge Function extraer-requisitos) ──────────
+  // La IA SOLO extrae (categoría, cifra, página, cita textual). Aquí se
+  // verifica cada fila contra el texto real del PDF y se convierte a las
+  // mismas formas que el motor determinístico ya entiende -- la IA nunca decide
+  // CUMPLE / NO CUMPLE. Una fila sin cita verificada (o de confianza baja) no
+  // produce CUMPLE ni NO CUMPLE hasta que el usuario la confirme a mano.
+
+  // Texto de UNA página del pliego (null si esa página no está en el texto leído).
+  function textoDePaginaPliego(text, paginaOffsets, pagina){
+    if (!text || !paginaOffsets || !paginaOffsets.length) return null;
+    let desde = 0;
+    for (const p of paginaOffsets){
+      if (p.pagina === pagina) return text.slice(desde, p.hasta);
+      desde = p.hasta;
+    }
+    return null;
+  }
+
+  function numerosEnTexto(s){
+    return (String(s || '').match(/\d[\d.,]*\d|\d/g) || []).map(parseNumCO).filter(n => n != null);
+  }
+
+  // Verifica una fila de la IA: (1) cada cifra que declara aparece en su propia
+  // cita, y (2) la cita aparece de verdad en esa página del PDF (o en una
+  // contigua -- ±1). Devuelve { verificada, tipo?, motivo?, paginaEncontrada? }.
+  function verificarFilaIA(fila, text, paginaOffsets){
+    const cita = String(fila.cita_textual || '');
+    const citaNorm = normHeader(cita);
+    const cifras = [
+      ['el número mínimo de contratos', fila.min_contratos],
+      ['el valor mínimo', fila.valor_minimo_numero],
+      ['el porcentaje del presupuesto oficial', fila.valor_minimo_pct_presupuesto],
+      ['la cantidad mínima', fila.cantidad_minima_numero],
+      ['la ventana de años', fila.ventana_anios],
+      ['el valor del indicador', fila.valor_indicador]
+    ].filter(x => x[1] != null);
+    const numsCita = numerosEnTexto(cita);
+    const numerosEnLetras = citaNorm.split(' ').map(w => NUMEROS_ESPANOL[w]).filter(n => n != null);
+    for (const par of cifras){
+      const v = Number(par[1]);
+      const aparece = numsCita.some(n => Math.abs(n - v) < 1e-9) || numerosEnLetras.indexOf(v) !== -1;
+      if (!aparece) return { verificada: false, motivo: 'La cifra de ' + par[0] + ' (' + par[1] + ') no aparece en la cita textual.' };
+    }
+    if (!text || !paginaOffsets || !paginaOffsets.length){
+      return { verificada: false, motivo: 'No hay texto del PDF para verificar la cita (PDF escaneado o no leído por completo).' };
+    }
+    if (citaNorm.length < 12) return { verificada: false, motivo: 'La cita es demasiado corta para verificarla.' };
+    const pag = Number(fila.pagina);
+    const candidatas = [pag, pag - 1, pag + 1].filter(p => p >= 1).map(p => ({ p: p, t: textoDePaginaPliego(text, paginaOffsets, p) })).filter(x => x.t != null);
+    if (!candidatas.length) return { verificada: false, motivo: 'La página ' + pag + ' no está en el texto leído del PDF.' };
+    for (const x of candidatas){
+      if (normHeader(x.t).indexOf(citaNorm) !== -1) return { verificada: true, tipo: 'exacta', paginaEncontrada: x.p };
+    }
+    // Tablas: el orden del texto extraído puede diferir del que ve la IA -- se acepta
+    // si al menos el 90% de las palabras/números de la cita están en esa página.
+    const tokens = Array.from(new Set(citaNorm.split(' ').filter(w => w.length > 1 || /\d/.test(w))));
+    for (const x of candidatas){
+      const set = new Set(normHeader(x.t).split(' '));
+      const presentes = tokens.filter(w => set.has(w)).length;
+      if (tokens.length && presentes / tokens.length >= 0.9) return { verificada: true, tipo: 'aproximada', paginaEncontrada: x.p };
+    }
+    return { verificada: false, motivo: 'La cita no aparece en la página ' + pag + ' del PDF.' };
+  }
+
+  // Marca cada fila con verificada / motivoVerificacion / paginaCorregida.
+  // Conserva confirmadaPorUsuario si la fila ya lo traía.
+  function verificarFilasIA(filas, text, paginaOffsets){
+    return (filas || []).map(f => {
+      const v = verificarFilaIA(f, text, paginaOffsets);
+      return Object.assign({}, f, {
+        verificada: v.verificada, tipoVerificacion: v.tipo || null, motivoVerificacion: v.motivo || null,
+        paginaCorregida: (v.verificada && v.paginaEncontrada != null) ? v.paginaEncontrada : (f.paginaCorregida || null)
+      });
+    });
+  }
+
+  // Una fila "confiable para el motor": cita verificada (o confirmada a mano) y confianza no baja
+  // (o confirmada a mano).
+  function filaIAConfiable(f){
+    return f.confirmadaPorUsuario === true || (f.verificada === true && f.confianza !== 'baja');
+  }
+
+  // Fila de experiencia de la IA -> el mismo `requisito` que construye
+  // construirRequisitoDesdeTexto (el que ya consume evaluarExperienciaCompleta).
+  // Los campos numéricos vienen de la IA (no se re-extraen por regex de la descripción);
+  // las condiciones no modelables (metros, ventana de años) se detectan además sobre la cita
+  // para no perder un guardarraíl que la descripción resumida haya omitido.
+  function filaIAaRequisito(fila, i){
+    if (fila.categoria !== 'experiencia_general' && fila.categoria !== 'experiencia_especifica') return null;
+    const descripcion = String(fila.descripcion || '').trim();
+    if (!descripcion) return null;
+    const req = construirRequisitoDesdeTexto(descripcion, i, {
+      tipo: fila.categoria === 'experiencia_general' ? 'general' : 'especifica',
+      obligatoriedad: fila.obligatoriedad,
+      grupo: fila.grupo_alternativo || ''
+    });
+    req.minContratos = fila.min_contratos != null ? fila.min_contratos : null;
+    req.minValor = (fila.valor_minimo_numero != null && fila.valor_minimo_unidad)
+      ? { valor: fila.valor_minimo_numero, unidad: fila.valor_minimo_unidad } : null;
+    req.minCantidad = fila.cantidad_minima_numero != null ? { valor: fila.cantidad_minima_numero, unidad: 'COP' } : null;
+    req.acumulable = fila.acumulable === true;
+    req.reglaSmmlv = fila.regla_conversion_smmlv || null;
+    const cita = String(fila.cita_textual || '');
+    req.condicionNoVerificable = req.condicionNoVerificable || condicionCuantitativaSinModelar(cita);
+    req.condicionTemporal = fila.ventana_anios != null
+      ? { anios: fila.ventana_anios, texto: 'dentro de los últimos ' + fila.ventana_anios + ' años' }
+      : (req.condicionTemporal || condicionTemporalDelRequisito(cita));
+    // Valor relativo al presupuesto oficial: no hay cifra absoluta que comparar.
+    if (fila.valor_minimo_pct_presupuesto != null && !req.minValor){
+      req.condicionNoVerificable = req.condicionNoVerificable || (fila.valor_minimo_pct_presupuesto + '% del presupuesto oficial');
+    }
+    req.fuente = fila.documento || 'Pliego de Condiciones';
+    req.pagina = fila.paginaCorregida || fila.pagina || null;
+    req.anclaDetectada = 'IA';
+    req.citaTextual = cita;
+    req.confianzaIA = fila.confianza || null;
+    if (!filaIAConfiable(fila)){
+      req.forzarNoDeterminable = fila.verificada === true
+        ? 'La IA marcó este requisito con confianza baja y aún no lo has confirmado.'
+        : 'No se pudo verificar la cita de este requisito contra el PDF (' + (fila.motivoVerificacion || 'sin verificar') + ') y aún no lo has confirmado.';
+    }
+    return req;
+  }
+
+  function requisitosDeExperienciaDesdeIA(filas){
+    const out = [];
+    (filas || []).forEach((f, idx) => {
+      const r = filaIAaRequisito(f, out.length);
+      if (r){ r.iaIndex = idx; out.push(r); }
+    });
+    return out;
+  }
+
+  // Umbrales financieros / K residual que la IA extrajo, en la MISMA forma que
+  // extraerExigencias ({valor, raw} / {valor, unidad}). Solo con filas confiables.
+  function exigenciasDesdeIA(filas){
+    const ex = {};
+    (filas || []).forEach(f => {
+      if (!filaIAConfiable(f)) return;
+      const raw = String(f.cita_textual || '').slice(0, 160);
+      const op = f.operador;
+      const esMin = op == null || op === '>=' || op === '>';
+      const esMax = op == null || op === '<=' || op === '<';
+      if ((f.categoria === 'k_residual' || f.indicador === 'k_residual') && !ex.kResidual){
+        const valor = f.valor_minimo_numero != null ? f.valor_minimo_numero : f.valor_indicador;
+        const unidadTxt = f.valor_minimo_unidad || f.unidad_indicador || '';
+        if (valor != null) ex.kResidual = { valor: valor, unidad: /smmlv/i.test(unidadTxt) ? 'SMMLV' : 'COP', raw: raw };
+        return;
+      }
+      if (f.valor_indicador == null) return;
+      if (f.indicador === 'liquidez' && esMin && !ex.liquidez) ex.liquidez = { valor: f.valor_indicador, raw: raw };
+      else if (f.indicador === 'endeudamiento' && esMax && !ex.endeudamiento) ex.endeudamiento = { valor: f.valor_indicador, raw: raw };
+      else if (f.indicador === 'cobertura_intereses' && esMin && !ex.cobertura) ex.cobertura = { valor: f.valor_indicador, raw: raw };
+      else if (f.indicador === 'patrimonio' && esMin && !ex.patrimonio) ex.patrimonio = { valor: f.valor_indicador, unidad: /smmlv/i.test(f.unidad_indicador || f.valor_minimo_unidad || '') ? 'SMMLV' : 'COP', raw: raw };
+      else if (f.indicador === 'capital_trabajo' && esMin && !ex.capitalTrabajo) ex.capitalTrabajo = { valor: f.valor_indicador, unidad: /smmlv/i.test(f.unidad_indicador || f.valor_minimo_unidad || '') ? 'SMMLV' : 'COP', raw: raw };
+    });
+    return ex;
+  }
+
+  // Filas de personal de la IA -> "hallazgos" con la forma que ya consume gatePersonalRequerido.
+  function hallazgosPersonalDesdeIA(filas){
+    return (filas || []).filter(f => f.categoria === 'personal' && filaIAConfiable(f)).map(f => ({
+      trigger: 'IA', categoria: 'Personal / Equipo de trabajo',
+      snippet: (String(f.descripcion || '') + ' ' + String(f.cita_textual || '')).trim().slice(0, 220)
+    }));
+  }
+
+  // Códigos UNSPSC (8 dígitos) exigidos, de las filas confiables de la IA.
+  function codigosUnspscDesdeIA(filas){
+    const set = [];
+    (filas || []).filter(f => f.categoria === 'clasificacion_unspsc' && filaIAConfiable(f)).forEach(f => {
+      (f.codigos_unspsc || []).forEach(c => {
+        const d = String(c).replace(/\D/g, '');
+        if (d.length === 8 && set.indexOf(d) === -1) set.push(d);
+      });
+    });
+    return set;
+  }
+
   // Umbrales numéricos que EXIGE el pliego (índices financieros, K residual).
   // Orientativo: el pliego los redacta de mil formas, así que si no encuentra un
   // patrón claro devuelve null y la evaluación lo marca "sin dato".
@@ -5397,6 +5636,7 @@
     while ((m = reDot.exec(txt)) !== null){ if (+m[1] >= 10 && +m[1] <= 95) push(m[1]+m[2]+m[3]+m[4]); }
     const reBare = /(?<!\d)(\d{2})(\d{2})(\d{2})(\d{2})(?!\d)/g;
     while ((m = reBare.exec(txt)) !== null){ if (+m[1] >= 10 && +m[1] <= 95) push(m[1]+m[2]+m[3]+m[4]); }
+    (entry && entry.codigosUnspscIA || []).forEach(push);
     return set;
   }
 
@@ -5496,7 +5736,8 @@
     }
 
     // Indicadores financieros + experiencia exigidos (necesitan pliego analizado)
-    const ex = (entry && entry.exigencias) || {};
+    // exigenciasIA: umbrales extraídos por IA con cita verificada (o confirmada a mano); pisan al regex.
+    const ex = Object.assign({}, (entry && entry.exigencias) || {}, (entry && entry.exigenciasIA) || {});
     const cmp = (nombre, exig, mio, sentido) => {
       if (!exig || exig.valor == null){ g(nombre, 'nd', entry ? 'El pliego no da un umbral numérico claro.' : 'Analiza el pliego (PDF) para conocer el umbral exigido.'); return; }
       if (mio == null){ g(nombre, 'nd', 'Tu perfil no tiene este dato — cárgalo desde el RUP.'); return; }
@@ -5507,6 +5748,11 @@
       cmp('Índice de liquidez', ex.liquidez, matriz.liquidez, '>=');
       cmp('Índice de endeudamiento', ex.endeudamiento, matriz.endeudamiento, '<=');
       if (ex.cobertura) cmp('Razón de cobertura', ex.cobertura, matriz.cobertura, '>=');
+      [['Patrimonio', ex.patrimonio, matriz.patrimonio], ['Capital de trabajo', ex.capitalTrabajo, matriz.capitalTrabajo]].forEach(par => {
+        if (!par[1]) return;
+        if (par[1].unidad === 'SMMLV') g(par[0], 'nd', 'El pliego lo exige en SMMLV (' + Number(par[1].valor).toLocaleString('es-CO') + ') y tu perfil lo tiene en pesos -- compáralo a mano.');
+        else cmp(par[0], par[1], par[2], '>=');
+      });
       if (ex.kResidual){
         const conContratos = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
         const etiquetaPerfil = conContratos ? 'tu capacidad disponible estimada' : 'tu perfil';
@@ -5532,7 +5778,7 @@
       g('Experiencia', gExp.estado, gExp.detalle);
 
       // Personal / equipo de trabajo (solo si el pliego menciona algo de esto).
-      const hallazgosPersonal = ((compsDe(entry)[0] || {}).hallazgosAnotados || []).filter(h => h.categoria === 'Personal / Equipo de trabajo');
+      const hallazgosPersonal = ((compsDe(entry)[0] || {}).hallazgosAnotados || []).filter(h => h.categoria === 'Personal / Equipo de trabajo').concat(entry.hallazgosPersonalIA || []);
       if (hallazgosPersonal.length){
         const gPersonal = gatePersonalRequerido(hallazgosPersonal);
         g('Personal / equipo de trabajo', gPersonal.estado, gPersonal.detalle);
@@ -6473,6 +6719,119 @@
       renderInconsistenciasPliegoEPHtml(entry.inconsistenciasPliegoEP) + renderResultadoExperiencia(ev);
   }
 
+  // ── Requisitos habilitantes extraídos con IA: tabla + controles ─────────────
+  const CATEGORIA_IA_LABEL = {
+    juridico: 'Jurídico', experiencia_general: 'Experiencia general', experiencia_especifica: 'Experiencia específica',
+    capacidad_financiera: 'Capacidad financiera', capacidad_organizacional: 'Capacidad organizacional',
+    k_residual: 'K residual', clasificacion_unspsc: 'Clasificación UNSPSC', personal: 'Personal',
+    garantias: 'Garantías', otro: 'Otro'
+  };
+  const INDICADOR_GATE = { liquidez: 'Índice de liquidez', endeudamiento: 'Índice de endeudamiento', cobertura_intereses: 'Razón de cobertura', patrimonio: 'Patrimonio', capital_trabajo: 'Capital de trabajo', k_residual: 'Capacidad K residual' };
+  const ESTADO_GATE_A_RESULTADO = { ok: 'CUMPLE', fail: 'NO CUMPLE', revisar: 'NO DETERMINABLE', nd: 'NO DETERMINABLE' };
+
+  function textoExigidoIA(f){
+    const partes = [];
+    if (f.min_contratos != null) partes.push('mín. ' + f.min_contratos + ' contrato(s)');
+    if (f.valor_minimo_numero != null) partes.push((f.acumulable ? 'acumulado ' : '') + Number(f.valor_minimo_numero).toLocaleString('es-CO') + ' ' + (f.valor_minimo_unidad || ''));
+    if (f.valor_minimo_pct_presupuesto != null) partes.push(f.valor_minimo_pct_presupuesto + '% del presupuesto oficial');
+    if (f.cantidad_minima_numero != null) partes.push('cantidad mín. ' + f.cantidad_minima_numero + (f.cantidad_minima_unidad ? ' ' + f.cantidad_minima_unidad : ''));
+    if (f.ventana_anios != null) partes.push('últimos ' + f.ventana_anios + ' años');
+    if (f.valor_indicador != null) partes.push((f.operador || '') + ' ' + Number(f.valor_indicador).toLocaleString('es-CO') + (f.unidad_indicador ? ' ' + f.unidad_indicador : ''));
+    if (f.codigos_unspsc && f.codigos_unspsc.length) partes.push(f.codigos_unspsc.join(', '));
+    return partes.join(' · ') || '—';
+  }
+
+  // Una fila de la tabla por cada requisito de la IA, con su estado tomado de los
+  // motores determinísticos (nunca de la IA). `gates` = gates de evaluarProceso del
+  // mejor perfil, o null si el proceso no está en pantalla.
+  function filasRequisitosHabilitantes(entry, gates){
+    const ia = entry && entry.requisitosIA;
+    if (!ia) return [];
+    const resultadosExp = (entry.experienciaResultado && entry.experienciaResultado.resultados) || [];
+    return ia.filas.map((f, i) => {
+      const confiable = filaIAConfiable(f);
+      let estado, detalle = '';
+      if (!confiable){
+        estado = 'SIN VERIFICAR';
+        detalle = f.verificada === true ? 'La IA la marcó con confianza baja.' : (f.motivoVerificacion || 'No se pudo verificar la cita contra el PDF.');
+      } else if (f.categoria === 'experiencia_general' || f.categoria === 'experiencia_especifica'){
+        const r = resultadosExp.find(x => x.requisito && x.requisito.iaIndex === i);
+        estado = r ? r.resultado : 'NO DETERMINABLE';
+        detalle = r ? r.justificacion : 'Sin evaluar todavía.';
+      } else {
+        const nombreGate = f.categoria === 'k_residual' ? INDICADOR_GATE.k_residual
+          : (f.categoria === 'clasificacion_unspsc' ? 'Clasificación UNSPSC'
+            : (f.categoria === 'personal' ? 'Personal / equipo de trabajo'
+              : (f.categoria === 'capacidad_financiera' ? INDICADOR_GATE[f.indicador] : null)));
+        if (nombreGate){
+          const g = (gates || []).find(x => x.nombre === nombreGate);
+          estado = g ? ESTADO_GATE_A_RESULTADO[g.estado] : 'NO DETERMINABLE';
+          detalle = g ? g.detalle : 'Evalúa el proceso (sello GO/NO-GO de su tarjeta) para compararlo con tu perfil.';
+        } else {
+          estado = 'VERIFICAR A MANO';
+          detalle = 'Este tipo de requisito no se compara automáticamente con tu perfil -- verifícalo tú.';
+        }
+      }
+      return {
+        iaIndex: i, categoria: f.categoria, categoriaLabel: CATEGORIA_IA_LABEL[f.categoria] || f.categoria,
+        descripcion: f.descripcion, exigido: textoExigidoIA(f), estado: estado, detalle: detalle,
+        documento: f.documento, pagina: f.paginaCorregida || f.pagina, cita: f.cita_textual,
+        verificada: f.verificada === true, confirmada: f.confirmadaPorUsuario === true, confiable: confiable,
+        motivoVerificacion: f.motivoVerificacion, notas: f.notas, confianza: f.confianza,
+        modificadaPorAdenda: f.modificado_por_adenda === true
+      };
+    });
+  }
+
+  function badgeEstadoIA(estado){
+    if (estado === 'CUMPLE' || estado === 'NO CUMPLE' || estado === 'NO DETERMINABLE') return badgeExpEval(estado);
+    return '<span class="expeval-badge expeval-nd">' + escapeHtml(estado) + '</span>';
+  }
+
+  function bloqueRequisitosIAHtml(entry, gates){
+    const id = escapeHtml(entry.id || '');
+    const ia = entry.requisitosIA;
+    const conCuenta = SUPABASE_ENABLED && !!sbSession;
+    const pendiente = !!pendingPliegoFiles[entry.id];
+    const controles = !conCuenta
+      ? '<div class="saved-note">Para extraer los requisitos con IA inicia sesión desde "Tu cuenta" (barra lateral). Sin IA, el análisis por palabras clave de más abajo sigue funcionando igual.</div>'
+      : '<div class="ia-controles">' +
+          (pendiente ? '' : '<label>PDF del pliego<input type="file" accept="application/pdf,.pdf" data-ia-pliego-id="' + id + '"></label>') +
+          '<label>Adendas (opcional)<input type="file" accept="application/pdf,.pdf" multiple data-ia-adendas-id="' + id + '"></label>' +
+          '<button class="btn-primary analysis-ia-btn" data-ia-id="' + id + '">' + (ia ? '↻ Volver a extraer con IA' : '🤖 Extraer requisitos con IA') + '</button>' +
+        '</div>';
+    const estado = '<div class="saved-note" data-ia-status></div>';
+    let tabla = '';
+    if (ia){
+      const filas = filasRequisitosHabilitantes(entry, gates);
+      const nSin = filas.filter(f => !f.confiable).length;
+      const filasHtml = filas.map(f => {
+        const fuente = escapeHtml(f.documento || 'Pliego') + (f.pagina ? ', p. ' + f.pagina : '') +
+          (f.modificadaPorAdenda ? ' <span class="tag">modificado por adenda</span>' : '') +
+          (f.verificada ? ' <span title="La cita se encontró en el texto del PDF">✓</span>' : '');
+        const cita = f.cita ? '<details class="ia-cita"><summary>ver cita</summary>«' + escapeHtml(f.cita) + '»' + (f.notas ? '<br><i>' + escapeHtml(f.notas) + '</i>' : '') + '</details>' : '';
+        // El control se mantiene visible aunque ya esté confirmada (para poder revertirla).
+        const confirmar = (!f.verificada || f.confianza === 'baja')
+          ? '<label class="ia-confirmar"><input type="checkbox" data-ia-confirmar data-ia-id="' + id + '" data-ia-index="' + f.iaIndex + '"' + (f.confirmada ? ' checked' : '') + '> <span>' + (f.confirmada ? 'Confirmada por ti (desmarca para revertir)' : 'Revisé la cita en el PDF y es correcta') + '</span></label>'
+          : '';
+        return '<tr' + (f.confiable ? '' : ' class="fila-esencial-faltante"') + '>' +
+          '<td>' + escapeHtml(f.categoriaLabel) + '</td>' +
+          '<td>' + escapeHtml(f.descripcion || '') + '</td>' +
+          '<td>' + escapeHtml(f.exigido) + '</td>' +
+          '<td>' + badgeEstadoIA(f.estado) + '<div class="ia-cita">' + escapeHtml(truncate(f.detalle, 260)) + '</div></td>' +
+          '<td>' + fuente + cita + confirmar + '</td></tr>';
+      }).join('');
+      tabla = '<div class="saved-note" style="margin:6px 0;">' + filas.length + ' requisito(s) extraído(s) por IA' +
+        (ia.uso ? ' · ' + Number(ia.uso.input_tokens || 0).toLocaleString('es-CO') + ' tokens de entrada / ' + Number(ia.uso.output_tokens || 0).toLocaleString('es-CO') + ' de salida' : '') +
+        (nSin ? ' · <b>' + nSin + ' sin verificar</b> (no se usan para decidir hasta que las confirmes)' : '') + '.</div>' +
+        '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Categoría</th><th>Requisito</th><th>Exigido</th><th>Estado con tu empresa</th><th>Fuente</th></tr></thead><tbody>' +
+        filasHtml + '</tbody></table></div>';
+    }
+    return '<div class="analysis-sub">REQUISITOS HABILITANTES (extraídos con IA del Pliego y sus Adendas)</div>' +
+      '<div class="saved-note">La IA solo lee el PDF y cita página y texto; el cumplimiento lo decide el motor de reglas contra tus datos. Cada cita se verifica contra el texto real del PDF: una fila sin verificar no se usa para decidir hasta que la confirmes.</div>' +
+      controles + estado + tabla;
+  }
+
   function bloqueExperienciaHtml(entry){
     const g = experienciaGateDetalle(entry);
     const epHtml = renderEstudioPrevioUploadHtml(entry);
@@ -6678,6 +7037,7 @@
       // primero que se ve al abrir el análisis. La fila "Experiencia" de la
       // tabla de gates más abajo (dentro de compatHtml) sigue existiendo,
       // pero ahora apunta a este bloque en vez de repetir el mismo conteo.
+      bloqueRequisitosIAHtml(entry, evalParaCompat ? evalParaCompat.mejor.gates : null) +
       bloqueExperienciaHtml(entry) +
       compatHtml +
       // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí como sección FIJA --
@@ -6686,12 +7046,13 @@
       // compara contra el perfil. kResidualFallbackHtml restaura esta misma
       // sección SOLO cuando esa fila no se pudo calcular (ver arriba).
       kResidualFallbackHtml +
-      '<div class="analysis-sub">OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ', experiencia' : '') + ')</div>' +
+      // Con requisitos extraídos por IA, la tabla de arriba ya cubre RUP/personal/organizacional.
+      (entry.requisitosIA ? '' : '<div class="analysis-sub">OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ', experiencia' : '') + ')</div>' +
       (sinHallazgos
         ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de RUP, personal mínimo, capacidad organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ' o experiencia' : '') + ' en el texto extraído — revisa el pliego completo.' +
           (notaElsewhere.length ? ' (' + notaElsewhere.join(' y ') + ' se muestra' + (notaElsewhere.length > 1 ? 'n' : '') + ' arriba, en su' + (notaElsewhere.length > 1 ? 's' : '') + ' propio' + (notaElsewhere.length > 1 ? 's' : '') + ' bloque' + (notaElsewhere.length > 1 ? 's' : '') + '.)' : '') +
           '</li></ul>'
-        : hallazgosHtml) +
+        : hallazgosHtml)) +
       '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' +
       perfilesHtml +
       (comps.length
@@ -7180,7 +7541,6 @@
           '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority tag-tip" tabindex="0" role="button" title="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '" data-tip="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '">' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
         '</div>' +
         '<div class="tag-tip-note saved-note" hidden></div>' +
-        '<div class="afinidad-badge" hidden></div>' +
         '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 220)) + '</div>' +
         '<div class="row-meta">' +
           '<span>' + escapeHtml(loc) + '</span>' +
@@ -7485,92 +7845,6 @@
     }
   }
 
-  // --- RADAR DE AFINIDAD IA (Fase C) ---
-  // Evalúa hasta MAX_RESULTS_PER_CALL_RADAR resultados visibles contra el
-  // "objeto social" configurado en el Perfil de la empresa, vía la Edge
-  // Function radar-afinidad (protegida con la sesión del usuario -- ver
-  // supabase/functions/radar-afinidad/index.ts). El límite de 10 lo aplica
-  // igual la propia función del lado del servidor; se corta aquí también
-  // para no mandar de más.
-  const MAX_RESULTS_PER_CALL_RADAR = 10;
-
-  async function runRadarAfinidad(){
-    if (!SUPABASE_ENABLED){
-      dataFreshnessEl.textContent = 'El Radar de Afinidad IA requiere una cuenta conectada -- inicia sesión desde "Tu cuenta".';
-      return;
-    }
-    if (!lastScored.length){
-      dataFreshnessEl.textContent = 'Primero haz una búsqueda -- el Radar evalúa los procesos que ves en pantalla.';
-      return;
-    }
-    const client = await getSupabaseClient();
-    const { data: { session } } = await client.auth.getSession();
-    if (!session){
-      dataFreshnessEl.textContent = 'Inicia sesión desde "Tu cuenta" para usar el Radar de Afinidad IA.';
-      return;
-    }
-
-    const resultados = lastScored.slice(0, MAX_RESULTS_PER_CALL_RADAR).map(it => ({
-      id: it.id,
-      objeto: it.objeto,
-      entidad: it.entidad,
-      valor: it.valor,
-    }));
-
-    const textoOriginal = radarBtn.textContent;
-    radarBtn.disabled = true;
-    radarBtn.textContent = '⏳ Evaluando afinidad...';
-    dataFreshnessEl.textContent = 'Evaluando afinidad de ' + resultados.length + ' proceso(s) con IA...';
-
-    try {
-      const { data, error } = await client.functions.invoke('radar-afinidad', {
-        body: { resultados },
-        headers: { 'x-radar-debug': '1' },
-      });
-      if (error){
-        let msg = error.message || 'Error al invocar el Radar de Afinidad IA.';
-        // supabase-js no expone directo el body del error en invoke(); se
-        // intenta leer el mensaje real que devolvió la función (422/503/...),
-        // incluido el "log" de depuración (?debug=1 / x-radar-debug) para
-        // diagnosticar sin necesitar `supabase functions logs`.
-        try {
-          const ctx = error.context;
-          if (ctx && typeof ctx.json === 'function'){
-            const body = await ctx.json();
-            if (body && body.error) msg = body.error;
-            if (body && body.log) msg += ' | detalle: ' + JSON.stringify(body.log);
-          }
-        } catch(_e){ /* se conserva el mensaje genérico */ }
-        dataFreshnessEl.textContent = '⚠ ' + msg;
-        return;
-      }
-      if (!data || !Array.isArray(data.scores)){
-        dataFreshnessEl.textContent = '⚠ Respuesta inesperada del Radar de Afinidad IA.';
-        return;
-      }
-      data.scores.forEach(s => {
-        const rowEl = resultsEl.querySelector('.row[data-id="' + CSS.escape(String(s.id)) + '"]');
-        if (!rowEl) return;
-        const badgeEl = rowEl.querySelector('.afinidad-badge');
-        if (!badgeEl) return;
-        const score = Number(s.score) || 0;
-        const nivel = score >= 70 ? 'alta' : (score >= 40 ? 'media' : 'baja');
-        badgeEl.className = 'afinidad-badge afinidad-' + nivel;
-        badgeEl.innerHTML = '<span class="afinidad-score">🎯 Afinidad: ' + score + '/100</span>' +
-          (Array.isArray(s.razones) && s.razones.length
-            ? '<ul>' + s.razones.map(r => '<li>' + escapeHtml(r) + '</li>').join('') + '</ul>'
-            : '');
-        badgeEl.hidden = false;
-      });
-      dataFreshnessEl.textContent = 'Afinidad evaluada para ' + data.scores.length + ' proceso(s).';
-    } catch(e){
-      dataFreshnessEl.textContent = '⚠ No se pudo consultar el Radar de Afinidad IA (' + (e && e.message ? e.message : 'error') + ').';
-    } finally {
-      radarBtn.disabled = false;
-      radarBtn.textContent = textoOriginal;
-    }
-  }
-
   async function runSearch(){
     isDemo = false;
     isSnapshot = false;
@@ -7823,6 +8097,22 @@
       'Descarga "Informe de experiencia (.txt)" desde la tarjeta de este pliego en "Buscar procesos" para el detalle completo por requisito.'));
     nl();
 
+    // Requisitos habilitantes extraídos con IA (tabla de la tarjeta): una entrada por requisito,
+    // con estado del motor de reglas, fuente/página y cita textual.
+    if (entry.requisitosIA){
+      const evIA = (it && s) ? evaluarMejor(it, s, entry) : null;
+      const filasIA = filasRequisitosHabilitantes(entry, evIA ? evIA.mejor.gates : null);
+      L.push('REQUISITOS HABILITANTES (extraídos con IA del Pliego y sus Adendas)');
+      L.push('  La IA solo lee el PDF; el estado lo decide el motor de reglas. Las filas SIN VERIFICAR no se usan para decidir.');
+      filasIA.forEach((f, i) => {
+        L.push('  ' + (i + 1) + '. [' + f.categoriaLabel + '] ' + (f.descripcion || '') + ' -- exigido: ' + f.exigido);
+        L.push('     Estado: ' + f.estado + ' -- ' + truncate(f.detalle, 240));
+        L.push('     Fuente: ' + (f.documento || 'Pliego') + (f.pagina ? ', p. ' + f.pagina : '') + (f.verificada ? ' (cita verificada en el PDF)' : (f.confirmada ? ' (cita confirmada por el usuario)' : ' (cita NO verificada)')));
+        if (f.cita) L.push('     Cita: "' + truncate(f.cita, 300) + '"');
+      });
+      nl();
+    }
+
     const primero = comps[0] || {};
     const ha = primero.hallazgosAnotados || [];
     // Mismo criterio que renderAnalysisHtml: 'Capacidad K / Financiera' y
@@ -7926,7 +8216,6 @@
   searchBtn.addEventListener('click', runSearch);
   if (procesoInput) procesoInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
   demoBtn.addEventListener('click', loadDemo);
-  if (radarBtn) radarBtn.addEventListener('click', runRadarAfinidad);
   if (paaBuscarBtn) paaBuscarBtn.addEventListener('click', runBuscarPAA);
   if (paaBorrarBtn) paaBorrarBtn.addEventListener('click', () => {
     paaListEl.innerHTML = '';
@@ -8393,9 +8682,33 @@
   // expevalContratos está garantizado por `estadoFlujoPliego().listo`
   // (gate que ya bloquea "Analizar pliego" hasta cargar Experiencia) --
   // igual se revisa por si acaso, para nunca dejar de renderizar.
+  // Recalcula TODO lo derivado de los requisitos de la IA (experiencia, exigencias
+  // financieras, personal, UNSPSC) a partir de entry.requisitosIA.filas -- se llama al
+  // extraer y cada vez que el usuario confirma/desconfirma una fila. Los campos
+  // regex (entry.exigencias, comps...) no se tocan: la IA va en campos aparte.
+  function aplicarRequisitosIAaEntry(entry){
+    const filas = (entry.requisitosIA && entry.requisitosIA.filas) || [];
+    entry.exigenciasIA = exigenciasDesdeIA(filas);
+    entry.hallazgosPersonalIA = hallazgosPersonalDesdeIA(filas);
+    entry.codigosUnspscIA = codigosUnspscDesdeIA(filas);
+    const reqsPliego = requisitosDeExperienciaDesdeIA(filas);
+    let reqsEP = [];
+    if (entry.estudioPrevioText) reqsEP = extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo').requisitos;
+    entry.requisitosExperiencia = reqsPliego.concat(reqsEP);
+    entry.inconsistenciasPliegoEP = detectarInconsistenciasPliegoEP(reqsPliego, reqsEP);
+    if (expevalContratos) entry.experienciaResultado = evaluarExperienciaCompleta(expevalContratos.contratos, entry.requisitosExperiencia);
+  }
+
   function evaluarExperienciaDeProceso(id, slot){
     const entry = analisis[id];
     if (!entry) return;
+    if (entry.requisitosIA){
+      aplicarRequisitosIAaEntry(entry);
+      analisis[id] = entry;
+      saveAnalisis();
+      if (slot){ const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
+      return;
+    }
     if (expevalContratos){
       const texto = textoPliegoDe(entry);
       const pliegoEx = extraerRequisitosDePliego(texto, entry.paginaOffsets, 'Pliego de Condiciones');
@@ -8426,6 +8739,85 @@
       saveAnalisis();
     }
     if (slot){ const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
+  }
+
+  // Extrae los requisitos habilitantes con IA (Edge Function extraer-requisitos):
+  // sube el/los PDF a un bucket privado, invoca la función, verifica cada cita contra
+  // el texto real del PDF (pdf.js, en el navegador) y guarda todo en el entry.
+  const IA_MAX_BYTES = 20 * 1024 * 1024;
+  async function extraerRequisitosConIA(id, slot){
+    const entry = analisis[id];
+    if (!entry || !slot) return;
+    const estado = msg => { const el = slot.querySelector('[data-ia-status]'); if (el) el.textContent = msg; };
+    const btn = slot.querySelector('button.analysis-ia-btn');
+    if (!SUPABASE_ENABLED || !sbSession || !sbCompanyId){ estado('Inicia sesión desde "Tu cuenta" para usar la IA.'); return; }
+    const inputPliego = slot.querySelector('input[data-ia-pliego-id]');
+    const pliegoFile = pendingPliegoFiles[id] || (inputPliego && inputPliego.files[0]) || null;
+    if (!pliegoFile){ estado('Selecciona el PDF del pliego (se perdió al recargar la página).'); return; }
+    const inputAdendas = slot.querySelector('input[data-ia-adendas-id]');
+    const adendas = inputAdendas ? Array.from(inputAdendas.files) : [];
+    const docs = [{ clave: 'pliego', file: pliegoFile, rol: 'pliego', nombre: 'Pliego de Condiciones' }]
+      .concat(adendas.map((f, i) => ({ clave: 'adenda ' + (i + 1), file: f, rol: 'adenda', nombre: 'Adenda ' + (i + 1) })));
+    if (docs.length > 6){ estado('Máximo 1 pliego y 5 adendas.'); return; }
+    const noPdf = docs.find(d => !esTipoDeArchivoAceptado(d.file) || !/\.pdf$/i.test(d.file.name || ''));
+    if (noPdf){ estado('"' + noPdf.file.name + '" no es un PDF.'); return; }
+    if (docs.reduce((a, d) => a + d.file.size, 0) > IA_MAX_BYTES){ estado('Los PDFs suman más de 20 MB. Sube menos documentos o un archivo más liviano.'); return; }
+
+    if (btn) btn.disabled = true;
+    const client = await getSupabaseClient();
+    const subidos = [];
+    try {
+      estado('Subiendo ' + docs.length + ' PDF(s)...');
+      for (const d of docs){
+        const path = sbCompanyId + '/' + (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2))) + '.pdf';
+        const { error } = await client.storage.from('pliegos').upload(path, d.file, { contentType: 'application/pdf', upsert: false });
+        if (error) throw new Error('No se pudo subir "' + d.file.name + '": ' + error.message);
+        d.path = path;
+        subidos.push(path);
+      }
+      estado('La IA está leyendo el pliego (puede tardar 1-2 minutos)...');
+      const { data, error } = await client.functions.invoke('extraer-requisitos', {
+        body: { documentos: docs.map(d => ({ path: d.path, rol: d.rol, nombre: d.nombre })) }
+      });
+      if (error){
+        let msg = error.message || 'Error al invocar la función.';
+        try {
+          const ctx = error.context;
+          if (ctx && typeof ctx.json === 'function'){ const b = await ctx.json(); if (b && b.error) msg = b.error; }
+        } catch(_e){ /* se conserva el mensaje genérico */ }
+        throw new Error(msg);
+      }
+      if (!data || !Array.isArray(data.requisitos)) throw new Error('Respuesta inesperada de la función.');
+
+      // Verificación: texto completo de cada PDF (solo para citas; sin costo de IA).
+      estado('Verificando las citas contra el texto del PDF...');
+      const textos = {};
+      for (const d of docs){
+        try {
+          const t = await extractPdfText(d.file, 400);
+          textos[d.clave] = { text: t.text, offsets: t.paginaOffsets };
+        } catch(_e){ textos[d.clave] = { text: '', offsets: [] }; }
+      }
+      const filas = data.requisitos.map(f => {
+        const m = normHeader(f.documento || '').match(/adenda\s*(\d+)/);
+        const t = textos[m ? 'adenda ' + m[1] : 'pliego'] || textos.pliego || { text: '', offsets: [] };
+        return verificarFilasIA([f], t.text, t.offsets)[0];
+      });
+      entry.requisitosIA = {
+        ts: Date.now(), modelo: data.modelo || null, uso: data.uso || null,
+        documentos: docs.map(d => ({ nombre: d.file.name, rol: d.rol })), filas: filas
+      };
+      aplicarRequisitosIAaEntry(entry);
+      analisis[id] = entry;
+      saveAnalisis();
+      const ctx = itemYScorePara(id);
+      slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s);
+    } catch(e){
+      estado('⚠ ' + (e && e.message ? e.message : 'No se pudo extraer con IA.'));
+      if (subidos.length){ try { await client.storage.from('pliegos').remove(subidos); } catch(_e){ /* best effort */ } }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   }
 
   exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
@@ -8511,6 +8903,25 @@
         return;
       }
       await cargarEstudioPrevioPDF(entry, file, true, slot);
+      return;
+    }
+
+    // 0c-bis) Requisitos con IA: extraer, y confirmar/desconfirmar una fila sin verificar.
+    const iaBtn = e.target.closest('button.analysis-ia-btn');
+    if (iaBtn){
+      const slot = iaBtn.closest('.row').querySelector('.analysis-slot');
+      extraerRequisitosConIA(iaBtn.getAttribute('data-ia-id'), slot);
+      return;
+    }
+    const iaChk = e.target.closest('input[data-ia-confirmar]');
+    if (iaChk){
+      const id = iaChk.getAttribute('data-ia-id');
+      const idx = parseInt(iaChk.getAttribute('data-ia-index'), 10);
+      const entry = analisis[id];
+      if (entry && entry.requisitosIA && entry.requisitosIA.filas[idx]){
+        entry.requisitosIA.filas[idx].confirmadaPorUsuario = iaChk.checked;
+        evaluarExperienciaDeProceso(id, iaChk.closest('.row').querySelector('.analysis-slot'));
+      }
       return;
     }
 

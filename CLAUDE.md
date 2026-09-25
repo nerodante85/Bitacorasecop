@@ -4936,3 +4936,70 @@ diferencia de los críticos/importantes) -- ninguno puede producir un
 CUMPLE/GO falso, así que se consideró suficiente la verificación directa
 de cada función real más los 70 tests de humo. `git status --porcelain`
 confirma que no quedaron archivos de prueba sueltos en el repositorio.
+
+## Radar de Afinidad IA: construido, probado y descartado; en su lugar, requisitos del pliego con IA
+
+**Radar (Fase C del plan de paridad con LicitIA).** Se construyó completo (Edge Function `radar-afinidad`
+con Claude Haiku, tabla `ai_usage`, botón "🎯 Radar de Afinidad IA", badge de puntaje por tarjeta) y se
+desplegó. Al probarlo salieron 2 problemas reales de despliegue que valía la pena dejar por escrito: (1)
+una Edge Function llamada desde el navegador **debe responder el preflight CORS (`OPTIONS`) y devolver
+`Access-Control-Allow-*`** -- sin eso, supabase-js solo dice "Failed to send a request to the Edge Function"
+sin ningún detalle; (2) la prueba real terminó en un 400 de Anthropic "credit balance is too low" (falta de
+saldo, no un bug). **El usuario decidió no invertir en él**: el buscador por palabras clave ya filtra bien
+y un puntaje de afinidad no le dice si cumple los requisitos ni si vale la pena participar. Su lectura de
+negocio (como gerente de una constructora) fue que la debilidad real de la app es el **análisis del
+pliego**, no la búsqueda. Se retiró el frontend, la función y su entrada en `config.toml`; `ai_usage` se
+conserva porque la función nueva la reutiliza. **No reconstruir el Radar sin releer esto.**
+
+**Qué documento trae los requisitos** (investigado con fuentes oficiales de Colombia Compra Eficiente):
+el **Pliego de Condiciones definitivo** (para obra pública, el Documento Tipo) es la fuente vinculante de los
+requisitos habilitantes (jurídico, experiencia, organizacional, financiero -- Ley 1150 art. 5); los
+**Anexos/Matrices** traen las cifras exactas (ej. "Matriz 1 – Experiencia"), las **Adendas** los modifican, los
+**Estudios Previos** los justifican pero no los fijan, y el proyecto de pliego es un borrador que se ignora.
+
+**Diseño elegido: la IA solo EXTRAE, el motor de reglas decide.** Edge Function `extraer-requisitos`
+(Claude Sonnet 5, `claude-sonnet-5`, PDF completo como bloques `document` + salida estructurada
+`output_config.format` json_schema; NO se usa `citations`, es incompatible con structured outputs): devuelve
+una tabla de requisitos con categoría, cifra, página y cita textual. El navegador
+1) sube el PDF (+ adendas) a un bucket privado `pliegos/<company_id>/...` (migración
+`20260926_pliegos_storage.sql`; la función lo baja con service_role y lo BORRA siempre, en `finally`);
+2) verifica cada fila contra el texto real del PDF con pdf.js (`verificarFilaIA`: la cita debe aparecer en
+la página indicada o una contigua, y cada cifra declarada debe aparecer en su propia cita);
+3) convierte las filas a las mismas formas que el motor ya entendía (`filaIAaRequisito` ->
+`construirRequisitoDesdeTexto`/`evaluarExperienciaCompleta`, `exigenciasDesdeIA` -> `entry.exigenciasIA`,
+`hallazgosPersonalDesdeIA`, `codigosUnspscDesdeIA`). Los campos de la IA viven en `entry.requisitosIA` y
+`entry.*IA`, **aparte** de los regex (`entry.exigencias`...), para no pisarlos.
+**Regla central: una fila con cita no verificada o confianza baja jamás produce CUMPLE ni NO CUMPLE** -- el
+motor la fuerza a NO DETERMINABLE (`req.forzarNoDeterminable`) hasta que el usuario marque "Revisé la cita en
+el PDF y es correcta" (persistido en `confirmadaPorUsuario`, reversible). Seguridad de la función: verify_jwt,
+empresa resuelta server-side, cada `path` debe empezar por su `company_id` (la función lee Storage con
+service_role), tope de 10 extracciones/24 h por empresa (`ai_usage`). Sin cuenta o sin IA la app funciona
+exactamente como antes (regex).
+
+**Bug latente encontrado y corregido al diseñar esto (no era de la IA): comparación SMMLV vs pesos.**
+`evaluarRequisito` comparaba el valor del contrato en PESOS contra `minValor.valor` aunque `minValor.unidad`
+fuera SMMLV (ej. 12.000.000.000 >= 15.000 -> CUMPLE falso). Los pliegos oficiales de experiencia casi siempre
+piden SMMLV. Ahora se convierte con el SMMLV del año que diga el propio pliego
+(`regla_conversion_smmlv`: fecha de terminación o de inicio; tabla `SMMLV_POR_ANIO` 2015–2026, confirmada en
+varias fuentes) y **sin regla explícita, sin fecha o con un año fuera de la tabla el resultado es NO
+DETERMINABLE** -- no se asume con qué salario mínimo convertir (esa regla no se encontró en fuentes oficiales).
+Segundo hueco del mismo tipo: si un criterio de valor/cantidad no se podía verificar (contrato sin valor o sin
+cantidad), el `minContratos` cumplido arrastraba un CUMPLE; ahora ese criterio deja el resultado en NO
+DETERMINABLE. Ambos los atraparon los tests nuevos antes de llegar a producción.
+
+**UI.** Bloque "REQUISITOS HABILITANTES (extraídos con IA...)" en el análisis del pliego: una fila por requisito
+(categoría, requisito, exigido, estado con tu empresa tomado del motor, fuente con página, ✓ si la cita se
+verificó, cita desplegable). Con `entry.requisitosIA` presente reemplaza a la lista regex "Otros requisitos
+habilitantes" (el bloque "Experiencia requerida" con el detalle por requisito y la carga del Estudio Previo
+se mantiene). Gates nuevos en `evaluarProceso`: Patrimonio y Capital de trabajo (solo cuando la IA los extrae).
+El informe .txt incluye la misma tabla.
+
+**Verificado.** 88/88 tests de humo (18 nuevos: verificación de cita exacta/aproximada/inventada/sin texto,
+cifra que no está en su cita, corrección de página ±1, mapeo fila IA -> requisito -> CUMPLE / NO CUMPLE / NO
+DETERMINABLE, SMMLV con y sin regla, regresión del bug de pesos vs SMMLV, fila confirmada por el usuario,
+guardarraíl dimensional tomado de la cita). Mutación: forzar que `verificarFilaIA` siempre apruebe hizo fallar
+6 tests. Probado en navegador con una respuesta simulada de la IA (sin gastar crédito): tabla, conversión
+SMMLV, comparación de liquidez/K residual contra el perfil, bloqueo de filas sin verificar, confirmación
+persistente tras recargar. **Pendiente (requiere crédito de Anthropic + despliegue por el usuario):** la
+prueba real contra un pliego (medir duración frente al límite de tiempo de las Edge Functions, tokens y costo
+reales -- la estimación de ~100–200 mil tokens de entrada por pliego de ~70 páginas no está verificada).

@@ -128,8 +128,8 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'normalizePAA', 'buscarPAA', 'departamentoPorEntidad', 'matchesMunicipio',
     'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
-    // Fase C (Radar de Afinidad IA).
-    'runRadarAfinidad',
+    // Requisitos habilitantes con IA (ver CLAUDE.md).
+    'verificarFilaIA', 'filaIAaRequisito', 'exigenciasDesdeIA', 'valorContratoEnSmmlv',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -241,7 +241,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -1047,6 +1047,157 @@ await check('extraerRequisitosDePliego: una zona menciona una tabla/matriz de ex
   assert(requisitos.length === 0, 'no debería inventarse ningún requisito a partir de una mención de tabla sin cifras en prosa');
   assert(posiblesTablasNoLeidas.length === 1, 'se esperaba 1 aviso de posible tabla no leída, se detectaron ' + posiblesTablasNoLeidas.length);
   assert(posiblesTablasNoLeidas[0].pagina === 30, 'el aviso debería citar la página real, citó ' + posiblesTablasNoLeidas[0].pagina);
+});
+
+
+// ── Requisitos habilitantes extraídos por IA (ver CLAUDE.md) ────────────────
+// La IA solo extrae; estos tests cubren la parte determinística: verificar la
+// cita contra el texto real del PDF, mapear a requisitos del motor y que una
+// fila sin verificar NUNCA produzca CUMPLE/NO CUMPLE.
+const IA_P1 = 'Portada del pliego de condiciones. Licitación pública. ';
+const IA_P2 = 'Matriz 1 - Experiencia. Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV, obligatorio. ';
+const IA_TEXTO = IA_P1 + IA_P2;
+const IA_OFFSETS = [{ pagina: 1, hasta: IA_P1.length }, { pagina: 2, hasta: IA_TEXTO.length }];
+function filaIA(extra) {
+  return Object.assign({
+    categoria: 'experiencia_especifica', descripcion: 'Experiencia específica en construcción de puentes vehiculares',
+    obligatoriedad: 'obligatorio', documento: 'Pliego de Condiciones', pagina: 2,
+    cita_textual: 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV', confianza: 'alta',
+    modificado_por_adenda: false, min_contratos: 2, valor_minimo_numero: 15000, valor_minimo_unidad: 'SMMLV',
+    valor_minimo_pct_presupuesto: null, regla_conversion_smmlv: 'fecha_terminacion', cantidad_minima_numero: null,
+    cantidad_minima_unidad: null, acumulable: true, ventana_anios: null, indicador: null, operador: null,
+    valor_indicador: null, unidad_indicador: null, codigos_unspsc: [], grupo_alternativo: null, notas: null
+  }, extra || {});
+}
+function contratosPuentes(valor, fecha) {
+  return expEngine.parsearExcelExperiencia(fakeWorkbook(
+    ['Objeto', 'Valor', 'Fecha de terminación'],
+    [['Construcción de puentes vehiculares en Norte de Santander', valor, fecha], ['Construcción de puentes vehiculares sobre el río Zulia', valor, fecha]]
+  )).contratos;
+}
+function evaluarFilaIA(fila, contratos) {
+  const verificada = expEngine.verificarFilasIA([fila], IA_TEXTO, IA_OFFSETS)[0];
+  const reqs = expEngine.requisitosDeExperienciaDesdeIA([verificada]);
+  return expEngine.evaluarExperienciaCompleta(contratos, reqs, new Date('2026-06-01T00:00:00')).resultados[0];
+}
+
+await check('verificarFilaIA: una cita literal en la página indicada se verifica (exacta)', () => {
+  const v = expEngine.verificarFilaIA(filaIA(), IA_TEXTO, IA_OFFSETS);
+  assert(v.verificada === true && v.tipo === 'exacta', 'se esperaba verificada exacta, fue ' + JSON.stringify(v));
+});
+
+await check('verificarFilaIA: una cita INVENTADA (no está en el PDF) no se verifica, aunque su cifra sea coherente con su propia cita', () => {
+  const v = expEngine.verificarFilaIA(filaIA({ min_contratos: 99, cita_textual: 'Se exigen mínimo 99 contratos de puentes vehiculares con valor superior' }), IA_TEXTO, IA_OFFSETS);
+  assert(v.verificada === false, 'una cita que no aparece en el PDF no debe verificarse, fue ' + JSON.stringify(v));
+});
+
+await check('verificarFilaIA: una cifra que NO aparece en su propia cita no se verifica', () => {
+  const v = expEngine.verificarFilaIA(filaIA({ min_contratos: 5 }), IA_TEXTO, IA_OFFSETS);
+  assert(v.verificada === false && /contratos/.test(v.motivo), 'la cifra 5 no está en la cita, fue ' + JSON.stringify(v));
+});
+
+await check('verificarFilaIA: sin texto del PDF (escaneado / no leído) no se verifica -- nunca se asume', () => {
+  const v = expEngine.verificarFilaIA(filaIA(), '', []);
+  assert(v.verificada === false && /No hay texto/.test(v.motivo), 'se esperaba no verificada por falta de texto, fue ' + JSON.stringify(v));
+});
+
+await check('verificarFilaIA / verificarFilasIA: página off-by-one se verifica en la contigua y se corrige la página citada', () => {
+  const filas = expEngine.verificarFilasIA([filaIA({ pagina: 1 })], IA_TEXTO, IA_OFFSETS);
+  assert(filas[0].verificada === true && filas[0].paginaCorregida === 2, 'se esperaba verificada con paginaCorregida=2, fue ' + JSON.stringify({ v: filas[0].verificada, pc: filas[0].paginaCorregida }));
+});
+
+await check('verificarFilaIA: una cita de tabla con el orden de palabras distinto se acepta como aproximada si las palabras y números están en la página', () => {
+  const v = expEngine.verificarFilaIA(filaIA({ cita_textual: 'valor acumulado 15.000 SMMLV Puentes vehiculares: mínimo 2 contratos' }), IA_TEXTO, IA_OFFSETS);
+  assert(v.verificada === true && v.tipo === 'aproximada', 'se esperaba aproximada, fue ' + JSON.stringify(v));
+});
+
+await check('Fila IA de experiencia verificada + SMMLV con regla del pliego -> CUMPLE (valor en pesos convertido con el SMMLV del año de terminación)', () => {
+  // 12.000.000.000 COP / SMMLV 2022 (1.000.000) = 12.000 SMMLV por contrato; 2 contratos = 24.000 >= 15.000
+  const r = evaluarFilaIA(filaIA(), contratosPuentes('12000000000', '15/03/2022'));
+  assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('Fila IA verificada + SMMLV con regla, pero los contratos NO alcanzan -> NO CUMPLE (conversión completa, evidencia real)', () => {
+  // 5.000.000.000 / 1.000.000 = 5.000 SMMLV por contrato; 2 contratos = 10.000 < 15.000
+  const r = evaluarFilaIA(filaIA(), contratosPuentes('5000000000', '15/03/2022'));
+  assert(r.resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('Fila IA con requisito en SMMLV pero SIN regla de conversión del pliego -> NO DETERMINABLE (no se adivina con qué salario mínimo convertir)', () => {
+  const r = evaluarFilaIA(filaIA({ regla_conversion_smmlv: null }), contratosPuentes('12000000000', '15/03/2022'));
+  assert(r.resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('REGRESIÓN motor: un requisito en SMMLV (por regex de texto) contra un contrato en PESOS ya NO da CUMPLE por comparar 12.000.000.000 >= 15.000 como números planos', () => {
+  const req = expEngine.construirRequisitoDesdeTexto('Experiencia específica en construcción de puentes vehiculares, mínimo 1 contrato, valor mínimo 15.000 SMMLV', 0, {});
+  assert(req.minValor && req.minValor.unidad === 'SMMLV', 'el fixture debería traer minValor en SMMLV, fue ' + JSON.stringify(req.minValor));
+  const ev = expEngine.evaluarExperienciaCompleta(contratosPuentes('12000000000', '15/03/2022'), [req], new Date('2026-06-01T00:00:00'));
+  assert(ev.resultados[0].resultado !== 'CUMPLE', 'no debe dar CUMPLE comparando pesos contra SMMLV, dio ' + ev.resultados[0].resultado + ' -- ' + ev.resultados[0].justificacion);
+});
+
+await check('Fila IA con cita NO verificada -> el motor NUNCA da CUMPLE ni NO CUMPLE (queda NO DETERMINABLE con el motivo)', () => {
+  const inventada = filaIA({ cita_textual: 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV en obras de arte' });
+  const r = evaluarFilaIA(inventada, contratosPuentes('12000000000', '15/03/2022'));
+  assert(r.resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + r.resultado);
+  assert(/No se pudo verificar la cita/.test(r.justificacion), 'la justificación debería explicar que la cita no se verificó, fue: ' + r.justificacion);
+  const rNo = evaluarFilaIA(inventada, contratosPuentes('5000000000', '15/03/2022'));
+  assert(rNo.resultado === 'NO DETERMINABLE', 'una fila sin verificar tampoco debe dar NO CUMPLE, fue ' + rNo.resultado);
+});
+
+await check('Fila IA con cita no verificada pero CONFIRMADA por el usuario -> el motor la evalúa normalmente', () => {
+  const confirmada = filaIA({ cita_textual: 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV en obras de arte', confirmadaPorUsuario: true });
+  const r = evaluarFilaIA(confirmada, contratosPuentes('12000000000', '15/03/2022'));
+  assert(r.resultado === 'CUMPLE', 'confirmada por el usuario debería evaluarse (CUMPLE), fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('Fila IA con confianza baja (aunque la cita se verifique) -> NO DETERMINABLE hasta que el usuario la confirme', () => {
+  const r = evaluarFilaIA(filaIA({ confianza: 'baja' }), contratosPuentes('12000000000', '15/03/2022'));
+  assert(r.resultado === 'NO DETERMINABLE' && /confianza baja/.test(r.justificacion), 'se esperaba NO DETERMINABLE por confianza baja, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('Fila IA con guardarraíl en la CITA ("longitud mínima de 50 metros") que la descripción omitió -> no se da CUMPLE automático', () => {
+  const texto = IA_P1 + 'Puentes vehiculares con longitud mínima de 50 metros, mínimo 2 contratos, valor 15.000 SMMLV.';
+  const offs = [{ pagina: 1, hasta: IA_P1.length }, { pagina: 2, hasta: texto.length }];
+  const fila = expEngine.verificarFilasIA([filaIA({ cita_textual: 'Puentes vehiculares con longitud mínima de 50 metros, mínimo 2 contratos, valor 15.000 SMMLV' })], texto, offs)[0];
+  const req = expEngine.requisitosDeExperienciaDesdeIA([fila])[0];
+  const r = expEngine.evaluarExperienciaCompleta(contratosPuentes('12000000000', '15/03/2022'), [req], new Date('2026-06-01T00:00:00')).resultados[0];
+  assert(r.resultado === 'NO DETERMINABLE', 'la condición dimensional de la cita debe bloquear el CUMPLE automático, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('exigenciasDesdeIA: solo filas confiables alimentan liquidez/endeudamiento/K residual, en la forma que ya consume evaluarProceso', () => {
+  const base = { categoria: 'capacidad_financiera', cita_textual: 'Índice de liquidez mayor o igual a 1,5', confianza: 'alta', pagina: 5 };
+  const ok = filaIA(Object.assign({}, base, { indicador: 'liquidez', operador: '>=', valor_indicador: 1.5, verificada: true }));
+  const sinVerificar = filaIA(Object.assign({}, base, { indicador: 'endeudamiento', operador: '<=', valor_indicador: 0.6, verificada: false }));
+  const confirmada = filaIA(Object.assign({}, base, { indicador: 'cobertura_intereses', operador: '>=', valor_indicador: 2, verificada: false, confirmadaPorUsuario: true }));
+  const k = filaIA({ categoria: 'k_residual', indicador: 'k_residual', valor_minimo_numero: 30000, valor_minimo_unidad: 'SMMLV', valor_indicador: null, verificada: true });
+  const ex = expEngine.exigenciasDesdeIA([ok, sinVerificar, confirmada, k]);
+  assert(ex.liquidez && ex.liquidez.valor === 1.5, 'liquidez verificada debería pasar, fue ' + JSON.stringify(ex.liquidez));
+  assert(!ex.endeudamiento, 'una fila sin verificar NO debe alimentar endeudamiento');
+  assert(ex.cobertura && ex.cobertura.valor === 2, 'una fila confirmada por el usuario sí debe pasar');
+  assert(ex.kResidual && ex.kResidual.valor === 30000 && ex.kResidual.unidad === 'SMMLV', 'K residual en SMMLV, fue ' + JSON.stringify(ex.kResidual));
+});
+
+await check('exigenciasDesdeIA: un operador contradictorio (liquidez "<=") no se usa -- el motor asume liquidez como mínimo', () => {
+  const f = filaIA({ categoria: 'capacidad_financiera', indicador: 'liquidez', operador: '<=', valor_indicador: 1.5, verificada: true });
+  assert(!expEngine.exigenciasDesdeIA([f]).liquidez, 'un operador contradictorio no debe producir una exigencia');
+});
+
+await check('hallazgosPersonalDesdeIA / codigosUnspscDesdeIA: solo filas confiables, con la forma que ya consumen los gates', () => {
+  const per = filaIA({ categoria: 'personal', descripcion: 'Director de obra ingeniero civil con 10 años de experiencia', verificada: true });
+  const perSin = filaIA({ categoria: 'personal', descripcion: 'Residente de obra', verificada: false });
+  const hs = expEngine.hallazgosPersonalDesdeIA([per, perSin]);
+  assert(hs.length === 1 && hs[0].categoria === 'Personal / Equipo de trabajo' && /Director de obra/.test(hs[0].snippet), 'se esperaba solo el hallazgo verificado, fue ' + JSON.stringify(hs));
+  const cod = filaIA({ categoria: 'clasificacion_unspsc', codigos_unspsc: ['72141100', '72 14 11 00', '9512'], verificada: true });
+  assert(JSON.stringify(expEngine.codigosUnspscDesdeIA([cod])) === JSON.stringify(['72141100']), 'se esperaba un solo código de 8 dígitos sin duplicar, fue ' + JSON.stringify(expEngine.codigosUnspscDesdeIA([cod])));
+});
+
+await check('valorContratoEnSmmlv: sin regla, sin fecha o con un año fuera de la tabla devuelve null (no se adivina)', () => {
+  const c = { valor: 1000000000, fechaFin: '2022-03-15', fechaInicio: '2021-01-10' };
+  assert(expEngine.valorContratoEnSmmlv(c, null) === null, 'sin regla debe ser null');
+  assert(expEngine.valorContratoEnSmmlv({ valor: 1e9 }, 'fecha_terminacion') === null, 'sin fecha debe ser null');
+  assert(expEngine.valorContratoEnSmmlv({ valor: 1e9, fechaFin: '2003-01-01' }, 'fecha_terminacion') === null, 'año fuera de la tabla debe ser null');
+  const r = expEngine.valorContratoEnSmmlv(c, 'fecha_inicio');
+  assert(r && r.anio === 2021 && Math.abs(r.smmlv - 1000000000 / 908526) < 1e-6, 'fecha_inicio debe usar el SMMLV de 2021, fue ' + JSON.stringify(r));
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
