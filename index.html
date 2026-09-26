@@ -5536,6 +5536,20 @@
     };
   }
 
+  // Auditoría de pre-lanzamiento S2-003. Un estado que ya NO es una oportunidad
+  // de participar (cancelado, en borrador, ya seleccionado/adjudicado, suspendido,
+  // en evaluación...) no debe presentarse como oportunidad por defecto, aunque no
+  // tenga fecha de cierre (el 84% de los procesos de SECOP II no la trae, así que
+  // "ocultar vencidos" nunca los ocultaba). Ejemplos reales: en la muestra de
+  // "acueducto", 105 de 300 estaban Cancelados. Solo se decide por el ESTADO; un
+  // estado desconocido o vacío NO se oculta (mejor mostrar de más que perder un
+  // proceso abierto por un estado nuevo que la entidad inventó).
+  function esEstadoNoVigente(estado){
+    const e = normHeader(estado);
+    if (!e) return false;
+    return /^(cancelad|borrador|seleccionad|suspendid|aprobad|en aprobacion|evaluacion|adjudicad|celebrad|liquidad|terminad|declarad|desiert|revocad|descartad)/.test(e);
+  }
+
   // Umbrales numéricos que EXIGE el pliego (índices financieros, K residual).
   // Orientativo: el pliego los redacta de mil formas, así que si no encuentra un
   // patrón claro devuelve null y la evaluación lo marca "sin dato".
@@ -7505,10 +7519,13 @@
     // antes empieza marcado (visible) por defecto. Con búsqueda por Nº de proceso no
     // se aplica -- ver comentario de buscandoProceso más arriba.
     const estadosPresentes = Array.from(new Set(scored.map(s => s.item.estado || 'Sin estado'))).sort();
-    estadosPresentes.forEach(e => { if (!(e in estadoSeleccionado)) estadoSeleccionado[e] = true; });
+    // S2-003: por defecto solo se muestran los estados que siguen siendo una
+    // oportunidad (ver esEstadoNoVigente). El usuario puede marcar los demás.
+    estadosPresentes.forEach(e => { if (!(e in estadoSeleccionado)) estadoSeleccionado[e] = !esEstadoNoVigente(e); });
+    const ocultosPorEstado = buscandoProceso ? 0 : scored.filter(s => estadoSeleccionado[s.item.estado || 'Sin estado'] === false).length;
     estadoTogglesEl.innerHTML = estadosPresentes.length ? ('<span class="toggle-label">Estado:</span>' + estadosPresentes.map(e =>
       '<label class="toggle"><input type="checkbox" data-estado="' + escapeHtml(e) + '"' + (estadoSeleccionado[e] ? ' checked' : '') + '> ' + escapeHtml(e) + '</label>'
-    ).join('')) : '';
+    ).join('') + (ocultosPorEstado ? '<span class="saved-note" role="status"> ' + ocultosPorEstado + ' proceso(s) oculto(s) por no estar abiertos (cancelados, en evaluación, adjudicados…). Marca su estado para verlos.</span>' : '')) : '';
     estadoTogglesEl.querySelectorAll('input[data-estado]').forEach(cb => {
       cb.addEventListener('change', () => {
         estadoSeleccionado[cb.getAttribute('data-estado')] = cb.checked;
@@ -7839,6 +7856,9 @@
       const item = normalize(r);
       if (alerta.keywords.length && !alerta.keywords.some(k => matchesTerm(item.searchable, k))) return;
       if (alerta.geos.length && !alerta.geos.some(g => matchesGeo(item.geoSearchable, g))) return;
+      // S2-003: una alerta avisa de oportunidades nuevas; un proceso cancelado,
+      // en borrador o ya adjudicado no lo es.
+      if (esEstadoNoVigente(item.estado)) return;
       const numVal = Number(item.valor);
       if (alerta.minV && !isNaN(numVal) && numVal > 0 && numVal < alerta.minV) return;
       if (alerta.maxV && !isNaN(numVal) && numVal > 0 && numVal > alerta.maxV) return;

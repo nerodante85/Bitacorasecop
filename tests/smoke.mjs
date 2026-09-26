@@ -129,7 +129,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
     // Requisitos habilitantes con IA (ver CLAUDE.md).
-    'verificarFilaIA', 'filaIAaRequisito', 'exigenciasDesdeIA', 'valorContratoEnSmmlv', 'consultasSecopII',
+    'verificarFilaIA', 'filaIAaRequisito', 'exigenciasDesdeIA', 'valorContratoEnSmmlv', 'consultasSecopII', 'esEstadoNoVigente',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -241,7 +241,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -1345,6 +1345,31 @@ await check('SECOP II: sin término no se manda $q, y las dos consultas conserva
     const p = new URLSearchParams(c[k]);
     assert(!p.has('$q'), k + ': no debe haber $q');
     assert(p.get('$limit') === '300', k + ': $limit=300');
+  }
+});
+
+// ---- S2-003: estados que ya no son una oportunidad ---------------------------
+await check('S2-003: Cancelado, Borrador, Seleccionado, Suspendido, Aprobado, En aprobación y Evaluación NO son vigentes (estados reales de SECOP II)', () => {
+  for (const e of ['Cancelado', 'Borrador', 'Seleccionado', 'Suspendido', 'Aprobado', 'En aprobación', 'Evaluación', 'evaluacion', 'CANCELADO']) {
+    assert(expEngine.esEstadoNoVigente(e) === true, e + ' debería ser no vigente');
+  }
+});
+
+await check('S2-003: Publicado y Abierto SÍ son vigentes (control positivo: no se oculta lo que es una oportunidad)', () => {
+  for (const e of ['Publicado', 'Abierto', 'publicado']) {
+    assert(expEngine.esEstadoNoVigente(e) === false, e + ' debería seguir siendo vigente');
+  }
+});
+
+await check('S2-003: un estado vacío, ausente o desconocido NO se oculta (mejor mostrar de más que perder un proceso abierto)', () => {
+  for (const e of [null, undefined, '', 'Sin estado', 'Estado inventado por una entidad']) {
+    assert(expEngine.esEstadoNoVigente(e) === false, JSON.stringify(e) + ' no debería ocultarse');
+  }
+});
+
+await check('S2-003: estados de cierre/adjudicación de SECOP I (Celebrado, Liquidado, Terminado anormalmente, Declarado desierto) tampoco son vigentes', () => {
+  for (const e of ['Celebrado', 'Liquidado', 'Terminado Anormalmente después de Convocado', 'Terminado sin Liquidar', 'Declarado desierto', 'Adjudicado', 'Descartado']) {
+    assert(expEngine.esEstadoNoVigente(e) === true, e + ' debería ser no vigente');
   }
 });
 

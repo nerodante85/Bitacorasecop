@@ -207,6 +207,15 @@ interface EmpresaSeguida {
   id: string; nombre: string; ultimaRevision?: string;
 }
 
+// = esEstadoNoVigente en index.html (auditoría S2-003): un proceso cancelado,
+// en borrador, ya seleccionado/adjudicado, suspendido o en evaluación no es una
+// oportunidad nueva. Un estado vacío o desconocido NO se descarta.
+function esEstadoNoVigente(estado: unknown): boolean {
+  const e = String(estado ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9%\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!e) return false;
+  return /^(cancelad|borrador|seleccionad|suspendid|aprobad|en aprobacion|evaluacion|adjudicad|celebrad|liquidad|terminad|declarad|desiert|revocad|descartad)/.test(e);
+}
+
 // = evaluarAlerta en index.html -- cuenta procesos de SECOP II que coinciden
 // con los criterios de la alerta Y se publicaron después de ultimaRevision.
 async function contarNuevosDeAlerta(alerta: Alerta): Promise<number> {
@@ -220,6 +229,7 @@ async function contarNuevosDeAlerta(alerta: Alerta): Promise<number> {
     const departamento = String(findField(r, ['departamento', 'departamento_entidad'], 'departamento') || '');
     if (alerta.keywords.length && !alerta.keywords.some((k) => matchesTerm(searchable, k))) return;
     if (alerta.geos.length && !alerta.geos.some((g) => matchesGeo(departamento, g))) return;
+    if (esEstadoNoVigente(findField(r, ['estado_del_procedimiento', 'fase'], 'estado'))) return;
     const valor = Number(findField(r, ['precio_base', 'valor_estimado', 'valor_del_contrato', 'valor_total_estimado'], 'precio'));
     if (alerta.minV && !isNaN(valor) && valor > 0 && valor < alerta.minV) return;
     if (alerta.maxV && !isNaN(valor) && valor > 0 && valor > alerta.maxV) return;
