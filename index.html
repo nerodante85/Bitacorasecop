@@ -5505,6 +5505,37 @@
     return set;
   }
 
+  // Auditoría de pre-lanzamiento S2-001/S2-002 (SECOP II). La consulta anterior
+  // era `$limit=300&$q=<palabra>&$order=fecha_de_publicacion_del DESC`. En
+  // Socrata el orden DESC pone los NULL primero, y ~127.000 procesos de SECOP II
+  // no traen fecha de publicación (borradores, cancelados...): para palabras
+  // comunes ("acueducto", "alcantarillado", "interventoria", "colegio") las 300
+  // filas eran todas NULL y NINGÚN proceso abierto llegaba a la pantalla (había
+  // ~40 abiertos por palabra en el servidor). Además, `$q` distingue tildes:
+  // "pavimentación" daba 2 resultados y "pavimentacion" 858.
+  // Ahora se piden DOS consultas por palabra y se unen:
+  //  1) VIGENTES: cierre de ofertas hoy o después, ordenada por cierre más
+  //     próximo. Son pocas (decenas), así que caben de sobra en 300 y no se
+  //     pierde ningún proceso abierto real.
+  //  2) RECIENTES: publicación NO nula, más reciente primero (lo de antes, pero
+  //     sin los NULL que tapaban todo).
+  // El término va sin tildes (el filtro fino real sigue siendo `matchesTerm`,
+  // que ya ignora tildes). Devuelve solo los parámetros de consulta; la URL base
+  // y el token los pone quien llama.
+  function consultasSecopII(qTerm, hoyISO){
+    const q = qTerm
+      ? '&$q=' + encodeURIComponent(String(qTerm).normalize('NFD').replace(/[̀-ͯ]/g, ''))
+      : '';
+    return {
+      vigentes: '$limit=300' + q +
+        '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'") +
+        '&$order=' + encodeURIComponent('fecha_de_recepcion_de ASC'),
+      recientes: '$limit=300' + q +
+        '&$where=' + encodeURIComponent('fecha_de_publicacion_del IS NOT NULL') +
+        '&$order=' + encodeURIComponent('fecha_de_publicacion_del DESC')
+    };
+  }
+
   // Umbrales numéricos que EXIGE el pliego (índices financieros, K residual).
   // Orientativo: el pliego los redacta de mil formas, así que si no encuentra un
   // patrón claro devuelve null y la evaluación lo marca "sin dato".
@@ -7728,10 +7759,32 @@
       return data;
     }
     let data;
-    try {
-      data = await intentar(base + '&$order=' + (ordenCol || 'fecha_de_publicacion_del') + '%20DESC');
-    } catch(e){
-      data = await intentar(base);
+    const esSecopII = datasetId === 'p6dx-8zbt' && (!ordenCol || ordenCol === 'fecha_de_publicacion_del');
+    if (esSecopII){
+      // Ver consultasSecopII (S2-001/S2-002): vigentes + recientes, sin tildes.
+      const hoy = new Date();
+      const hoyISO = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
+      const c = consultasSecopII(qTerm, hoyISO);
+      const url = p => 'https://www.datos.gov.co/resource/' + datasetId + '.json?' + p;
+      try {
+        const [vigentes, recientes] = await Promise.all([intentar(url(c.vigentes)), intentar(url(c.recientes))]);
+        data = vigentes.concat(recientes);
+        // Las vigentes NO deben quedarse cortas (son las oportunidades abiertas):
+        // si aun así llegan a 300, se avisa fuerte. Las recientes sí suelen llegar
+        // a 300 en palabras comunes; eso es esperable y se avisa suave.
+        data.truncadoVigentes = vigentes.length >= 300;
+        data.truncado = recientes.length >= 300 || vigentes.length >= 300;
+      } catch(e){
+        // Si el servidor rechaza esta forma de consulta, no se deja la búsqueda
+        // sin resultados: se cae a la consulta simple sin orden ni filtros.
+        data = await intentar(base);
+      }
+    } else {
+      try {
+        data = await intentar(base + '&$order=' + (ordenCol || 'fecha_de_publicacion_del') + '%20DESC');
+      } catch(e){
+        data = await intentar(base);
+      }
     }
     data.forEach(r => { r._fuente = fuente; });
     return data;
@@ -7758,7 +7811,10 @@
     // adjunta como propiedad del array (no cambia su forma ni rompe a
     // ningún llamador existente que solo lo recorra/mapee) -- solo
     // runSearch() la lee, para mostrarla en el status de la búsqueda.
-    deduped.truncado = batches.some(b => b.length >= 300);
+    // SECOP II devuelve dos consultas unidas (vigentes + recientes) y marca su
+    // propio `truncado`/`truncadoVigentes`; el resto de fuentes, el criterio simple.
+    deduped.truncado = batches.some(b => b.truncado !== undefined ? b.truncado : b.length >= 300);
+    deduped.truncadoVigentes = batches.some(b => b.truncadoVigentes === true);
     return deduped;
   }
 
@@ -7935,7 +7991,9 @@
       lastRecords = live;
       render(live, keywords, geos, municipios, minV, maxV, numProceso);
       dataFreshnessEl.textContent = 'Datos en vivo (' + live.length + ' procesos) — consultados justo ahora en datos.gov.co.' +
-        (live.truncado ? ' ⚠ Alguna de tus palabras clave trajo el máximo de filas por consulta -- puede haber más procesos reales de los que se muestran aquí; prueba con una palabra más específica si buscas algo puntual.' : '');
+        (live.truncadoVigentes
+          ? ' ⚠ Alguna de tus palabras clave trajo el máximo de procesos con cierre próximo -- puede haber más procesos abiertos de los que se muestran; prueba con una palabra más específica o un departamento.'
+          : (live.truncado ? ' Se muestran todos los procesos con cierre de ofertas próximo y los 300 publicados más recientes por palabra clave; los publicados hace más tiempo pueden no aparecer.' : ''));
     } catch(err){
       // Sin conexión en vivo (p.ej. corriendo dentro de un artifact de Claude.ai):
       // usa el snapshot de respaldo (snapshot.json) sin dejar la pantalla vacía.

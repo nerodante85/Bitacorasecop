@@ -137,6 +137,24 @@ function pubRawDeSecopII(record: Record<string, unknown>): string | null {
 
 // = fetchSecopDataset en index.html (mismo $limit, mismo reintento sin
 // orden si la columna no existe en ese dataset).
+// = consultasSecopII en index.html (auditoría S2-001/S2-002). El orden DESC de
+// Socrata pone los NULL primero y ~127.000 procesos de SECOP II no tienen fecha
+// de publicación: para palabras comunes las 300 filas eran todas NULL y ningún
+// proceso abierto llegaba, así que el correo podía decir "0 nuevos" con procesos
+// nuevos reales. Se piden dos consultas (vigentes por cierre próximo + recientes
+// con publicación no nula) y el término va sin tildes ($q distingue tildes).
+function consultasSecopII(qTerm: string | null, hoyISO: string) {
+  const q = qTerm ? '&$q=' + encodeURIComponent(String(qTerm).normalize('NFD').replace(/[̀-ͯ]/g, '')) : '';
+  return {
+    vigentes: '$limit=300' + q +
+      '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'") +
+      '&$order=' + encodeURIComponent('fecha_de_recepcion_de ASC'),
+    recientes: '$limit=300' + q +
+      '&$where=' + encodeURIComponent('fecha_de_publicacion_del IS NOT NULL') +
+      '&$order=' + encodeURIComponent('fecha_de_publicacion_del DESC'),
+  };
+}
+
 async function fetchSecopDataset(datasetId: string, qTerm: string | null, ordenCol: string): Promise<Record<string, unknown>[]> {
   const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' + (qTerm ? '&$q=' + encodeURIComponent(qTerm) : '');
   async function intentar(url: string) {
@@ -145,6 +163,26 @@ async function fetchSecopDataset(datasetId: string, qTerm: string | null, ordenC
     const data = await res.json();
     if (!Array.isArray(data)) throw new Error('respuesta inesperada');
     return data as Record<string, unknown>[];
+  }
+  if (datasetId === SECOP_II_DATASET && ordenCol === 'fecha_de_publicacion_del') {
+    // Fecha de Colombia (UTC-5) para comparar contra la fecha de cierre.
+    const hoyISO = new Date(Date.now() - 5 * 3600 * 1000).toISOString().slice(0, 10);
+    const c = consultasSecopII(qTerm, hoyISO);
+    const url = (p: string) => 'https://www.datos.gov.co/resource/' + datasetId + '.json?' + p;
+    try {
+      const [vigentes, recientes] = await Promise.all([intentar(url(c.vigentes)), intentar(url(c.recientes))]);
+      // Un mismo proceso puede salir en ambas consultas: se une sin duplicar
+      // (el digest cuenta filas, un duplicado inflaría el "N nuevos").
+      const vistos = new Set<string>();
+      return vigentes.concat(recientes).filter((r) => {
+        const k = String(r['id_del_proceso'] ?? JSON.stringify(r));
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      });
+    } catch (_e) {
+      return await intentar(base);
+    }
   }
   try {
     return await intentar(base + '&$order=' + ordenCol + '%20DESC');

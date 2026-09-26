@@ -129,7 +129,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
     // Requisitos habilitantes con IA (ver CLAUDE.md).
-    'verificarFilaIA', 'filaIAaRequisito', 'exigenciasDesdeIA', 'valorContratoEnSmmlv',
+    'verificarFilaIA', 'filaIAaRequisito', 'exigenciasDesdeIA', 'valorContratoEnSmmlv', 'consultasSecopII',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -241,7 +241,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -1254,6 +1254,98 @@ await check('Fila IA con cantidad mínima en unidad CONTABLE (viviendas) SÍ se 
     [['Construcción de viviendas de interés social', '60']])).contratos;
   const { r } = evaluarFilaIAConTexto(fila, texto, contratos);
   assert(r.resultado === 'CUMPLE', 'con unidad contable y cantidad suficiente se esperaba CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+// ---- Auditoría de pre-lanzamiento S2-001 / S2-002: consulta de SECOP II ------
+// Socrata pone los NULL primero en un $order DESC, y ~127.000 procesos de SECOP II
+// no tienen fecha de publicación: para palabras comunes las 300 filas devueltas
+// eran todas NULL y ningún proceso abierto llegaba a la app (verificado contra la
+// API real: acueducto 39 abiertos -> 0 en pantalla). Este "servidor" de juguete
+// reproduce SOLO esa semántica (NULL primero en DESC, NULL al final en ASC) para
+// las dos formas de $where que usa la app.
+function servidorSocrataDeJuguete(filas, paramsStr) {
+  const p = new URLSearchParams(paramsStr);
+  const where = p.get('$where') || '';
+  const order = p.get('$order') || '';
+  const limit = Number(p.get('$limit') || 1000);
+  let out = filas.slice();
+  let m;
+  if ((m = where.match(/^fecha_de_recepcion_de >= '(\d{4}-\d{2}-\d{2})'$/))) {
+    out = out.filter(r => r.fecha_de_recepcion_de && r.fecha_de_recepcion_de.slice(0, 10) >= m[1]);
+  } else if (where === 'fecha_de_publicacion_del IS NOT NULL') {
+    out = out.filter(r => r.fecha_de_publicacion_del);
+  } else if (where) {
+    throw new Error('el servidor de juguete no entiende este $where: ' + where);
+  }
+  const mo = order.match(/^(\w+) (ASC|DESC)$/);
+  if (mo) {
+    const [, col, dir] = mo;
+    out.sort((a, b) => {
+      const va = a[col], vb = b[col];
+      if (!va && !vb) return 0;
+      if (!va) return dir === 'DESC' ? -1 : 1;   // NULL primero en DESC (comportamiento real de Socrata)
+      if (!vb) return dir === 'DESC' ? 1 : -1;
+      return dir === 'DESC' ? (va < vb ? 1 : -1) : (va < vb ? -1 : 1);
+    });
+  }
+  return out.slice(0, limit);
+}
+
+function datasetConMuchosNulos() {
+  const filas = [];
+  for (let i = 0; i < 400; i++) filas.push({ id_del_proceso: 'NULL-' + i, fecha_de_publicacion_del: null, fecha_de_recepcion_de: null, estado_del_procedimiento: 'Cancelado' });
+  // Además de los NULL, procesos RECIENTES ya cerrados (publicados después que
+  // los abiertos): sin la consulta de "vigentes", estos 350 desplazan a los
+  // abiertos fuera de las 300 filas de "recientes".
+  for (let i = 0; i < 350; i++) filas.push({ id_del_proceso: 'RECIENTE-CERRADO-' + i, fecha_de_publicacion_del: '2026-09-2' + (i % 6) + 'T00:00:00.000', fecha_de_recepcion_de: '2026-09-10T00:00:00.000', estado_del_procedimiento: 'Evaluación' });
+  for (let i = 0; i < 5; i++) filas.push({ id_del_proceso: 'ABIERTO-' + i, fecha_de_publicacion_del: '2026-09-0' + (i + 1) + 'T00:00:00.000', fecha_de_recepcion_de: '2026-10-1' + i + 'T00:00:00.000', estado_del_procedimiento: 'Publicado' });
+  return filas;
+}
+
+await check('SECOP II: la consulta antigua (solo $order DESC) NO trae ningún abierto cuando hay muchos NULL (reproduce S2-001)', () => {
+  const filas = datasetConMuchosNulos();
+  const viejo = servidorSocrataDeJuguete(filas, '$limit=300&$q=acueducto&$order=fecha_de_publicacion_del DESC');
+  const abiertos = viejo.filter(r => r.id_del_proceso.startsWith('ABIERTO'));
+  assert(abiertos.length === 0, 'el fixture debería reproducir el bug (0 abiertos), trajo ' + abiertos.length);
+});
+
+await check('SECOP II: consultasSecopII (vigentes + recientes) SÍ trae todos los abiertos aunque haya muchos NULL', () => {
+  const filas = datasetConMuchosNulos();
+  const c = expEngine.consultasSecopII('acueducto', '2026-09-26');
+  const vigentes = servidorSocrataDeJuguete(filas, c.vigentes);
+  const recientes = servidorSocrataDeJuguete(filas, c.recientes);
+  const ids = new Set(vigentes.concat(recientes).map(r => r.id_del_proceso));
+  for (let i = 0; i < 5; i++) assert(ids.has('ABIERTO-' + i), 'falta ABIERTO-' + i + ' en la unión de las dos consultas');
+  assert(!recientes.some(r => !r.fecha_de_publicacion_del), 'las recientes no deben incluir filas sin fecha de publicación (taparían todo)');
+});
+
+await check('SECOP II: un proceso cuyo cierre ya pasó NO entra por "vigentes" (pero puede entrar por recientes)', () => {
+  const filas = [
+    { id_del_proceso: 'CERRADO', fecha_de_publicacion_del: '2026-01-05T00:00:00.000', fecha_de_recepcion_de: '2026-02-01T00:00:00.000' },
+    { id_del_proceso: 'HOY', fecha_de_publicacion_del: '2026-09-01T00:00:00.000', fecha_de_recepcion_de: '2026-09-26T00:00:00.000' },
+  ];
+  const c = expEngine.consultasSecopII('x', '2026-09-26');
+  const ids = servidorSocrataDeJuguete(filas, c.vigentes).map(r => r.id_del_proceso);
+  assert(ids.includes('HOY'), 'un cierre hoy sigue vigente');
+  assert(!ids.includes('CERRADO'), 'un cierre pasado no es vigente');
+});
+
+await check('SECOP II: el término de búsqueda va SIN tildes ($q de Socrata distingue tildes: "pavimentación" 2 vs "pavimentacion" 858) (S2-002)', () => {
+  const c = expEngine.consultasSecopII('pavimentación', '2026-09-26');
+  for (const k of ['vigentes', 'recientes']) {
+    const q = new URLSearchParams(c[k]).get('$q');
+    assert(q === 'pavimentacion', k + ': se esperaba $q=pavimentacion, fue ' + q);
+  }
+  assert(new URLSearchParams(expEngine.consultasSecopII('Interventoría', '2026-09-26').vigentes).get('$q') === 'Interventoria', 'Interventoría -> Interventoria');
+});
+
+await check('SECOP II: sin término no se manda $q, y las dos consultas conservan $limit=300', () => {
+  const c = expEngine.consultasSecopII(null, '2026-09-26');
+  for (const k of ['vigentes', 'recientes']) {
+    const p = new URLSearchParams(c[k]);
+    assert(!p.has('$q'), k + ': no debe haber $q');
+    assert(p.get('$limit') === '300', k + ': $limit=300');
+  }
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
