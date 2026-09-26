@@ -290,7 +290,8 @@ async function enviarCorreo(to: string, asunto: string, textoPlano: string): Pro
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to: [to], subject: asunto, text: textoPlano }),
+    // Auditoría TR-007: pie de trazabilidad (de dónde salen los conteos y cuándo se consultaron).
+    body: JSON.stringify({ from, to: [to], subject: asunto, text: textoPlano + '\n\n--\nFuente: datos.gov.co, dataset SECOP II (p6dx-8zbt) -- consultado ' + new Date().toISOString() + ' -- modo: en vivo. Resumen orientativo: confirma en SECOP.' }),
   });
   if (!res.ok) throw new Error('Resend respondió ' + res.status + ': ' + (await res.text()));
 }

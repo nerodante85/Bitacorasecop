@@ -2190,6 +2190,11 @@
   let lastRecords = null;
   let isDemo = false;
   let isSnapshot = false; // true cuando se está mostrando el snapshot embebido de respaldo
+  let lastConsultaISO = null; // TR-008: cuándo se consultó por última vez en vivo
+  let limiteLista = 40; // UX-001: cuántas tarjetas se muestran (el usuario puede pedir más)
+  let lastScoredTodos = []; // todos los procesos que pasaron los filtros (no solo los mostrados)
+  const modoDatos = () => isDemo ? 'demo' : (isSnapshot ? 'snapshot' : 'vivo');
+  const pieFuenteActual = () => pieFuenteDatos(modoDatos(), lastConsultaISO, DATA_SNAPSHOT_DATE);
   let lastScored = [];
   let estadoSeleccionado = {}; // { 'Publicado': true, 'Evaluación': false, ... } -- persiste entre renders
 
@@ -6315,6 +6320,35 @@
       detalle: 'Pliego: ' + (sentido === '>=' ? '≥ ' : '≤ ') + exigRazon + (exig.porcentaje ? ' (' + exig.valor + '%)' : '') + ' · tu perfil: ' + mio + (pasa ? ' ✓' : ' ✗') };
   }
 
+  // ---- Auditoría TR-007 / TR-008 / UX-003 / UX-004: trazabilidad y lenguaje del veredicto ----
+  // Pie estándar para todo lo que sale de la app (informes, CSV, resumen, paquete): de dónde
+  // vienen los datos, cuándo se consultaron y en qué modo (en vivo / respaldo / ejemplo).
+  function pieFuenteDatos(modo, consultadoISO, snapshotFecha){
+    const ds = 'datos.gov.co, datasets SECOP II (p6dx-8zbt) y SECOP I (f789-7hwg)';
+    if (modo === 'demo') return 'Fuente: DATOS DE EJEMPLO FICTICIOS -- no provienen de SECOP y no deben usarse para decidir ni presentarse a nada.';
+    if (modo === 'snapshot') return 'Fuente: ' + ds + ' -- SNAPSHOT DE RESPALDO del ' + (snapshotFecha || 'fecha no indicada') + ' (no son datos actuales; la consulta en vivo falló).';
+    return 'Fuente: ' + ds + ' -- consultado ' + (consultadoISO || 'fecha no registrada') + ' -- modo: en vivo.';
+  }
+  // Nombres claros en vez de la jerga "GO / NO-GO / REVISAR".
+  function etiquetaVeredicto(v){
+    return v === 'GO' ? 'Cumple lo revisado' : (v === 'NO-GO' ? 'No cumple' : 'Falta información');
+  }
+  // Una línea visible con el motivo del veredicto (antes: solo en un tooltip, con la primera razón).
+  function lineaMotivoVeredicto(gates, veredicto, conPliego){
+    const de = est => (gates || []).filter(g => g.estado === est).map(g => g.nombre);
+    const fail = de('fail'), pend = de('revisar').concat(de('nd'));
+    if (veredicto === 'NO-GO') return 'No cumple: ' + fail.join(', ') + '. Revisa si el requisito se puede subsanar o si hay un consorcio que lo cubra.';
+    if (veredicto === 'GO') return 'Sin incumplimientos en los puntos evaluados.';
+    if (!conPliego) return 'Evaluación preliminar: analiza el pliego de este proceso para saber si cumples.';
+    return 'Falta confirmar: ' + (pend.length ? pend.join(', ') : 'puntos marcados como "revisar"') + '.';
+  }
+  function textoCoberturaLectura(entry){
+    if (!entry) return 'Pliego sin analizar';
+    if (entry.numPages && entry.pagesRead != null && entry.pagesRead < entry.numPages) return 'Leído: ' + entry.pagesRead + '/' + entry.numPages + ' págs (parcial)';
+    return entry.numPages ? 'Leído: ' + entry.numPages + '/' + entry.numPages + ' págs' : 'Pliego analizado';
+  }
+  const AVISO_ORIENTATIVO = 'Orientativo. Confirma con el pliego oficial.';
+
   // ---- Auditoría de pre-lanzamiento: cuándo puede aparecer un GO -------------------
   // RT-004: sin K residual en el perfil (o con el valor de la obra en 0) el gate de
   // "Capacidad vs valor" DESAPARECÍA (`if (matriz.kResidual && valor)` sin else): con
@@ -6748,7 +6782,7 @@
     // Mismo problema de "title" que .tag.priority (ver comentario en
     // render()): tap-to-reveal vía tag-tip/data-tip para que también
     // funcione en pantalla táctil, no solo con hover de mouse.
-    return '<span class="tag eval ' + cls + ' tag-tip" tabindex="0" role="button" title="' + escapeHtml(t) + '" data-tip="' + escapeHtml(t) + '">' + v + (res.mejor.conPliego ? '' : ' ·') + '</span>';
+    return '<span class="tag eval ' + cls + ' tag-tip" tabindex="0" role="button" title="' + escapeHtml(t) + '" data-tip="' + escapeHtml(t) + '">' + escapeHtml(etiquetaVeredicto(v)) + (res.mejor.conPliego ? '' : ' ·') + '</span>';
   }
 
   // Un párrafo: "de un vistazo", para que quien decide si presentarse no tenga
@@ -6758,7 +6792,7 @@
     const fails = m.gates.filter(g => g.estado === 'fail').map(g => g.nombre);
     const revisar = m.gates.filter(g => g.estado === 'revisar').map(g => g.nombre);
     const quien = res.porPerfil.length > 1 ? ' con ' + m.perfil : '';
-    if (m.veredicto === 'GO') return 'SÍ vale la pena participar' + quien + ': no se detectó ningún incumplimiento en los puntos evaluados.';
+    if (m.veredicto === 'GO') return 'No se detectó ningún incumplimiento en los puntos evaluados' + quien + '. Es orientativo (no es asesoría): confirma con el pliego oficial antes de decidir.';
     if (m.veredicto === 'NO-GO') return 'NO se recomienda participar' + quien + (fails.length ? ' — no cumple: ' + fails.join(', ') + '.' : '.');
     // Auditoría (texto de UI): "en esta tarjeta" solo tenía sentido cuando
     // este texto vivía junto al dropzone de PDF -- sus 2 únicos call sites
@@ -6864,7 +6898,7 @@
         '<button class="link-btn eval-adj-btn" data-eval-id="' + escapeHtml(item.id) + '">Ver adjudicaciones de esta entidad</button>' +
       '</div>' +
       '<div class="eval-adj-slot"></div>' +
-      '<div class="analysis-disclaimer">Semáforo orientativo por coincidencia de palabras clave y umbrales detectados en el pliego. No valida jurídicamente los requisitos ni reemplaza el criterio del proponente.</div>' +
+      '<div class="analysis-disclaimer">Semáforo orientativo por coincidencia de palabras clave y umbrales detectados en el pliego. No valida jurídicamente los requisitos ni reemplaza el criterio del proponente. ' + escapeHtml(pieFuenteActual()) + '</div>' +
     '</div>';
   }
 
@@ -6900,6 +6934,7 @@
     L.push('════════════════════════════════════════════════════════');
     L.push('NOTA: orientativo. NO valida jurídicamente los requisitos habilitantes.');
     L.push('Verifica el pliego completo y el expediente en SECOP II antes de decidir.');
+    L.push(pieFuenteActual());
     return L.join('\n');
   }
 
@@ -8416,6 +8451,13 @@
       (p.rup || '').trim() || (p.k || '').trim() || (p.kResidual || '').trim()) ||
       !!(expevalContratos && expevalContratos.contratos && expevalContratos.contratos.length);
 
+    // UX-002: cuántos procesos quita cada filtro (para explicar un resultado vacío).
+    const embudo = [];
+    const paso = (clave, nombre, pred) => {
+      const antes = scored.length;
+      scored = scored.filter(pred);
+      if (scored.length < antes) embudo.push({ clave: clave, nombre: nombre, quita: antes - scored.length });
+    };
     let scored = records.map(r => {
       const item = normalize(r);
       item.id = getProcessId(r, item);
@@ -8432,20 +8474,20 @@
       // Las especialidades y el departamento son FILTROS reales, no solo un peso de
       // orden: si el usuario puso palabras clave o departamentos, se descartan los
       // procesos que no mencionan ninguno.
-      if (keywords.length) scored = scored.filter(s => s.keywordHits > 0);
-      if (geos.length) scored = scored.filter(s => s.geoHits > 0);
+      if (keywords.length) paso('kw', 'palabras clave (' + keywords.join(', ') + ')', s => s.keywordHits > 0);
+      if (geos.length) paso('geo', 'departamento (' + geos.join(', ') + ')', s => s.geoHits > 0);
       // Municipio: filtro aparte del departamento (más fino), con
       // coincidencia tolerante (ver matchesMunicipio) -- nunca contra el
       // registro completo, solo contra `item.ciudad`, mismo criterio ya
       // aplicado al departamento para no repetir el falso positivo de
       // "Santander de Quilichao" (punto 6 de "Cosas aprendidas por las malas").
-      if (municipios && municipios.length) scored = scored.filter(s => municipios.some(m => matchesMunicipio(s.item.ciudad, m)));
+      if (municipios && municipios.length) paso('mun', 'municipio (' + municipios.join(', ') + ')', s => municipios.some(m => matchesMunicipio(s.item.ciudad, m)));
 
-      if (hideClosed) scored = scored.filter(s => s.daysLeft === null || s.daysLeft >= 0);
+      if (hideClosed) paso('cerrados', '"Ocultar vencidos"', s => s.daysLeft === null || s.daysLeft >= 0);
       // "Solo publicados hace ≤30 días": si no se sabe la fecha de publicación, se
       // descarta también en vez de mostrarlo -- con este filtro activo, lo que se
       // pide es certeza de que es reciente, no darle el beneficio de la duda.
-      if (hideOld) scored = scored.filter(s => s.daysSincePub !== null && s.daysSincePub >= 0 && s.daysSincePub <= 30);
+      if (hideOld) paso('30d', '"Solo publicados hace ≤30 días"', s => s.daysSincePub !== null && s.daysSincePub >= 0 && s.daysSincePub <= 30);
       // "Solo Licitación Pública": el campo modalidad_de_contratacion trae variantes
       // como "Licitación pública" y "Licitación pública Obra Publica" -- se aceptan
       // ambas, cualquier modalidad que empiece por "licitación pública" (sin importar
@@ -8455,7 +8497,7 @@
       // "licitación pública" como "obra" -- la licitación pública genérica (sin la
       // palabra obra) puede ser para consultoría, bienes u otros servicios, no
       // necesariamente para construcción.
-      if (onlyLicitacion) scored = scored.filter(s => {
+      if (onlyLicitacion) paso('licitacion', '"Solo Licitación Pública"', s => {
         const m = (s.item.modalidad || '').toLowerCase();
         return /licitaci[oó]n\s*p[uú]blica/i.test(m) && /obra/i.test(m);
       });
@@ -8482,7 +8524,7 @@
         rerender();
       });
     });
-    if (!buscandoProceso) scored = scored.filter(s => estadoSeleccionado[s.item.estado || 'Sin estado'] !== false);
+    if (!buscandoProceso) paso('estado', 'estado del proceso (cancelados, adjudicados...)', s => estadoSeleccionado[s.item.estado || 'Sin estado'] !== false);
 
     // Evaluación go/no-go: se calcula AQUÍ (tras los filtros baratos) para no
     // correrla sobre los ~1000 registros crudos.
@@ -8498,8 +8540,8 @@
       return h && h.status === 'visto' && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
     }).length;
 
-    if (hideDiscarded && !buscandoProceso) scored = scored.filter(s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
-    if (hideNoGo) scored = scored.filter(s => !(s.evaluacion && s.evaluacion.mejor.veredicto === 'NO-GO'));
+    if (hideDiscarded && !buscandoProceso) paso('descartados', '"Ocultar descartados"', s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
+    if (hideNoGo) paso('nogo', '"Ocultar los que no cumplen"', s => !(s.evaluacion && s.evaluacion.mejor.veredicto === 'NO-GO'));
 
     // Orden por defecto (prioridad): score primero, cierre más próximo y
     // publicación más reciente como desempate -- sin cambios. "Ordenar
@@ -8517,17 +8559,22 @@
     } else {
       scored.sort(ordenPrioridad);
     }
-    scored = scored.slice(0, 40);
+    // UX-001: los contadores se calculan sobre TODOS los procesos que pasan los filtros, no solo
+    // sobre los que se dibujan; la lista muestra `limiteLista` y ofrece "mostrar más".
+    const totalFiltrados = scored.length;
+    lastScoredTodos = scored;
+    const todosParaContar = scored;
+    scored = scored.slice(0, limiteLista);
 
     statusEl.style.display = 'flex';
-    const altaCount = scored.filter(s => s.tier === 'alta').length;
-    let countText = scored.length + ' procesos · ' + altaCount + ' de alta prioridad';
+    const altaCount = todosParaContar.filter(s => s.tier === 'alta').length;
+    let countText = (totalFiltrados > scored.length ? 'Mostrando ' + scored.length + ' de ' + totalFiltrados : scored.length) + ' procesos · ' + altaCount + ' de alta prioridad';
     if (vistoCount) countText += ' · ' + vistoCount + ' vistos';
     if (descartadoCount) countText += ' · ' + descartadoCount + ' descartados';
     if (venceProntoCount) countText += ' · ⚠ ' + venceProntoCount + ' por vencer';
-    const goCount = scored.filter(s => s.evaluacion && s.evaluacion.mejor.veredicto === 'GO').length;
-    const nogoCount = scored.filter(s => s.evaluacion && s.evaluacion.mejor.veredicto === 'NO-GO').length;
-    if (goCount || nogoCount) countText += ' · ' + goCount + ' GO / ' + nogoCount + ' NO-GO';
+    const goCount = todosParaContar.filter(s => s.evaluacion && s.evaluacion.mejor.veredicto === 'GO').length;
+    const nogoCount = todosParaContar.filter(s => s.evaluacion && s.evaluacion.mejor.veredicto === 'NO-GO').length;
+    if (goCount || nogoCount) countText += ' · ' + goCount + ' cumplen lo revisado / ' + nogoCount + ' no cumplen';
     countEl.textContent = countText;
     lastScored = scored;
     poblarEvalSelect(scored);
@@ -8536,7 +8583,11 @@
       const sugerencia = buscandoProceso
         ? 'No apareció ningún proceso con ese número/referencia entre los datos consultados. Revisa que esté bien escrito, o prueba solo con una parte (por ejemplo, sin el año).'
         : 'Prueba con menos palabras clave, quita el filtro de departamento o municipio, o desmarca "Solo Licitación Pública" / "Solo publicados hace ≤30 días" / vencidos / descartados.';
-      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Instrument Serif\',serif;font-style:italic;font-weight:400;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + sugerencia +
+      const embudoHtml = (!buscandoProceso && records.length)
+        ? '<div class="embudo" style="margin:10px 0;text-align:left;"><div><b>Se consultaron ' + records.length + ' procesos.</b>' + (embudo.length ? ' Esto es lo que ocultó cada filtro:' : '') + '</div>' +
+            (embudo.length ? '<ul class="analysis-list">' + embudo.map(e => '<li>' + escapeHtml(e.nombre) + ': quitó ' + e.quita + ' <button type="button" class="link-btn" data-quitar-filtro="' + escapeHtml(e.clave) + '">quitar este filtro</button></li>').join('') + '</ul>' : '') + '</div>'
+        : '';
+      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Instrument Serif\',serif;font-style:italic;font-weight:400;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + embudoHtml + sugerencia +
         ' Puede que ahora mismo no haya ninguna licitación abierta con esos criterios -- no es un error.' +
         '<div style="margin-top:10px;"><button type="button" class="link-btn" id="bt-empty-demo">Ver datos de ejemplo</button> para ver cómo luce la plataforma mientras tanto.</div></div>';
       return;
@@ -8611,10 +8662,16 @@
           (pub ? '<span><b>Apertura del proceso:</b> ' + pub + '</span>' : '') +
           (it.referencia ? '<span><b>Referencia:</b> ' + escapeHtml(it.referencia) + '</span>' : '') +
         '</div>' +
+        (s.evaluacion
+          ? '<div class="tarjeta-veredicto saved-note"><b>' + escapeHtml(etiquetaVeredicto(s.evaluacion.mejor.veredicto)) + ':</b> ' + escapeHtml(lineaMotivoVeredicto(s.evaluacion.mejor.gates, s.evaluacion.mejor.veredicto, s.evaluacion.mejor.conPliego)) +
+              ' · ' + escapeHtml(textoCoberturaLectura(analysisEntry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>'
+          : '') +
         linkHtml +
         actionsHtml +
       '</div>';
-    }).join('');
+    }).join('') + (totalFiltrados > scored.length
+      ? '<div style="text-align:center;margin:14px 0;"><button type="button" class="btn-secondary" id="bt-mas-resultados">Mostrar ' + Math.min(40, totalFiltrados - scored.length) + ' más (quedan ' + (totalFiltrados - scored.length) + ')</button></div>'
+      : '');
   }
 
   function truncate(s, n){ s = String(s); return s.length > n ? s.slice(0,n) + '…' : s; }
@@ -8937,6 +8994,7 @@
   async function runSearch(){
     isDemo = false;
     isSnapshot = false;
+    limiteLista = 40;
     demoBanner.style.display = 'none';
     const { keywords, geos, municipios, minV, maxV, numProceso } = getInputs();
 
@@ -8959,6 +9017,7 @@
     try {
       const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
       lastRecords = live;
+      lastConsultaISO = new Date().toISOString();
       render(live, keywords, geos, municipios, minV, maxV, numProceso);
       dataFreshnessEl.textContent = 'Datos en vivo (' + live.length + ' procesos) — consultados justo ahora en datos.gov.co.' +
         (live.truncadoVigentes
@@ -8988,6 +9047,7 @@
   async function loadDemo(){
     isDemo = true;
     isSnapshot = false;
+    limiteLista = 40;
     demoBanner.style.display = 'block';
     dataFreshnessEl.textContent = 'Mostrando datos de ejemplo (ficticios) — no proviene de SECOP II en vivo.';
     const demo = [
@@ -9022,17 +9082,19 @@
   }
 
   function exportAltaPrioridadCSV(){
-    const altas = lastScored.filter(s => s.tier === 'alta');
+    const altas = lastScoredTodos.filter(s => s.tier === 'alta');
     if (altas.length === 0){
       alert('No hay procesos de alta prioridad en la vista actual para exportar.');
       return;
     }
-    const headers = ['Entidad','Objeto','Modalidad','Departamento','Ciudad','Valor base','Apertura del proceso','Presentación de oferta','Días restantes','Referencia','Enlace'];
+    const headers = ['Entidad','Objeto','Modalidad','Departamento','Ciudad','Valor base','Apertura del proceso','Presentación de oferta','Días restantes','Referencia','Enlace','Fuente','Consultado','Modo'];
+    const modoTxt = { vivo: 'en vivo', snapshot: 'snapshot de respaldo ' + DATA_SNAPSHOT_DATE, demo: 'DATOS DE EJEMPLO FICTICIOS' }[modoDatos()];
     const rows = altas.map(s => {
       const it = s.item;
       return [
         it.entidad, it.objeto, it.modalidad || '', it.departamento || '', it.ciudad || '',
-        it.valor || '', fmtDate(it.pubRaw) || '', fmtDate(it.closingRaw) || '', (s.daysLeft ?? ''), it.referencia || '', it.url || ''
+        it.valor || '', fmtDate(it.pubRaw) || '', fmtDate(it.closingRaw) || '', (s.daysLeft ?? ''), it.referencia || '', it.url || '',
+        'datos.gov.co ' + (it.fuente === 'I' ? SECOP_I_DATASET : 'p6dx-8zbt'), lastConsultaISO || '', modoTxt
       ].map(csvEscape).join(',');
     });
     const csv = headers.map(csvEscape).join(',') + '\n' + rows.join('\n');
@@ -9048,7 +9110,7 @@
   }
 
   async function copyAltaPrioridadSummary(){
-    const altas = lastScored.filter(s => s.tier === 'alta');
+    const altas = lastScoredTodos.filter(s => s.tier === 'alta');
     if (altas.length === 0){
       alert('No hay procesos de alta prioridad en la vista actual para copiar.');
       return;
@@ -9060,7 +9122,7 @@
       const money = fmtMoney(it.valor);
       return '• ' + it.entidad + ' — ' + truncate(it.objeto, 140) + '\n  Presentación de oferta: ' + plazo + (money ? ' · Valor base: ' + money : '') + (it.referencia ? '\n  Referencia: ' + it.referencia : '') + (it.url ? '\n  ' + it.url : '');
     });
-    const texto = 'Procesos de alta prioridad — Bitácora (' + new Date().toLocaleDateString('es-CO') + ')\n\n' + lineas.join('\n\n');
+    const texto = 'Procesos de alta prioridad — Bitácora (' + new Date().toLocaleDateString('es-CO') + ')\n\n' + lineas.join('\n\n') + '\n\n' + pieFuenteActual();
     try {
       await navigator.clipboard.writeText(texto);
       const original = copySummaryBtn.textContent;
@@ -9375,15 +9437,17 @@
       const s = (lastScored || []).find(x => x.item.id === cartaBtn.getAttribute('data-eval-id'));
       const p = perfiles[cartaBtn.getAttribute('data-perfil-id')];
       if (!s || !p) return;
-      descargarTexto('carta-presentacion-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarCartaTexto(migrarPerfil(p), s.item));
+      if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera la carta de un proceso que no existe. Haz una búsqueda real primero.'); return; }
+      descargarTexto('carta-presentacion-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarCartaTexto(migrarPerfil(p), s.item) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
       return;
     }
     if (paqueteBtn){
       const s = (lastScored || []).find(x => x.item.id === paqueteBtn.getAttribute('data-eval-id'));
       const p = perfiles[paqueteBtn.getAttribute('data-perfil-id')];
       if (!s || !p) return;
+      if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera el paquete de un proceso que no existe. Haz una búsqueda real primero.'); return; }
       const entryPaquete = analisis[s.item.id];
-      descargarTexto('paquete-propuesta-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarPaqueteTexto(migrarPerfil(p), s.item, entryPaquete));
+      descargarTexto('paquete-propuesta-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarPaqueteTexto(migrarPerfil(p), s.item, entryPaquete) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
       return;
     }
     if (adjBtn){
@@ -9956,6 +10020,30 @@
     }
   }
 
+  // Auditoría UX-005: 33 de 43 controles no tenían nombre accesible (las etiquetas eran <label> sin
+  // `for`). Se enlazan cada <label> con su control (o se pone aria-label) al arrancar y cada vez
+  // que la interfaz se redibuja, y se añaden `autocomplete` a los datos de contacto.
+  const AUTOCOMPLETE_POR_ID = { 'bt-perfil-correo': 'email', 'bt-perfil-telefono': 'tel', 'bt-perfil-direccion': 'street-address', 'bt-perfil-ciudad': 'address-level2', 'bt-perfil-nombre': 'organization', 'bt-perfil-representante': 'name', 'bt-personal-nombre': 'name' };
+  function etiquetarControles(){
+    document.querySelectorAll('input,select,textarea').forEach(c => {
+      if (c.type === 'hidden') return;
+      if (c.id && AUTOCOMPLETE_POR_ID[c.id] && !c.getAttribute('autocomplete')) c.setAttribute('autocomplete', AUTOCOMPLETE_POR_ID[c.id]);
+      if ((c.labels && c.labels.length) || c.getAttribute('aria-label') || c.getAttribute('aria-labelledby') || c.title) return;
+      const cont = c.closest('.field') || c.parentElement;
+      const lab = cont && Array.from(cont.querySelectorAll('label')).find(l => !l.htmlFor && !l.querySelector('input,select,textarea'));
+      if (lab && c.id){ lab.htmlFor = c.id; return; }
+      let txt = lab ? lab.textContent : (c.placeholder || (c.type === 'file' ? (c.hasAttribute('data-analyze-id') ? 'Cargar el PDF del pliego' : (cont ? cont.textContent : '')) : ''));
+      txt = String(txt || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      c.setAttribute('aria-label', txt || 'Campo del formulario');
+    });
+  }
+  let etiquetadoPendiente = null;
+  new MutationObserver(() => {
+    clearTimeout(etiquetadoPendiente);
+    etiquetadoPendiente = setTimeout(etiquetarControles, 150);
+  }).observe(document.body, { childList: true, subtree: true });
+  etiquetarControles();
+
   exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
   copySummaryBtn.addEventListener('click', copyAltaPrioridadSummary);
 
@@ -9988,6 +10076,23 @@
     // "Ver datos de ejemplo" del panel de filtros para ver cómo luce la
     // plataforma con datos. Reusa el mismo loadDemo() que ese botón.
     if (e.target.closest('#bt-empty-demo')){ loadDemo(); return; }
+    const masBtn = e.target.closest('#bt-mas-resultados');
+    if (masBtn){ limiteLista += 40; rerender(); return; }
+    const quitarBtn = e.target.closest('[data-quitar-filtro]');
+    if (quitarBtn){
+      const k = quitarBtn.getAttribute('data-quitar-filtro');
+      if (k === 'kw') kwInput.value = '';
+      else if (k === 'geo') geoInput.value = '';
+      else if (k === 'mun' && municipioInput) municipioInput.value = '';
+      else if (k === 'cerrados') hideClosedEl.checked = false;
+      else if (k === '30d') hideOldEl.checked = false;
+      else if (k === 'licitacion') onlyLicitacionEl.checked = false;
+      else if (k === 'descartados') hideDiscardedEl.checked = false;
+      else if (k === 'nogo' && hideNoGoEl) hideNoGoEl.checked = false;
+      else if (k === 'estado') Object.keys(estadoSeleccionado).forEach(x => { estadoSeleccionado[x] = true; });
+      rerender();
+      return;
+    }
 
     // -0.5) Tooltip táctil: los sellos GO/REVISAR/NO-GO y ALTA/MEDIA/BAJA
     // solo explicaban su significado por `title` (hover de mouse), invisible

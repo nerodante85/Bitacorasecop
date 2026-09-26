@@ -263,7 +263,7 @@ function extractExperienceEngine() {
   globalThis.normalizeGeo = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2084,6 +2084,40 @@ await check('SI-001: la coincidencia estricta distingue "Norte de Santander" de 
   const i = expEngine.prepararBusquedaPorNombre('INSTITUTO NACIONAL DE VIAS - INVIAS');
   assert(i.coincideEstricta('INSTITUTO NACIONAL DE VÍAS (INVIAS)') === true, 'INVIAS con su nombre de SECOP I');
   assert(i.palabras[0].length >= i.palabras[i.palabras.length - 1].length, 'palabras de mayor a menor longitud');
+});
+
+// ---- Auditoría TR-007/008 y UX-001..005 -------------------------------------------
+await check('TR-007/TR-008: el pie de fuente dice dataset, fecha y modo; la demo se declara ficticia y el snapshot, no actual', () => {
+  const vivo = expEngine.pieFuenteDatos('vivo', '2026-09-26T10:00:00.000Z', '2026-09-03');
+  assert(/p6dx-8zbt/.test(vivo) && /f789-7hwg/.test(vivo) && /2026-09-26T10:00/.test(vivo) && /en vivo/.test(vivo), 'vivo: ' + vivo);
+  const snap = expEngine.pieFuenteDatos('snapshot', null, '2026-09-03');
+  assert(/SNAPSHOT DE RESPALDO del 2026-09-03/.test(snap) && /no son datos actuales/.test(snap), 'snapshot: ' + snap);
+  const demo = expEngine.pieFuenteDatos('demo', null, '2026-09-03');
+  assert(/EJEMPLO FICTICIOS/.test(demo) && !/p6dx-8zbt/.test(demo), 'demo: ' + demo);
+});
+
+await check('UX-003: nombres claros del veredicto y una línea visible con el motivo (gate fallido y acción, o lo que falta confirmar)', () => {
+  assert(expEngine.etiquetaVeredicto('GO') === 'Cumple lo revisado' && expEngine.etiquetaVeredicto('NO-GO') === 'No cumple' && expEngine.etiquetaVeredicto('REVISAR') === 'Falta información', 'etiquetas');
+  const gates = [{ nombre: 'Índice de liquidez', estado: 'fail' }, { nombre: 'Experiencia', estado: 'nd' }, { nombre: 'Valor', estado: 'ok' }];
+  const no = expEngine.lineaMotivoVeredicto(gates, 'NO-GO', true);
+  assert(/Índice de liquidez/.test(no) && !/Experiencia/.test(no) && /subsanar|consorcio/.test(no), 'NO-GO: ' + no);
+  const rev = expEngine.lineaMotivoVeredicto(gates.slice(1), 'REVISAR', true);
+  assert(/Falta confirmar: Experiencia/.test(rev), 'REVISAR: ' + rev);
+  assert(/analiza el pliego/i.test(expEngine.lineaMotivoVeredicto([], 'REVISAR', false)), 'sin pliego');
+});
+
+await check('UX-004: la cobertura de lectura se muestra junto al veredicto (parcial o completa)', () => {
+  assert(expEngine.textoCoberturaLectura(null) === 'Pliego sin analizar', 'sin entry');
+  assert(/Leído: 15\/76 págs \(parcial\)/.test(expEngine.textoCoberturaLectura({ pagesRead: 15, numPages: 76 })), 'parcial');
+  assert(expEngine.textoCoberturaLectura({ pagesRead: 76, numPages: 76 }) === 'Leído: 76/76 págs', 'completa');
+});
+
+await check('UX-001/002/005: la lista pide "mostrar más", el vacío explica qué filtro ocultó y todos los controles tienen etiqueta (estático)', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  assert(/totalFiltrados = scored\.length/.test(src) && /Mostrando ' \+ scored\.length \+ ' de ' \+ totalFiltrados/.test(src) && /bt-mas-resultados/.test(src), 'UX-001');
+  assert(/data-quitar-filtro/.test(src) && /const paso = \(clave, nombre, pred\)/.test(src), 'UX-002');
+  assert(/function etiquetarControles\(\)/.test(src) && /new MutationObserver/.test(src), 'UX-005');
+  assert(/if \(isDemo\)\{ alert\('Estás viendo datos de ejemplo/.test(src), 'TR-008: carta/paquete bloqueados en demo');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
