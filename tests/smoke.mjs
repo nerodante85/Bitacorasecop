@@ -240,8 +240,17 @@ function extractExperienceEngine() {
     'no se encontraron las anclas del bloque parseNumCO..parseValorUnidad -- ¿se movió o renombró algo?');
   const blockB = scriptBody.slice(iB0, iB1);
 
-  const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas };';
+  // Bloque C: cálculo de capacidad contractual (SCE); usa parseNumCO del bloque B.
+  const startC = 'function calcularSCE(contratos, hoyMs){';
+  const endC = '  // Fila editable por contrato en ejecución';
+  const iC0 = scriptBody.indexOf(startC);
+  const iC1 = scriptBody.indexOf(endC, iC0);
+  assert(iC0 !== -1 && iC1 !== -1 && iC1 > iC0,
+    'no se encontraron las anclas del bloque calcularSCE..capacidadContractualEstimada -- ¿se movió o renombró algo?');
+  const blockC = scriptBody.slice(iC0, iC1);
+
+  const source = blockA + '\n' + blockB + '\n' + blockC +
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -1752,6 +1761,77 @@ await check('MC-007: patrimonio/capital de trabajo del perfil sin tomar "Rentabi
   assert(expEngine.leerMontoDePerfil('Rentabilidad del patrimonio : 0\nPatrimonio : $450.000.000', /patrimonio/i, previo) === 450000000, 'debe leer el patrimonio real');
   assert(expEngine.leerMontoDePerfil('Patrimonio a 31/12/2023: $450.000.000', /patrimonio/i, previo) === 450000000, 'fecha antes del monto');
   assert(expEngine.leerMontoDePerfil('Capital de trabajo: 1.500 millones', /capital\s+de\s+trabajo/i) === 1500000000, 'millones');
+});
+
+// ---- Confianza del veredicto: RT-004, RT-007, MC-014 ------------------------
+const K_2000M = expEngine.parseValorUnidad('$2.000.000.000');
+const okGate = (nombre) => ({ nombre, estado: 'ok', detalle: 'ok' });
+const TODO_OK = [okGate('Presentación de oferta'), okGate('Valor de la obra'), okGate('Índice de liquidez'), okGate('Experiencia')];
+
+await check('RT-004: sin K residual en el perfil el gate de "Capacidad vs valor" EXISTE y es "requiere verificación" (antes desaparecía)', () => {
+  const g = expEngine.gateCapacidadVsValor(null, 1850000000, null);
+  assert(g && g.estado === 'nd' && /K residual/.test(g.detalle), 'se esperaba un gate nd por falta de K residual, fue ' + JSON.stringify(g));
+});
+
+await check('RT-004: con todo lo demás en verde pero sin K residual, el veredicto es REVISAR y no GO (el caso reportado por el red team)', () => {
+  const gCap = expEngine.gateCapacidadVsValor(null, 1850000000, null);
+  const gates = TODO_OK.concat([Object.assign({ nombre: 'Capacidad vs valor' }, gCap)]);
+  assert(expEngine.decidirVeredicto(gates, true) === 'REVISAR', 'sin capacidad comparada no debe haber GO');
+  const conK = TODO_OK.concat([Object.assign({ nombre: 'Capacidad vs valor' }, expEngine.gateCapacidadVsValor(K_2000M, 1850000000, null))]);
+  assert(expEngine.decidirVeredicto(conK, true) === 'GO', 'control positivo: con K residual suficiente y todo en verde SÍ hay GO');
+});
+
+await check('RT-004: valor de obra en 0 o ausente no genera un gate de capacidad engañoso (lo reporta "Valor de la obra")', () => {
+  assert(expEngine.gateCapacidadVsValor(K_2000M, 0, null) === null, 'valor 0 -> sin gate de capacidad');
+  assert(expEngine.gateCapacidadVsValor(K_2000M, null, null) === null, 'sin valor -> sin gate de capacidad');
+  assert(expEngine.gateCapacidadVsValor(K_2000M, 3000000000, null).estado === 'revisar', 'K menor que el valor: revisar');
+  assert(expEngine.gateCapacidadVsValor(expEngine.parseValorUnidad('15.000 SMMLV'), 1850000000, null).estado === 'nd', 'K en SMMLV: nd');
+});
+
+await check('RT-007: un pliego leído en parte (15 de 76 páginas) nunca da GO aunque todo lo evaluado esté en verde', () => {
+  const g = expEngine.gateLecturaParcial({ pagesRead: 15, numPages: 76, viaOcr: true });
+  assert(g && g.estado === 'revisar' && /15 de 76/.test(g.detalle), 'gate de lectura parcial: ' + JSON.stringify(g));
+  const gates = TODO_OK.concat([Object.assign({ nombre: 'Lectura del pliego' }, g)]);
+  assert(expEngine.decidirVeredicto(gates, true) === 'REVISAR', 'con lectura parcial el veredicto no puede ser GO');
+  assert(expEngine.gateLecturaParcial(null) === null, 'lectura completa: sin gate');
+  assert(expEngine.decidirVeredicto(TODO_OK, true) === 'GO', 'control positivo: lectura completa y todo en verde = GO');
+});
+
+await check('Regla del veredicto: fail -> NO-GO; revisar o nd -> REVISAR; sin pliego -> REVISAR; solo todo verde con pliego -> GO', () => {
+  assert(expEngine.decidirVeredicto(TODO_OK.concat([{ estado: 'fail' }]), true) === 'NO-GO', 'fail');
+  assert(expEngine.decidirVeredicto(TODO_OK.concat([{ estado: 'revisar' }]), true) === 'REVISAR', 'revisar');
+  assert(expEngine.decidirVeredicto(TODO_OK.concat([{ estado: 'nd' }]), true) === 'REVISAR', 'nd');
+  assert(expEngine.decidirVeredicto(TODO_OK, false) === 'REVISAR', 'sin pliego');
+  assert(expEngine.decidirVeredicto(TODO_OK.concat([{ estado: 'fail' }, { estado: 'nd' }]), false) === 'NO-GO', 'un fail domina aunque no haya pliego');
+});
+
+await check('MC-014: contratos en ejecución sin saldo o sin fecha NO se ignoran en silencio: se cuentan como incompletos', () => {
+  const hoy = new Date('2026-06-01T00:00:00').getTime();
+  const r = expEngine.calcularSCE([{ saldo: '', fechaFin: '2027-01-01' }, { saldo: '1.500.000.000', fechaFin: '' }], hoy);
+  assert(r.sce === 0 && r.incompletos === 2, 'se esperaba sce=0 e incompletos=2, fue ' + JSON.stringify({ sce: r.sce, inc: r.incompletos }));
+  const ok = expEngine.calcularSCE([{ saldo: '500.000.000', fechaFin: '2026-12-01' }], hoy);
+  assert(ok.incompletos === 0 && ok.sce === 500000000, 'un contrato completo no es incompleto');
+  const vencido = expEngine.calcularSCE([{ saldo: '500.000.000', fechaFin: '2025-01-01' }], hoy);
+  assert(vencido.incompletos === 0, 'un contrato vencido no es "incompleto" (tiene sus datos)');
+});
+
+await check('MC-014: con contratos incompletos, "tu capacidad cubre la obra" pasa a "revisar" (antes decía ok con K=$2.000M y saldo de $1.500M sin fecha)', () => {
+  const cce = expEngine.capacidadContractualEstimada({ kResidual: '$2.000.000.000', contratosEnEjecucion: [{ saldo: '1.500.000.000', fechaFin: '' }] });
+  assert(cce.disponible === 2000000000 && cce.incompletos === 1, 'la capacidad "disponible" no descuenta el incompleto y lo cuenta: ' + JSON.stringify({ d: cce.disponible, i: cce.incompletos }));
+  const g = expEngine.gateCapacidadVsValor({ valor: cce.disponible, unidad: 'COP' }, 1800000000, cce);
+  assert(g.estado === 'revisar' && /1 contrato/.test(g.detalle), 'se esperaba revisar, fue ' + JSON.stringify(g));
+  const sinInc = expEngine.capacidadContractualEstimada({ kResidual: '$2.000.000.000', contratosEnEjecucion: [{ saldo: '100.000.000', fechaFin: '2099-12-31' }] });
+  assert(expEngine.gateCapacidadVsValor({ valor: sinInc.disponible, unidad: 'COP' }, 1800000000, sinInc).estado === 'ok', 'control positivo: contratos completos y capacidad suficiente = ok');
+});
+
+await check('MC-014: el gate "Capacidad K residual" (contra el umbral del pliego) tampoco queda en ok con contratos incompletos; un fail no se toca', () => {
+  const gates = [{ nombre: 'Capacidad K residual', estado: 'ok', detalle: 'Pliego: ≥ $1.000.000.000 · tu perfil: $2.000.000.000 ✓' }, { nombre: 'Otro', estado: 'ok', detalle: 'x' }];
+  const aj = expEngine.ajustarGatesPorContratosIncompletos(gates, 2);
+  assert(aj[0].estado === 'revisar' && /2 contrato/.test(aj[0].detalle), 'el K residual ok debe pasar a revisar');
+  assert(aj[1].estado === 'ok', 'otros gates no cambian');
+  const fail = expEngine.ajustarGatesPorContratosIncompletos([{ nombre: 'Capacidad K residual', estado: 'fail', detalle: 'x' }], 2);
+  assert(fail[0].estado === 'fail', 'un fail ya demostrado no se convierte en revisar');
+  assert(expEngine.ajustarGatesPorContratosIncompletos(gates, 0)[0].estado === 'ok', 'sin incompletos no cambia nada');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

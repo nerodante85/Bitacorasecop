@@ -2535,11 +2535,17 @@
     hoyMs = hoyMs == null ? Date.now() : hoyMs;
     const detalle = [];
     let sce = 0;
+    // Auditoría MC-014: un contrato en ejecución sin saldo o sin fecha válida se
+    // omitía del SCE en silencio y el gate decía "tu capacidad cubre la obra". Ahora se
+    // CUENTAN (`incompletos`) para que la evaluación no afirme cumplimiento con datos
+    // que faltan: la capacidad real podría ser menor.
+    let incompletos = 0;
     (contratos || []).forEach(c => {
       const saldo = parseNumCO(c.saldo);
       const finMs = c.fechaFin ? new Date(c.fechaFin + 'T00:00:00').getTime() : NaN;
       if (!saldo || saldo <= 0 || isNaN(finMs)){
-        detalle.push(Object.assign({}, c, { incluido: false, motivo: 'Falta saldo o fecha de terminación válida.' }));
+        incompletos++;
+        detalle.push(Object.assign({}, c, { incluido: false, incompleto: true, motivo: 'Falta saldo o fecha de terminación válida.' }));
         return;
       }
       const diasRestantes = Math.ceil((finMs - hoyMs) / 86400000);
@@ -2552,7 +2558,7 @@
       sce += aportado;
       detalle.push(Object.assign({}, c, { incluido: true, diasRestantes: diasRestantes, factor: factor, aportado: aportado }));
     });
-    return { sce: sce, detalle: detalle };
+    return { sce: sce, detalle: detalle, incompletos: incompletos };
   }
 
   // Capacidad disponible estimada = K residual declarado (COP) menos el SCE
@@ -2566,8 +2572,8 @@
     if (!kR || kR.unidad !== 'COP') return null;
     const contratos = Array.isArray(p.contratosEnEjecucion) ? p.contratosEnEjecucion : [];
     if (!contratos.length) return { kResidualDeclarado: kR.valor, sce: 0, disponible: kR.valor, detalle: [], sinContratos: true };
-    const { sce, detalle } = calcularSCE(contratos);
-    return { kResidualDeclarado: kR.valor, sce: sce, disponible: kR.valor - sce, detalle: detalle, sinContratos: false };
+    const { sce, detalle, incompletos } = calcularSCE(contratos);
+    return { kResidualDeclarado: kR.valor, sce: sce, disponible: kR.valor - sce, detalle: detalle, sinContratos: false, incompletos: incompletos };
   }
 
   // Fila editable por contrato en ejecución del perfil EN EDICIÓN (`perfil`,
@@ -2610,6 +2616,7 @@
         '<div class="stat-card"><div class="stat-card-label">Comprometido (SCE estimado)</div><div class="stat-card-value small oferta-competitivo">' + (fmtMoney(Math.round(cce.sce)) || Math.round(cce.sce)) + '</div></div>' +
         '<div class="stat-card"><div class="stat-card-label">Capacidad disponible (estimada)</div><div class="stat-card-value small ' + (cce.disponible < 0 ? 'oferta-agresivo' : 'oferta-conservador') + '">' + (fmtMoney(Math.round(cce.disponible)) || Math.round(cce.disponible)) + '</div></div>' +
       '</div>' +
+      (cce.incompletos ? '<div class="saved-note" role="status" style="color:var(--warning);">⚠ ' + cce.incompletos + ' contrato(s) en ejecución no tienen saldo o fecha de terminación válida y NO se descontaron: tu capacidad real puede ser menor. Complétalos o elimina las filas vacías; mientras tanto la evaluación no dará un "cumple" por capacidad.</div>' : '') +
       (cce.disponible < 0 ? '<div class="saved-note" style="color:var(--danger);">Tus contratos en ejecución superan tu K residual declarado — revisa antes de ofertar a un proceso nuevo.</div>' : '') +
       '<div class="analysis-disclaimer">SCE = suma de los saldos pendientes de tus contratos vigentes, prorrateados linealmente a 12 meses (360 días) cuando el plazo restante de ejecución supera ese plazo — regla de la Ley 1682 de 2013 / Decreto 791 de 2014. Es una estimación orientativa a partir de lo que declaras aquí: NO reemplaza el cálculo certificado de tu Capacidad Residual de Contratación (que en Colombia también depende de tus índices de experiencia, capacidad financiera, técnica y organizacional inscritos en el RUP).</div>';
   }
@@ -6121,6 +6128,59 @@
       detalle: 'Pliego: ' + (sentido === '>=' ? '≥ ' : '≤ ') + exigRazon + (exig.porcentaje ? ' (' + exig.valor + '%)' : '') + ' · tu perfil: ' + mio + (pasa ? ' ✓' : ' ✗') };
   }
 
+  // ---- Auditoría de pre-lanzamiento: cuándo puede aparecer un GO -------------------
+  // RT-004: sin K residual en el perfil (o con el valor de la obra en 0) el gate de
+  // "Capacidad vs valor" DESAPARECÍA (`if (matriz.kResidual && valor)` sin else): con
+  // liquidez, endeudamiento y experiencia en verde el veredicto salía GO sin haber
+  // comparado la capacidad contra el valor de la obra. Ahora el gate siempre existe; si
+  // falta el dato es "requiere verificación", y un GO nunca se afirma sin haberla comparado.
+  // MC-014: con contratos en ejecución sin saldo/fecha (`incompletos`) un "cubre" pasa a
+  // "revisar": la capacidad real podría ser menor.
+  function gateCapacidadVsValor(kResidual, valor, capacidadEstimada){
+    if (valor == null || !(valor > 0)) return null; // "Valor de la obra" ya avisa que no hay valor válido
+    const conContratos = capacidadEstimada && !capacidadEstimada.sinContratos;
+    const etiqueta = conContratos ? 'Tu capacidad disponible estimada' : 'Tu K residual';
+    const fmt = n => '$' + Number(n).toLocaleString('es-CO');
+    if (!kResidual){
+      return { estado: 'nd', detalle: 'Tu perfil no declara capacidad residual (K residual) en pesos, así que no se puede comparar contra el valor de la obra (' + fmt(valor) + '). Decláralo en "Perfil de la empresa": sin ese dato no se afirma que puedas contratar esta obra.' };
+    }
+    if (kResidual.unidad !== 'COP'){
+      return { estado: 'nd', detalle: etiqueta + ' está en ' + kResidual.unidad + ', pero el valor de la obra está en pesos -- no se pueden comparar directamente. Revísalo manualmente.' };
+    }
+    if (kResidual.valor < valor){
+      return { estado: 'revisar', detalle: etiqueta + ' (' + fmt(kResidual.valor) + ') es menor que el valor de la obra.' + (conContratos ? ' (K residual declarado menos tus contratos en ejecución.)' : '') };
+    }
+    const incompletos = (capacidadEstimada && capacidadEstimada.incompletos) || 0;
+    if (incompletos > 0){
+      return { estado: 'revisar', detalle: etiqueta + ' cubre el valor de la obra, PERO ' + incompletos + ' contrato(s) en ejecución no tienen saldo o fecha válida y no se descontaron: tu capacidad real puede ser menor.' };
+    }
+    return { estado: 'ok', detalle: etiqueta + ' cubre el valor de la obra.' };
+  }
+
+  // Un "Capacidad K residual: cumple" tampoco se afirma con contratos en ejecución incompletos.
+  function ajustarGatesPorContratosIncompletos(gates, incompletos){
+    if (!incompletos) return gates;
+    return gates.map(x => (x.nombre === 'Capacidad K residual' && x.estado === 'ok')
+      ? Object.assign({}, x, { estado: 'revisar', detalle: x.detalle + ' ⚠ ' + incompletos + ' contrato(s) en ejecución sin saldo o fecha válida no se descontaron: tu capacidad real puede ser menor.' })
+      : x);
+  }
+
+  // RT-007: un pliego leído en parte (OCR por tandas o tope de páginas) nunca da GO:
+  // los requisitos de las páginas sin leer no se evaluaron.
+  function gateLecturaParcial(parcial){
+    if (!parcial) return null;
+    return { estado: 'revisar', detalle: 'Solo se leyeron ' + parcial.pagesRead + ' de ' + parcial.numPages + ' páginas del pliego' + (parcial.viaOcr ? ' (por OCR)' : '') + ': los requisitos de las páginas sin leer no se evaluaron, así que no se afirma un GO. Pulsa "Seguir leyendo más páginas" en el análisis.' };
+  }
+
+  // Regla del veredicto: cualquier fail -> NO-GO; cualquier "revisar" o "nd" (falta
+  // información, no hay evidencia de cumplimiento) o sin pliego -> REVISAR; solo si todo
+  // está en verde y hay pliego, GO.
+  function decidirVeredicto(gates, hayPliego){
+    if (gates.some(x => x.estado === 'fail')) return 'NO-GO';
+    if (gates.some(x => x.estado === 'revisar' || x.estado === 'nd') || !hayPliego) return 'REVISAR';
+    return 'GO';
+  }
+
   // Umbrales numéricos que EXIGE el pliego (índices financieros, K residual).
   // Orientativo: el pliego los redacta de mil formas, así que si no encuentra un
   // patrón claro devuelve null y la evaluación lo marca "sin dato".
@@ -6367,6 +6427,8 @@
 
     // Valor de la obra vs rango del "Perfil de la obra"
     if (valor == null) g('Valor de la obra', 'nd', 'El proceso no reporta valor base.');
+    // RT-014: un valor base en 0 o negativo no es un presupuesto válido (antes salía "ok").
+    else if (valor <= 0) g('Valor de la obra', 'nd', 'El proceso reporta un valor base de ' + fmtMoney(valor) + ', que no es un dato válido: verifícalo en el pliego.');
     else if (minV && valor < minV) g('Valor de la obra', 'revisar', fmtMoney(valor) + ' por debajo de tu mínimo (' + fmtMoney(minV) + ').');
     else if (maxV && valor > maxV) g('Valor de la obra', 'revisar', fmtMoney(valor) + ' por encima de tu máximo (' + fmtMoney(maxV) + ').');
     // `else` (no `else if (valor)`): un valor exactamente en $0 es un dato
@@ -6381,17 +6443,8 @@
     // no se agregaba -- desaparecía en silencio de la tabla en vez de avisar que
     // hace falta revisar a mano (mismo patrón de "ausencia silenciosa" que el
     // hallazgo crítico de parseValorUnidad, ver CLAUDE.md). Ahora cae a 'nd'.
-    if (matriz.kResidual && valor){
-      const conContratos = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
-      const etiqueta = conContratos ? 'Tu capacidad disponible estimada' : 'Tu K residual';
-      if (matriz.kResidual.unidad !== 'COP'){
-        g('Capacidad vs valor', 'nd', etiqueta + ' está en ' + matriz.kResidual.unidad + ', pero el valor de la obra está en pesos -- no se pueden comparar directamente. Revísalo manualmente.');
-      } else if (matriz.kResidual.valor < valor){
-        g('Capacidad vs valor', 'revisar', etiqueta + ' (' + fmtMoney(matriz.kResidual.valor) + ') es menor que el valor de la obra.' + (conContratos ? ' (K residual declarado menos tus contratos en ejecución.)' : ''));
-      } else {
-        g('Capacidad vs valor', 'ok', etiqueta + ' cubre el valor de la obra.');
-      }
-    }
+    const gCap = gateCapacidadVsValor(matriz.kResidual, valor, matriz.capacidadEstimada);
+    if (gCap) g('Capacidad vs valor', gCap.estado, gCap.detalle);
 
     // Clasificación UNSPSC (solo si hay pliego analizado y menciona códigos)
     const exigidos = entry ? codigosExigidosEnPliego(entry) : [];
@@ -6413,6 +6466,8 @@
       g(nombre, r.estado, r.detalle);
     };
     if (entry){
+      const gParcial = gateLecturaParcial(lecturaParcial(entry));
+      if (gParcial) g('Lectura del pliego', gParcial.estado, gParcial.detalle);
       cmp('Índice de liquidez', ex.liquidez, matriz.liquidez, '>=');
       cmp('Índice de endeudamiento', ex.endeudamiento, matriz.endeudamiento, '<=');
       if (ex.cobertura) cmp('Razón de cobertura', ex.cobertura, matriz.cobertura, '>=');
@@ -6473,17 +6528,11 @@
       g('Requisitos habilitantes', 'nd', 'Sube y analiza el pliego (PDF) para evaluar indicadores financieros y experiencia.');
     }
 
-    const hayFail = gates.some(x => x.estado === 'fail');
-    const hayRevisar = gates.some(x => x.estado === 'revisar');
-    const hayND = gates.some(x => x.estado === 'nd');
-    let veredicto;
-    if (hayFail) veredicto = 'NO-GO';
-    // Un gate "nd" (no determinable / requiere verificación) nunca debe
-    // dejar pasar un GO pleno -- falta información, no evidencia de
-    // cumplimiento. Ver CLAUDE.md, hallazgo crítico de la auditoría.
-    else if (hayRevisar || hayND || !entry) veredicto = 'REVISAR'; // sin pliego nunca se afirma un GO pleno
-    else veredicto = 'GO';
-    return { veredicto: veredicto, gates: gates, conPliego: !!entry, perfil: matriz.nombre, perfilId: matriz.id };
+    // Un gate "nd" (no determinable / requiere verificación) o "revisar" nunca deja pasar un
+    // GO pleno -- falta información, no evidencia de cumplimiento (ver decidirVeredicto).
+    const gatesFinal = ajustarGatesPorContratosIncompletos(gates, (matriz.capacidadEstimada && matriz.capacidadEstimada.incompletos) || 0);
+    const veredicto = decidirVeredicto(gatesFinal, !!entry);
+    return { veredicto: veredicto, gates: gatesFinal, conPliego: !!entry, perfil: matriz.nombre, perfilId: matriz.id };
   }
 
   // Evalúa contra TODOS los perfiles marcados (o el que se edita si no hay marcados)
