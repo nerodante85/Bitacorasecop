@@ -3898,6 +3898,29 @@
   // leerPrimeraTablaHtml) no le importa a esta función, mismo espíritu que
   // construirRequisitoDesdeTexto para la matriz: un solo lugar que arma el
   // objeto contrato, reutilizado por cada origen de archivo.
+  // Auditoría RT-002. `numeroContrato` se leía pero no se usaba: el mismo contrato
+  // repetido (una fila por actividad, por adición o por hoja) o una fila "TOTAL"
+  // se sumaba varias veces en los requisitos acumulables (un contrato de
+  // $1.600M repetido cumplía un mínimo de $3.000M). Se omiten (y se cuentan, para
+  // avisar al usuario): (a) filas de TOTAL/SUBTOTAL, y (b) duplicados exactos
+  // (mismo N° de contrato + contratante + valor + fecha fin; sin N° de contrato,
+  // mismo objeto + contratante + valor + fechas).
+  function depurarContratos(contratos){
+    const vistos = new Set();
+    const out = [];
+    let duplicados = 0, totales = 0;
+    (contratos || []).forEach(c => {
+      const obj = normHeader(c.objeto || '');
+      if (/^(total|subtotal|sumatoria|suma total|gran total)\b/.test(obj)){ totales++; return; }
+      const num = normHeader(c.numeroContrato || '');
+      const clave = [num || obj, normHeader(c.contratante || ''), c.valor == null ? '' : String(c.valor), c.fechaInicio || '', c.fechaFin || ''].join('|');
+      if ((num || obj) && vistos.has(clave)){ duplicados++; return; }
+      vistos.add(clave);
+      out.push(c);
+    });
+    return { contratos: out, duplicados: duplicados, totales: totales };
+  }
+
   function parsearExperienciaDeFilas(datos){
     const headers = datos.headers, rows = datos.rows;
     const cols = preferirColumnaValorActualizado(headers, detectarColumnas(headers, DICC_CONTRATO));
@@ -3926,7 +3949,8 @@
         participacion: parseValorUnidad(String(get(row, 'participacion') || ''))
       };
     });
-    return { headers: headers, cols: cols, contratos: contratos };
+    const dep = depurarContratos(contratos);
+    return { headers: headers, cols: cols, contratos: dep.contratos, omitidos: { duplicados: dep.duplicados, totales: dep.totales } };
   }
 
   // Combina los contratos de TODAS las hojas del Excel (ver
@@ -3939,16 +3963,20 @@
   function parsearExcelExperiencia(workbook){
     const hojas = leerTodasLasHojasComoFilas(workbook);
     if (!hojas.length) return parsearExperienciaDeFilas({ headers: [], rows: [] });
-    const contratos = [];
+    let contratos = [];
     let primeraConDatos = null;
+    let duplicados = 0, totales = 0;
     hojas.forEach(h => {
       const parsed = parsearExperienciaDeFilas(h);
       if (!primeraConDatos) primeraConDatos = parsed;
-      parsed.contratos.forEach(c => {
-        contratos.push(Object.assign({}, c, { hoja: h.hojaNombre, fila: contratos.length + 1 }));
-      });
+      duplicados += parsed.omitidos.duplicados; totales += parsed.omitidos.totales;
+      parsed.contratos.forEach(c => { contratos.push(Object.assign({}, c, { hoja: h.hojaNombre })); });
     });
-    return { headers: primeraConDatos.headers, cols: primeraConDatos.cols, contratos: contratos, nHojas: hojas.length };
+    // El mismo contrato puede aparecer en dos hojas: se depura también entre hojas.
+    const dep = depurarContratos(contratos);
+    duplicados += dep.duplicados; totales += dep.totales;
+    contratos = dep.contratos.map((c, i) => Object.assign({}, c, { fila: i + 1 }));
+    return { headers: primeraConDatos.headers, cols: primeraConDatos.cols, contratos: contratos, nHojas: hojas.length, omitidos: { duplicados: duplicados, totales: totales } };
   }
 
   const STOPWORDS_ES = new Set(['de','del','la','el','los','las','en','y','o','para','con','por','a','al','un','una','que','se','su','sus','como','entre','sobre','este','esta','estos','estas','sea','ser','mas','no']);
@@ -3979,7 +4007,15 @@
     // mismo problema que "experiencia"/"obligatorio" -- describen CÓMO se
     // redacta la exigencia de recencia, no el alcance técnico del contrato;
     // un contrato real nunca dice "últimos" o "años" al describir su objeto.
-    'ultimos','ultimo','anos','ano']);
+    'ultimos','ultimo','anos','ano',
+    // Auditoría MC-001/MC-002: cifras y conteos redactados en letras ("500
+    // millones de pesos", "cinco (5) contratos", "al menos") describen la
+    // exigencia, no el alcance de la obra; un contrato real nunca los repite en
+    // su objeto, así que como palabra distintiva volvían todo requisito con
+    // cifra en NO DETERMINABLE.
+    'acumulado','acumulada','acumulados','acumuladas',
+    'millones','millon','pesos','cuantia','monto','menos','acredite','acrediten','presentar','aportar','certificar',
+    'uno','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','veinte']);
 
   function palabrasClaveDe(texto){
     return Array.from(new Set(normHeader(texto).split(' ').filter(w => w.length > 3 && !STOPWORDS_ES.has(w))));
@@ -4177,18 +4213,35 @@
   // Experiencia corre independiente de cualquier proceso específico, así
   // que no hay una "fecha de cierre" con la que anclar "los últimos N
   // años" salvo la fecha real de hoy.
+  // Límite inferior de la ventana "últimos N años" contados desde hoy.
+  function ventanaTemporalLimite(req, hoy){
+    const limite = new Date(hoy.getTime());
+    limite.setFullYear(limite.getFullYear() - req.condicionTemporal.anios);
+    return limite;
+  }
+
+  // Estado de UN contrato frente a la ventana: 'dentro' | 'vencido' | 'sin-fecha'.
+  // Auditoría RT-003: una fecha inexistente, anterior a 1990, POSTERIOR a hoy
+  // (contrato en ejecución o error de digitación, p. ej. 9999-12-31) o con el
+  // inicio DESPUÉS del fin (fechas invertidas) NO acredita nada: cuenta como
+  // "sin fecha confiable" (NO DETERMINABLE), nunca como "dentro de la ventana".
+  function estadoTemporalDeContrato(c, limite, hoy){
+    const fecha = fechaReferenciaContrato(c);
+    if (!fecha) return 'sin-fecha';
+    const d = new Date(fecha + 'T00:00:00');
+    if (isNaN(d.getTime()) || d.getFullYear() < 1990) return 'sin-fecha';
+    if (d.getTime() > hoy.getTime()) return 'sin-fecha';
+    if (c.fechaFin && c.fechaInicio){
+      const di = new Date(c.fechaInicio + 'T00:00:00');
+      if (isNaN(di.getTime()) || di.getTime() > d.getTime()) return 'sin-fecha';
+    }
+    return d.getTime() >= limite.getTime() ? 'dentro' : 'vencido';
+  }
+
   function evaluarCondicionTemporal(req, relevantes, hoy){
     if (!req.condicionTemporal) return null;
-    const anios = req.condicionTemporal.anios;
-    const limite = new Date(hoy.getTime());
-    limite.setFullYear(limite.getFullYear() - anios);
-    const estados = relevantes.map(c => {
-      const fecha = fechaReferenciaContrato(c);
-      if (!fecha) return 'sin-fecha';
-      const d = new Date(fecha + 'T00:00:00');
-      if (isNaN(d.getTime())) return 'sin-fecha';
-      return d.getTime() >= limite.getTime() ? 'dentro' : 'vencido';
-    });
+    const limite = ventanaTemporalLimite(req, hoy);
+    const estados = relevantes.map(c => estadoTemporalDeContrato(c, limite, hoy));
     if (estados.some(e => e === 'dentro')) return { bloquea: false };
     const vencidos = estados.filter(e => e === 'vencido').length;
     if (vencidos > 0 && vencidos === estados.length){
@@ -4210,6 +4263,88 @@
     };
   }
 
+  // Auditoría MC-002. El mínimo de contratos solo se reconocía en 3 redacciones
+  // ("mínimo N contratos", "N contratos como mínimo", "mínimo palabra (N)"); sin
+  // `minContratos`, UN solo contrato relevante bastaba para CUMPLE. Redacciones
+  // muy comunes de pliegos reales quedaban fuera: "Dos (2) contratos de...",
+  // "Acreditar 3 contratos de...", "mínimo 2 (dos) contratos", "al menos dos
+  // contratos". Ahora, además de las 3 formas de siempre, se lee cualquier
+  // "<número en dígito o letra> [(<número>)] contratos" -- salvo cuando lo
+  // precede "máximo"/"hasta"/"no más de" (un TOPE no es un mínimo). Si el texto
+  // menciona conteos distintos (ambiguo) NO se elige uno: devuelve
+  // {valor:null, ambiguo:true} y el requisito queda NO DETERMINABLE.
+  function numeroDeTokenContratos(tok){
+    const t = normHeader(tok);
+    if (/^\d+$/.test(t)) return parseInt(t, 10);
+    if (t === 'un' || t === 'una') return 1;
+    return NUMEROS_ESPANOL[t] != null ? NUMEROS_ESPANOL[t] : null;
+  }
+  function minContratosDeTexto(texto){
+    const t = String(texto || '');
+    const m0 = t.match(/m[ií]nimo\s+(?:de\s+)?(\d+)\s+contratos?/i) ||
+      t.match(/(\d+)\s+contratos?\s+como\s+m[ií]nimo/i) ||
+      t.match(/m[ií]nimo\s+(?:de\s+)?[a-záéíóúñ]+\s*\((\d+)\)(?=[^.]{0,40}contratos?)/i);
+    if (m0) return { valor: parseInt(m0[1], 10), ambiguo: false };
+    const re = /(?:^|[^a-záéíóúñ\d])(\d+|[a-záéíóúñ]+)\s*(?:\(\s*(\d+|[a-záéíóúñ]+)\s*\)\s*)?contratos?\b/gi;
+    const conteos = [];
+    let m;
+    while ((m = re.exec(t))){
+      const iTok = m.index + m[0].toLowerCase().indexOf(m[1].toLowerCase());
+      const antes = t.slice(Math.max(0, iTok - 24), iTok).toLowerCase();
+      if (/(m[aá]xim[oa]|hasta|no\s+m[aá]s\s+de)\s*(?:de\s+)?$/.test(antes)) continue;
+      const cands = [numeroDeTokenContratos(m[1]), m[2] != null ? numeroDeTokenContratos(m[2]) : null].filter(n => n != null);
+      if (!cands.length) continue;
+      const n = cands[0];
+      if (n < 2 || n > 50) continue; // "un contrato" (1) no cambia nada: ya se exige al menos uno
+      conteos.push(n);
+    }
+    if (!conteos.length) return null;
+    const distintos = Array.from(new Set(conteos));
+    if (distintos.length === 1) return { valor: distintos[0], ambiguo: false };
+    return { valor: null, ambiguo: true, fragmento: 'conteos distintos: ' + distintos.join(', ') };
+  }
+
+  // Auditoría MC-001. Solo se extraía el valor mínimo en SMMLV; uno en PESOS en
+  // texto libre ("por valor mínimo de $500.000.000") se ignoraba por completo y
+  // un contrato de $1.000.000 "acreditaba" un requisito de $500.000.000. Se lee
+  // con señal de dinero ($, "millones", "mil millones", COP/pesos) o tras la
+  // etiqueta "valor/cuantía/monto ... mínimo" (solo si la cifra es >= 100.000).
+  // Con varias cifras distintas, o con señal de dinero pero sin cifra legible,
+  // NO se elige una: devuelve {sinModelar} y el requisito queda NO DETERMINABLE.
+  function minValorPesosDeTexto(texto){
+    const t = String(texto || '');
+    if (/smmlv|smlmv|salarios?\s+m[ií]nimos/i.test(t)) return null; // eso lo resuelve la rama SMMLV
+    const mult = m => /mil\s+millones/i.test(m || '') ? 1e9 : (/mill[oó]n/i.test(m || '') ? 1e6 : 1);
+    const valores = [];
+    let hayDinero = false;
+    const patrones = [
+      /\$\s*(\d[\d.,]*)(\s*(?:mil\s+millones|millones|mill[oó]n))?/gi,
+      /(\d[\d.,]*)\s*(mil\s+millones|millones|mill[oó]n)\b/gi,
+      /(\d[\d.,]*)\s*(?:cop|pesos)\b/gi
+    ];
+    patrones.forEach(re => {
+      let m;
+      while ((m = re.exec(t))){
+        hayDinero = true;
+        const base = parseNumCO(m[1]);
+        const v = base == null ? null : base * mult(m[2]);
+        if (v != null && v > 0) valores.push(v);
+      }
+    });
+    if (!valores.length){
+      const m = t.match(/(?:valor|cuant[ií]a|monto)\s+(?:m[ií]nim[oa]|acumulad[oa]|total|ejecutad[oa])?[^\d$.]{0,30}(\d[\d.,]*)/i);
+      if (m){
+        const v = parseNumCO(m[1]);
+        if (v != null && v >= 100000) return { valor: v, unidad: 'COP' };
+      }
+    }
+    const distintos = Array.from(new Set(valores));
+    if (distintos.length === 1) return { valor: distintos[0], unidad: 'COP' };
+    if (distintos.length > 1) return { sinModelar: 'varias cifras: ' + distintos.map(v => '$' + v.toLocaleString('es-CO')).join(', ') };
+    if (hayDinero) return { sinModelar: 'cifra en pesos no legible' };
+    return null;
+  }
+
   function construirRequisitoDesdeTexto(criterioTexto, i, celdas){
     celdas = celdas || {};
     criterioTexto = (criterioTexto || '').toString().trim();
@@ -4222,23 +4357,10 @@
     if (/opcional/.test(oblRaw)) obligatoriedad = 'opcional';
     else if (/complementari/.test(oblRaw)) obligatoriedad = 'complementario';
     else if (/alternativ|cualquiera de|uno de los siguientes|o bien/.test(oblRaw)) obligatoriedad = 'alternativo';
-    const minContratos = celdas.minContratos ? parseNumCO(String(celdas.minContratos)) : (function(){
-      // "mínimo de 3 contratos" y "mínimo 3 contratos" (sin "de") aparecen
-      // ambas formas en pliegos reales -- "de" opcional, no solo la primera.
-      // Tercera forma, confirmada con un pliego real (auditoría contra 2
-      // pliegos/estudios previos reales, ver CLAUDE.md): "mínimo uno (1) y
-      // máximo cinco (5) contratos" -- número en letra con el dígito entre
-      // paréntesis, misma convención de redacción legal colombiana ya
-      // manejada en condicionTemporalDelRequisito ("últimos diez (10)
-      // años"). El lookahead exige "contrato(s)" cerca (≤40 caracteres)
-      // para no confundir esto con otro "mínimo palabra (N)" que no hable
-      // de contratos (ej. "mínimo tres (3) años de constituidas").
-      const m = criterioTexto.match(/m[ií]nimo\s+(?:de\s+)?(\d+)\s+contratos?/i) ||
-        criterioTexto.match(/(\d+)\s+contratos?\s+como\s+m[ií]nimo/i) ||
-        criterioTexto.match(/m[ií]nimo\s+(?:de\s+)?[a-záéíóúñ]+\s*\((\d+)\)(?=[^.]{0,40}contratos?)/i);
-      return m ? parseInt(m[1], 10) : null;
-    })();
-    const minValor = parseValorUnidad(String(celdas.minValor || '')) || (function(){
+    const cntTxt = celdas.minContratos ? null : minContratosDeTexto(criterioTexto);
+    const minContratos = celdas.minContratos ? parseNumCO(String(celdas.minContratos)) : (cntTxt ? cntTxt.valor : null);
+    const contratosAmbiguo = (cntTxt && cntTxt.ambiguo) ? cntTxt.fragmento : null;
+    let minValor = parseValorUnidad(String(celdas.minValor || '')) || (function(){
       // Auditoría (motor de extracción): igual que minContratos, "valor
       // mínimo de quince mil (15.000) SMMLV" no se reconocía -- solo la
       // forma con dígito suelto. Se agrega la misma convención legal como
@@ -4249,6 +4371,12 @@
         criterioTexto.match(/[a-záéíóúñ]+\s*\((\d[\d.,]*)\)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i);
       return m ? parseValorUnidad(m[1] + ' ' + m[2]) : null;
     })();
+    let valorSinModelar = null;
+    if (!minValor && !celdas.minValor){
+      const vp = minValorPesosDeTexto(criterioTexto);
+      if (vp && vp.valor != null) minValor = { valor: vp.valor, unidad: 'COP' };
+      else if (vp && vp.sinModelar) valorSinModelar = vp.sinModelar;
+    }
     // Respaldo de texto libre para minCantidad (antes solo venía de una
     // celda de Excel explícita -- en un PDF/Word, o un Excel sin esa
     // columna, una cantidad mínima con unidad CONTABLE se perdía en
@@ -4257,7 +4385,9 @@
     const acumulableRaw = normHeader(String(celdas.acumulable || '') + ' ' + criterioTexto);
     const acumulable = /acumul|sumatoria|suma de los? contratos?/.test(acumulableRaw);
     const palabras = palabrasClaveDe(criterioTexto);
-    const condicionNoVerificable = condicionCuantitativaSinModelar(criterioTexto);
+    const condicionNoVerificable = condicionCuantitativaSinModelar(criterioTexto) ||
+      (valorSinModelar ? 'valor mínimo en pesos (' + valorSinModelar + ')' : null) ||
+      (contratosAmbiguo ? 'número mínimo de contratos ambiguo (' + contratosAmbiguo + ')' : null);
     const condicionTemporal = condicionTemporalDelRequisito(criterioTexto);
     // La cláusula temporal completa ("dentro de los últimos diez (10)
     // años") es 100% boilerplate de redacción -- a diferencia de "50
@@ -4458,12 +4588,31 @@
     const parciales = relevancia.filter(r => r.coincidenciaParcial);
     const soloGenericos = relevancia.filter(r => !r.relevante && !r.coincidenciaParcial && r.genMatch.length > 0);
 
+    // Auditoría MC-003. La ventana temporal ("últimos N años") no estaba
+    // acoplada a los criterios numéricos: bastaba que UN contrato relevante
+    // cayera dentro de la ventana para que no bloqueara nada, aunque el valor
+    // (o el segundo contrato exigido) lo aportara uno de 2015. Ahora el mínimo de
+    // contratos, el valor y la cantidad se calculan SOLO con los contratos
+    // relevantes que están dentro de la ventana. Los que no tienen fecha confiable
+    // no se cuentan; si por eso el resultado sería NO CUMPLE, queda NO DETERMINABLE
+    // (esa fecha podría cambiarlo).
+    const gateTemporalPrevio = evaluarCondicionTemporal(req, relevantes, hoy);
+    let evalSet = relevantes;
+    let sinFechaTemporal = 0;
+    if (req.condicionTemporal){
+      const limiteT = ventanaTemporalLimite(req, hoy);
+      const estT = relevantes.map(c => estadoTemporalDeContrato(c, limiteT, hoy));
+      evalSet = relevantes.filter((c, i) => estT[i] === 'dentro');
+      sinFechaTemporal = estT.filter(e => e === 'sin-fecha').length;
+    }
+    const exclusionTemporal = !!req.condicionTemporal && relevantes.length > 0 && evalSet.length === 0;
+
     const evidencia = [];
     const faltantes = [];
     let numericoOk = null;
 
-    if (req.minContratos != null){
-      const n = relevantes.length;
+    if (req.minContratos != null && !exclusionTemporal){
+      const n = evalSet.length;
       if (n === 0 && !req.palabrasDistintivas.length){
         faltantes.push('El requisito no trae palabras clave distintivas del Excel/matriz para identificar qué contrato aplica.');
       } else {
@@ -4471,10 +4620,10 @@
         numericoOk = (numericoOk === false) ? false : (n >= req.minContratos);
       }
     }
-    if (req.minValor != null){
-      if (relevantes.length === 0){
+    if (req.minValor != null && !exclusionTemporal){
+      if (evalSet.length === 0){
         faltantes.push('No hay contratos relevantes por objeto para comparar contra el valor mínimo exigido (' + req.minValor.valor + ' ' + req.minValor.unidad + ').');
-      } else if (relevantes.every(c => c.valor == null)){
+      } else if (evalSet.every(c => c.valor == null)){
         faltantes.push('Los contratos relevantes no tienen un valor reconocido en el Excel (columna de valor no detectada o vacía).');
         numericoOk = (numericoOk === false) ? false : null; // criterio no verificable: no puede quedar CUMPLE por otro criterio
       } else if (req.minValor.unidad === 'SMMLV'){
@@ -4482,7 +4631,7 @@
         // se comparan como número plano. Se convierte con el SMMLV del año
         // que indica el propio pliego (req.reglaSmmlv); sin esa regla o sin
         // la fecha del contrato, no se decide (NO DETERMINABLE).
-        const convertidos = relevantes.map(c => Object.assign({ contrato: c }, valorContratoEnSmmlv(c, req.reglaSmmlv))).filter(x => x.smmlv != null);
+        const convertidos = evalSet.map(c => Object.assign({ contrato: c }, valorContratoEnSmmlv(c, req.reglaSmmlv))).filter(x => x.smmlv != null);
         if (!req.reglaSmmlv){
           faltantes.push('El requisito exige ' + req.minValor.valor + ' SMMLV, pero el pliego no indica con qué salario mínimo convertir el valor de los contratos (fecha de terminación, de inicio...) -- compáralo a mano.');
           numericoOk = (numericoOk === false) ? false : null;
@@ -4499,11 +4648,11 @@
             (req.reglaSmmlv === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' de cada contrato; exige ' + req.minValor.valor + ' SMMLV' +
             (req.acumulable ? ', acumulable entre contratos' : ', por contrato individual') + ').');
           // Si algún contrato relevante no se pudo convertir, un "no alcanza" no es concluyente.
-          numericoOk = (numericoOk === false) ? false : (cumpleValor ? true : (convertidos.length < relevantes.length ? null : false));
-          if (!cumpleValor && convertidos.length < relevantes.length) faltantes.push('Algún contrato relevante no se pudo convertir a SMMLV; el resultado no es concluyente.');
+          numericoOk = (numericoOk === false) ? false : (cumpleValor ? true : (convertidos.length < evalSet.length ? null : false));
+          if (!cumpleValor && convertidos.length < evalSet.length) faltantes.push('Algún contrato relevante no se pudo convertir a SMMLV; el resultado no es concluyente.');
         }
       } else {
-        const conValor = relevantes.filter(c => c.valor != null);
+        const conValor = evalSet.filter(c => c.valor != null);
         const suma = conValor.reduce((a, c) => a + c.valor, 0);
         const mejorIndividual = Math.max.apply(null, conValor.map(c => c.valor));
         const cumpleValor = req.acumulable ? (suma >= req.minValor.valor) : (mejorIndividual >= req.minValor.valor);
@@ -4513,8 +4662,8 @@
         numericoOk = (numericoOk === false) ? false : cumpleValor;
       }
     }
-    if (req.minCantidad != null){
-      const conCantidad = relevantes.filter(c => c.cantidad && c.cantidad.valor != null);
+    if (req.minCantidad != null && !exclusionTemporal){
+      const conCantidad = evalSet.filter(c => c.cantidad && c.cantidad.valor != null);
       if (!conCantidad.length){
         faltantes.push('Ningún contrato relevante trae una cantidad reconocida para comparar contra el mínimo exigido (' + req.minCantidad.valor + ').');
         numericoOk = (numericoOk === false) ? false : null;
@@ -4523,6 +4672,14 @@
         evidencia.push('Cantidad acumulada en contratos relevantes: ' + suma + ' (exige ' + req.minCantidad.valor + ').');
         numericoOk = (numericoOk === false) ? false : (suma >= req.minCantidad.valor);
       }
+    }
+
+    if (exclusionTemporal){
+      evidencia.push('Ninguno de los ' + relevantes.length + ' contrato(s) relevante(s) por objeto tiene fecha de terminación confirmada dentro de la ventana exigida ("' + req.condicionTemporal.texto + '").');
+      if (req.minContratos != null || req.minValor != null || req.minCantidad != null) numericoOk = sinFechaTemporal > 0 ? null : false;
+    } else if (sinFechaTemporal > 0 && numericoOk === false){
+      numericoOk = null;
+      faltantes.push(sinFechaTemporal + ' contrato(s) relevante(s) no tienen una fecha de terminación confiable (vacía, futura, invertida o inexistente); con esa fecha el resultado podría cambiar.');
     }
 
     let resultado, justificacion;
@@ -4591,6 +4748,13 @@
     } else {
       resultado = 'NO DETERMINABLE';
       justificacion = 'Hay contratos con coincidencia total de palabras distintivas, pero falta información en el Excel/PDF/Word para confirmar el criterio numérico exigido. ' + faltantes.join(' ');
+    }
+
+    // Si TODOS los contratos relevantes con fecha confiable quedaron fuera de la
+    // ventana (y ninguno queda sin fecha), es un incumplimiento demostrado.
+    if (gateTemporalPrevio && gateTemporalPrevio.bloquea && gateTemporalPrevio.resultado === 'NO CUMPLE' && resultado !== 'NO CUMPLE'){
+      resultado = 'NO CUMPLE';
+      justificacion = gateTemporalPrevio.mensaje + (evidencia.length ? ' ' + evidencia.join(' ') : '');
     }
 
     // Gancho para requisitos extraídos por IA cuya cita no se pudo verificar
@@ -4965,6 +5129,17 @@
   // "2007" de "Ley 1150 de 2007").
   function parseValorUnidad(s){
     if (!s) return null;
+    // Auditoría RT-001: la extracción de números no capturaba el signo, así que
+    // "-1.500.000.000" (un reverso, una deuda, un error de digitación) se leía
+    // como +1.500.000.000 y cumplía un mínimo; con el K residual del perfil,
+    // "K residual = -1.200.000.000" se leía como capacidad plena. Un valor
+    // NEGATIVO (signo pegado al número, o el paréntesis contable "(1.500)" que
+    // ocupa toda la celda / va tras "=", ":" o "$") no es un dato utilizable:
+    // se devuelve null y el motor lo trata como "sin valor" (NO DETERMINABLE).
+    // "quince mil (15.000) SMMLV" NO es negativo: ahí el paréntesis sigue a una palabra.
+    const txtNeg = String(s);
+    if (/(?:^|[\s(=:$])-\$?\d/.test(txtNeg) ||
+        /(?:^|[=:$])\s*\(\s*\$?\s*\d[\d.,]*\s*\)\s*(?:cop|pesos)?\s*$/i.test(txtNeg.trim())) return null;
     const smmlv = /smmlv|smlmv|s\.?m\.?m\.?l\.?v|salarios?\s+m[ií]nimos/i.test(s);
     // n >= 0, no n > 0: un valor de $0 exacto (ej. K residual agotado) es
     // un dato real, no "sin dato" -- ver CLAUDE.md, hallazgo crítico.
@@ -5476,9 +5651,12 @@
         return;
       }
       if (f.valor_indicador == null) return;
-      if (f.indicador === 'liquidez' && esMin && !ex.liquidez) ex.liquidez = { valor: f.valor_indicador, raw: raw };
-      else if (f.indicador === 'endeudamiento' && esMax && !ex.endeudamiento) ex.endeudamiento = { valor: f.valor_indicador, raw: raw };
-      else if (f.indicador === 'cobertura_intereses' && esMin && !ex.cobertura) ex.cobertura = { valor: f.valor_indicador, raw: raw };
+      // MC-004: la unidad que declara la IA ("%") se respeta; sin ella el motor
+      // decide con la regla de razón/porcentaje de compararIndiceConUmbral.
+      const pct = /%|porcentaje/i.test(String(f.unidad_indicador || '')) || /%/.test(raw.slice(0, 160)) && new RegExp(String(f.valor_indicador).replace('.', '[.,]') + '\\s*%').test(raw);
+      if (f.indicador === 'liquidez' && esMin && !ex.liquidez) ex.liquidez = { valor: f.valor_indicador, raw: raw, porcentaje: pct };
+      else if (f.indicador === 'endeudamiento' && esMax && !ex.endeudamiento) ex.endeudamiento = { valor: f.valor_indicador, raw: raw, porcentaje: pct };
+      else if (f.indicador === 'cobertura_intereses' && esMin && !ex.cobertura) ex.cobertura = { valor: f.valor_indicador, raw: raw, porcentaje: pct };
       else if (f.indicador === 'patrimonio' && esMin && !ex.patrimonio) ex.patrimonio = { valor: f.valor_indicador, unidad: /smmlv/i.test(f.unidad_indicador || f.valor_minimo_unidad || '') ? 'SMMLV' : 'COP', raw: raw };
       else if (f.indicador === 'capital_trabajo' && esMin && !ex.capitalTrabajo) ex.capitalTrabajo = { valor: f.valor_indicador, unidad: /smmlv/i.test(f.unidad_indicador || f.valor_minimo_unidad || '') ? 'SMMLV' : 'COP', raw: raw };
     });
@@ -5550,6 +5728,45 @@
     return /^(cancelad|borrador|seleccionad|suspendid|aprobad|en aprobacion|evaluacion|adjudicad|celebrad|liquidad|terminad|declarad|desiert|revocad|descartad)/.test(e);
   }
 
+  // Auditoría MC-004. Los índices se comparaban como números sueltos sin mirar la
+  // unidad: "endeudamiento menor o igual al 60%" se leía 60 y un perfil con 0,75
+  // pasaba (0,75 <= 60) -> GO falso; y al revés, un pliego con 0,60 y un perfil
+  // con "45%" fallaba. Ahora el "%" que sigue al número se captura y AMBOS lados
+  // se normalizan a razón (60% -> 0,6). Un endeudamiento mayor que 5 SIN "%" es
+  // ambiguo (¿45 %? ¿razón 45?): no se compara, queda "requiere verificación".
+  function buscarUmbralCerca(t, etqRe, valRe){
+    const m = t.match(new RegExp('(?:' + etqRe + ')[^.\\n]{0,70}?(' + valRe + ')(\\s*%)?', 'i'));
+    return m ? { valor: parseNumCO(m[1]), raw: m[0].trim(), porcentaje: !!m[2] } : null;
+  }
+
+  // Lee un índice (liquidez, endeudamiento, cobertura) del texto libre del perfil.
+  // Devuelve una RAZÓN (60% -> 0.6) o null si no hay dato o es ambiguo.
+  function leerIndiceDePerfil(texto, re, tipo){
+    const m = String(texto || '').match(re);
+    if (!m) return null;
+    let v = parseNumCO(m[1]);
+    if (v == null) return null;
+    const despues = String(texto).slice(m.index + m[0].length, m.index + m[0].length + 4);
+    if (/^\s*%/.test(despues)) return v / 100;
+    if (tipo === 'endeudamiento' && v > 5) return null; // sin "%": ¿45 % o razón 45? no se adivina
+    return v;
+  }
+
+  // Compara un índice exigido por el pliego contra el del perfil (razones ya
+  // normalizadas). Devuelve {estado, detalle}: 'ok' | 'fail' | 'nd'.
+  function compararIndiceConUmbral(nombre, exig, mio, sentido, hayPliego){
+    if (!exig || exig.valor == null) return { estado: 'nd', detalle: hayPliego ? 'El pliego no da un umbral numérico claro.' : 'Analiza el pliego (PDF) para conocer el umbral exigido.' };
+    if (mio == null) return { estado: 'nd', detalle: 'Tu perfil no tiene este dato (o no se puede leer sin ambigüedad: escríbelo como razón, ej. 0,6, o con "%") — cárgalo desde el RUP.' };
+    const esEndeudamiento = /endeudamiento/i.test(nombre);
+    if (esEndeudamiento && !exig.porcentaje && exig.valor > 5){
+      return { estado: 'nd', detalle: 'El pliego da un umbral de endeudamiento (' + exig.valor + ') sin indicar si es porcentaje o razón -- compáralo a mano.' };
+    }
+    const exigRazon = exig.porcentaje ? exig.valor / 100 : exig.valor;
+    const pasa = sentido === '>=' ? (mio >= exigRazon) : (mio <= exigRazon);
+    return { estado: pasa ? 'ok' : 'fail',
+      detalle: 'Pliego: ' + (sentido === '>=' ? '≥ ' : '≤ ') + exigRazon + (exig.porcentaje ? ' (' + exig.valor + '%)' : '') + ' · tu perfil: ' + mio + (pasa ? ' ✓' : ' ✗') };
+  }
+
   // Umbrales numéricos que EXIGE el pliego (índices financieros, K residual).
   // Orientativo: el pliego los redacta de mil formas, así que si no encuentra un
   // patrón claro devuelve null y la evaluación lo marca "sin dato".
@@ -5557,8 +5774,8 @@
     const t = String(text || '').replace(/\s+/g, ' ');
     const num = '-?\\d[\\d.,]*';
     const cerca = (etqRe, valRe) => {
-      const m = t.match(new RegExp('(?:' + etqRe + ')[^.\\n]{0,70}?(' + valRe + ')', 'i'));
-      return m ? { valor: parseNumCO(m[1]), raw: truncate(m[0].trim(), 160) } : null;
+      const r = buscarUmbralCerca(t, etqRe, valRe);
+      return r ? { valor: r.valor, raw: truncate(r.raw, 160), porcentaje: r.porcentaje } : null;
     };
     return {
       liquidez: cerca('[íi]ndice\\s+de\\s+liquidez|raz[óo]n\\s+de\\s+liquidez|liquidez\\s+corriente', num),
@@ -5697,6 +5914,7 @@
     p = migrarPerfil(Object.assign({}, p || {}));
     const kTxt = p.k || '';
     const ratio = re => { const m = kTxt.match(re); return m ? parseNumCO(m[1]) : null; };
+    const indice = (re, tipo) => leerIndiceDePerfil(kTxt, re, tipo);
     // Si hay contratos en ejecución registrados, la "K residual" que entra en
     // los gates de capacidad es la disponible ESTIMADA (declarada menos SCE),
     // no la cruda -- ver capacidadContractualEstimada(). Sin contratos
@@ -5713,9 +5931,9 @@
       codigos: (p.rup || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean),
       kResidual: kResidualParaGates,
       capacidadEstimada: capacidadEstimada,
-      liquidez: ratio(/liquidez[^0-9\-]{0,20}(-?\d[\d.,]*)/i),
-      endeudamiento: ratio(/endeudamiento[^0-9\-]{0,20}(-?\d[\d.,]*)/i),
-      cobertura: ratio(/cobertura[^0-9\-]{0,20}(-?\d[\d.,]*)/i),
+      liquidez: indice(/liquidez[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'liquidez'),
+      endeudamiento: indice(/endeudamiento[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'endeudamiento'),
+      cobertura: indice(/cobertura[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'cobertura'),
       patrimonio: ratio(/patrimonio[^0-9\-]{0,20}(\$?\s?\d[\d.,]*)/i),
       capitalTrabajo: ratio(/capital\s+de\s+trabajo[^0-9\-]{0,20}(\$?\s?\d[\d.,]*)/i),
       tieneAlgo: false
@@ -5838,10 +6056,10 @@
     // exigenciasIA: umbrales extraídos por IA con cita verificada (o confirmada a mano); pisan al regex.
     const ex = Object.assign({}, (entry && entry.exigencias) || {}, (entry && entry.exigenciasIA) || {});
     const cmp = (nombre, exig, mio, sentido) => {
-      if (!exig || exig.valor == null){ g(nombre, 'nd', entry ? 'El pliego no da un umbral numérico claro.' : 'Analiza el pliego (PDF) para conocer el umbral exigido.'); return; }
-      if (mio == null){ g(nombre, 'nd', 'Tu perfil no tiene este dato — cárgalo desde el RUP.'); return; }
-      const pasa = sentido === '>=' ? (mio >= exig.valor) : (mio <= exig.valor);
-      g(nombre, pasa ? 'ok' : 'fail', 'Pliego: ' + (sentido === '>=' ? '≥ ' : '≤ ') + exig.valor + ' · tu perfil: ' + mio + (pasa ? ' ✓' : ' ✗'));
+      // Patrimonio y capital de trabajo (montos, no índices) van por la misma
+      // vía: sin "%" ni ambigüedad de unidad, el resultado es el de siempre.
+      const r = compararIndiceConUmbral(nombre, exig, mio, sentido, !!entry);
+      g(nombre, r.estado, r.detalle);
     };
     if (entry){
       cmp('Índice de liquidez', ex.liquidez, matriz.liquidez, '>=');
@@ -8585,6 +8803,16 @@
         : [];
       html += '<div class="account-notice" style="margin-bottom:10px;">✓ Se leyeron ' + expevalContratos.contratos.length + ' contrato(s) de tu experiencia' +
         (nombresHojas.length ? ' (hojas: ' + nombresHojas.map(escapeHtml).join(', ') + ')' : '') + '.' +
+        // RT-002: filas de TOTAL/SUBTOTAL y contratos repetidos se omiten para no
+        // sumarlos dos veces en un requisito acumulable; se avisa, no es silencioso.
+        (function(){
+          const om = (expevalMeta && expevalMeta.omitidos) || expevalContratos.omitidos;
+          if (!om || (!om.duplicados && !om.totales)) return '';
+          const partes = [];
+          if (om.duplicados) partes.push(om.duplicados + ' contrato(s) repetido(s) (mismo N° de contrato, contratante y valor)');
+          if (om.totales) partes.push(om.totales + ' fila(s) de total');
+          return ' Se omitieron ' + partes.join(' y ') + ' para no contarlos dos veces.';
+        })() +
         (conColumnas ? ' Revisa abajo qué columna se usó para cada campo antes de continuar.' : ' Revisa abajo cada contrato detectado antes de continuar.') +
         '</div>';
       html += conColumnas
@@ -8609,7 +8837,7 @@
         return;
       }
       expevalContratos = parsed;
-      expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
+      expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length, omitidos: parsed.omitidos || null });
       const sufijoHojas = parsed.nHojas > 1 ? ' de ' + parsed.nHojas + ' hojas' : '';
       expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';
       renderExpEvalReview();

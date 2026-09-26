@@ -241,7 +241,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -1371,6 +1371,162 @@ await check('S2-003: estados de cierre/adjudicación de SECOP I (Celebrado, Liqu
   for (const e of ['Celebrado', 'Liquidado', 'Terminado Anormalmente después de Convocado', 'Terminado sin Liquidar', 'Declarado desierto', 'Adjudicado', 'Descartado']) {
     assert(expEngine.esEstadoNoVigente(e) === true, e + ' debería ser no vigente');
   }
+});
+
+// ---- Auditoría de pre-lanzamiento: bloqueadores CRÍTICOS del motor ----------
+// (MC-001, MC-002, MC-003, MC-004, RT-001, RT-002). Cada caso es el ejemplo
+// EXACTO que reprodujeron los auditores contra el motor real.
+const HOY_AUD = new Date('2026-06-01T00:00:00');
+function evaluarReqTexto(textoReq, expHeaders, expRows, hoy) {
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(expHeaders, expRows)).contratos;
+  const req = expEngine.construirRequisitoDesdeTexto(textoReq, 0, {});
+  return { r: expEngine.evaluarRequisito(req, contratos, hoy || HOY_AUD), req, contratos };
+}
+const H_BASICO = ['Objeto', 'Contratante', 'Valor'];
+const PUENTE = 'Construcción de puentes vehiculares';
+
+await check('MC-001: valor mínimo en PESOS en texto libre ya no se ignora: contrato de $1.000.000 vs "$500.000.000" -> NO CUMPLE (antes CUMPLE)', () => {
+  for (const txt of [
+    'Mínimo 1 contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000',
+    'Acreditar un contrato de construcción de puentes vehiculares por $500.000.000',
+    'Un contrato de construcción de puentes vehiculares por valor mínimo de 500 millones de pesos',
+    'Un contrato de construcción de puentes vehiculares. Valor minimo 500000000'
+  ]) {
+    const { r, req } = evaluarReqTexto(txt, H_BASICO, [[PUENTE, 'Alcaldía X', '1000000']]);
+    assert(req.minValor && req.minValor.valor === 500000000 && req.minValor.unidad === 'COP', 'no extrajo el mínimo en pesos de "' + txt + '": ' + JSON.stringify(req.minValor));
+    assert(r.resultado === 'NO CUMPLE', '"' + txt + '" con contrato de $1M: se esperaba NO CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+  }
+});
+
+await check('MC-001 (control positivo): con un contrato de $900.000.000 el mismo requisito SÍ cumple (no se sobre-corrige)', () => {
+  const { r } = evaluarReqTexto('Mínimo 1 contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000', H_BASICO, [[PUENTE, 'Alcaldía X', '900000000']]);
+  assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('MC-001: varias cifras en pesos distintas o una cifra ilegible NO se adivinan -> NO DETERMINABLE, nunca CUMPLE', () => {
+  const { r } = evaluarReqTexto('Un contrato de construcción de puentes vehiculares por $500.000.000 y presupuesto oficial de $2.000.000.000', H_BASICO, [[PUENTE, 'Alcaldía X', '5000000']]);
+  assert(r.resultado === 'NO DETERMINABLE', 'con dos cifras distintas se esperaba NO DETERMINABLE, fue ' + r.resultado);
+});
+
+await check('MC-002: conteo de contratos en letras / "al menos" / "acreditar N" / "N (letras)": con 1 solo contrato -> NO CUMPLE (antes CUMPLE)', () => {
+  for (const [txt, n] of [
+    ['Dos (2) contratos de construcción de puentes vehiculares', 2],
+    ['Acreditar 3 contratos de construcción de puentes vehiculares', 3],
+    ['Acreditar mínimo 2 (dos) contratos de construcción de puentes vehiculares', 2],
+    ['Acreditar dos contratos como mínimo de construcción de puentes vehiculares', 2],
+    ['Acreditar al menos dos (2) contratos de construcción de puentes vehiculares', 2]
+  ]) {
+    const { r, req } = evaluarReqTexto(txt, H_BASICO, [[PUENTE, 'Alcaldía X', '900000000']]);
+    assert(req.minContratos === n, '"' + txt + '": minContratos esperado ' + n + ', fue ' + req.minContratos);
+    assert(r.resultado === 'NO CUMPLE', '"' + txt + '" con 1 contrato: se esperaba NO CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+  }
+});
+
+await check('MC-002 (control positivo): con 2 contratos relevantes "Dos (2) contratos" SÍ cumple; y un TOPE ("máximo cinco (5)") no se toma como mínimo', () => {
+  const dos = evaluarReqTexto('Dos (2) contratos de construcción de puentes vehiculares', H_BASICO, [[PUENTE, 'A', '9'], [PUENTE + ' sobre el río', 'B', '9']]);
+  assert(dos.r.resultado === 'CUMPLE', 'con 2 contratos se esperaba CUMPLE, fue ' + dos.r.resultado);
+  assert(expEngine.minContratosDeTexto('con mínimo uno (1) y máximo cinco (5) contratos').valor === 1, 'el máximo cinco (5) no debe tomarse como mínimo');
+  assert(expEngine.minContratosDeTexto('hasta 4 contratos') === null, '"hasta 4 contratos" es un tope, no un mínimo');
+  assert(expEngine.minContratosDeTexto('máximo cinco (5) contratos') === null, '"máximo cinco (5) contratos" es un tope, no un mínimo');
+});
+
+await check('MC-002: conteos distintos en el mismo requisito son ambiguos -> NO DETERMINABLE (no se elige uno)', () => {
+  const { r } = evaluarReqTexto('Tres (3) contratos de construcción de puentes vehiculares o cuatro (4) contratos de menor valor', H_BASICO, [[PUENTE, 'A', '9'], [PUENTE + ' y andenes', 'B', '9'], [PUENTE + ' rurales', 'C', '9']]);
+  assert(r.resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+const H_FECHAS = ['Objeto', 'Contratante', 'Valor', 'Fecha de inicio', 'Fecha fin'];
+await check('MC-003: la ventana temporal se aplica ANTES del valor: $600M de 2015 + $50M de 2025, mínimo $500M en los últimos 5 años -> NO CUMPLE (antes CUMPLE)', () => {
+  const { r } = evaluarReqTexto('Un contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000 dentro de los últimos 5 años', H_FECHAS,
+    [[PUENTE, 'A', '600000000', '01/01/2014', '15/06/2015'], [PUENTE + ' rural', 'B', '50000000', '01/01/2025', '15/03/2026']]);
+  assert(r.resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('MC-003: "mínimo 2 contratos ... últimos 5 años" con uno de 2015 y uno de 2025 -> NO CUMPLE (antes contaba 2)', () => {
+  const { r } = evaluarReqTexto('Mínimo 2 contratos de construcción de puentes vehiculares dentro de los últimos 5 años', H_FECHAS,
+    [[PUENTE, 'A', '1', '01/01/2014', '15/06/2015'], [PUENTE + ' rural', 'B', '1', '01/01/2025', '15/03/2026']]);
+  assert(r.resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('MC-003 (control positivo): dos contratos dentro de la ventana SÍ cumplen; uno vencido sin otros con fecha -> NO DETERMINABLE si otro no trae fecha', () => {
+  const ok = evaluarReqTexto('Mínimo 2 contratos de construcción de puentes vehiculares dentro de los últimos 5 años', H_FECHAS,
+    [[PUENTE, 'A', '1', '01/01/2024', '15/06/2025'], [PUENTE + ' rural', 'B', '1', '01/01/2025', '15/03/2026']]);
+  assert(ok.r.resultado === 'CUMPLE', 'dos contratos recientes: se esperaba CUMPLE, fue ' + ok.r.resultado + ' -- ' + ok.r.justificacion);
+  const nd = evaluarReqTexto('Mínimo 2 contratos de construcción de puentes vehiculares dentro de los últimos 5 años', H_FECHAS,
+    [[PUENTE, 'A', '1', '01/01/2014', '15/06/2015'], [PUENTE + ' rural', 'B', '1', '', '']]);
+  assert(nd.r.resultado === 'NO DETERMINABLE', 'uno vencido y otro SIN fecha: se esperaba NO DETERMINABLE (la fecha faltante podría cambiarlo), fue ' + nd.r.resultado);
+});
+
+await check('RT-003: fechas invertidas, futuras o 9999 NO acreditan la ventana "últimos 5 años" -> NO DETERMINABLE (antes CUMPLE)', () => {
+  for (const [ini, fin, motivo] of [['01/01/2028', '01/01/2024', 'invertidas'], ['01/01/2020', '31/12/9999', 'fin 9999'], ['01/01/2030', '01/06/2035', 'futuras']]) {
+    const { r } = evaluarReqTexto('Experiencia en construcción de puentes vehiculares dentro de los últimos 5 años', H_FECHAS, [[PUENTE, 'A', '1', ini, fin]]);
+    assert(r.resultado === 'NO DETERMINABLE', 'fechas ' + motivo + ': se esperaba NO DETERMINABLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+  }
+});
+
+await check('RT-001: un valor NEGATIVO no se convierte en positivo (Excel, K residual, paréntesis contable)', () => {
+  for (const txt of ['-1.500.000.000', '(1.500.000.000)', 'K residual = -1.200.000.000', 'Valor: -500', '= (1.200.000.000)']) {
+    assert(expEngine.parseValorUnidad(txt) === null, 'parseValorUnidad("' + txt + '") debería ser null, fue ' + JSON.stringify(expEngine.parseValorUnidad(txt)));
+  }
+  const { r } = evaluarReqTexto('Un contrato de construcción de puentes vehiculares por valor mínimo de $1.000.000.000', H_BASICO, [[PUENTE, 'A', '-1.500.000.000']]);
+  assert(r.resultado === 'NO DETERMINABLE', 'contrato con valor negativo: se esperaba NO DETERMINABLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('RT-001 (control positivo): valores normales, guiones entre números y "quince mil (15.000) SMMLV" siguen leyéndose', () => {
+  assert(expEngine.parseValorUnidad('1.500.000.000').valor === 1500000000, 'valor normal');
+  assert(expEngine.parseValorUnidad('K residual = 1.200.000.000').valor === 1200000000, 'K residual normal');
+  assert(expEngine.parseValorUnidad('Contrato 10-20 valor 800.000') !== null, 'un guion entre números no es un signo negativo');
+  const s = expEngine.parseValorUnidad('quince mil (15.000) SMMLV');
+  assert(s && s.valor === 15000 && s.unidad === 'SMMLV', 'el paréntesis tras una palabra NO es contable: ' + JSON.stringify(s));
+});
+
+const H_NUM = ['Objeto', 'Contratante', 'Valor', 'Número de contrato'];
+const REQ_ACUM = 'Experiencia en pavimentación de vías con valor acumulado mínimo de $3.000.000.000';
+await check('RT-002: un mismo contrato repetido en dos filas, o una fila TOTAL, NO se suman en un requisito acumulable (antes CUMPLE)', () => {
+  const base = ['Pavimentación de vías urbanas', 'Alcaldía X', '1600000000', 'C-1'];
+  const unico = evaluarReqTexto(REQ_ACUM, H_NUM, [base]);
+  assert(unico.r.resultado === 'NO CUMPLE', 'un solo contrato de $1.6M: NO CUMPLE, fue ' + unico.r.resultado);
+  const dup = evaluarReqTexto(REQ_ACUM, H_NUM, [base, base.slice()]);
+  assert(dup.contratos.length === 1, 'el duplicado debió omitirse, quedaron ' + dup.contratos.length);
+  assert(dup.r.resultado === 'NO CUMPLE', 'contrato duplicado: se esperaba NO CUMPLE, fue ' + dup.r.resultado + ' -- ' + dup.r.justificacion);
+  const total = evaluarReqTexto(REQ_ACUM, H_NUM, [base, ['TOTAL pavimentación de vías', '', '1600000000', '']]);
+  assert(total.contratos.length === 1, 'la fila TOTAL debió omitirse, quedaron ' + total.contratos.length);
+  assert(total.r.resultado === 'NO CUMPLE', 'con fila TOTAL: se esperaba NO CUMPLE, fue ' + total.r.resultado);
+});
+
+await check('RT-002 (control positivo): dos contratos DISTINTOS (otro N° de contrato) sí se suman y cumplen', () => {
+  const dos = evaluarReqTexto(REQ_ACUM, H_NUM, [
+    ['Pavimentación de vías urbanas', 'Alcaldía X', '1600000000', 'C-1'],
+    ['Pavimentación de vías rurales', 'Alcaldía Y', '1600000000', 'C-2']]);
+  assert(dos.contratos.length === 2, 'los dos contratos distintos deben conservarse');
+  assert(dos.r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + dos.r.resultado + ' -- ' + dos.r.justificacion);
+});
+
+await check('MC-004: "endeudamiento <= 60%" del pliego y un perfil con 0,75 -> FAIL (antes ok: comparaba 0,75 <= 60)', () => {
+  const t = 'Índice de endeudamiento menor o igual al 60% del activo total';
+  const exig = expEngine.buscarUmbralCerca(t, '[íi]ndice\\s+de\\s+endeudamiento', '-?\\d[\\d.,]*');
+  assert(exig && exig.valor === 60 && exig.porcentaje === true, 'debió capturar 60 con porcentaje: ' + JSON.stringify(exig));
+  const r = expEngine.compararIndiceConUmbral('Índice de endeudamiento', exig, 0.75, '<=', true);
+  assert(r.estado === 'fail', 'perfil 0,75 vs 60%: se esperaba fail, fue ' + r.estado + ' -- ' + r.detalle);
+  assert(expEngine.compararIndiceConUmbral('Índice de endeudamiento', exig, 0.45, '<=', true).estado === 'ok', 'perfil 0,45 vs 60% debe pasar');
+});
+
+await check('MC-004: la misma exigencia como razón (0,60) y el perfil escrito con "%" ("45%") se comparan en la misma escala', () => {
+  const exigRazon = { valor: 0.6, porcentaje: false };
+  assert(expEngine.compararIndiceConUmbral('Índice de endeudamiento', exigRazon, 0.45, '<=', true).estado === 'ok', 'razón 0,60 vs 0,45');
+  const mio = expEngine.leerIndiceDePerfil('Endeudamiento: 45%', /endeudamiento[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'endeudamiento');
+  assert(mio === 0.45, '"45%" del perfil debe normalizarse a 0,45, fue ' + mio);
+  assert(expEngine.compararIndiceConUmbral('Índice de endeudamiento', exigRazon, mio, '<=', true).estado === 'ok', 'perfil 45% vs razón 0,60');
+  assert(expEngine.compararIndiceConUmbral('Índice de endeudamiento', exigRazon, 0.75, '<=', true).estado === 'fail', 'perfil 0,75 vs razón 0,60 debe fallar');
+});
+
+await check('MC-004: un endeudamiento SIN "%" mayor que 5 es ambiguo (perfil o pliego) -> requiere verificación, no se compara', () => {
+  assert(expEngine.leerIndiceDePerfil('Endeudamiento: 45', /endeudamiento[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'endeudamiento') === null, 'perfil "45" sin % es ambiguo');
+  const r = expEngine.compararIndiceConUmbral('Índice de endeudamiento', { valor: 60, porcentaje: false }, 0.5, '<=', true);
+  assert(r.estado === 'nd', 'pliego "60" sin % es ambiguo: se esperaba nd, fue ' + r.estado);
+  // Control: la liquidez 1,5 no es ambigua.
+  assert(expEngine.compararIndiceConUmbral('Índice de liquidez', { valor: 1.5, porcentaje: false }, 1.83, '>=', true).estado === 'ok', 'liquidez 1,83 vs >= 1,5 debe pasar');
+  assert(expEngine.compararIndiceConUmbral('Índice de liquidez', { valor: 1.5, porcentaje: false }, 1.4, '>=', true).estado === 'fail', 'liquidez 1,4 vs >= 1,5 debe fallar');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
