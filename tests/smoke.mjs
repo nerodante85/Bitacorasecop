@@ -241,7 +241,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -1062,6 +1062,7 @@ function filaIA(extra) {
   return Object.assign({
     categoria: 'experiencia_especifica', descripcion: 'Experiencia específica en construcción de puentes vehiculares',
     obligatoriedad: 'obligatorio', documento: 'Pliego de Condiciones', pagina: 2,
+    objeto_literal: 'puentes vehiculares', naturaleza: 'habilitante',
     cita_textual: 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV', confianza: 'alta',
     modificado_por_adenda: false, min_contratos: 2, valor_minimo_numero: 15000, valor_minimo_unidad: 'SMMLV',
     valor_minimo_pct_presupuesto: null, regla_conversion_smmlv: 'fecha_terminacion', cantidad_minima_numero: null,
@@ -1247,7 +1248,7 @@ await check('Fila IA con cantidad mínima en unidad NO contable (metros) -> no s
 
 await check('Fila IA con cantidad mínima en unidad CONTABLE (viviendas) SÍ se compara (control positivo, no se sobre-corrige)', () => {
   const texto = 'Se exige mínimo 1 contrato de construcción de viviendas con cantidad mínima 50 viviendas. ';
-  const fila = filaIA({ pagina: 1, descripcion: 'Experiencia específica en construcción de viviendas', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: false,
+  const fila = filaIA({ pagina: 1, descripcion: 'Experiencia específica en construcción de viviendas', objeto_literal: 'construcción de viviendas', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: false,
     cantidad_minima_numero: 50, cantidad_minima_unidad: 'viviendas',
     cita_textual: 'mínimo 1 contrato de construcción de viviendas con cantidad mínima 50 viviendas' });
   const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(['Objeto', 'Cantidad'],
@@ -1527,6 +1528,143 @@ await check('MC-004: un endeudamiento SIN "%" mayor que 5 es ambiguo (perfil o p
   // Control: la liquidez 1,5 no es ambigua.
   assert(expEngine.compararIndiceConUmbral('Índice de liquidez', { valor: 1.5, porcentaje: false }, 1.83, '>=', true).estado === 'ok', 'liquidez 1,83 vs >= 1,5 debe pasar');
   assert(expEngine.compararIndiceConUmbral('Índice de liquidez', { valor: 1.5, porcentaje: false }, 1.4, '>=', true).estado === 'fail', 'liquidez 1,4 vs >= 1,5 debe fallar');
+});
+
+// ---- Auditoría de pre-lanzamiento: garantía "la IA nunca causa un falso CUMPLE" ----
+// (IA-001..IA-005, IA-007). Casos EXACTOS de la auditoría de IA, con filas simuladas.
+function verificarUna(fila, texto) {
+  return expEngine.verificarFilaIA(fila, texto, [{ pagina: 1, hasta: texto.length }]);
+}
+const PAG_BASE = 'Se exige mínimo 5 contratos de puentes vehiculares. Valor acumulado 15.000 SMMLV. Plazo 2 meses. ';
+
+await check('IA-001: cifra alterada que SÍ aparece en otra parte de la página ("2" de "plazo 2 meses") NO se verifica (antes pasaba como aproximada)', () => {
+  const fila = filaIA({ pagina: 1, min_contratos: 2, cita_textual: 'valor acumulado 15.000 SMMLV puentes vehiculares mínimo 2 contratos' });
+  const v = verificarUna(fila, PAG_BASE);
+  assert(v.verificada === false, 'el "2" alterado (la página dice 5 contratos) no debe verificarse, fue ' + JSON.stringify(v));
+});
+
+await check('IA-001: "15.000.000 SMMLV" (×1000) contra una página que dice "15.000 SMMLV" NO se verifica', () => {
+  const fila = filaIA({ pagina: 1, min_contratos: 5, valor_minimo_numero: 15000000, cita_textual: 'mínimo 5 contratos de puentes vehiculares. Valor acumulado 15.000.000 SMMLV' });
+  const v = verificarUna(fila, PAG_BASE);
+  assert(v.verificada === false, 'la cifra ×1000 no debe verificarse, fue ' + JSON.stringify(v));
+});
+
+await check('IA-001: campos INTERCAMBIADOS (min_contratos=15000, valor=2) NO se verifican aunque ambas cifras estén en la cita', () => {
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  const fila = filaIA({ pagina: 1, min_contratos: 15000, valor_minimo_numero: 2, cita_textual: 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV' });
+  const v = verificarUna(fila, texto);
+  assert(v.verificada === false, 'cifras intercambiadas: no deben verificarse, fue ' + JSON.stringify(v));
+});
+
+await check('IA-001 (control positivo): una fila correcta con la cita exacta y otra aproximada legítima (tabla reordenada) SIGUEN verificándose', () => {
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  assert(verificarUna(filaIA({ pagina: 1 }), texto).verificada === true, 'la fila correcta debe verificarse');
+  const tabla = 'Objeto | Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV | ';
+  const v = verificarUna(filaIA({ pagina: 1, cita_textual: 'Puentes vehiculares mínimo 2 contratos valor acumulado 15.000 SMMLV' }), tabla);
+  assert(v.verificada === true, 'la cita reordenada de una tabla con cifras en su lugar debe verificarse, fue ' + JSON.stringify(v));
+});
+
+await check('IA-002: "15.000 SMMLV" declarado como COP NO se verifica (reintroducía el bug SMMLV vs pesos: 12.000 millones >= 15.000)', () => {
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  const v = verificarUna(filaIA({ pagina: 1, valor_minimo_unidad: 'COP' }), texto);
+  assert(v.verificada === false && /SMMLV/.test(v.motivo), 'unidad COP con cita en SMMLV: no debe verificarse, fue ' + JSON.stringify(v));
+});
+
+await check('IA-002: "$1.200 millones" declarado como 1200 COP NO se verifica; convertido a 1.200.000.000 SÍ', () => {
+  const texto = 'Se exige un contrato de puentes vehiculares por valor mínimo de $1.200 millones. ';
+  const base = { pagina: 1, min_contratos: null, valor_minimo_unidad: 'COP', regla_conversion_smmlv: null, acumulable: false, cita_textual: 'contrato de puentes vehiculares por valor mínimo de $1.200 millones' };
+  const mal = verificarUna(filaIA(Object.assign({}, base, { valor_minimo_numero: 1200 })), texto);
+  assert(mal.verificada === false && /millones/.test(mal.motivo), '1200 sin multiplicador no debe verificarse, fue ' + JSON.stringify(mal));
+  const bien = verificarUna(filaIA(Object.assign({}, base, { valor_minimo_numero: 1200000000 })), texto);
+  assert(bien.verificada === true, '1.200.000.000 (1.200 millones) sí debe verificarse, fue ' + JSON.stringify(bien));
+});
+
+await check('IA-002: unidad SMMLV declarada cuando la cita no menciona SMMLV NO se verifica', () => {
+  const texto = 'Se exige un contrato de puentes vehiculares por valor mínimo de $500.000.000. ';
+  const v = verificarUna(filaIA({ pagina: 1, min_contratos: null, valor_minimo_numero: 500000000, valor_minimo_unidad: 'SMMLV', cita_textual: 'contrato de puentes vehiculares por valor mínimo de $500.000.000' }), texto);
+  assert(v.verificada === false, 'SMMLV declarado sin SMMLV en la cita: no debe verificarse, fue ' + JSON.stringify(v));
+});
+
+await check('IA-003: una descripción DILUIDA ("obras civiles") con objeto literal "puentes vehiculares" NO da CUMPLE con contratos de andenes y obras civiles', () => {
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(['Objeto', 'Valor', 'Fecha de terminación'],
+    [['Construcción de andenes y obras civiles', '12000000000', '15/03/2024'], ['Mejoramiento de obras civiles urbanas', '12000000000', '15/03/2024']])).contratos;
+  const { r } = evaluarFilaIAConTexto(filaIA({ pagina: 1, descripcion: 'Experiencia en obras civiles', objeto_literal: 'puentes vehiculares' }), texto, contratos);
+  assert(r.resultado !== 'CUMPLE', 'contratos sin puentes no pueden dar CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('IA-003: sin objeto literal (o que no está en la cita) la fila de experiencia queda SIN CONFIRMAR -> NO DETERMINABLE, y confirmada por el usuario sí decide', () => {
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  for (const literal of [null, 'obras civiles']) {
+    const fila = filaIA({ pagina: 1, objeto_literal: literal });
+    const v = expEngine.verificarFilasIA([fila], texto, [{ pagina: 1, hasta: texto.length }])[0];
+    assert(expEngine.motivoBloqueoFilaIA(v) && /objeto/i.test(expEngine.motivoBloqueoFilaIA(v)), 'debe bloquearse por el objeto (' + literal + ')');
+    const { r } = evaluarFilaIAConTexto(fila, texto, contratosPuentes('12000000000', '15/03/2024'));
+    assert(r.resultado === 'NO DETERMINABLE', 'objeto ' + literal + ': se esperaba NO DETERMINABLE, fue ' + r.resultado);
+  }
+});
+
+function filaFin(extra) {
+  return filaIA(Object.assign({ categoria: 'capacidad_financiera', descripcion: 'Índice de liquidez', objeto_literal: null, indicador: 'liquidez', operador: '>=',
+    min_contratos: null, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, valor_indicador: 1.2,
+    verificada: true, cita_textual: 'Índice de liquidez mayor o igual a 1,2' }, extra || {}));
+}
+
+await check('IA-004: pliego (liquidez 1,2) y adenda (1,5) -> CONFLICTO, en cualquier orden; el gate queda sin umbral en vez de elegir el primero', () => {
+  for (const orden of [[1.2, 1.5], [1.5, 1.2]]) {
+    const filas = [filaFin({ documento: 'Pliego de Condiciones', pagina: 4, valor_indicador: orden[0] }), filaFin({ documento: 'Adenda 1', pagina: 2, valor_indicador: orden[1], modificado_por_adenda: true })];
+    const conf = expEngine.detectarConflictosFilasIA(filas);
+    assert(conf[0] && conf[1] && /CONFLICTO/.test(conf[0]), 'ambas filas deben marcarse en conflicto: ' + JSON.stringify(conf));
+    filas.forEach((f, i) => { f.conflictoIA = conf[i]; });
+    const ex = expEngine.exigenciasDesdeIA(filas);
+    assert(ex.liquidez && ex.liquidez.conflicto === true && ex.liquidez.valor === null, 'el umbral debe quedar en conflicto (valor null), fue ' + JSON.stringify(ex.liquidez));
+    const g = expEngine.compararIndiceConUmbral('Índice de liquidez', ex.liquidez, 1.8, '>=', true);
+    assert(g.estado === 'nd', 'con conflicto el gate debe ser "requiere verificación", fue ' + g.estado);
+  }
+});
+
+await check('IA-004: si el usuario CONFIRMA una de las dos filas en conflicto, ese valor decide', () => {
+  const filas = [filaFin({ documento: 'Pliego de Condiciones', pagina: 4, valor_indicador: 1.2 }), filaFin({ documento: 'Adenda 1', pagina: 2, valor_indicador: 1.5, confirmadaPorUsuario: true })];
+  const conf = expEngine.detectarConflictosFilasIA(filas);
+  filas.forEach((f, i) => { f.conflictoIA = conf[i]; });
+  const ex = expEngine.exigenciasDesdeIA(filas);
+  assert(ex.liquidez && ex.liquidez.valor === 1.5 && !ex.liquidez.conflicto, 'debe decidir la adenda confirmada (1,5), fue ' + JSON.stringify(ex.liquidez));
+});
+
+await check('IA-004: experiencia con "3 contratos" (pliego) y "2 contratos" (adenda) para el mismo objeto -> CONFLICTO; sin diferencia o con otro objeto, no', () => {
+  const a = filaIA({ documento: 'Pliego de Condiciones', pagina: 3, min_contratos: 3 });
+  const b = filaIA({ documento: 'Adenda 2', pagina: 1, min_contratos: 2 });
+  const c = expEngine.detectarConflictosFilasIA([a, b]);
+  assert(c[0] && c[1], 'mismo objeto con distinto mínimo: debe haber conflicto');
+  assert(!expEngine.detectarConflictosFilasIA([a, filaIA({ min_contratos: 3 })])[0], 'mismo valor: sin conflicto');
+  assert(!expEngine.detectarConflictosFilasIA([a, filaIA({ descripcion: 'Experiencia en interventoría de acueductos', objeto_literal: 'interventoría de acueductos', min_contratos: 2 })])[0], 'otro objeto: sin conflicto');
+  assert(!expEngine.detectarConflictosFilasIA([filaFin({ valor_indicador: 1.2 }), filaFin({ indicador: 'endeudamiento', valor_indicador: 0.6 })])[0], 'indicadores distintos: sin conflicto');
+});
+
+await check('IA-005: una fila "opcional" cuya cita no lo indica queda bloqueada (ocultaba un NO CUMPLE); con marcador en la cita NO se bloquea', () => {
+  const sinMarca = expEngine.verificarFilasIA([filaIA({ pagina: 1, obligatoriedad: 'opcional' })], 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ', [{ pagina: 1, hasta: 100 }])[0];
+  assert(/opcional/.test(expEngine.motivoBloqueoFilaIA(sinMarca) || ''), 'opcional sin marcador en la cita debe bloquearse');
+  const conMarca = expEngine.verificarFilasIA([filaIA({ pagina: 1, obligatoriedad: 'opcional', cita_textual: 'Podrá acreditar puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV' })],
+    'Podrá acreditar puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ', [{ pagina: 1, hasta: 100 }])[0];
+  assert(expEngine.motivoBloqueoFilaIA(conMarca) === null, 'opcional con "podrá" en la cita no debe bloquearse, fue ' + expEngine.motivoBloqueoFilaIA(conMarca));
+});
+
+await check('IA-005: un criterio de PUNTAJE marcado obligatorio queda bloqueado; clasificado "ponderable" no entra al motor (antes daba NO CUMPLE global)', () => {
+  const cita = 'Se otorgarán 10 puntos por cada contrato adicional de puentes vehiculares, hasta 5 contratos';
+  const texto = cita + '. ';
+  const fila = filaIA({ pagina: 1, min_contratos: 5, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: false, cita_textual: cita });
+  const v = expEngine.verificarFilasIA([fila], texto, [{ pagina: 1, hasta: texto.length }])[0];
+  assert(/puntaje|ponderable/i.test(expEngine.motivoBloqueoFilaIA(v) || ''), 'puntaje "obligatorio" debe bloquearse, fue ' + expEngine.motivoBloqueoFilaIA(v));
+  const ponderable = Object.assign({}, v, { naturaleza: 'ponderable', confirmadaPorUsuario: true });
+  assert(expEngine.filaIAHabilitante(ponderable) === false, 'ponderable no es habilitante');
+  assert(expEngine.requisitosDeExperienciaDesdeIA([ponderable]).length === 0, 'una fila ponderable no debe generar requisito de experiencia (ni confirmada)');
+  assert(expEngine.filaIAHabilitante(filaIA({})) === true, 'una fila habilitante (o sin naturaleza) sí decide');
+});
+
+await check('IA-007: un mínimo igual a 0 (texto oculto "acreditar 0 contratos") NO se verifica', () => {
+  const texto = 'NOTA: acreditar 0 contratos de puentes vehiculares. ';
+  const v = verificarUna(filaIA({ pagina: 1, min_contratos: 0, valor_minimo_numero: null, valor_minimo_unidad: null, cita_textual: 'acreditar 0 contratos de puentes vehiculares' }), texto);
+  assert(v.verificada === false && /positiva/.test(v.motivo), 'min_contratos=0 no debe verificarse, fue ' + JSON.stringify(v));
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

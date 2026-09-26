@@ -5509,27 +5509,149 @@
     return (String(s || '').match(/\d[\d.,]*\d|\d/g) || []).map(parseNumCO).filter(n => n != null);
   }
 
-  // Verifica una fila de la IA: (1) cada cifra que declara aparece en su propia
-  // cita, y (2) la cita aparece de verdad en esa página del PDF (o en una
+  // Auditoría de IA (IA-001, IA-002, IA-007). La verificación solo comprobaba que la
+  // cita existiera y que cada cifra estuviera "en algún lugar" de la cita; no
+  // comprobaba que la cifra fuera la de SU campo, ni su unidad, ni que la coincidencia
+  // aproximada respetara el contexto. Casos reproducidos con filas simuladas:
+  // (1) una cifra alterada pasaba si ese número aparecía en otra parte de la página
+  // ("2 contratos" vs "plazo 2 meses"); (2) "15.000 SMMLV" declarado como COP daba
+  // CUMPLE (12.000 millones >= 15.000 "pesos"); "$1.200 millones" declarado como 1200
+  // COP igual; (3) campos intercambiados (min_contratos=15000, valor=2).
+
+  // Valores en pesos que aparecen en la cita, separando los que van seguidos de
+  // "millones"/"mil millones" (que hay que escalar) de los literales.
+  function candidatosDeValorEnCita(cita){
+    const literales = [], escalados = [], convertidos = [];
+    const re = /(\d[\d.,]*)(\s*(?:mil\s+millones|millones|mill[oó]n))?/gi;
+    let m;
+    while ((m = re.exec(String(cita || '')))){
+      const n = parseNumCO(m[1]);
+      if (n == null) continue;
+      if (m[2]){ escalados.push(n); convertidos.push(n * (/mil\s+millones/i.test(m[2]) ? 1e9 : 1e6)); }
+      else literales.push(n);
+    }
+    return { literales: literales, escalados: escalados, convertidos: convertidos };
+  }
+
+  // ¿Alguno de los valores aparece en la cita con, a ≤24 caracteres, una palabra
+  // que lo describe (reCtx)? null si el valor no aparece como cifra (eso lo
+  // reporta otra comprobación).
+  function cifraEnContexto(cita, valores, reCtx){
+    const t = String(cita || '');
+    const apariciones = [];
+    const reNum = /\d[\d.,]*/g;
+    let m;
+    while ((m = reNum.exec(t))){
+      const n = parseNumCO(m[0]);
+      if (n != null && valores.some(v => Math.abs(n - v) < 1e-9)) apariciones.push([m.index, m[0].length]);
+    }
+    const reW = new RegExp('\\b(' + Object.keys(NUMEROS_ESPANOL).join('|') + ')\\b', 'gi');
+    while ((m = reW.exec(t))){
+      if (valores.indexOf(NUMEROS_ESPANOL[normHeader(m[1])]) !== -1) apariciones.push([m.index, m[0].length]);
+    }
+    if (!apariciones.length) return null;
+    return apariciones.some(a => {
+      const ventana = t.slice(Math.max(0, a[0] - 24), a[0] + a[1] + 24);
+      return reCtx.test(ventana.toLowerCase()) || reCtx.test(normHeader(ventana));
+    });
+  }
+
+  function contextoDeCifra(rol, fila){
+    if (rol === 'contratos') return /contrat|certificac|proyecto/;
+    if (rol === 'valor') return /smmlv|smlmv|salari|peso|cop|millon|valor|cuant|monto|presupuesto|\$/;
+    if (rol === 'pct') return /presupuesto|%/;
+    if (rol === 'ventana') return /ano|mes|ultim|anterior|previ|retro/;
+    if (rol === 'cantidad'){
+      const u = normHeader(fila.cantidad_minima_unidad || '').split(' ').filter(w => w.length > 1).map(w => w.replace(/[^a-z0-9]/g, ''));
+      return new RegExp('cantidad|minim|unidad|' + (u.length ? u.join('|') : 'cantidad'));
+    }
+    return null; // indicadores: demasiado variables para exigir una palabra concreta
+  }
+
+  // Coherencia entre la unidad que declara la IA y lo que dice la cita.
+  function motivoUnidadIncoherente(fila, cita){
+    const hayValor = fila.valor_minimo_numero != null ||
+      (['k_residual', 'patrimonio', 'capital_trabajo'].indexOf(fila.categoria === 'k_residual' ? 'k_residual' : fila.indicador) !== -1 && fila.valor_indicador != null);
+    if (!hayValor) return null;
+    const declarada = fila.valor_minimo_unidad ||
+      (/smmlv/i.test(fila.unidad_indicador || '') ? 'SMMLV' : (/cop|peso/i.test(fila.unidad_indicador || '') ? 'COP' : null));
+    if (!declarada) return null;
+    const tieneSmmlv = /smmlv|smlmv|salarios?\s+m[ií]nimos?/i.test(cita);
+    const tieneDinero = /\$|\bpesos\b|\bcop\b|mill[oó]n|millones/i.test(cita);
+    if (declarada === 'SMMLV' && !tieneSmmlv) return 'La IA declaró el valor en SMMLV pero la cita no menciona SMMLV ni salarios mínimos.';
+    if (declarada === 'COP' && tieneSmmlv && !tieneDinero) return 'La cita expresa el valor en SMMLV pero la IA lo declaró en pesos (COP): compararlo con el valor de los contratos en pesos daría un resultado falso.';
+    return null;
+  }
+
+  // Coincidencia aproximada (tablas: el orden del texto extraído puede diferir del
+  // que ve la IA). Además de >=90% de las palabras, cada cifra debe aparecer en la
+  // página COMO UNA CORRIDA CONTIGUA (así "15.000.000" no se acepta contra
+  // "15.000") y pegada a alguna de sus palabras vecinas de la cita ("2 contratos",
+  // "mínimo 2"): un "2" suelto en "plazo 2 meses" ya no sirve.
+  function citaCoincideAproximada(citaNorm, paginaNorm){
+    const toks = citaNorm.split(' ').filter(Boolean);
+    const set = new Set(paginaNorm.split(' '));
+    const padded = ' ' + paginaNorm + ' ';
+    const unicos = Array.from(new Set(toks.filter(w => w.length > 1 || /\d/.test(w))));
+    if (!unicos.length || unicos.filter(w => set.has(w)).length / unicos.length < 0.9) return false;
+    let i = 0;
+    while (i < toks.length){
+      if (!/\d/.test(toks[i])){ i++; continue; }
+      let j = i;
+      while (j < toks.length && /^\d+$/.test(toks[j])) j++;
+      if (j === i) j = i + 1;
+      const corrida = toks.slice(i, j).join(' ');
+      if (padded.indexOf(' ' + corrida + ' ') === -1) return false;
+      const prev = toks[i - 1], next = toks[j];
+      const vecinoOk = (!prev && !next) ||
+        (next && padded.indexOf(' ' + corrida + ' ' + next + ' ') !== -1) ||
+        (prev && padded.indexOf(' ' + prev + ' ' + corrida + ' ') !== -1);
+      if (!vecinoOk) return false;
+      i = j;
+    }
+    return true;
+  }
+
+  // Verifica una fila de la IA: (1) cada cifra que declara es positiva, aparece en su
+  // propia cita y junto a la palabra que la describe, (2) la unidad es coherente con
+  // la cita, y (3) la cita aparece de verdad en esa página del PDF (o en una
   // contigua -- ±1). Devuelve { verificada, tipo?, motivo?, paginaEncontrada? }.
   function verificarFilaIA(fila, text, paginaOffsets){
     const cita = String(fila.cita_textual || '');
     const citaNorm = normHeader(cita);
     const cifras = [
-      ['el número mínimo de contratos', fila.min_contratos],
-      ['el valor mínimo', fila.valor_minimo_numero],
-      ['el porcentaje del presupuesto oficial', fila.valor_minimo_pct_presupuesto],
-      ['la cantidad mínima', fila.cantidad_minima_numero],
-      ['la ventana de años', fila.ventana_anios],
-      ['el valor del indicador', fila.valor_indicador]
+      ['el número mínimo de contratos', fila.min_contratos, 'contratos', true],
+      ['el valor mínimo', fila.valor_minimo_numero, 'valor', true],
+      ['el porcentaje del presupuesto oficial', fila.valor_minimo_pct_presupuesto, 'pct', true],
+      ['la cantidad mínima', fila.cantidad_minima_numero, 'cantidad', true],
+      ['la ventana de años', fila.ventana_anios, 'ventana', true],
+      ['el valor del indicador', fila.valor_indicador, 'indicador', false]
     ].filter(x => x[1] != null);
     const numsCita = numerosEnTexto(cita);
     const numerosEnLetras = citaNorm.split(' ').map(w => NUMEROS_ESPANOL[w]).filter(n => n != null);
+    const dinero = candidatosDeValorEnCita(cita);
     for (const par of cifras){
       const v = Number(par[1]);
-      const aparece = numsCita.some(n => Math.abs(n - v) < 1e-9) || numerosEnLetras.indexOf(v) !== -1;
+      // IA-007: un mínimo <= 0 no es un requisito (un texto oculto en el PDF podría inducir
+      // "acreditar 0 contratos").
+      if (par[3] && !(v > 0)) return { verificada: false, motivo: 'La cifra de ' + par[0] + ' (' + par[1] + ') no es positiva: no es un mínimo válido (error o texto inyectado en el PDF).' };
+      let aparece;
+      if (par[2] === 'valor'){
+        aparece = dinero.literales.some(n => Math.abs(n - v) < 1e-9) || dinero.convertidos.some(n => Math.abs(n - v) < 1e-9) || numerosEnLetras.indexOf(v) !== -1;
+        if (!aparece && dinero.escalados.some(n => Math.abs(n - v) < 1e-9)){
+          return { verificada: false, motivo: 'La cita dice "' + par[1] + ' millones" pero la IA declaró ' + par[1] + ' sin el multiplicador: el valor real sería otro.' };
+        }
+      } else {
+        aparece = numsCita.some(n => Math.abs(n - v) < 1e-9) || numerosEnLetras.indexOf(v) !== -1;
+      }
       if (!aparece) return { verificada: false, motivo: 'La cifra de ' + par[0] + ' (' + par[1] + ') no aparece en la cita textual.' };
+      const reCtx = contextoDeCifra(par[2], fila);
+      if (reCtx && cifraEnContexto(cita, par[2] === 'valor' ? [v, v / 1e6, v / 1e9] : [v], reCtx) === false){
+        return { verificada: false, motivo: 'La cifra de ' + par[0] + ' (' + par[1] + ') aparece en la cita pero no junto a lo que la describe (posible cifra tomada de otro campo).' };
+      }
     }
+    const incoherente = motivoUnidadIncoherente(fila, cita);
+    if (incoherente) return { verificada: false, motivo: incoherente };
     if (!text || !paginaOffsets || !paginaOffsets.length){
       return { verificada: false, motivo: 'No hay texto del PDF para verificar la cita (PDF escaneado o no leído por completo).' };
     }
@@ -5541,16 +5663,8 @@
       // Con espacios a ambos lados: "3 contratos" no debe hacer match dentro de "13 contratos".
       if ((' ' + normHeader(x.t) + ' ').indexOf(' ' + citaNorm + ' ') !== -1) return { verificada: true, tipo: 'exacta', paginaEncontrada: x.p };
     }
-    // Tablas: el orden del texto extraído puede diferir del que ve la IA -- se acepta
-    // si al menos el 90% de las palabras/números de la cita están en esa página.
-    const tokens = Array.from(new Set(citaNorm.split(' ').filter(w => w.length > 1 || /\d/.test(w))));
     for (const x of candidatas){
-      const set = new Set(normHeader(x.t).split(' '));
-      const presentes = tokens.filter(w => set.has(w)).length;
-      // Todos los tokens numéricos deben estar en la página: sin esto, una cifra alterada
-      // ("5 contratos" vs "3") pasaba dentro del 90% de coincidencia de una cita larga.
-      const numericosOk = tokens.filter(w => /\d/.test(w)).every(w => set.has(w));
-      if (tokens.length && numericosOk && presentes / tokens.length >= 0.9) return { verificada: true, tipo: 'aproximada', paginaEncontrada: x.p };
+      if (citaCoincideAproximada(citaNorm, normHeader(x.t))) return { verificada: true, tipo: 'aproximada', paginaEncontrada: x.p };
     }
     return { verificada: false, motivo: 'La cita no aparece en la página ' + pag + ' del PDF.' };
   }
@@ -5567,10 +5681,95 @@
     });
   }
 
-  // Una fila "confiable para el motor": cita verificada (o confirmada a mano) y confianza no baja
-  // (o confirmada a mano).
+  // ---- Auditoría de IA (IA-003, IA-004, IA-005): más cosas que la IA decide y el motor
+  // no comprobaba. Toda duda deja la fila en "sin verificar" hasta que el usuario la confirme.
+
+  function esFilaExperienciaIA(f){ return f.categoria === 'experiencia_general' || f.categoria === 'experiencia_especifica'; }
+
+  // Solo lo que la IA clasifica como HABILITANTE decide el veredicto; un criterio de
+  // puntaje, una obligación contractual o algo informativo no es un requisito para
+  // participar (antes un "10 puntos por cada contrato adicional" daba NO CUMPLE global).
+  function filaIAHabilitante(f){ return !f.naturaleza || f.naturaleza === 'habilitante'; }
+
+  // IA-003: el OBJETO exigido (qué contratos aplican) se toma de un fragmento que la IA
+  // debe copiar LITERALMENTE de la cita (`objeto_literal`), no de su paráfrasis
+  // (`descripcion`): una descripción diluida ("obras civiles" en vez de "puentes
+  // vehiculares") volvía CUMPLE un requisito con contratos de otro objeto.
+  function objetoLiteralVerificado(f){
+    const o = normHeader(f.objeto_literal || '');
+    if (o.length < 4) return false;
+    return (' ' + normHeader(f.cita_textual || '') + ' ').indexOf(' ' + o + ' ') !== -1;
+  }
+
+  // IA-005: la obligatoriedad que declara la IA debe tener respaldo en la cita.
+  function motivoObligatoriedadDudosa(f){
+    const c = normHeader(f.cita_textual || '');
+    const RE_OPC = /\b(opcional|facultativ\w*|podra|podran|complementari\w*|alternativ\w*|cualquiera de|uno de los siguientes|o bien|adicional\w*|puntaje|puntos)\b/;
+    const RE_PUNTAJE = /\b(puntaje|puntos|se otorgar\w*|ponderab\w*|calificab\w*)\b/;
+    if (f.obligatoriedad && f.obligatoriedad !== 'obligatorio' && !RE_OPC.test(c)){
+      return 'La IA marcó este requisito como "' + f.obligatoriedad + '" pero la cita no contiene ninguna expresión que lo indique (opcional, alternativo, complementario...); podría ser obligatorio y ocultarse un incumplimiento.';
+    }
+    if (f.obligatoriedad === 'obligatorio' && RE_PUNTAJE.test(c)){
+      return 'La cita parece describir un criterio de puntaje/ponderable, no un requisito habilitante: podría dar un NO CUMPLE falso.';
+    }
+    return null;
+  }
+
+  // IA-004: dos filas del mismo requisito/indicador con valores DISTINTOS (típico de un
+  // pliego y una adenda que lo modifica) no se resuelven eligiendo la primera: ambas
+  // quedan en conflicto hasta que el usuario confirme cuál es la vigente.
+  function detectarConflictosFilasIA(filas){
+    filas = filas || [];
+    const out = filas.map(() => null);
+    const donde = f => (f.documento || 'documento') + (f.pagina ? ', p. ' + f.pagina : '');
+    const marca = (i, j, que) => {
+      const m = 'CONFLICTO: ' + que + ' (en «' + donde(filas[i]) + '» y en «' + donde(filas[j]) + '») -- confirma a mano cuál es el vigente (una adenda puede haber modificado el pliego).';
+      if (!out[i]) out[i] = m;
+      if (!out[j]) out[j] = m;
+    };
+    const claveIndicador = f => f.categoria === 'k_residual' ? 'k_residual' : ((f.indicador && f.indicador !== 'otro') ? f.indicador : null);
+    const valorIndicador = f => f.valor_indicador != null ? f.valor_indicador : f.valor_minimo_numero;
+    const palabrasObj = f => palabrasClaveDe(f.objeto_literal || f.descripcion || '').filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PALABRAS_META_REQUISITO.has(p) && !esTokenNumerico(p));
+    for (let i = 0; i < filas.length; i++){
+      for (let j = i + 1; j < filas.length; j++){
+        const a = filas[i], b = filas[j];
+        if (!filaIAHabilitante(a) || !filaIAHabilitante(b)) continue;
+        const ka = claveIndicador(a), kb = claveIndicador(b);
+        if (ka && ka === kb){
+          const va = valorIndicador(a), vb = valorIndicador(b);
+          if (va != null && vb != null && Math.abs(va - vb) > 1e-9) marca(i, j, 'valores distintos para «' + ka + '» (' + va + ' y ' + vb + ')');
+          continue;
+        }
+        if (esFilaExperienciaIA(a) && esFilaExperienciaIA(b) && a.categoria === b.categoria){
+          const pa = palabrasObj(a), pb = palabrasObj(b);
+          const compartidas = pa.filter(p => pb.indexOf(p) !== -1).length;
+          if (!pa.length || !pb.length || compartidas < Math.min(2, pa.length, pb.length) || jaccard(pa, pb) < 0.6) continue;
+          [['min_contratos', 'el mínimo de contratos'], ['valor_minimo_numero', 'el valor mínimo'], ['cantidad_minima_numero', 'la cantidad mínima'], ['ventana_anios', 'la ventana de años']].forEach(par => {
+            if (a[par[0]] != null && b[par[0]] != null && Math.abs(Number(a[par[0]]) - Number(b[par[0]])) > 1e-9) marca(i, j, par[1] + ' difiere (' + a[par[0]] + ' y ' + b[par[0]] + ')');
+          });
+        }
+      }
+    }
+    return out;
+  }
+
+  // Motivo por el que una fila NO decide todavía (null = decide). Unifica lo que antes
+  // eran dos causas (cita sin verificar / confianza baja) con las nuevas.
+  function motivoBloqueoFilaIA(f){
+    if (f.verificada !== true) return 'No se pudo verificar la cita de este requisito contra el PDF (' + (f.motivoVerificacion || 'sin verificar') + ').';
+    if (f.confianza === 'baja') return 'La IA marcó este requisito con confianza baja.';
+    if (f.conflictoIA) return f.conflictoIA;
+    const ob = motivoObligatoriedadDudosa(f);
+    if (ob) return ob;
+    if (esFilaExperienciaIA(f) && !objetoLiteralVerificado(f)){
+      return 'El objeto exigido no se pudo tomar literalmente de la cita (la IA no lo copió o no aparece en ella), así que no se puede confirmar qué contratos aplican.';
+    }
+    return null;
+  }
+
+  // Una fila "confiable para el motor": sin motivo de bloqueo, o confirmada a mano.
   function filaIAConfiable(f){
-    return f.confirmadaPorUsuario === true || (f.verificada === true && f.confianza !== 'baja');
+    return f.confirmadaPorUsuario === true || motivoBloqueoFilaIA(f) === null;
   }
 
   // Fila de experiencia de la IA -> el mismo `requisito` que construye
@@ -5580,9 +5779,12 @@
   // para no perder un guardarraíl que la descripción resumida haya omitido.
   function filaIAaRequisito(fila, i){
     if (fila.categoria !== 'experiencia_general' && fila.categoria !== 'experiencia_especifica') return null;
+    if (!filaIAHabilitante(fila)) return null; // puntaje / obligación contractual / informativo: no decide
     const descripcion = String(fila.descripcion || '').trim();
     if (!descripcion) return null;
-    const req = construirRequisitoDesdeTexto(descripcion, i, {
+    // El objeto exigido sale del fragmento LITERAL de la cita (IA-003); solo si falta se cae
+    // a la paráfrasis, y entonces la fila queda bloqueada hasta que el usuario la confirme.
+    const req = construirRequisitoDesdeTexto(objetoLiteralVerificado(fila) ? String(fila.objeto_literal).trim() : descripcion, i, {
       tipo: fila.categoria === 'experiencia_general' ? 'general' : 'especifica',
       obligatoriedad: fila.obligatoriedad,
       grupo: fila.grupo_alternativo || ''
@@ -5618,9 +5820,7 @@
     req.citaTextual = cita;
     req.confianzaIA = fila.confianza || null;
     if (!filaIAConfiable(fila)){
-      req.forzarNoDeterminable = fila.verificada === true
-        ? 'La IA marcó este requisito con confianza baja y aún no lo has confirmado.'
-        : 'No se pudo verificar la cita de este requisito contra el PDF (' + (fila.motivoVerificacion || 'sin verificar') + ') y aún no lo has confirmado.';
+      req.forzarNoDeterminable = motivoBloqueoFilaIA(fila) + ' Aún no lo has confirmado.';
     }
     return req;
   }
@@ -5638,7 +5838,13 @@
   // extraerExigencias ({valor, raw} / {valor, unidad}). Solo con filas confiables.
   function exigenciasDesdeIA(filas){
     const ex = {};
+    // IA-004: un indicador con valores distintos entre filas (pliego vs adenda) que no
+    // se ha confirmado deja una marca de CONFLICTO (valor null) que pisa a la lectura
+    // por regex: el gate queda "requiere verificación" en vez de elegir uno.
+    const claveEx = f => f.categoria === 'k_residual' || f.indicador === 'k_residual' ? 'kResidual'
+      : ({ liquidez: 'liquidez', endeudamiento: 'endeudamiento', cobertura_intereses: 'cobertura', patrimonio: 'patrimonio', capital_trabajo: 'capitalTrabajo' })[f.indicador] || null;
     (filas || []).forEach(f => {
+      if (!filaIAHabilitante(f)) return;
       if (!filaIAConfiable(f)) return;
       const raw = String(f.cita_textual || '').slice(0, 160);
       const op = f.operador;
@@ -5660,12 +5866,17 @@
       else if (f.indicador === 'patrimonio' && esMin && !ex.patrimonio) ex.patrimonio = { valor: f.valor_indicador, unidad: /smmlv/i.test(f.unidad_indicador || f.valor_minimo_unidad || '') ? 'SMMLV' : 'COP', raw: raw };
       else if (f.indicador === 'capital_trabajo' && esMin && !ex.capitalTrabajo) ex.capitalTrabajo = { valor: f.valor_indicador, unidad: /smmlv/i.test(f.unidad_indicador || f.valor_minimo_unidad || '') ? 'SMMLV' : 'COP', raw: raw };
     });
+    (filas || []).forEach(f => {
+      if (!filaIAHabilitante(f) || !f.conflictoIA || f.confirmadaPorUsuario === true) return;
+      const k = claveEx(f);
+      if (k && !ex[k]) ex[k] = { valor: null, unidad: 'COP', conflicto: true, raw: f.conflictoIA };
+    });
     return ex;
   }
 
   // Filas de personal de la IA -> "hallazgos" con la forma que ya consume gatePersonalRequerido.
   function hallazgosPersonalDesdeIA(filas){
-    return (filas || []).filter(f => f.categoria === 'personal' && filaIAConfiable(f)).map(f => ({
+    return (filas || []).filter(f => f.categoria === 'personal' && filaIAHabilitante(f) && filaIAConfiable(f)).map(f => ({
       trigger: 'IA', categoria: 'Personal / Equipo de trabajo',
       snippet: (String(f.descripcion || '') + ' ' + String(f.cita_textual || '')).trim().slice(0, 220)
     }));
@@ -5674,7 +5885,7 @@
   // Códigos UNSPSC (8 dígitos) exigidos, de las filas confiables de la IA.
   function codigosUnspscDesdeIA(filas){
     const set = [];
-    (filas || []).filter(f => f.categoria === 'clasificacion_unspsc' && filaIAConfiable(f)).forEach(f => {
+    (filas || []).filter(f => f.categoria === 'clasificacion_unspsc' && filaIAHabilitante(f) && filaIAConfiable(f)).forEach(f => {
       (f.codigos_unspsc || []).forEach(c => {
         const d = String(c).replace(/\D/g, '');
         if (d.length === 8 && set.indexOf(d) === -1) set.push(d);
@@ -5755,6 +5966,7 @@
   // Compara un índice exigido por el pliego contra el del perfil (razones ya
   // normalizadas). Devuelve {estado, detalle}: 'ok' | 'fail' | 'nd'.
   function compararIndiceConUmbral(nombre, exig, mio, sentido, hayPliego){
+    if (exig && exig.conflicto) return { estado: 'nd', detalle: exig.raw };
     if (!exig || exig.valor == null) return { estado: 'nd', detalle: hayPliego ? 'El pliego no da un umbral numérico claro.' : 'Analiza el pliego (PDF) para conocer el umbral exigido.' };
     if (mio == null) return { estado: 'nd', detalle: 'Tu perfil no tiene este dato (o no se puede leer sin ambigüedad: escríbelo como razón, ej. 0,6, o con "%") — cárgalo desde el RUP.' };
     const esEndeudamiento = /endeudamiento/i.test(nombre);
@@ -6070,7 +6282,9 @@
         if (par[1].unidad === 'SMMLV') g(par[0], 'nd', 'El pliego lo exige en SMMLV (' + Number(par[1].valor).toLocaleString('es-CO') + ') y tu perfil lo tiene en pesos -- compáralo a mano.');
         else cmp(par[0], par[1], par[2], '>=');
       });
-      if (ex.kResidual){
+      if (ex.kResidual && ex.kResidual.conflicto){
+        g('Capacidad K residual', 'nd', ex.kResidual.raw);
+      } else if (ex.kResidual){
         const conContratos = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
         const etiquetaPerfil = conContratos ? 'tu capacidad disponible estimada' : 'tu perfil';
         // Auditoría UX/UI: mostraba "1200000000 COP" sin separador de miles
@@ -7066,11 +7280,16 @@
     if (!ia) return [];
     const resultadosExp = (entry.experienciaResultado && entry.experienciaResultado.resultados) || [];
     return ia.filas.map((f, i) => {
-      const confiable = filaIAConfiable(f);
+      const habilitante = filaIAHabilitante(f);
+      const bloqueo = habilitante ? motivoBloqueoFilaIA(f) : null;
+      const confiable = !habilitante || filaIAConfiable(f);
       let estado, detalle = '';
-      if (!confiable){
+      if (!habilitante){
+        estado = 'NO HABILITANTE';
+        detalle = 'La IA lo clasificó como "' + f.naturaleza + '": no es un requisito para participar, así que no decide el veredicto.';
+      } else if (!confiable){
         estado = 'SIN VERIFICAR';
-        detalle = f.verificada === true ? 'La IA la marcó con confianza baja.' : (f.motivoVerificacion || 'No se pudo verificar la cita contra el PDF.');
+        detalle = bloqueo || 'No se pudo verificar la cita contra el PDF.';
       } else if (f.categoria === 'experiencia_general' || f.categoria === 'experiencia_especifica'){
         const r = resultadosExp.find(x => x.requisito && x.requisito.iaIndex === i);
         estado = r ? r.resultado : 'NO DETERMINABLE';
@@ -7093,7 +7312,7 @@
         iaIndex: i, categoria: f.categoria, categoriaLabel: CATEGORIA_IA_LABEL[f.categoria] || f.categoria,
         descripcion: f.descripcion, exigido: textoExigidoIA(f), estado: estado, detalle: detalle,
         documento: f.documento, pagina: f.paginaCorregida || f.pagina, cita: f.cita_textual,
-        verificada: f.verificada === true, confirmada: f.confirmadaPorUsuario === true, confiable: confiable,
+        verificada: f.verificada === true, confirmada: f.confirmadaPorUsuario === true, confiable: confiable, bloqueo: bloqueo,
         motivoVerificacion: f.motivoVerificacion, notas: f.notas, confianza: f.confianza,
         modificadaPorAdenda: f.modificado_por_adenda === true
       };
@@ -7129,7 +7348,7 @@
           (f.verificada ? ' <span title="La cita se encontró en el texto del PDF">✓</span>' : '');
         const cita = f.cita ? '<details class="ia-cita"><summary>ver cita</summary>«' + escapeHtml(f.cita) + '»' + (f.notas ? '<br><i>' + escapeHtml(f.notas) + '</i>' : '') + '</details>' : '';
         // El control se mantiene visible aunque ya esté confirmada (para poder revertirla).
-        const confirmar = (!f.verificada || f.confianza === 'baja')
+        const confirmar = (f.bloqueo || f.confirmada)
           ? '<label class="ia-confirmar"><input type="checkbox" data-ia-confirmar data-ia-id="' + id + '" data-ia-index="' + f.iaIndex + '"' + (f.confirmada ? ' checked' : '') + '> <span>' + (f.confirmada ? 'Confirmada por ti (desmarca para revertir)' : 'Revisé la cita en el PDF' + (f.pagina ? ' (p. ' + escapeHtml(String(f.pagina)) + ')' : '') + ' y es correcta') + '</span></label>'
           : '';
         return '<tr' + (f.confiable ? '' : ' class="fila-esencial-faltante"') + '>' +
@@ -9057,6 +9276,9 @@
   // regex (entry.exigencias, comps...) no se tocan: la IA va en campos aparte.
   function aplicarRequisitosIAaEntry(entry){
     const filas = (entry.requisitosIA && entry.requisitosIA.filas) || [];
+    // IA-004: los conflictos entre filas se recalculan siempre (al extraer, confirmar o re-evaluar).
+    const conflictos = detectarConflictosFilasIA(filas);
+    filas.forEach((f, i) => { f.conflictoIA = conflictos[i]; });
     entry.exigenciasIA = exigenciasDesdeIA(filas);
     entry.hallazgosPersonalIA = hallazgosPersonalDesdeIA(filas);
     entry.codigosUnspscIA = codigosUnspscDesdeIA(filas);
@@ -9311,6 +9533,7 @@
       const entry = analisis[id];
       if (entry && entry.requisitosIA && entry.requisitosIA.filas[idx]){
         entry.requisitosIA.filas[idx].confirmadaPorUsuario = iaChk.checked;
+        entry.requisitosIA.filas[idx].confirmadaTs = iaChk.checked ? Date.now() : null; // queda constancia de cuándo
         evaluarExperienciaDeProceso(id, iaChk.closest('.row').querySelector('.analysis-slot'));
       }
       return;
