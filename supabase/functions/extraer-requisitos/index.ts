@@ -9,13 +9,16 @@
 // cita contra el texto real del PDF antes de confiar en ella.
 //
 // - verify_jwt = true (supabase-js adjunta el JWT del usuario).
-// - La empresa se resuelve SERVER-SIDE (company_members); cada `path` debe empezar por su
-//   company_id, porque esta función lee Storage con service_role y sin esa validación un usuario
-//   podría pedir el archivo de otra empresa.
-// - Tope diario por empresa (ai_usage) para acotar el gasto.
-// - ai_usage se incrementa DESPUÉS de la llamada exitosa.
-// - Los PDFs se borran de Storage siempre (finally): el bucket es solo tránsito.
-// - ?debug=1 o header x-debug: 1 devuelve detalles (log) sin cambiar el comportamiento normal.
+// - La empresa se resuelve SERVER-SIDE (company_members; si el cliente manda company_id se valida);
+//   cada `path` debe empezar por su company_id, porque esta función lee Storage con service_role y
+//   sin esa validación un usuario podría pedir el archivo de otra empresa.
+// - Tope diario por empresa (ai_usage): el cupo se RESERVA antes de llamar a Claude (así las
+//   peticiones simultáneas no lo esquivan) y se consolida con los tokens reales; si la petición
+//   se rechaza antes de gastar, la reserva se libera.
+// - La llamada tarda 1-2 min: la respuesta es un stream con latidos (espacios) para no chocar con el
+//   timeout de inactividad del gateway; los errores posteriores viajan como { error } con HTTP 200.
+// - Los PDFs se borran de Storage siempre: el bucket es solo tránsito.
+// - Modo debug: solo con el secret DEBUG_SECRET configurado y el header x-debug igual a él.
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { encodeBase64 } from 'jsr:@std/encoding@1/base64';
@@ -131,13 +134,31 @@ Deno.serve(async (req: Request) => {
     return new Response('ok', { headers: CORS_HEADERS });
   }
 
-  const debug = new URL(req.url).searchParams.get('debug') === '1' || req.headers.get('x-debug') === '1';
+  // Modo debug: SOLO con el secret DEBUG_SECRET configurado y el header x-debug igual a él
+  // (antes bastaba con ?debug=1 para cualquier usuario autenticado, y devolvía el cuerpo crudo
+  // de los errores de Anthropic). Sin DEBUG_SECRET queda desactivado.
+  const debugSecret = Deno.env.get('DEBUG_SECRET');
+  const debug = !!debugSecret && req.headers.get('x-debug') === debugSecret;
   const log: unknown[] = [];
-  let pathsParaBorrar: string[] = [];
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, // service_role: leer Storage/company_members y escribir ai_usage
   );
+
+  let pathsParaBorrar: string[] = [];
+  let reservaId: number | null = null;
+  let delegadoAlStream = false;
+
+  const limpiarPdfs = async () => {
+    if (!pathsParaBorrar.length) return;
+    try { await supabase.storage.from(BUCKET).remove(pathsParaBorrar); } catch { /* best effort */ }
+    pathsParaBorrar = [];
+  };
+  const liberarReserva = async () => {
+    if (reservaId == null) return;
+    try { await supabase.from('ai_usage').delete().eq('id', reservaId); } catch { /* best effort */ }
+    reservaId = null;
+  };
 
   try {
     // 1. Parsear body
@@ -150,17 +171,15 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Debe haber exactamente 1 documento con rol "pliego"' }, 400);
     }
 
-    // 2. Usuario y empresa (SERVER-SIDE, nunca del cliente)
+    // 2. Usuario y empresa (SERVER-SIDE). Si el cliente manda company_id, se VALIDA contra
+    // company_members (nunca se confía en él); si no, se toma una membresía de forma determinista.
     const authHeader = req.headers.get('Authorization') ?? '';
     const { data: { user }, error: authErr } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
     if (authErr || !user) return json({ error: 'No autenticado' }, 401);
 
-    const { data: membership, error: memberErr } = await supabase
-      .from('company_members')
-      .select('company_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .single();
+    let consultaMembresia = supabase.from('company_members').select('company_id').eq('user_id', user.id);
+    if (body && typeof body.company_id === 'string') consultaMembresia = consultaMembresia.eq('company_id', body.company_id);
+    const { data: membership, error: memberErr } = await consultaMembresia.order('company_id').limit(1).maybeSingle();
     if (memberErr || !membership) return json({ error: 'Usuario sin empresa asociada' }, 403);
     const companyId: string = membership.company_id;
     if (debug) log.push({ step: 'auth', userId: user.id, companyId });
@@ -173,112 +192,161 @@ Deno.serve(async (req: Request) => {
     }
     pathsParaBorrar = documentos.map((d) => d.path);
 
-    // 4. Tope diario por empresa
+    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!anthropicKey) return json({ error: 'ANTHROPIC_API_KEY no configurada' }, 503);
+
+    // 4. Tope diario: se RESERVA el cupo (insert) ANTES de la llamada de 1-2 minutos y luego se
+    // cuenta, así peticiones simultáneas no pueden esquivar el tope leyendo todas "0 usadas".
+    const { data: reserva, error: reservaErr } = await supabase
+      .from('ai_usage')
+      .insert({ company_id: companyId, function_name: FUNCTION_NAME, model: MODEL, input_tokens: 0, output_tokens: 0, results_count: 0 })
+      .select('id')
+      .single();
+    if (reservaErr || !reserva) {
+      if (debug) log.push({ step: 'reserva_error', error: reservaErr?.message });
+      return json({ error: 'No se pudo registrar el uso de IA. ¿Existe la tabla ai_usage? (migración 20260922_ai_usage.sql)', ...(debug ? { log } : {}) }, 500);
+    }
+    reservaId = reserva.id as number;
     const desde = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count: usadas } = await supabase
+    const { count: usadas, error: countErr } = await supabase
       .from('ai_usage')
       .select('id', { count: 'exact', head: true })
       .eq('company_id', companyId)
       .eq('function_name', FUNCTION_NAME)
       .gte('created_at', desde);
-    if ((usadas ?? 0) >= LIMITE_DIARIO) {
+    if (countErr) {
+      await liberarReserva();
+      return json({ error: 'No se pudo verificar el tope diario de uso de IA.' }, 500);
+    }
+    if ((usadas ?? 0) > LIMITE_DIARIO) {
+      await liberarReserva();
       return json({ error: `Alcanzaste el máximo de ${LIMITE_DIARIO} extracciones con IA en 24 horas. Intenta de nuevo más tarde.` }, 429);
     }
-
-    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
-    if (!anthropicKey) return json({ error: 'ANTHROPIC_API_KEY no configurada' }, 503);
 
     // 5. Bajar los PDFs de Storage y armar los bloques `document`
     const contenido: unknown[] = [];
     let bytesTotal = 0;
     for (const d of documentos) {
       const { data: blob, error: dlErr } = await supabase.storage.from(BUCKET).download(d.path);
-      if (dlErr || !blob) return json({ error: `No se pudo leer el documento "${d.nombre ?? d.path}" de Storage` }, 404);
+      if (dlErr || !blob) return json({ error: 'No se pudo leer uno de los documentos de Storage' }, 404);
       bytesTotal += blob.size;
       if (bytesTotal > MAX_BYTES_TOTAL) {
         return json({ error: 'Los PDFs suman más de 24 MB. Sube menos documentos o un archivo más liviano.' }, 413);
       }
       const b64 = encodeBase64(new Uint8Array(await blob.arrayBuffer()));
+      // `nombre` viene del cliente y va al título del documento: se sanea y se acorta.
+      const nombreSeguro = String(d.nombre ?? '').replace(/[^\p{L}\p{N} ._-]/gu, '').slice(0, 60);
       contenido.push({
         type: 'document',
-        title: d.rol === 'pliego' ? 'Pliego de Condiciones' : (d.nombre || 'Adenda'),
+        title: d.rol === 'pliego' ? 'Pliego de Condiciones' : (nombreSeguro || 'Adenda'),
         source: { type: 'base64', media_type: 'application/pdf', data: b64 },
       });
     }
     contenido.push({ type: 'text', text: INSTRUCCIONES });
     if (debug) log.push({ step: 'documentos', n: documentos.length, bytesTotal });
 
-    // 6. Llamar a Claude (salida JSON estructurada)
-    const anthropicResp = await fetch(ANTHROPIC_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 16000,
-        output_config: {
-          effort: 'medium',
-          format: { type: 'json_schema', schema: REQUISITOS_SCHEMA },
+    // 6. Llamada a Claude. Tarda 1-2 min: la respuesta se devuelve como un STREAM que emite un
+    // espacio cada 15 s (JSON válido admite espacios iniciales) para que el gateway de Supabase
+    // no corte por inactividad (~150 s sin bytes -> 504). Una vez que empieza el stream el estado
+    // HTTP ya es 200: los errores viajan dentro del cuerpo como { error }, y el cliente los revisa.
+    const llamarAnthropic = async (): Promise<Record<string, unknown>> => {
+      const anthropicResp = await fetch(ANTHROPIC_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
         },
-        messages: [{ role: 'user', content: contenido }],
-      }),
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 16000,
+          output_config: {
+            effort: 'medium',
+            format: { type: 'json_schema', schema: REQUISITOS_SCHEMA },
+          },
+          messages: [{ role: 'user', content: contenido }],
+        }),
+      });
+
+      if (!anthropicResp.ok) {
+        const errText = await anthropicResp.text();
+        await liberarReserva(); // la petición fue rechazada: no hubo gasto, no cuenta
+        if (debug) log.push({ step: 'anthropic_error', status: anthropicResp.status, body: errText });
+        let detalle = '';
+        try { detalle = String(JSON.parse(errText)?.error?.message ?? '').slice(0, 200); } catch { /* sin detalle */ }
+        const msg = anthropicResp.status === 400 && /credit balance/i.test(errText)
+          ? 'La cuenta de Anthropic no tiene crédito suficiente.'
+          : `Error de la API de Anthropic (${anthropicResp.status})` + (anthropicResp.status === 400 && detalle ? ': ' + detalle : '');
+        return { error: msg, ...(debug ? { log } : {}) };
+      }
+
+      const data = await anthropicResp.json();
+      const inputTokens = data.usage?.input_tokens ?? 0;
+      const outputTokens = data.usage?.output_tokens ?? 0;
+      if (debug) log.push({ step: 'anthropic_response', usage: data.usage, stopReason: data.stop_reason });
+      // Ya hubo gasto real: se consolida la reserva con los tokens aunque el resultado luego falle.
+      if (reservaId != null) {
+        await supabase.from('ai_usage').update({ input_tokens: inputTokens, output_tokens: outputTokens }).eq('id', reservaId);
+      }
+      if (data.stop_reason === 'max_tokens') {
+        return { error: 'La respuesta de la IA se cortó por longitud. Intenta con menos documentos.', ...(debug ? { log } : {}) };
+      }
+      if (data.stop_reason === 'refusal') {
+        return { error: 'La IA rechazó procesar el documento.', ...(debug ? { log } : {}) };
+      }
+      const textBlock = (data.content ?? []).find((c: { type: string }) => c.type === 'text');
+      let requisitos: unknown[] = [];
+      try {
+        const parsed = JSON.parse(textBlock?.text ?? '');
+        requisitos = Array.isArray(parsed.requisitos) ? parsed.requisitos : [];
+      } catch {
+        return { error: 'Respuesta inesperada de la IA (JSON inválido)', ...(debug ? { log, raw: data } : {}) };
+      }
+      if (reservaId != null) {
+        await supabase.from('ai_usage').update({ results_count: requisitos.length }).eq('id', reservaId);
+      }
+      return {
+        requisitos,
+        uso: { input_tokens: inputTokens, output_tokens: outputTokens },
+        modelo: MODEL,
+        ...(debug ? { log } : {}),
+      };
+    };
+
+    delegadoAlStream = true; // desde aquí el stream es responsable de borrar los PDFs y liberar la reserva
+    const codificador = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const latido = setInterval(() => {
+          try { controller.enqueue(codificador.encode(' ')); } catch { /* stream ya cerrado */ }
+        }, 15000);
+        let payload: Record<string, unknown>;
+        try {
+          payload = await llamarAnthropic();
+        } catch (err) {
+          await liberarReserva(); // falló antes de recibir respuesta (red): no hubo gasto
+          const msg = err instanceof Error ? err.message : String(err);
+          payload = { error: debug ? `Error interno: ${msg}` : 'Error interno al procesar el documento.' };
+        } finally {
+          clearInterval(latido);
+          await limpiarPdfs();
+        }
+        controller.enqueue(codificador.encode(JSON.stringify(payload)));
+        controller.close();
+      },
     });
-
-    if (!anthropicResp.ok) {
-      const errText = await anthropicResp.text();
-      if (debug) log.push({ step: 'anthropic_error', status: anthropicResp.status, body: errText });
-      const msg = anthropicResp.status === 400 && /credit balance/i.test(errText)
-        ? 'La cuenta de Anthropic no tiene crédito suficiente.'
-        : `Error de la API de Anthropic: ${anthropicResp.status}`;
-      return json({ error: msg, ...(debug ? { log } : {}) }, 502);
-    }
-
-    const data = await anthropicResp.json();
-    if (debug) log.push({ step: 'anthropic_response', usage: data.usage, stopReason: data.stop_reason });
-    if (data.stop_reason === 'max_tokens') {
-      return json({ error: 'La respuesta de la IA se cortó por longitud. Intenta con menos documentos.', ...(debug ? { log } : {}) }, 502);
-    }
-    if (data.stop_reason === 'refusal') {
-      return json({ error: 'La IA rechazó procesar el documento.', ...(debug ? { log } : {}) }, 502);
-    }
-
-    const textBlock = (data.content ?? []).find((c: { type: string }) => c.type === 'text');
-    let requisitos: unknown[] = [];
-    try {
-      const parsed = JSON.parse(textBlock?.text ?? '');
-      requisitos = Array.isArray(parsed.requisitos) ? parsed.requisitos : [];
-    } catch {
-      return json({ error: 'Respuesta inesperada de la IA (JSON inválido)', ...(debug ? { log, raw: data } : {}) }, 502);
-    }
-
-    // 7. Registrar uso DESPUÉS del éxito (solo se cuenta lo que costó dinero)
-    const inputTokens = data.usage?.input_tokens ?? 0;
-    const outputTokens = data.usage?.output_tokens ?? 0;
-    await supabase.from('ai_usage').insert({
-      company_id: companyId,
-      function_name: FUNCTION_NAME,
-      model: MODEL,
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
-      results_count: requisitos.length,
-    });
-
-    return json({
-      requisitos,
-      uso: { input_tokens: inputTokens, output_tokens: outputTokens },
-      modelo: MODEL,
-      ...(debug ? { log } : {}),
+    return new Response(stream, {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return json({ error: `Error interno: ${msg}`, ...(debug ? { log } : {}) }, 500);
+    return json({ error: debug ? `Error interno: ${msg}` : 'Error interno al procesar la solicitud.', ...(debug ? { log } : {}) }, 500);
   } finally {
-    // El bucket es solo tránsito: se borra siempre (éxito o fallo).
-    if (pathsParaBorrar.length) {
-      try { await supabase.storage.from(BUCKET).remove(pathsParaBorrar); } catch { /* best effort */ }
+    // Si no se llegó a delegar en el stream, el bucket (solo tránsito) y la reserva se limpian aquí.
+    if (!delegadoAlStream) {
+      await limpiarPdfs();
+      await liberarReserva();
     }
   }
 });

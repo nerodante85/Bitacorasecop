@@ -120,3 +120,20 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Registro de uso de IA (Edge Function extraer-requisitos). RLS habilitado SIN
+-- ninguna policy: ni el dueño autenticado puede leer/escribir directamente, solo
+-- la Edge Function con service_role -- así el contador no puede manipularse desde
+-- el cliente. (Misma definición que supabase/migrations/20260922_ai_usage.sql;
+-- el bucket privado `pliegos` vive en supabase/migrations/20260926_pliegos_storage.sql.)
+create table if not exists public.ai_usage (
+  id             bigint generated always as identity primary key,
+  created_at     timestamptz not null default now(),
+  company_id     uuid        not null references public.companies(id) on delete cascade,
+  function_name  text        not null,
+  model          text        not null,
+  input_tokens   integer     not null default 0,
+  output_tokens  integer     not null default 0,
+  results_count  integer     not null default 0
+);
+alter table public.ai_usage enable row level security;

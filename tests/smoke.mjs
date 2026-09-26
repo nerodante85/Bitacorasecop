@@ -1200,5 +1200,61 @@ await check('valorContratoEnSmmlv: sin regla, sin fecha o con un año fuera de l
   assert(r && r.anio === 2021 && Math.abs(r.smmlv - 1000000000 / 908526) < 1e-6, 'fecha_inicio debe usar el SMMLV de 2021, fue ' + JSON.stringify(r));
 });
 
+
+// ── Regresiones de la auditoría técnica sobre la extracción con IA ──────────
+function evaluarFilaIAConTexto(fila, texto, contratos) {
+  const offs = [{ pagina: 1, hasta: texto.length }];
+  const v = expEngine.verificarFilasIA([fila], texto, offs)[0];
+  const reqs = expEngine.requisitosDeExperienciaDesdeIA([v]);
+  return { v, r: expEngine.evaluarExperienciaCompleta(contratos, reqs, new Date('2026-06-01T00:00:00')).resultados[0] };
+}
+
+await check('verificarFilaIA: "3 contratos" NO se verifica contra una página que dice "13 contratos" (límites de palabra)', () => {
+  const texto = 'Portada. Se exigen 13 contratos de obra civil en total para el proponente. ';
+  const offs = [{ pagina: 1, hasta: texto.length }];
+  const v = expEngine.verificarFilaIA(filaIA({ pagina: 1, min_contratos: 3, valor_minimo_numero: null, valor_minimo_unidad: null, cita_textual: '3 contratos de obra civil' }), texto, offs);
+  assert(v.verificada === false, 'una cita con "3" no debe hacer match dentro de "13", fue ' + JSON.stringify(v));
+});
+
+await check('verificarFilaIA: una cita larga con UNA cifra alterada ("5" en vez de "3") no pasa por el 90% de coincidencia aproximada', () => {
+  const texto = 'El proponente deberá acreditar experiencia específica en construcción de puentes vehiculares mediante mínimo 3 contratos ejecutados en los últimos años. ';
+  const offs = [{ pagina: 1, hasta: texto.length }];
+  const cita = 'El proponente deberá acreditar experiencia específica en construcción de puentes vehiculares mediante mínimo 5 contratos ejecutados en los últimos años';
+  const v = expEngine.verificarFilaIA(filaIA({ pagina: 1, min_contratos: 5, valor_minimo_numero: null, valor_minimo_unidad: null, cita_textual: cita }), texto, offs);
+  assert(v.verificada === false, 'la cifra alterada debe impedir la verificación aproximada, fue ' + JSON.stringify(v));
+});
+
+await check('Fila IA con valor mínimo SIN unidad (COP/SMMLV) + min_contratos cumplido -> NO DETERMINABLE, nunca CUMPLE sin comparar el valor', () => {
+  const texto = 'Se exige mínimo 1 contrato de puentes vehiculares con valor de 3.000.000.000 en total. ';
+  const fila = filaIA({ pagina: 1, min_contratos: 1, valor_minimo_numero: 3000000000, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: false,
+    cita_textual: 'mínimo 1 contrato de puentes vehiculares con valor de 3.000.000.000 en total' });
+  const { v, r } = evaluarFilaIAConTexto(fila, texto, contratosPuentes('5000000000', '15/03/2022'));
+  assert(v.verificada === true, 'el fixture debería verificarse, fue ' + JSON.stringify(v));
+  assert(r.resultado === 'NO DETERMINABLE', 'un valor sin unidad no puede comparar: se esperaba NO DETERMINABLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('Fila IA con cantidad mínima en unidad NO contable (metros) -> no se compara contra la "cantidad" del contrato: NO DETERMINABLE', () => {
+  const texto = 'Se exige mínimo 1 contrato de puentes vehiculares con cantidad mínima 50 en el objeto. ';
+  const fila = filaIA({ pagina: 1, min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: false,
+    cantidad_minima_numero: 50, cantidad_minima_unidad: 'metros',
+    cita_textual: 'mínimo 1 contrato de puentes vehiculares con cantidad mínima 50 en el objeto' });
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(['Objeto', 'Cantidad'],
+    [['Construcción de puentes vehiculares en Norte de Santander', '60']])).contratos;
+  const { v, r } = evaluarFilaIAConTexto(fila, texto, contratos);
+  assert(v.verificada === true, 'el fixture debería verificarse, fue ' + JSON.stringify(v));
+  assert(r.resultado === 'NO DETERMINABLE', 'metros no es unidad contable: se esperaba NO DETERMINABLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('Fila IA con cantidad mínima en unidad CONTABLE (viviendas) SÍ se compara (control positivo, no se sobre-corrige)', () => {
+  const texto = 'Se exige mínimo 1 contrato de construcción de viviendas con cantidad mínima 50 viviendas. ';
+  const fila = filaIA({ pagina: 1, descripcion: 'Experiencia específica en construcción de viviendas', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: false,
+    cantidad_minima_numero: 50, cantidad_minima_unidad: 'viviendas',
+    cita_textual: 'mínimo 1 contrato de construcción de viviendas con cantidad mínima 50 viviendas' });
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(['Objeto', 'Cantidad'],
+    [['Construcción de viviendas de interés social', '60']])).contratos;
+  const { r } = evaluarFilaIAConTexto(fila, texto, contratos);
+  assert(r.resultado === 'CUMPLE', 'con unidad contable y cantidad suficiente se esperaba CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

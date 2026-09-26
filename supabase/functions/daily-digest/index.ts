@@ -250,8 +250,18 @@ async function enviarCorreo(to: string, asunto: string, textoPlano: string): Pro
 // ---- Handler ----------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
+  // Falla CERRADA: sin CRON_SECRET configurado la función NO responde (antes quedaba pública, y
+  // cualquiera podía disparar correos y ver en la respuesta los emails de los usuarios). La
+  // comparación es de tiempo constante.
   const cronSecret = Deno.env.get('CRON_SECRET');
-  if (cronSecret && req.headers.get('x-cron-secret') !== cronSecret) {
+  const secretRecibido = req.headers.get('x-cron-secret') ?? '';
+  let iguales = !!cronSecret && secretRecibido.length === cronSecret.length;
+  if (cronSecret) {
+    let dif = 0;
+    for (let i = 0; i < cronSecret.length; i++) dif |= cronSecret.charCodeAt(i) ^ (secretRecibido.charCodeAt(i) || 0);
+    iguales = iguales && dif === 0;
+  }
+  if (!iguales) {
     return new Response('No autorizado', { status: 401 });
   }
   // ?debug=1 (o header x-digest-debug: 1): agrega detalle diagnóstico a la

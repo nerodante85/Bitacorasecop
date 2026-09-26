@@ -5003,3 +5003,71 @@ SMMLV, comparación de liquidez/K residual contra el perfil, bloqueo de filas si
 persistente tras recargar. **Pendiente (requiere crédito de Anthropic + despliegue por el usuario):** la
 prueba real contra un pliego (medir duración frente al límite de tiempo de las Edge Functions, tokens y costo
 reales -- la estimación de ~100–200 mil tokens de entrada por pliego de ~70 páginas no está verificada).
+
+## Auditoría con 5 agentes (seguridad, rendimiento, UX, SEO/contenido, técnica) sobre la extracción con IA
+
+Antes de cargar crédito en Anthropic el usuario pidió auditar la app con 5 agentes en paralelo (solo lectura).
+Resultado: **sin XSS explotable, sin secretos en el repo/historial (121 commits), sin fugas entre empresas por RLS
+o Storage**; los hallazgos reales estaban en (a) la garantía "la IA nunca causa un falso CUMPLE", (b) costo/robustez
+de la Edge Function y (c) datos locales. Corregidos en esta pasada:
+
+**Falso CUMPLE (auditoría técnica).** (1) `filaIAaRequisito` descartaba `minValor` si la IA devolvía el número sin
+unidad -> con `min_contratos` cumplido daba CUMPLE sin comparar el valor; ahora es `condicionNoVerificable` (NO
+DETERMINABLE). (2) `verificarFilaIA` aceptaba una cita "aproximada" (>=90% de tokens) aunque una cifra estuviera
+alterada ("5 contratos" vs "3"); ahora TODOS los tokens numéricos deben estar en la página. (3) La coincidencia exacta
+usaba `indexOf` sin límites de palabra ("3 contratos" hacía match dentro de "13 contratos"); ahora va rodeada de
+espacios. (4) `minCantidad` se fijaba con unidad 'COP' e ignoraba `cantidad_minima_unidad`: "50 metros" se comparaba
+contra la `cantidad` del contrato en otra unidad; ahora solo se modela si la unidad es CONTABLE
+(`UNIDADES_CONTABLES`), si no es `condicionNoVerificable`. 5 tests nuevos, cada uno verificado por mutación.
+**Estado del análisis.** "Analizar pliego"/OCR creaban un `entry` nuevo y borraban `requisitosIA` (que cuesta una de
+las 10 extracciones diarias) y `estudioPrevio*` (`conservarCamposAuxiliares`); `extraerRequisitosConIA` capturaba
+`entry` al inicio de 1-2 min de `await` y al terminar pisaba un re-análisis intermedio (ahora relee `analisis[id]`), y
+no impedía el doble clic (`iaEnCurso`). `aplicarRequisitosIAaEntry` dejaba `experienciaResultado` obsoleto sin
+experiencia cargada.
+
+**Edge Function `extraer-requisitos` (seguridad y robustez).** Tope diario evadible con peticiones paralelas (leía
+"0 usadas" en todas y contaba al final): ahora se RESERVA el cupo (insert en `ai_usage`) antes de llamar a Claude y
+luego se cuenta; la reserva se consolida con los tokens reales y se libera si la petición se rechaza antes de gastar.
+`insert` sin revisar `error` (si faltaba `ai_usage` el tope quedaba sin efecto en silencio) -> ahora responde 500
+claro; `ai_usage` también en `schema.sql`. Modo debug: antes bastaba `?debug=1` para cualquier usuario autenticado
+(devolvía el cuerpo crudo de Anthropic); ahora exige el secret `DEBUG_SECRET` + header `x-debug` igual. Empresa: si
+el cliente manda `company_id` se valida contra `company_members` (antes `.limit(1).single()` tomaba una arbitraria).
+`nombre` de cada documento se sanea. **Timeout de inactividad (~150 s sin bytes -> 504 en el gateway de Supabase)**:
+la respuesta es ahora un stream que emite un espacio cada 15 s (JSON válido admite espacios iniciales) y luego el
+JSON; por eso los errores posteriores viajan como `{ error }` con HTTP 200 y el cliente revisa `data.error`. El stream
+es quien borra los PDFs y libera la reserva (el `finally` externo solo limpia si no se delegó). No se pudo probar sin
+Deno ni crédito: solo se comprobó sintaxis con `tsc` (únicos errores: tipos de Deno no disponibles localmente).
+**Límite de duración total** (150 s plan gratuito / 400 s de pago, según la doc de Supabase) NO lo resuelve el
+streaming: si un pliego largo lo excede hay que dividir por documento o pasar a job asíncrono -- se decide con la
+primera prueba real.
+`daily-digest`: fallaba ABIERTA (`if (cronSecret && ...)`): sin `CRON_SECRET` cualquiera disparaba correos y veía los
+emails en `detalles`; ahora responde 401 sin secret y compara en tiempo constante.
+
+**Cliente.** Cerrar sesión ahora borra las claves `bitacora_*` (menos `ultima_vista`): en un navegador compartido, otra
+cuenta con la nube vacía heredaba por `migrarLocalASupabaseSiVacio` los perfiles/RUP/análisis de la anterior (siguen
+en la nube de quien cerró sesión). CSP: `connect-src` fija el host exacto del proyecto Supabase en vez de
+`*.supabase.co` y se quitó `*.functions.supabase.co` (muerto; `functions.invoke` va a `*.supabase.co/functions/v1`).
+pdf.js `getDocument(..., isEvalSupported:false)` (CVE-2024-4367, ya mitigado por la CSP sin `unsafe-eval`). Un fallo al
+guardar `analisis_pliegos` (cuota de localStorage, ~15–25 pliegos con su texto completo) ahora muestra un aviso visible
+(`mostrarAvisoGuardado`) en vez de un `console.error`. Aviso en la UI de que el PDF se envía a Anthropic (Ley 1581).
+
+**UX.** `.analysis-sub` a `--text-muted` (contraste 2,3 -> 4,7); `--warning` oscurecido (`#A6722A` -> `#8A5A10`,
+contraste 3,5 -> 5,9); SIN VERIFICAR con borde punteado (antes idéntico a NO DETERMINABLE); casilla de confirmar más
+grande y con la página; el "100%" del hero de compatibilidad se reemplaza por "N de M requisitos cumplen · K requieren
+verificación" cuando hay pendientes o lectura parcial; en móvil el aviso sin cuenta trae su propio botón "Iniciar
+sesión" (la barra lateral no existe a <=560 px); `role="status"` en el estado de la IA y de la búsqueda;
+`prefers-reduced-motion`; `preconnect` a fonts.gstatic.com; disclaimer coherente cuando hay IA. SEO: meta description,
+canonical, Open Graph, theme-color y `sitemap.xml` (un `robots.txt` en un repo de proyecto de GitHub Pages NO tiene
+efecto: los buscadores lo piden en la raíz del dominio `nerodante85.github.io`). README ya no dice "sin LLM".
+
+**Pendiente / decidido no hacer ahora** (con motivo): SheetJS 0.18.5 (CVE-2023-30533/-22363, sube el riesgo solo con
+Excel malicioso elegido por el propio usuario) y pdf.js 3.11 -> requieren recalcular SRI; política de privacidad y
+landing (proyecto aparte, hay un zip de diseño sin versionar); limpieza de PDFs huérfanos en Storage y cuota de
+objetos por carpeta; verificar citas solo en páginas citadas (hoy `extractPdfText(file, 400)` en el hilo principal);
+mover `entry.text` fuera de `analisis_pliegos`; `render()` recalcula `evaluarMejor` antes del `slice(0,40)`; usuarios
+con varias empresas (la validación de `company_id` ya lo soporta, el cliente manda `sbCompanyId`); tabla de 5
+columnas apilada en móvil; `<label for>` en ~35 controles; Node 20 vs 24 en CI. Los hallazgos de UX de mayor impacto
+que sí quedan: labels de formularios y `aria-expanded` en `.tag-tip`.
+
+**Verificado.** 93/93 tests de humo. Probado en navegador con el fixture simulado de la IA: hero, estados, botón de
+iniciar sesión abriendo el modal, consola limpia (0 errores) en una pestaña nueva con la CSP nueva.
