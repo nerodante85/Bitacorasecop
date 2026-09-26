@@ -35,6 +35,13 @@ Fecha: 2026-09-26 · Estado de la aplicación: **BLOQUEADO** · Detalle de cada 
 | MC-014 | 2026-09-26 | **CORREGIDO** (pruebas + mutación; sin verificar en pantalla) | Los contratos en ejecución sin saldo o fecha válida ya no se ignoran en silencio: `calcularSCE` los cuenta (`incompletos`), la UI avisa, y tanto "Capacidad vs valor" como "Capacidad K residual" pasan de ok a "revisar" mientras existan. Un fail demostrado no se toca. |
 | RT-014 | 2026-09-26 | **CORREGIDO** | Un valor base ≤ 0 ya no sale "ok" en "Valor de la obra": es "requiere verificación". |
 
+| MC-008 | 2026-09-26 | **CORREGIDO** (pruebas + mutación; sin verificar en pantalla) | Se compara la actividad del contrato con la del requisito: "construcción de acueducto" ya no acepta estudios/diseños, interventoría, suministro ni mantenimiento; "mantenimiento" no acepta "construcción"; un contrato con caducidad/terminación anticipada por incumplimiento no acredita. Todos → NO DETERMINABLE con el motivo. Un contrato sin verbo de actividad no se penaliza. |
+| MC-009 | 2026-09-26 | **CORREGIDO** | Las condiciones dimensionales reconocen también m, mts, ml, m.l. y cm: "luz mínima de 40 m" ya no da CUMPLE automático. |
+| MC-010 | 2026-09-26 | **CORREGIDO** | El valor del contrato se pondera por el % de participación (contrato $900M al 30% = $270M vs mínimo $500M → NO CUMPLE); si la columna leída ya es la "ajustada por participación" no se pondera dos veces. |
+| MC-011 | 2026-09-26 | **CORREGIDO** | "No es opcional" / "no puede ser opcional" → obligatorio; "cualquiera de los socios del consorcio" ya no es alternativo; un opcional/alternativo suelto con NO CUMPLE impide un CUMPLE global (pasa a REQUIERE REVISIÓN, `noObligatoriosIncumplidos`). Falta el lado IA-005 (puntaje) ya cubierto antes. |
+
+Verificación de MC-008..011: 157/157 pruebas (7 nuevas) y 10 mutaciones detectadas.
+
 Verificación de MC-005/006/007: 142/142 pruebas (8 nuevas) y 8 mutaciones detectadas. Verificación de RT-004/RT-007/MC-014: 150/150 pruebas (8 nuevas) y 7 mutaciones detectadas. Sigue abierto MC-015 (formatos de número con miles/millones en el resto de la app).
 
 Verificación del bloque de IA: 134/134 pruebas (15 nuevas); cada uno de los 9 arreglos comprobado por mutación. **Importante:** el esquema y el prompt de `extraer-requisitos` cambiaron (campos `objeto_literal` y `naturaleza`); hay que redesplegar la función. Con la función vieja desplegada, ninguna fila de experiencia traería objeto literal y todas quedarían "sin verificar" (seguro, pero inútil).

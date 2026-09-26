@@ -1763,6 +1763,74 @@ await check('MC-007: patrimonio/capital de trabajo del perfil sin tomar "Rentabi
   assert(expEngine.leerMontoDePerfil('Capital de trabajo: 1.500 millones', /capital\s+de\s+trabajo/i) === 1500000000, 'millones');
 });
 
+// ---- Auditoría MC-008..MC-011: actividad, unidades, consorcio, obligatoriedad ----
+await check('MC-008: la ACTIVIDAD cuenta: estudios/interventoría/suministro/mantenimiento no acreditan "construcción de acueducto"', () => {
+  const req = 'Un contrato de construcción de acueducto';
+  for (const obj of ['Estudios y diseños de acueducto', 'Interventoría técnica de acueducto', 'Suministro de tubería para acueducto', 'Mantenimiento de acueducto']) {
+    const { r } = evaluarReqTexto(req, H_BASICO, [[obj, 'Alcaldía', '900000000']]);
+    assert(r.resultado === 'NO DETERMINABLE', obj + ' -> ' + r.resultado);
+  }
+  const { r: ok } = evaluarReqTexto(req, H_BASICO, [['Construcción de acueducto veredal', 'Alcaldía', '900000000']]);
+  assert(ok.resultado === 'CUMPLE', 'control positivo: ' + ok.resultado);
+  const { r: mant } = evaluarReqTexto('Un contrato de mantenimiento de puentes', H_BASICO, [['Construcción de puentes vehiculares', 'Alcaldía', '1']]);
+  assert(mant.resultado === 'NO DETERMINABLE', 'mantenimiento vs construcción: ' + mant.resultado);
+  const { r: interv } = evaluarReqTexto('Un contrato de interventoría de acueducto', H_BASICO, [['Interventoría técnica de acueducto', 'Alcaldía', '1']]);
+  assert(interv.resultado === 'CUMPLE', 'si el requisito pide interventoría, sí acredita: ' + interv.resultado);
+});
+
+await check('MC-008: un contrato terminado por caducidad/incumplimiento no acredita experiencia', () => {
+  const { r } = evaluarReqTexto('Un contrato de construcción de puentes vehiculares', H_BASICO,
+    [['Construcción de puentes vehiculares, terminado anticipadamente por incumplimiento, caducidad declarada', 'Alcaldía', '900000000']]);
+  assert(r.resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + r.resultado);
+});
+
+await check('MC-009: "40 m", "40 mts", "40 m.l." y "40 ml" bloquean el CUMPLE automático como los metros', () => {
+  for (const cond of ['luz mínima de 40 m', 'longitud de 40 mts', 'longitud de 40 m.l.', 'longitud mínima de 40 ml', 'luz de 40 metros']) {
+    const { r } = evaluarReqTexto('Un contrato de construcción de puentes vehiculares con ' + cond, H_BASICO, [[PUENTE + ' con ' + cond, 'Alcaldía', '900000000']]);
+    assert(r.resultado === 'NO DETERMINABLE' && /condici/.test(r.justificacion), cond + ' -> ' + r.resultado);
+  }
+  const { r: millones } = evaluarReqTexto('Un contrato de construcción de puentes vehiculares por $500 millones', H_BASICO, [[PUENTE, 'Alcaldía', '900000000']]);
+  assert(millones.resultado !== 'NO DETERMINABLE' || !/500 millones/.test(millones.justificacion), 'no confundir "millones" con metros');
+});
+
+const H_PART = ['Objeto', 'Contratante', 'Valor del contrato', '% participación'];
+await check('MC-010: contrato de $900M con 30% de participación NO cumple un mínimo de $500M (aportó $270M)', () => {
+  const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000';
+  const { r } = evaluarReqTexto(txt, H_PART, [[PUENTE, 'Alcaldía', '900000000', '30%']]);
+  assert(r.resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE, fue ' + r.resultado);
+  const { r: pleno } = evaluarReqTexto(txt, H_PART, [[PUENTE, 'Alcaldía', '900000000', '100%']]);
+  assert(pleno.resultado === 'CUMPLE', 'control positivo con 100%: ' + pleno.resultado);
+  const { r: sinPart } = evaluarReqTexto(txt, H_BASICO, [[PUENTE, 'Alcaldía', '900000000']]);
+  assert(sinPart.resultado === 'CUMPLE', 'sin columna de participación no cambia nada: ' + sinPart.resultado);
+});
+
+await check('MC-010: si la columna de valor ya es la ajustada por participación no se pondera dos veces', () => {
+  const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $250.000.000';
+  const { r } = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor contrato actualizado (según % participación)', '% participación'],
+    [[PUENTE, 'Alcaldía', '270000000', '30%']]);
+  assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE (270M >= 250M), fue ' + r.resultado);
+});
+
+await check('MC-011: "No es opcional" es obligatorio; "cualquiera de los socios del consorcio" no es alternativo', () => {
+  const o = t => expEngine.construirRequisitoDesdeTexto(t, 0, {}).obligatoriedad;
+  assert(o('Experiencia específica en puentes. No es opcional.') === 'obligatorio', 'no es opcional');
+  assert(o('Este requisito no puede ser opcional: mínimo 1 contrato de puentes') === 'obligatorio', 'no puede ser opcional');
+  assert(o('La experiencia podrá ser acreditada por cualquiera de los socios del consorcio: 1 contrato de puentes') === 'obligatorio', 'cualquiera de los socios');
+  assert(o('Requisito opcional: 1 contrato de puentes') === 'opcional', 'control positivo opcional');
+  assert(o('Acreditar cualquiera de los siguientes: contrato de puentes') === 'alternativo' || o('Acreditar uno de los siguientes: contrato de puentes') === 'alternativo', 'control positivo alternativo');
+});
+
+await check('MC-011: un requisito opcional que da NO CUMPLE no queda oculto tras un CUMPLE global', () => {
+  const reqs = [
+    expEngine.construirRequisitoDesdeTexto('Un contrato de construcción de puentes vehiculares', 0, {}),
+    expEngine.construirRequisitoDesdeTexto('Requisito opcional: un contrato de construcción de viviendas por valor mínimo de $900.000.000', 1, {})
+  ];
+  const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(H_BASICO, [[PUENTE, 'Alcaldía', '500000000'], ['Construcción de viviendas de interés social', 'Alcaldía', '100000000']])).contratos;
+  const ev = expEngine.evaluarExperienciaCompleta(contratos, reqs, HOY_AUD);
+  assert(ev.resultados[1].resultado === 'NO CUMPLE', 'el opcional debe dar NO CUMPLE: ' + ev.resultados[1].resultado);
+  assert(ev.resultadoGlobal === 'REQUIERE REVISIÓN' && ev.noObligatoriosIncumplidos === 1, 'global: ' + ev.resultadoGlobal);
+});
+
 // ---- Confianza del veredicto: RT-004, RT-007, MC-014 ------------------------
 const K_2000M = expEngine.parseValorUnidad('$2.000.000.000');
 const okGate = (nombre) => ({ nombre, estado: 'ok', detalle: 'ok' });

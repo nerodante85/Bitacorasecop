@@ -3932,6 +3932,8 @@
     const headers = datos.headers, rows = datos.rows;
     const cols = preferirColumnaValorActualizado(headers, detectarColumnas(headers, DICC_CONTRATO));
     const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
+    const hValor = cols.valor != null ? normHeader(headers[cols.valor] || '') : '';
+    const valorAjustado = /valor/.test(hValor) && (/actualiz/.test(hValor) || /participac/.test(hValor));
     const contratos = rows.map((row, i) => {
       const valorObj = parseValorUnidad(String(get(row, 'valor') || ''));
       const cantidadObj = parseValorUnidad(String(get(row, 'cantidad') || ''));
@@ -3945,6 +3947,7 @@
         contratante: (get(row, 'contratante') || '').toString().trim() || null,
         valor: valorObj ? valorObj.valor : null,
         valorRaw: (get(row, 'valor') || '').toString().trim() || null,
+        valorAjustado: valorAjustado,
         fechaInicio: parseFechaExcel(get(row, 'fechaInicio')),
         fechaFin: parseFechaExcel(get(row, 'fechaFin')),
         duracion: (get(row, 'duracion') || '').toString().trim() || null,
@@ -3992,6 +3995,62 @@
   // (así "construcción" no hace CUMPLIR algo que exige "construcción de vías"
   // contra un contrato de "construcción de un edificio administrativo").
   const PALABRAS_GENERICAS_OBRA = new Set(['construccion','construir','obra','obras','proyecto','proyectos','contrato','contratacion','ejecucion','ejecutar','mantenimiento','adecuacion','mejoramiento','infraestructura','servicio','servicios','desarrollo']);
+
+  // Auditoría MC-008. Los verbos de actividad (construcción, mantenimiento...) están en
+  // PALABRAS_GENERICAS_OBRA y no cuentan como distintivos: "construcción de acueducto"
+  // aceptaba "Estudios y diseños de acueducto", "Interventoría técnica de acueducto" o
+  // "Mantenimiento de acueducto". `actividadNoCoincide` compara la ACTIVIDAD de ambos lados:
+  // si el contrato declara otra actividad de obra distinta a la del requisito, o una
+  // actividad ajena a la obra (estudios, diseños, interventoría, suministro, consultoría)
+  // que el requisito no pide, no es coincidencia total (queda parcial => NO DETERMINABLE).
+  // Un contrato o requisito SIN verbo de actividad no se penaliza (no hay contradicción).
+  // Un contrato terminado por caducidad/incumplimiento tampoco acredita experiencia.
+  const ACTIVIDADES_OBRA = {
+    construccion: /^(construc|construir|construy)/,
+    mantenimiento: /^(mantenim|mantener)/,
+    mejoramiento: /^(mejoram|mejorar)/,
+    rehabilitacion: /^rehabilit/,
+    adecuacion: /^adecua/,
+    ampliacion: /^ampliac|^ampliar/,
+    reparacion: /^(reparac|reparar)/,
+    reposicion: /^reposic/,
+    optimizacion: /^optimiz/
+  };
+  const ACTIVIDADES_AJENAS = {
+    estudios: /^(estudio|estudios)$/,
+    disenos: /^(diseno|disenos)$/,
+    interventoria: /^(interventor|interventoria)/,
+    suministro: /^suministr/,
+    consultoria: /^(consultor|asesor)/
+  };
+  const RE_CONTRATO_INCUMPLIDO = /caducidad|terminad[oa]s? anticipadamente|terminacion unilateral|incumplimiento declarad|declarad[oa] (?:el )?incumplimiento/;
+  function actividadesEnPalabras(palabras, mapa){
+    return Object.keys(mapa).filter(k => palabras.some(p => mapa[k].test(p)));
+  }
+  function actividadNoCoincide(reqPalabras, textoContrato){
+    const pc = String(textoContrato || '').split(' ');
+    if (RE_CONTRATO_INCUMPLIDO.test(String(textoContrato || ''))) return 'el contrato figura terminado por caducidad/incumplimiento';
+    const reqObra = actividadesEnPalabras(reqPalabras, ACTIVIDADES_OBRA);
+    const conObra = actividadesEnPalabras(pc, ACTIVIDADES_OBRA);
+    if (reqObra.length && conObra.length && !conObra.some(a => reqObra.indexOf(a) !== -1)){
+      return 'el requisito pide ' + reqObra.join('/') + ' y el contrato es de ' + conObra.join('/');
+    }
+    const reqAjena = actividadesEnPalabras(reqPalabras, ACTIVIDADES_AJENAS);
+    const conAjena = actividadesEnPalabras(pc, ACTIVIDADES_AJENAS).filter(a => reqAjena.indexOf(a) === -1);
+    if (conAjena.length) return 'el contrato incluye ' + conAjena.join('/') + ', que el requisito no pide';
+    return null;
+  }
+
+  // Auditoría MC-010. Un contrato ejecutado en consorcio/UT solo acredita la parte de la
+  // empresa. Si el valor viene de la columna "valor del contrato" (no la ajustada) y hay
+  // un % de participación válido (0-100), se pondera; si la columna ya es la ajustada
+  // (`valorAjustado`) no se vuelve a ponderar.
+  function valorAcreditable(c){
+    if (c.valor == null) return null;
+    const p = c.participacion && c.participacion.valor;
+    if (c.valorAjustado || p == null || !(p > 0) || p >= 100) return c.valor;
+    return c.valor * p / 100;
+  }
 
   // Bug real encontrado exigiendo coincidencia TOTAL de palabras
   // distintivas (auditoría del usuario, ver elegant-wandering-dewdrop.md):
@@ -4093,7 +4152,8 @@
   //   abajo y cómo evaluarRequisito() bloquea el CUMPLE automático cuando
   //   aparecen.
   const UNIDADES_CONTABLES = 'unidades?|viviendas?|aulas?|puestos?|c[aá]mas?|apartamentos?';
-  const UNIDADES_DIMENSIONALES = 'metros?|kil[oó]metros?|km|m2|m²|m3|m³|hect[aá]reas?|toneladas?|kilovatios?|kw|megavatios?|mw|kilogramos?|kg|litros?';
+  // Auditoría MC-009: también abreviaturas (m, mts, ml, m.l., cm) y "metros lineales".
+  const UNIDADES_DIMENSIONALES = 'metros?|kil[oó]metros?|km|m2|m²|m3|m³|hect[aá]reas?|toneladas?|kilovatios?|kw|megavatios?|mw|kilogramos?|kg|litros?|mts?|ml|m\\.\\s?l\\.?|cent[ií]metros?|cms?|m';
 
   function extraerCantidadConUnidadContable(texto){
     const patrones = [
@@ -4126,7 +4186,7 @@
     // requisito como "longitud mínima de cincuenta (50) metros" pasaba
     // desapercibido y el motor podía dar CUMPLE sin haber verificado la
     // dimensión real.
-    const m = new RegExp('(?:\\d[\\d.,]*|[a-záéíóúñ]+\\s*\\(\\d[\\d.,]*\\))\\s*(?:' + UNIDADES_DIMENSIONALES + ')\\b', 'i').exec(texto || '');
+    const m = new RegExp('(?:\\d[\\d.,]*|[a-záéíóúñ]+\\s*\\(\\d[\\d.,]*\\))\\s*(?:' + UNIDADES_DIMENSIONALES + ')(?![a-záéíóúñ0-9])', 'i').exec(texto || '');
     return m ? m[0].trim().replace(/\s+/g, ' ') : null;
   }
 
@@ -4360,10 +4420,13 @@
     if (/especif/.test(tipoRaw)) tipo = 'especifica';
     else if (/general/.test(tipoRaw)) tipo = 'general';
     const oblRaw = normHeader(String(celdas.obligatoriedad || '') + ' ' + criterioTexto);
+    // Auditoría MC-011: "No es opcional" no es opcional, y "cualquiera de los socios del
+    // consorcio" no es una alternativa entre requisitos.
+    const negado = w => new RegExp('\\bno\\s+(?:(?:es|son|sera|seran|resulta|resultan|debe|deben|puede|pueden)\\s+)*(?:ser\\s+)?' + w).test(oblRaw);
     let obligatoriedad = 'obligatorio';
-    if (/opcional/.test(oblRaw)) obligatoriedad = 'opcional';
-    else if (/complementari/.test(oblRaw)) obligatoriedad = 'complementario';
-    else if (/alternativ|cualquiera de|uno de los siguientes|o bien/.test(oblRaw)) obligatoriedad = 'alternativo';
+    if (/opcional/.test(oblRaw) && !negado('opcional')) obligatoriedad = 'opcional';
+    else if (/complementari/.test(oblRaw) && !negado('complementari')) obligatoriedad = 'complementario';
+    else if (/alternativ|cualquiera de(?! (?:los|las) (?:socios|integrantes|miembros|consorciados|asociados|partes))|uno de los siguientes|o bien/.test(oblRaw) && !negado('alternativ')) obligatoriedad = 'alternativo';
     const cntTxt = celdas.minContratos ? null : minContratosDeTexto(criterioTexto);
     const minContratos = celdas.minContratos ? parseNumCO(String(celdas.minContratos)) : (cntTxt ? cntTxt.valor : null);
     const contratosAmbiguo = (cntTxt && cntTxt.ambiguo) ? cntTxt.fragmento : null;
@@ -4587,9 +4650,11 @@
       // solo alguna) -- solo esto cuenta como "relevante" para CUMPLE.
       // Coincidencia PARCIAL: comparte algunas pero no todas -- candidato
       // débil, nunca decide CUMPLE por sí solo.
-      const coincidenciaTotal = req.palabrasDistintivas.length > 0 && distMatch.length === req.palabrasDistintivas.length;
+      const totalPorPalabras = req.palabrasDistintivas.length > 0 && distMatch.length === req.palabrasDistintivas.length;
+      const motivoActividad = totalPorPalabras ? actividadNoCoincide(req.palabrasClave || [], texto) : null;
+      const coincidenciaTotal = totalPorPalabras && !motivoActividad;
       const coincidenciaParcial = distMatch.length > 0 && !coincidenciaTotal;
-      return { contrato: c, distMatch: distMatch, genMatch: genMatch, coincidenciaTotal: coincidenciaTotal, coincidenciaParcial: coincidenciaParcial, relevante: coincidenciaTotal };
+      return { contrato: c, distMatch: distMatch, genMatch: genMatch, coincidenciaTotal: coincidenciaTotal, coincidenciaParcial: coincidenciaParcial, relevante: coincidenciaTotal, motivoActividad: motivoActividad };
     });
     const relevantes = relevancia.filter(r => r.relevante).map(r => r.contrato);
     const parciales = relevancia.filter(r => r.coincidenciaParcial);
@@ -4628,6 +4693,9 @@
       }
     }
     if (req.minValor != null && !exclusionTemporal){
+      const evalSetBruto = evalSet;
+      evalSet = evalSetBruto.map(c => c.valor == null ? c : Object.assign({}, c, { valor: valorAcreditable(c) }));
+      if (evalSetBruto.some(c => c.valor != null && valorAcreditable(c) !== c.valor)) evidencia.push('Valor ponderado por el % de participación en consorcio/UT de los contratos (solo cuenta la parte de tu empresa).');
       if (evalSet.length === 0){
         faltantes.push('No hay contratos relevantes por objeto para comparar contra el valor mínimo exigido (' + req.minValor.valor + ' ' + req.minValor.unidad + ').');
       } else if (evalSet.every(c => c.valor == null)){
@@ -4668,6 +4736,7 @@
           (req.acumulable ? ', acumulable entre contratos' : ', por contrato individual') + ').');
         numericoOk = (numericoOk === false) ? false : cumpleValor;
       }
+      evalSet = evalSetBruto;
     }
     if (req.minCantidad != null && !exclusionTemporal){
       const conCantidad = evalSet.filter(c => c.cantidad && c.cantidad.valor != null);
@@ -4701,7 +4770,8 @@
         // que "no coincide del todo".
         const distintivasEncontradas = Array.from(new Set(parciales.flatMap(r => r.distMatch)));
         const distintivasFaltantes = req.palabrasDistintivas.filter(p => !distintivasEncontradas.includes(p));
-        justificacion = 'Hay ' + parciales.length + ' contrato(s) que comparten ALGUNAS palabras distintivas del requisito (' +
+        const motivosAct = Array.from(new Set(parciales.map(r => r.motivoActividad).filter(Boolean)));
+        justificacion = (motivosAct.length ? 'Coinciden las palabras del objeto, pero la actividad no es equivalente: ' + motivosAct.join('; ') + '. ' : '') + 'Hay ' + parciales.length + ' contrato(s) que comparten ALGUNAS palabras distintivas del requisito (' +
           listaAcotada(distintivasEncontradas, 12) + ' -- de ' + req.palabrasDistintivas.length + ' en total), pero no todas' +
           (distintivasFaltantes.length ? ' (falta al menos: ' + listaAcotada(distintivasFaltantes, 12) + ')' : '') +
           '. Una coincidencia parcial no basta para confirmar que el alcance sea equivalente -- podría tratarse de una condición distinta (ej. "urbanas" vs "rurales") -- requiere revisión humana del objeto completo.';
@@ -4877,6 +4947,10 @@
     if (obligatorios.some(r => r.resultado === 'NO CUMPLE') || resultadosGrupos.indexOf('NO CUMPLE') !== -1) resultadoGlobal = 'NO CUMPLE';
     else if ((!obligatorios.length && !grupos.length) || obligatorios.some(r => r.resultado === 'NO DETERMINABLE') || resultadosGrupos.indexOf('NO DETERMINABLE') !== -1) resultadoGlobal = 'REQUIERE REVISIÓN';
     else resultadoGlobal = 'CUMPLE';
+    // Auditoría MC-011: un requisito opcional/complementario/alternativo suelto que da NO CUMPLE
+    // no decide el resultado, pero tampoco puede quedar invisible tras un "CUMPLE" global.
+    const noObligatoriosIncumplidos = resultados.filter(r => r.requisito.obligatoriedad !== 'obligatorio' && !r.requisito.grupo && r.resultado === 'NO CUMPLE');
+    if (resultadoGlobal === 'CUMPLE' && noObligatoriosIncumplidos.length) resultadoGlobal = 'REQUIERE REVISIÓN';
     // Experiencia general = la que trae el Excel del proponente, sin más (solo se
     // identifica, no se evalúa cumplimiento sobre ella sola). Experiencia
     // específica = la que de verdad decide CUMPLE/NO CUMPLE/NO DETERMINABLE,
@@ -4887,7 +4961,7 @@
       noClasificado: contratos.filter(c => c.tipo === 'no-clasificado').length,
       total: contratos.length
     };
-    return { resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length, resumenContratos: resumenContratos, grupos: grupos };
+    return { resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length, resumenContratos: resumenContratos, grupos: grupos, noObligatoriosIncumplidos: noObligatoriosIncumplidos.length };
   }
 
   const ETIQUETAS_CONTRATO = { objeto: 'Objeto', contratante: 'Contratante', valor: 'Valor', fechaInicio: 'Fecha inicio', fechaFin: 'Fecha fin', duracion: 'Duración', cantidad: 'Cantidad', tipo: 'Tipo (general/específica)', actividades: 'Actividades', numeroContrato: 'N° contrato', participacion: '% participación' };
