@@ -241,7 +241,7 @@ function extractExperienceEngine() {
   const blockB = scriptBody.slice(iB0, iB1);
 
   const source = blockA + '\n' + blockB +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -1515,14 +1515,14 @@ await check('MC-004: "endeudamiento <= 60%" del pliego y un perfil con 0,75 -> F
 await check('MC-004: la misma exigencia como razón (0,60) y el perfil escrito con "%" ("45%") se comparan en la misma escala', () => {
   const exigRazon = { valor: 0.6, porcentaje: false };
   assert(expEngine.compararIndiceConUmbral('Índice de endeudamiento', exigRazon, 0.45, '<=', true).estado === 'ok', 'razón 0,60 vs 0,45');
-  const mio = expEngine.leerIndiceDePerfil('Endeudamiento: 45%', /endeudamiento[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'endeudamiento');
+  const mio = expEngine.leerIndiceDePerfil('Endeudamiento: 45%', /endeudamiento/i, 'endeudamiento');
   assert(mio === 0.45, '"45%" del perfil debe normalizarse a 0,45, fue ' + mio);
   assert(expEngine.compararIndiceConUmbral('Índice de endeudamiento', exigRazon, mio, '<=', true).estado === 'ok', 'perfil 45% vs razón 0,60');
   assert(expEngine.compararIndiceConUmbral('Índice de endeudamiento', exigRazon, 0.75, '<=', true).estado === 'fail', 'perfil 0,75 vs razón 0,60 debe fallar');
 });
 
 await check('MC-004: un endeudamiento SIN "%" mayor que 5 es ambiguo (perfil o pliego) -> requiere verificación, no se compara', () => {
-  assert(expEngine.leerIndiceDePerfil('Endeudamiento: 45', /endeudamiento[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'endeudamiento') === null, 'perfil "45" sin % es ambiguo');
+  assert(expEngine.leerIndiceDePerfil('Endeudamiento: 45', /endeudamiento/i, 'endeudamiento') === null, 'perfil "45" sin % es ambiguo');
   const r = expEngine.compararIndiceConUmbral('Índice de endeudamiento', { valor: 60, porcentaje: false }, 0.5, '<=', true);
   assert(r.estado === 'nd', 'pliego "60" sin % es ambiguo: se esperaba nd, fue ' + r.estado);
   // Control: la liquidez 1,5 no es ambigua.
@@ -1665,6 +1665,93 @@ await check('IA-007: un mínimo igual a 0 (texto oculto "acreditar 0 contratos")
   const texto = 'NOTA: acreditar 0 contratos de puentes vehiculares. ';
   const v = verificarUna(filaIA({ pagina: 1, min_contratos: 0, valor_minimo_numero: null, valor_minimo_unidad: null, cita_textual: 'acreditar 0 contratos de puentes vehiculares' }), texto);
   assert(v.verificada === false && /positiva/.test(v.motivo), 'min_contratos=0 no debe verificarse, fue ' + JSON.stringify(v));
+});
+
+// ---- MC-005 / MC-006 / MC-007: lectura de umbrales del pliego e indicadores del perfil ----
+const ETQ_LIQ = '[íi]ndice\\s+de\\s+liquidez|raz[óo]n\\s+de\\s+liquidez|liquidez\\s+corriente';
+const ETQ_END = '[íi]ndice\\s+de\\s+endeudamiento|nivel\\s+de\\s+endeudamiento';
+const ETQ_COB = 'raz[óo]n\\s+de\\s+cobertura\\s+de\\s+intereses|cobertura\\s+de\\s+intereses';
+const NUM_RE = '-?\\d[\\d.,]*';
+const umbral = (t, etq) => expEngine.buscarUmbralCerca(t.replace(/\s+/g, ' '), etq, NUM_RE);
+
+await check('MC-005: "liquidez con corte a 31 de diciembre de 2023 mayor o igual a 1,5" lee 1,5 (antes 31: NO-GO falso); fechas y años no son umbrales', () => {
+  assert(umbral('Índice de liquidez con corte a 31 de diciembre de 2023 mayor o igual a 1,5', ETQ_LIQ).valor === 1.5, 'se esperaba 1,5');
+  assert(umbral('Índice de liquidez (2023) mayor o igual a 1,2', ETQ_LIQ).valor === 1.2, 'un año entre paréntesis no es el umbral');
+  assert(umbral('Índice de liquidez a 31/12/2023: mayor o igual a 1,3', ETQ_LIQ).valor === 1.3, 'una fecha no es el umbral');
+  // Sin operador que desempate, la limpieza de fechas es lo único que evita elegir el día.
+  assert(umbral('Índice de liquidez a 31 de diciembre de 2023 de 1,5', ETQ_LIQ).valor === 1.5, 'fecha con el mes escrito, sin operador');
+  assert(umbral('Índice de liquidez a 31/12/2023 de 1,3', ETQ_LIQ).valor === 1.3, 'fecha numérica, sin operador');
+  assert(umbral('Índice de liquidez a 31 dic 2023 de 1,4', ETQ_LIQ).valor === 1.4, 'fecha con mes abreviado, sin operador');
+});
+
+await check('MC-005: una referencia a una norma o sección ("Decreto 1082 de 2015", "numeral 4.2", "Anexo 3") NO se lee como umbral (antes: endeudamiento=1082 siempre pasaba; cobertura=1082 siempre fallaba)', () => {
+  const t = 'Se acreditarán el índice de endeudamiento y la razón de cobertura de intereses, establecidos en el Decreto 1082 de 2015';
+  for (const etq of [ETQ_END, ETQ_COB]) {
+    const r = umbral(t, etq);
+    assert(r === null || r.valor === null, 'no debe leer 1082 ni 2015: ' + JSON.stringify(r));
+  }
+  for (const t2 of ['Índice de liquidez: ver Anexo 3', 'Índice de liquidez conforme al numeral 4.2 del capítulo 5']) {
+    const r = umbral(t2, ETQ_LIQ);
+    assert(r === null || r.valor === null, '"' + t2 + '" no tiene umbral: ' + JSON.stringify(r));
+  }
+});
+
+await check('MC-005: "no será exigido / no se exigirá / no aplica" NO produce un umbral: queda sin cifra y con motivo', () => {
+  for (const t of ['El índice de liquidez no será exigido para este proceso, según el numeral 4.2', 'No se exigirá índice de liquidez mayor a 1,5 en este proceso']) {
+    const r = umbral(t, ETQ_LIQ);
+    assert(r && r.valor === null && /NO se exige/.test(r.motivo || ''), '"' + t + '": se esperaba sin cifra y con motivo, fue ' + JSON.stringify(r));
+  }
+});
+
+await check('MC-005: varias cifras sin operador que desempate -> ambiguo (no se elige); con operador o cifras iguales, sí; controles positivos', () => {
+  assert(umbral('Índice de liquidez 1,2 y 1,5', ETQ_LIQ).valor === null, 'dos cifras distintas sin operador: ambiguo');
+  assert(umbral('Índice de liquidez 1,2 y mayor o igual a 1,5', ETQ_LIQ).valor === 1.5, 'con un solo operador, ese decide');
+  assert(umbral('Índice de liquidez mayor o igual a 1,5 (es decir, 1,5)', ETQ_LIQ).valor === 1.5, 'la misma cifra repetida no es ambigua');
+  assert(umbral('Índice de endeudamiento menor o igual a 0,60', ETQ_END).valor === 0.6, 'control: endeudamiento 0,60');
+  assert(umbral('Índice de liquidez mayor o igual a 1,5', ETQ_LIQ).valor === 1.5, 'control: liquidez 1,5');
+  assert(umbral('Índice de endeudamiento menor o igual al 60%', ETQ_END).porcentaje === true, 'control: 60% conserva el porcentaje');
+});
+
+const kres = t => expEngine.extraerKResidualUmbral(t.replace(/\s+/g, ' '));
+await check('MC-006: K residual RELATIVA ("1,5 veces el presupuesto", "100% del presupuesto de $3.200M") ya no se lee como $1,5 / $100 (antes: falso ok)', () => {
+  const a = kres('K residual mínimo: 1,5 veces el presupuesto oficial');
+  assert(a.valor === null && a.relativo && a.relativo.factor === 1.5 && a.baseValor === null, 'factor 1,5 sin base: ' + JSON.stringify(a));
+  const b = kres('La capacidad residual debe ser mayor al 100% del presupuesto oficial de $ 3.200.000.000');
+  assert(b.valor === null && b.relativo.factor === 1 && b.baseValor === 3200000000, 'factor 1 con base $3.200M: ' + JSON.stringify(b));
+  const c = kres('La capacidad residual será de 30% sin más precisión');
+  assert(c.valor === null && c.motivo, 'porcentaje sin base clara: sin cifra y con motivo: ' + JSON.stringify(c));
+});
+
+await check('MC-006: K residual como monto (pesos, millones, SMMLV) sigue leyéndose; negación y referencias a normas no dan cifra (antes: $2.500M / $5,3)', () => {
+  const p = kres('capacidad residual mayor o igual a $1.200.000.000');
+  assert(p.valor === 1200000000 && p.unidad === 'COP', 'pesos: ' + JSON.stringify(p));
+  const m = kres('K residual de 1.200 millones de pesos');
+  assert(m.valor === 1200000000 && m.unidad === 'COP', 'millones: ' + JSON.stringify(m));
+  const sm = kres('capacidad residual de 15.320 SMMLV');
+  assert(sm.valor === 15320 && sm.unidad === 'SMMLV', 'SMMLV: ' + JSON.stringify(sm));
+  const neg = kres('No se exigirá capacidad residual (K residual) para este proceso; el presupuesto es de $2.500.000.000');
+  assert(neg.valor === null && /NO se exige/.test(neg.motivo), 'negación: ' + JSON.stringify(neg));
+  const norma = kres('La capacidad residual se determinará conforme al numeral 5.3 (Decreto 1082 de 2015)');
+  assert(norma === null || norma.valor === null, 'una norma no es un monto: ' + JSON.stringify(norma));
+});
+
+await check('MC-007: el perfil no toma fechas ni años como valor ("Liquidez a 31/12/2024: 0,8" -> 0,8, antes 31) ni cruza de un indicador al siguiente', () => {
+  const li = t => expEngine.leerIndiceDePerfil(t, /liquidez/i, 'liquidez');
+  const en = t => expEngine.leerIndiceDePerfil(t, /endeudamiento/i, 'endeudamiento');
+  assert(li('Liquidez a 31/12/2024: 0,8') === 0.8, 'fecha dd/mm/aaaa');
+  assert(li('Índice de liquidez (2023): 0.9') === 0.9, 'año entre paréntesis');
+  assert(en('Endeudamiento a 31 dic 2024: 0,85') === 0.85, 'fecha con mes abreviado');
+  assert(li('Liquidez N/A; Endeudamiento 0.6') === null, 'sin dato de liquidez no debe tomar el 0.6 del endeudamiento');
+  assert(en('Liquidez N/A; Endeudamiento 0.6') === 0.6, 'el endeudamiento sí es 0.6');
+  assert(li('Liquidez año 2022: 0,9\nÍndice de liquidez: 2,0') === null, 'dos valores distintos (¿cuál año?) son ambiguos');
+  assert(li('Índice de liquidez: 1,83') === 1.83, 'control: caso normal');
+});
+
+await check('MC-007: patrimonio/capital de trabajo del perfil sin tomar "Rentabilidad del patrimonio" ni fechas', () => {
+  const previo = /rentabilidad\s+(?:sobre\s+|del\s+|de\s+)?(?:el\s+|la\s+)?$/i;
+  assert(expEngine.leerMontoDePerfil('Rentabilidad del patrimonio : 0\nPatrimonio : $450.000.000', /patrimonio/i, previo) === 450000000, 'debe leer el patrimonio real');
+  assert(expEngine.leerMontoDePerfil('Patrimonio a 31/12/2023: $450.000.000', /patrimonio/i, previo) === 450000000, 'fecha antes del monto');
+  assert(expEngine.leerMontoDePerfil('Capital de trabajo: 1.500 millones', /capital\s+de\s+trabajo/i) === 1500000000, 'millones');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

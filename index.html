@@ -5945,29 +5945,171 @@
   // con "45%" fallaba. Ahora el "%" que sigue al número se captura y AMBOS lados
   // se normalizan a razón (60% -> 0,6). Un endeudamiento mayor que 5 SIN "%" es
   // ambiguo (¿45 %? ¿razón 45?): no se compara, queda "requiere verificación".
+  // Auditoría MC-005/006/007. La lectura de umbrales tomaba "el primer número que
+  // aparezca a <=70 caracteres de la etiqueta", sin mirar qué era ese número:
+  // "Índice de liquidez con corte a 31 de diciembre de 2023 mayor o igual a 1,5" se
+  // leía 31 (NO-GO falso); "…endeudamiento y cobertura, establecidos en el Decreto 1082
+  // de 2015" daba 1082 (endeudamiento siempre pasa, cobertura siempre falla); "no será
+  // exigido… según el numeral 4.2" daba 4,2; "K residual 1,5 veces el presupuesto" se
+  // leía como $1,5; y el perfil tomaba "31" de "Liquidez a 31/12/2024: 0,8". Ahora se
+  // descartan fechas, años sueltos y referencias a normas/anexos/numerales, se detectan
+  // negaciones ("no se exigirá"), y ante varias cifras sin un operador que desempate NO
+  // se elige una: queda sin umbral ("requiere verificación").
+  const RE_NEGACION_EXIGENCIA = /\bno\s+(?:ser[aá]n?\s+(?:exigid|objeto|requerid|solicitad|tenid)\w*|se\s+(?:exig|requier|solicit|tendr[aá]|evaluar[aá])\w*|aplica\w*|exig\w*)/i;
+  const MESES_RE = 'enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre|ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic';
+
+  function cifrasCandidatas(seg){
+    let t = ' ' + String(seg || '') + ' ';
+    t = t.replace(new RegExp('\\d{1,2}\\s*(?:de\\s+)?(?:' + MESES_RE + ')\\b\\.?(?:\\s+(?:de\\s+)?(?:19|20)\\d{2})?', 'gi'), ' ');
+    t = t.replace(/\d{1,4}[\/\-]\d{1,2}[\/\-]\d{1,4}/g, ' ');
+    const out = [];
+    const re = /\d[\d.,]*\d|\d/g;
+    let m;
+    while ((m = re.exec(t))){
+      const antes = t.slice(Math.max(0, m.index - 30), m.index).toLowerCase();
+      const despues = t.slice(m.index + m[0].length, m.index + m[0].length + 16).toLowerCase();
+      if (/(?:decreto|ley|resoluci[oó]n|numeral|anexo|art[ií]culo|art\.|cap[ií]tulo|literal|secci[oó]n|p[aá]gina|p[aá]g\.?|formato|cl[aá]usula|ap[eé]ndice|n[°º]|n[uú]mero|no\.|nit)\s*(?:de\s+)?$/.test(antes)) continue;
+      if (/^(?:19|20)\d{2}$/.test(m[0]) && !/^\s*(?:smmlv|smlmv|salarios?|millones?|mil\s+millones|pesos|cop)/.test(despues)) continue; // año suelto
+      const valor = parseNumCO(m[0]);
+      if (valor == null) continue;
+      out.push({
+        texto: m[0], valor: valor, antes: antes, despues: despues,
+        pct: /^\s*%/.test(despues), veces: /^\s*(?:veces|x\b)/.test(despues),
+        conOperador: /(?:mayor|menor|igual|superior|inferior|m[ií]nim[oa]?|m[aá]xim[oa]?|≥|≤|>=|<=|>|<|:|=)[^\d]{0,22}$/i.test(antes)
+      });
+    }
+    return out;
+  }
+
+  // Ventana de texto tras cada aparición de la etiqueta (hasta el fin de la oración) y
+  // si la oración NIEGA la exigencia ("no se exigirá…", antes o después de la etiqueta).
+  function ventanasDeEtiqueta(t, etqRe, largo){
+    const re = new RegExp('(?:' + etqRe + ')', 'gi');
+    const out = [];
+    let m;
+    while ((m = re.exec(t))){
+      let ventana = t.slice(m.index + m[0].length, m.index + m[0].length + largo);
+      const corte = ventana.search(/\.(?=\s|$)/);
+      if (corte !== -1) ventana = ventana.slice(0, corte);
+      let previo = t.slice(Math.max(0, m.index - 70), m.index);
+      const finPrevio = Math.max(previo.lastIndexOf('. '), previo.lastIndexOf('; '));
+      if (finPrevio !== -1) previo = previo.slice(finPrevio + 2);
+      out.push({ etiqueta: m[0], ventana: ventana, indice: m.index, niega: RE_NEGACION_EXIGENCIA.test(previo + ' ' + ventana), raw: (m[0] + ventana).trim() });
+    }
+    return out;
+  }
+
   function buscarUmbralCerca(t, etqRe, valRe){
-    const m = t.match(new RegExp('(?:' + etqRe + ')[^.\\n]{0,70}?(' + valRe + ')(\\s*%)?', 'i'));
-    return m ? { valor: parseNumCO(m[1]), raw: m[0].trim(), porcentaje: !!m[2] } : null;
+    const ventanas = ventanasDeEtiqueta(t, etqRe, 110);
+    let primeroNoClaro = null;
+    for (const w of ventanas){
+      if (w.niega){
+        primeroNoClaro = primeroNoClaro || { valor: null, raw: w.raw, porcentaje: false, motivo: 'El pliego parece indicar que este indicador NO se exige o no aplica ("' + truncateSimple(w.raw, 90) + '") -- confírmalo a mano.' };
+        continue;
+      }
+      const cands = cifrasCandidatas(w.ventana);
+      if (!cands.length) continue;
+      let elegido = null;
+      if (cands.length === 1 || new Set(cands.map(c => c.valor)).size === 1) elegido = cands[0];
+      else {
+        const conOp = cands.filter(c => c.conOperador);
+        if (conOp.length === 1) elegido = conOp[0];
+        else {
+          primeroNoClaro = primeroNoClaro || { valor: null, raw: w.raw, porcentaje: false, motivo: 'El pliego menciona varias cifras junto a este indicador (' + cands.map(c => c.texto).join(', ') + '): no se elige una -- compáralo a mano.' };
+          continue;
+        }
+      }
+      return { valor: elegido.valor, raw: w.raw, porcentaje: elegido.pct };
+    }
+    return primeroNoClaro;
+  }
+
+  function truncateSimple(x, n){ x = String(x || ''); return x.length > n ? x.slice(0, n) + '…' : x; }
+
+  // K residual exigida por el pliego. Puede venir como monto (pesos o SMMLV) o de forma
+  // RELATIVA ("1,5 veces el presupuesto oficial", "100% del presupuesto oficial de $X"):
+  // antes "1,5 veces" se leía $1,5 y "100%" se leía $100. Devuelve
+  // { valor, unidad, raw } (monto) | { valor:null, relativo:{factor}, baseValor } |
+  // { valor:null, motivo } | null.
+  function extraerKResidualUmbral(t){
+    const ventanas = ventanasDeEtiqueta(t, 'k\\s*residual|capacidad\\s+residual(?:\\s+de\\s+contrataci[óo]n)?|capacidad\\s+m[áa]xima\\s+de\\s+contrataci[óo]n', 170);
+    let primeroNoClaro = null;
+    const mult = c => /^\s*mil\s+millones/.test(c.despues) ? 1e9 : (/^\s*mill[oó]n/.test(c.despues) ? 1e6 : 1);
+    const esMonto = c => c.valor >= 1e6 || /^\s*(?:smmlv|smlmv|salarios?|mil\s+millones|millones?|mill[oó]n|pesos|cop)/.test(c.despues) || /\$\s*$/.test(c.antes);
+    for (const w of ventanas){
+      if (w.niega){
+        primeroNoClaro = primeroNoClaro || { valor: null, unidad: 'COP', raw: w.raw, motivo: 'El pliego parece indicar que la capacidad residual NO se exige o no aplica ("' + truncateSimple(w.raw, 90) + '") -- confírmalo a mano.' };
+        continue;
+      }
+      const cands = cifrasCandidatas(w.ventana);
+      if (!cands.length) continue;
+      const rel = cands.find(c => c.veces) || cands.find(c => c.pct);
+      const monto = cands.find(c => !c.veces && !c.pct && esMonto(c));
+      if (rel){
+        if (!/presupuesto|valor\s+(?:del\s+)?(?:proceso|contrato|estimado|oficial)|cuant[ií]a/i.test(w.ventana)){
+          primeroNoClaro = primeroNoClaro || { valor: null, unidad: 'COP', raw: w.raw, motivo: 'El pliego expresa la capacidad residual de forma relativa (' + rel.texto + (rel.veces ? ' veces' : '%') + ') sin decir de qué valor -- compárala a mano.' };
+          continue;
+        }
+        return { valor: null, unidad: 'COP', relativo: { factor: rel.veces ? rel.valor : rel.valor / 100 }, baseValor: monto ? monto.valor * mult(monto) : null, raw: w.raw };
+      }
+      if (monto){
+        const smmlv = /^\s*(?:smmlv|smlmv|salarios?)/.test(monto.despues);
+        return { valor: monto.valor * mult(monto), unidad: smmlv ? 'SMMLV' : 'COP', raw: w.raw };
+      }
+      primeroNoClaro = primeroNoClaro || { valor: null, unidad: 'COP', raw: w.raw, motivo: 'El pliego no da una cifra clara de capacidad residual (solo referencias a otras secciones o normas).' };
+    }
+    return primeroNoClaro;
+  }
+
+  // Cifras del texto libre del perfil junto a una etiqueta. Cada aparición se lee SOLO
+  // hasta el siguiente indicador / salto de línea / ";" (así "Liquidez N/A; Endeudamiento
+  // 0.6" no toma el 0.6 para la liquidez), sin fechas ni años ("Liquidez a 31/12/2024: 0,8"
+  // -> 0,8, no 31). `noPrecedidoPor` descarta, p. ej., "Rentabilidad del patrimonio" al
+  // buscar "patrimonio". Si las apariciones dan valores distintos, es ambiguo -> null.
+  function cifrasDePerfil(texto, etiquetaRe, noPrecedidoPor){
+    const t = String(texto || '');
+    const re = new RegExp(etiquetaRe.source, 'gi');
+    const valores = [];
+    let m;
+    while ((m = re.exec(t))){
+      if (noPrecedidoPor && noPrecedidoPor.test(t.slice(Math.max(0, m.index - 30), m.index))) continue;
+      let seg = t.slice(m.index + m[0].length, m.index + m[0].length + 90);
+      const corte = seg.search(/[\n;]|liquidez|endeudamiento|cobertura|patrimonio|capital\s+de\s+trabajo|rentabilidad|residual/i);
+      if (corte !== -1) seg = seg.slice(0, corte);
+      const cands = cifrasCandidatas(seg);
+      if (!cands.length) continue;
+      const pref = cands.filter(c => /[:=$]\s*$/.test(c.antes));
+      const c = pref.length ? pref[0] : cands[0];
+      valores.push(c);
+    }
+    if (!valores.length) return null;
+    if (new Set(valores.map(c => c.valor + '|' + c.pct)).size > 1) return { ambiguo: true };
+    return valores[0];
   }
 
   // Lee un índice (liquidez, endeudamiento, cobertura) del texto libre del perfil.
   // Devuelve una RAZÓN (60% -> 0.6) o null si no hay dato o es ambiguo.
-  function leerIndiceDePerfil(texto, re, tipo){
-    const m = String(texto || '').match(re);
-    if (!m) return null;
-    let v = parseNumCO(m[1]);
-    if (v == null) return null;
-    const despues = String(texto).slice(m.index + m[0].length, m.index + m[0].length + 4);
-    if (/^\s*%/.test(despues)) return v / 100;
-    if (tipo === 'endeudamiento' && v > 5) return null; // sin "%": ¿45 % o razón 45? no se adivina
-    return v;
+  function leerIndiceDePerfil(texto, etiquetaRe, tipo){
+    const c = cifrasDePerfil(texto, etiquetaRe);
+    if (!c || c.ambiguo) return null;
+    if (c.pct) return c.valor / 100;
+    if (tipo === 'endeudamiento' && c.valor > 5) return null; // sin "%": ¿45 % o razón 45? no se adivina
+    return c.valor;
+  }
+
+  // Monto en pesos del perfil (patrimonio, capital de trabajo).
+  function leerMontoDePerfil(texto, etiquetaRe, noPrecedidoPor){
+    const c = cifrasDePerfil(texto, etiquetaRe, noPrecedidoPor);
+    if (!c || c.ambiguo) return null;
+    const m = /^\s*mil\s+millones/.test(c.despues) ? 1e9 : (/^\s*mill[oó]n/.test(c.despues) ? 1e6 : 1);
+    return c.valor * m;
   }
 
   // Compara un índice exigido por el pliego contra el del perfil (razones ya
   // normalizadas). Devuelve {estado, detalle}: 'ok' | 'fail' | 'nd'.
   function compararIndiceConUmbral(nombre, exig, mio, sentido, hayPliego){
     if (exig && exig.conflicto) return { estado: 'nd', detalle: exig.raw };
-    if (!exig || exig.valor == null) return { estado: 'nd', detalle: hayPliego ? 'El pliego no da un umbral numérico claro.' : 'Analiza el pliego (PDF) para conocer el umbral exigido.' };
+    if (!exig || exig.valor == null) return { estado: 'nd', detalle: (exig && exig.motivo) || (hayPliego ? 'El pliego no da un umbral numérico claro.' : 'Analiza el pliego (PDF) para conocer el umbral exigido.') };
     if (mio == null) return { estado: 'nd', detalle: 'Tu perfil no tiene este dato (o no se puede leer sin ambigüedad: escríbelo como razón, ej. 0,6, o con "%") — cárgalo desde el RUP.' };
     const esEndeudamiento = /endeudamiento/i.test(nombre);
     if (esEndeudamiento && !exig.porcentaje && exig.valor > 5){
@@ -5987,16 +6129,13 @@
     const num = '-?\\d[\\d.,]*';
     const cerca = (etqRe, valRe) => {
       const r = buscarUmbralCerca(t, etqRe, valRe);
-      return r ? { valor: r.valor, raw: truncate(r.raw, 160), porcentaje: r.porcentaje } : null;
+      return r ? { valor: r.valor, raw: truncate(r.raw, 160), porcentaje: r.porcentaje, motivo: r.motivo || null } : null;
     };
     return {
       liquidez: cerca('[íi]ndice\\s+de\\s+liquidez|raz[óo]n\\s+de\\s+liquidez|liquidez\\s+corriente', num),
       endeudamiento: cerca('[íi]ndice\\s+de\\s+endeudamiento|nivel\\s+de\\s+endeudamiento', num),
       cobertura: cerca('raz[óo]n\\s+de\\s+cobertura\\s+de\\s+intereses|cobertura\\s+de\\s+intereses', num),
-      kResidual: (function(){
-        const m = t.match(/(k\s*residual|capacidad\s+residual(?:\s+de\s+contrataci[óo]n)?|capacidad\s+m[áa]xima\s+de\s+contrataci[óo]n)[^.\n]{0,90}?(\d[\d.,]*\s*(?:smmlv|smlmv|salarios?\s+m[íi]nimos)?)/i);
-        return m ? parseValorUnidad(m[0]) : null;
-      })(),
+      kResidual: extraerKResidualUmbral(t),
       participacionConsorcio: extraerParticipacionConsorcio(t)
     };
   }
@@ -6125,8 +6264,8 @@
   function matrizCapacidad(p){
     p = migrarPerfil(Object.assign({}, p || {}));
     const kTxt = p.k || '';
-    const ratio = re => { const m = kTxt.match(re); return m ? parseNumCO(m[1]) : null; };
     const indice = (re, tipo) => leerIndiceDePerfil(kTxt, re, tipo);
+    const monto = (re, previo) => leerMontoDePerfil(kTxt, re, previo);
     // Si hay contratos en ejecución registrados, la "K residual" que entra en
     // los gates de capacidad es la disponible ESTIMADA (declarada menos SCE),
     // no la cruda -- ver capacidadContractualEstimada(). Sin contratos
@@ -6143,11 +6282,11 @@
       codigos: (p.rup || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean),
       kResidual: kResidualParaGates,
       capacidadEstimada: capacidadEstimada,
-      liquidez: indice(/liquidez[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'liquidez'),
-      endeudamiento: indice(/endeudamiento[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'endeudamiento'),
-      cobertura: indice(/cobertura[^0-9\-]{0,20}(-?\d[\d.,]*)/i, 'cobertura'),
-      patrimonio: ratio(/patrimonio[^0-9\-]{0,20}(\$?\s?\d[\d.,]*)/i),
-      capitalTrabajo: ratio(/capital\s+de\s+trabajo[^0-9\-]{0,20}(\$?\s?\d[\d.,]*)/i),
+      liquidez: indice(/liquidez/i, 'liquidez'),
+      endeudamiento: indice(/endeudamiento/i, 'endeudamiento'),
+      cobertura: indice(/cobertura/i, 'cobertura'),
+      patrimonio: monto(/patrimonio/i, /rentabilidad\s+(?:sobre\s+|del\s+|de\s+)?(?:el\s+|la\s+)?$/i),
+      capitalTrabajo: monto(/capital\s+de\s+trabajo/i),
       tieneAlgo: false
     };
   }
@@ -6284,6 +6423,22 @@
       });
       if (ex.kResidual && ex.kResidual.conflicto){
         g('Capacidad K residual', 'nd', ex.kResidual.raw);
+      } else if (ex.kResidual && ex.kResidual.relativo){
+        // MC-006: umbral relativo ("1,5 veces el presupuesto oficial", "100% del presupuesto").
+        const factor = ex.kResidual.relativo.factor;
+        const baseK = ex.kResidual.baseValor != null ? ex.kResidual.baseValor : valor;
+        const conContratosR = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
+        if (!baseK){
+          g('Capacidad K residual', 'nd', 'El pliego la exige como ' + factor + ' veces el presupuesto oficial, pero no se conoce el valor del proceso -- compárala a mano.');
+        } else if (!matriz.kResidual || matriz.kResidual.unidad !== 'COP'){
+          g('Capacidad K residual', 'nd', 'El pliego la exige como ' + factor + ' veces el presupuesto oficial (' + fmtMoney(baseK * factor) + ') pero tu perfil no la tiene en pesos.');
+        } else {
+          const umbralK = baseK * factor;
+          const pasaK = matriz.kResidual.valor >= umbralK;
+          g('Capacidad K residual', pasaK ? 'ok' : 'fail', 'Pliego: ≥ ' + fmtMoney(umbralK) + ' (' + factor + ' veces el presupuesto de ' + fmtMoney(baseK) + ') · ' + (conContratosR ? 'tu capacidad disponible estimada' : 'tu perfil') + ': ' + fmtMoney(matriz.kResidual.valor) + (pasaK ? ' ✓' : ' ✗'));
+        }
+      } else if (ex.kResidual && ex.kResidual.valor == null){
+        g('Capacidad K residual', 'nd', ex.kResidual.motivo || 'El pliego no da una cifra clara de capacidad residual.');
       } else if (ex.kResidual){
         const conContratos = matriz.capacidadEstimada && !matriz.capacidadEstimada.sinContratos;
         const etiquetaPerfil = conContratos ? 'tu capacidad disponible estimada' : 'tu perfil';
