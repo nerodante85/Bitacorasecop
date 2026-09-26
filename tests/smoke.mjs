@@ -249,8 +249,14 @@ function extractExperienceEngine() {
     'no se encontraron las anclas del bloque calcularSCE..capacidadContractualEstimada -- ¿se movió o renombró algo?');
   const blockC = scriptBody.slice(iC0, iC1);
 
-  const source = blockA + '\n' + blockB + '\n' + blockC +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
+  // Bloque D: adjudicaciones y sugerencia de oferta económica (TR-001..TR-003).
+  const iD0 = scriptBody.indexOf('function descuentoComparable(a){');
+  const iD1 = scriptBody.indexOf('function renderOfertaSugeridaHtml(sug){', iD0);
+  assert(iD0 !== -1 && iD1 !== -1 && iD1 > iD0, 'no se encontraron las anclas del bloque descuentoComparable..sugerenciaOfertaEconomica');
+  const blockD = scriptBody.slice(iD0, iD1);
+
+  const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD +
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -1967,6 +1973,51 @@ await check('IA-008: requisitos jurídicos/garantías/otros y categorías ausent
   const completo = ['experiencia_especifica', 'capacidad_financiera', 'k_residual', 'garantias'].map(c => filaIA({ categoria: c, naturaleza: 'habilitante' }));
   const gc = expEngine.gatesCompletitudIA(completo);
   assert(gc.length === 1 && gc[0].nombre === 'Requisitos por verificar a mano', 'con todo presente solo queda el aviso de garantías manuales: ' + JSON.stringify(gc));
+});
+
+// ---- Auditoría TR-001..TR-003: adjudicaciones y sugerencia de oferta -------------
+const adjII = (valorAdj, precioBase, extra) => Object.assign({ fuente: 'II', objeto: 'Obra', referencia: 'R' + valorAdj, adjudicatario: 'X', valorAdj, precioBase, fecha: '2024-01-01' }, extra || {});
+const adjI = (valorAdj, extra) => Object.assign({ fuente: 'I', objeto: 'Obra', referencia: 'P' + valorAdj, adjudicatario: 'X', valorAdj, precioBase: null, fecha: '2019-01-01' }, extra || {});
+
+await check('TR-001: SECOP I nunca aporta un descuento (su "presupuesto" es el valor del contrato): 29 filas SECOP I no dan sugerencia', () => {
+  const lista = []; for (let i = 0; i < 29; i++) lista.push(adjI(1000 + i, { precioBase: 1000 + i })); // aunque llegara un precioBase, SECOP I se ignora
+  assert(expEngine.descuentoComparable(lista[0]) === null, 'SECOP I no debe dar descuento');
+  const r = expEngine.sugerenciaOfertaEconomica(lista, 610000000);
+  assert(r.aplica === false && /SECOP I no cuentan/.test(r.motivo), 'se esperaba aplica:false, fue ' + JSON.stringify(r));
+});
+
+await check('TR-001: con ambas fuentes la sugerencia usa SOLO SECOP II (los SECOP I no cambian el resultado)', () => {
+  const ii = [adjII(90, 100), adjII(80, 100), adjII(95, 100)];
+  const solo = expEngine.sugerenciaOfertaEconomica(ii, 1000);
+  const mixto = expEngine.sugerenciaOfertaEconomica(ii.concat([adjI(500), adjI(600), adjI(700)]), 1000);
+  assert(solo.aplica && mixto.aplica && mixto.muestra === 3, 'muestra ' + mixto.muestra);
+  assert(mixto.competitivo.valor === solo.competitivo.valor && mixto.agresivo.valor === solo.agresivo.valor, 'SECOP I contaminó la sugerencia');
+});
+
+await check('TR-002: filas duplicadas (mismo uid/clave) cuentan una sola vez para el mínimo de 3 comparables', () => {
+  const dup = [adjII(90, 100, { clave: 'II|a' }), adjII(90, 100, { clave: 'II|a' }), adjII(90, 100, { clave: 'II|a' }), adjII(80, 100, { clave: 'II|b' })];
+  const dedup = expEngine.deduplicarAdjudicaciones(dup);
+  assert(dedup.length === 2, 'se esperaban 2 únicas, fueron ' + dedup.length);
+  assert(expEngine.sugerenciaOfertaEconomica(dedup, 1000).aplica === false, '2 únicas no alcanzan el mínimo de 3');
+  assert(expEngine.sugerenciaOfertaEconomica(dup, 1000).aplica === true, 'control: sin deduplicar, 4 filas repetidas engañaban al mínimo');
+  const conFuentes = Object.assign([adjII(1, 2, { clave: 'k' })], { fuentes: { II: { ok: true }, I: { ok: false, error: 'x' } } });
+  assert(expEngine.deduplicarAdjudicaciones(conFuentes).fuentes.I.ok === false, 'debe conservar el estado por fuente');
+  const mismaClave = expEngine.deduplicarAdjudicaciones([adjII(50, 100, { clave: 'z' }), adjII(70, 100, { clave: 'z' })]);
+  assert(mismaClave.length === 1 && mismaClave[0].valorAdj === 70, 'conserva la de mayor valor');
+});
+
+await check('TR-003: si SECOP II falló no hay sugerencia y se dice por qué; el aviso nombra la fuente caída', () => {
+  const lista = Object.assign([adjII(90, 100), adjII(80, 100), adjII(95, 100)], { fuentes: { II: { ok: false, error: 'HTTP 503' }, I: { ok: true } } });
+  const r = expEngine.sugerenciaOfertaEconomica(lista, 1000);
+  assert(r.aplica === false && /No se pudo consultar SECOP II \(HTTP 503\)/.test(r.motivo), 'motivo: ' + r.motivo);
+  const ok = Object.assign([adjII(90, 100), adjII(80, 100), adjII(95, 100)], { fuentes: { II: { ok: true }, I: { ok: false, error: 'timeout' } } });
+  assert(expEngine.sugerenciaOfertaEconomica(ok, 1000).aplica === true, 'si solo cayó SECOP I la sugerencia sigue');
+});
+await check('TR-003: con ambas fuentes caídas no se dice "no se encontraron procesos": se muestra el aviso por fuente', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  const i = src.indexOf('function renderAdjudicacionesHtml(lista){');
+  const cuerpo = src.slice(i, i + 700);
+  assert(/avisoFuentesHtml\(lista\.fuentes\)/.test(cuerpo) && /!lista\.length && lista\.fuentes/.test(cuerpo), 'renderAdjudicacionesHtml debe mostrar el aviso antes del mensaje de vacío');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

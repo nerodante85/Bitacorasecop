@@ -7243,7 +7243,9 @@
         const base2N = Number(findField(r, ['precio_base', 'valor_estimado', 'valor_total_estimado'], 'precio'));
         const obj = findField(r, ['objeto_del_proceso', 'descripcion_del_procedimiento', 'descripci_n_del_procedimiento', 'nombre_del_procedimiento'], 'objeto') || '';
         const ref = findField(r, ['referencia_del_proceso', 'referencia'], 'referencia') || '';
+        const idProc = findField(r, ['id_del_proceso', 'id_del_portafolio'], 'id_del') || '';
         out.push({
+          clave: 'II|' + (idProc || ref || obj) + '|' + (prove || '') + '|' + (adjValN > 0 ? adjValN : ''),
           fuente: 'II', objeto: obj, referencia: ref,
           adjudicatario: prove,
           valorAdj: adjValN > 0 ? adjValN : null,
@@ -7275,14 +7277,18 @@
         prove = (prove && !/no\s+definid|no\s+aplica|^n\/?a$/i.test(String(prove))) ? String(prove) : null;
         const adjValN = Number(findField(r, ['valor_contrato_con_adiciones', 'cuantia_contrato'], 'contrato'));
         if (!prove && !(adjValN > 0)) return; // sin contratista ni valor de contrato -- no se puede considerar adjudicado
-        const base2N = Number(findField(r, ['cuantia_proceso'], 'proceso'));
         const obj = findField(r, ['detalle_del_objeto_a_contratar', 'objeto_a_contratar'], 'objeto') || '';
         const ref = findField(r, ['numero_de_proceso'], 'proceso') || '';
+        const uid = findField(r, ['uid'], 'uid') || '';
         out.push({
+          // Auditoría TR-002: SECOP I repite filas (mismo `uid`, varias por proceso).
+          clave: 'I|' + (uid || (ref + '|' + (prove || '') + '|' + (adjValN > 0 ? adjValN : ''))),
           fuente: 'I', objeto: obj, referencia: ref,
           adjudicatario: prove,
           valorAdj: adjValN > 0 ? adjValN : null,
-          precioBase: base2N > 0 ? base2N : null,
+          // Auditoría TR-001: en SECOP I `cuantia_proceso` repite el valor del CONTRATO (385 de 400
+          // filas reales), no es un presupuesto base: usarlo daba descuentos de 0% "históricos".
+          precioBase: null,
           fecha: fechaMasRecienteDe(r)
         });
       });
@@ -7295,9 +7301,17 @@
     const [resII, resI] = await Promise.allSettled([deSecopII(), deSecopI()]);
     if (resII.status === 'rejected') console.error('No se pudo consultar adjudicaciones de SECOP II', resII.reason);
     if (resI.status === 'rejected') console.error('No se pudo consultar adjudicaciones de SECOP I', resI.reason);
-    const out = (resII.status === 'fulfilled' ? resII.value : []).concat(resI.status === 'fulfilled' ? resI.value : []);
+    // Auditoría TR-003: el estado de cada fuente viaja con el resultado (antes un fallo solo
+    // iba a la consola y con ambas caídas decía "no se encontraron procesos").
+    const fuentes = {
+      II: resII.status === 'fulfilled' ? { ok: true } : { ok: false, error: String(resII.reason && resII.reason.message || resII.reason || 'error') },
+      I: resI.status === 'fulfilled' ? { ok: true } : { ok: false, error: String(resI.reason && resI.reason.message || resI.reason || 'error') }
+    };
+    const bruto = (resII.status === 'fulfilled' ? resII.value : []).concat(resI.status === 'fulfilled' ? resI.value : []);
+    const out = deduplicarAdjudicaciones(bruto);
     // más recientes/grandes primero
     out.sort((a, b) => (b.valorAdj || 0) - (a.valorAdj || 0));
+    out.fuentes = fuentes;
     return out;
   }
 
@@ -7386,6 +7400,7 @@
   // "vs base") como la sugerencia de oferta económica (que promedia estos
   // mismos descuentos) -- si algún día se ajusta el umbral, se ajusta una vez.
   function descuentoComparable(a){
+    if (a.fuente === 'I') return null; // TR-001: SECOP I no trae un presupuesto base real
     if (a.valorAdj == null || !a.precioBase) return null;
     const ratio = a.valorAdj / a.precioBase;
     if (ratio < 0.3 || ratio > 1.3) return null;
@@ -7393,7 +7408,9 @@
   }
 
   function renderAdjudicacionesHtml(lista){
-    if (!lista.length) return '<div class="analysis-disclaimer">No se encontraron procesos adjudicados de esta entidad en la consulta (el dato de adjudicación en SECOP abierto es irregular; revisa el expediente en SECOP II).</div>';
+    const aviso = avisoFuentesHtml(lista.fuentes);
+    if (!lista.length && lista.fuentes && (!lista.fuentes.II.ok || !lista.fuentes.I.ok)) return aviso;
+    if (!lista.length) return aviso + '<div class="analysis-disclaimer">No se encontraron procesos adjudicados de esta entidad en la consulta (el dato de adjudicación en SECOP abierto es irregular; revisa el expediente en SECOP II).</div>';
     const conDato = lista.filter(a => a.adjudicatario || a.valorAdj != null);
     const filas = lista.slice(0, 25).map(a => {
       const d = descuentoComparable(a);
@@ -7406,9 +7423,9 @@
     }).join('');
     const nI = lista.filter(a => a.fuente === 'I').length;
     const nII = lista.length - nI;
-    return '<div class="analysis-sub">ADJUDICACIONES DE LA ENTIDAD (' + conDato.length + ' con dato, de ' + lista.length + ' encontradas — ' + nII + ' en SECOP II, ' + nI + ' en SECOP I)</div>' +
+    return aviso + '<div class="analysis-sub">ADJUDICACIONES DE LA ENTIDAD (' + conDato.length + ' con dato, de ' + lista.length + ' encontradas — ' + nII + ' en SECOP II, ' + nI + ' en SECOP I)</div>' +
       '<ul class="analysis-list">' + filas + '</ul>' +
-      '<div class="analysis-disclaimer">"vs base" = valor adjudicado / precio base − 1 (negativo = por debajo del presupuesto oficial). "n/c" = valor y presupuesto no comparables (proceso multi-lote, acuerdo marco…). SECOP I cubre historial anterior a SECOP II (desde 2018); su dato de adjudicación se infiere de si el registro trae contratista o valor de contrato, no de un campo explícito. Dato de adjudicación en SECOP abierto de completitud variable — confírmalo en el expediente.</div>';
+      '<div class="analysis-disclaimer">"vs base" = valor adjudicado / precio base − 1 (negativo = por debajo del presupuesto oficial). "n/c" = valor y presupuesto no comparables (proceso multi-lote, acuerdo marco…). SECOP I cubre historial anterior a SECOP II (desde 2018); su dato de adjudicación se infiere de si el registro trae contratista o valor de contrato, y no trae un presupuesto base real, por eso no muestra "vs base" ni entra en la sugerencia de oferta. Dato de adjudicación en SECOP abierto de completitud variable — confírmalo en el expediente.</div>';
   }
 
   // ==========================================================================
@@ -7433,13 +7450,19 @@
   function sugerenciaOfertaEconomica(lista, presupuestoOficial){
     const presupuesto = Number(presupuestoOficial);
     if (!presupuesto || presupuesto <= 0) return { aplica: false, motivo: 'Este proceso no tiene un presupuesto oficial detectado para comparar.' };
+    // TR-003: la sugerencia se calcula solo con SECOP II; si esa consulta falló no hay base.
+    if (lista.fuentes && lista.fuentes.II && !lista.fuentes.II.ok){
+      return { aplica: false, motivo: 'No se pudo consultar SECOP II (' + lista.fuentes.II.error + '), que es la única fuente con presupuesto base: no hay base para sugerir una oferta. Intenta de nuevo más tarde.' };
+    }
     // Adjudicaciones que SÍ entran en la muestra (mismas que dan un descuento
     // no-null) -- se filtran una sola vez para poder sacar tanto los
     // descuentos como el rango de fechas de EXACTAMENTE el mismo conjunto.
     const comparables = lista.filter(a => descuentoComparable(a) !== null);
     const descuentos = comparables.map(descuentoComparable).sort((a, b) => a - b);
     if (descuentos.length < OFERTA_MIN_MUESTRA){
-      return { aplica: false, motivo: 'Solo ' + descuentos.length + ' adjudicación(es) comparable(s) de esta entidad -- muy pocas para sugerir un patrón (mínimo ' + OFERTA_MIN_MUESTRA + ').' };
+      const nI = lista.filter(a => a.fuente === 'I').length;
+      return { aplica: false, motivo: 'Solo ' + descuentos.length + ' adjudicación(es) comparable(s) de esta entidad en SECOP II -- muy pocas para sugerir un patrón (mínimo ' + OFERTA_MIN_MUESTRA + ').' +
+        (nI ? ' Las ' + nI + ' de SECOP I no cuentan: ese dataset no trae un presupuesto base real (su "cuantía del proceso" repite el valor del contrato), así que no permite calcular descuentos.' : '') };
     }
     // Antigüedad de la muestra -- antes la sugerencia no decía si el
     // "patrón histórico" venía de hace 2 meses o de hace 8 años (una
@@ -7475,6 +7498,30 @@
     };
   }
 
+  // Auditoría TR-002: una misma adjudicación aparece varias veces (SECOP I: mismo `uid`, una fila
+  // por adición) y contaba varias veces para el mínimo de 3 comparables. Se conserva una por
+  // clave, la de mayor valor. El estado por fuente (`fuentes`) se conserva.
+  function deduplicarAdjudicaciones(lista){
+    const porClave = new Map();
+    (lista || []).forEach(a => {
+      const k = a.clave || (a.fuente + '|' + a.referencia + '|' + (a.adjudicatario || '') + '|' + (a.valorAdj || ''));
+      const previa = porClave.get(k);
+      if (!previa || (a.valorAdj || 0) > (previa.valorAdj || 0)) porClave.set(k, a);
+    });
+    const out = Array.from(porClave.values());
+    if (lista && lista.fuentes) out.fuentes = lista.fuentes;
+    return out;
+  }
+
+  // TR-003: aviso visible con el nombre de cada fuente que falló.
+  function avisoFuentesHtml(fuentes){
+    if (!fuentes) return '';
+    const fallidas = ['II', 'I'].filter(k => fuentes[k] && !fuentes[k].ok);
+    if (!fallidas.length) return '';
+    return '<div class="analysis-block analysis-warn" role="alert">⚠ No se pudo consultar ' + fallidas.map(k => 'SECOP ' + k + ' (' + escapeHtml(fuentes[k].error) + ')').join(' ni ') +
+      '. Los resultados de abajo son parciales' + (fallidas.length === 2 ? ' (ninguna fuente respondió)' : '') + ': no significa que la entidad no tenga adjudicaciones.</div>';
+  }
+
   function renderOfertaSugeridaHtml(sug){
     if (!sug.aplica){
       return '<div class="analysis-sub">SUGERENCIA DE OFERTA ECONÓMICA</div>' +
@@ -7493,7 +7540,7 @@
         tarjeta('oferta-competitivo', 'Competitivo', sug.competitivo) +
         tarjeta('oferta-agresivo', 'Agresivo', sug.agresivo) +
       '</div>' +
-      '<div class="analysis-disclaimer">Basado en ' + sug.muestra + ' adjudicación(es) comparables de esta entidad (SECOP I+II)' + rangoFechasTexto(sug.rangoFechas) + ': "conservador" = el descuento más leve que esta entidad ha aplicado sobre su presupuesto oficial; "competitivo" = la mediana; "agresivo" = el descuento más fuerte visto. Es una referencia estadística sobre el comportamiento HISTÓRICO de la entidad, no una predicción ni garantía de adjudicación -- verifica siempre las condiciones específicas del pliego (fórmula de evaluación económica, causales de rechazo por oferta artificialmente baja, presupuesto oficial exacto) antes de decidir cuánto ofertar.</div>';
+      '<div class="analysis-disclaimer">Basado en ' + sug.muestra + ' adjudicación(es) comparables de esta entidad (solo SECOP II: SECOP I no trae presupuesto base)' + rangoFechasTexto(sug.rangoFechas) + ': "conservador" = el descuento más leve que esta entidad ha aplicado sobre su presupuesto oficial; "competitivo" = la mediana; "agresivo" = el descuento más fuerte visto. Es una referencia estadística sobre el comportamiento HISTÓRICO de la entidad, no una predicción ni garantía de adjudicación -- verifica siempre las condiciones específicas del pliego (fórmula de evaluación económica, causales de rechazo por oferta artificialmente baja, presupuesto oficial exacto) antes de decidir cuánto ofertar.</div>';
   }
 
   // Antes la sugerencia no decía si la muestra venía de hace 2 meses o de
