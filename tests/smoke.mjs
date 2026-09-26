@@ -255,8 +255,15 @@ function extractExperienceEngine() {
   assert(iD0 !== -1 && iD1 !== -1 && iD1 > iD0, 'no se encontraron las anclas del bloque descuentoComparable..sugerenciaOfertaEconomica');
   const blockD = scriptBody.slice(iD0, iD1);
 
-  const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
+  // Bloque E: resolución de nombre de entidad (SI-001); usa normalizeGeo (se inyecta como global).
+  const iE0 = scriptBody.indexOf('function prepararBusquedaPorNombre(nombre){');
+  const iE1 = scriptBody.indexOf('// La más reciente de las fechas', iE0);
+  assert(iE0 !== -1 && iE1 !== -1 && iE1 > iE0, 'no se encontraron las anclas de prepararBusquedaPorNombre');
+  const blockE = scriptBody.slice(iE0, iE1);
+  globalThis.normalizeGeo = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE +
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2018,6 +2025,65 @@ await check('TR-003: con ambas fuentes caídas no se dice "no se encontraron pro
   const i = src.indexOf('function renderAdjudicacionesHtml(lista){');
   const cuerpo = src.slice(i, i + 700);
   assert(/avisoFuentesHtml\(lista\.fuentes\)/.test(cuerpo) && /!lista\.length && lista\.fuentes/.test(cuerpo), 'renderAdjudicacionesHtml debe mostrar el aviso antes del mensaje de vacío');
+});
+
+// ---- Auditoría SI-001 / SI-002: consulta de SECOP I por entidad -------------------
+const coincideInvias = n => /invias/i.test(n.normalize('NFD').replace(/[̀-ͯ]/g, ''));
+function fetchSimulado(baseDeDatos, registro) {
+  return async (p) => {
+    registro.push(p);
+    if (p['$q']) return baseDeDatos.slice(0, Number(p['$limit'])).filter(r => (r.nombre_entidad + ' ' + (r.objeto || '')).toLowerCase().includes(p['$q']));
+    const m = /nombre_entidad='(.*)'/.exec(p['$where']);
+    const todas = baseDeDatos.filter(r => r.nombre_entidad === m[1].replace(/''/g, "'"));
+    return todas.slice(Number(p['$offset']), Number(p['$offset']) + Number(p['$limit']));
+  };
+}
+
+await check('SI-001: se resuelve el nombre EXACTO y se piden todas sus filas por $where con paginación (antes: 1 de 987)', async () => {
+  const base = [];
+  for (let i = 0; i < 987; i++) base.push({ uid: 'u' + i, nombre_entidad: 'INSTITUTO NACIONAL DE VÍAS (INVIAS)', objeto: 'invias vias' });
+  for (let i = 0; i < 300; i++) base.push({ uid: 'x' + i, nombre_entidad: 'OTRA ENTIDAD', objeto: 'invias vias' });
+  const reg = [];
+  const r = await expEngine.consultarSecopIPorEntidad('invias', coincideInvias, fetchSimulado(base, reg));
+  assert(r.nombres.length === 1 && /INVIAS/.test(r.nombres[0]), 'nombres: ' + JSON.stringify(r.nombres));
+  assert(r.filas.length === 800, 'se esperaban 800 (tope de 2 páginas), fueron ' + r.filas.length);
+  assert(r.filas.every(f => f.nombre_entidad === r.nombres[0]), 'todas las filas deben ser de la entidad');
+  assert(reg.some(p => p['$where'] && p['$offset'] === '400'), 'debe paginar con $offset');
+});
+
+await check('SI-001: si la búsqueda por la ancla completa no encuentra la entidad, prueba cada palabra', async () => {
+  const base = [{ uid: '1', nombre_entidad: 'INSTITUTO NACIONAL DE VÍAS (INVIAS)', objeto: 'invias' }];
+  const reg = [];
+  const r = await expEngine.consultarSecopIPorEntidad('instituto nacional', coincideInvias, fetchSimulado(base, reg), ['instituto', 'nacional', 'invias']);
+  assert(r.filas.length === 1, 'se esperaba 1 fila, fueron ' + r.filas.length + ' con consultas ' + JSON.stringify(reg.map(p => p['$q'])));
+  const sinNada = await expEngine.consultarSecopIPorEntidad('zzzz', coincideInvias, fetchSimulado(base, []));
+  assert(sinNada.filas.length === 0 && sinNada.nombres.length === 0, 'sin entidad no inventa filas');
+});
+
+await check('SI-001: un apóstrofo en el nombre de la entidad se escapa en el $where', async () => {
+  const base = [{ uid: '1', nombre_entidad: "D'ANGELO INVIAS", objeto: 'invias' }];
+  const reg = [];
+  const r = await expEngine.consultarSecopIPorEntidad('invias', coincideInvias, fetchSimulado(base, reg));
+  assert(r.filas.length === 1 && reg.some(p => (p['$where'] || '').includes("D''ANGELO")), 'no escapó el apóstrofo: ' + JSON.stringify(reg));
+});
+
+await check('SI-002: un fallo transitorio se reintenta una vez; un fallo persistente se propaga (y TR-003 lo avisa)', async () => {
+  let n = 0;
+  const v = await expEngine.conReintento(async () => { n++; if (n === 1) throw new Error('timeout'); return 'ok'; }, 2);
+  assert(v === 'ok' && n === 2, 'debía reintentar: n=' + n);
+  let m = 0, err = null;
+  try { await expEngine.conReintento(async () => { m++; throw new Error('503'); }, 2); } catch (e) { err = e; }
+  assert(err && err.message === '503' && m === 2, 'debía propagar tras 2 intentos: m=' + m);
+});
+
+await check('SI-001: la coincidencia estricta distingue "Norte de Santander" de "Santander" y acepta el nombre real de INVIAS', () => {
+  const g = expEngine.prepararBusquedaPorNombre('Gobernación de Norte de Santander');
+  assert(g.coincideEstricta('NORTE DE SANTANDER - GOBERNACIÓN') === true, 'debe aceptar la propia');
+  assert(g.coincideEstricta('SANTANDER - GOBERNACIÓN') === false, 'no debe aceptar la Gobernación de Santander');
+  assert(g.coincide('SANTANDER - GOBERNACIÓN') === true, 'control: la coincidencia tolerante sí la dejaba pasar');
+  const i = expEngine.prepararBusquedaPorNombre('INSTITUTO NACIONAL DE VIAS - INVIAS');
+  assert(i.coincideEstricta('INSTITUTO NACIONAL DE VÍAS (INVIAS)') === true, 'INVIAS con su nombre de SECOP I');
+  assert(i.palabras[0].length >= i.palabras[i.palabras.length - 1].length, 'palabras de mayor a menor longitud');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

@@ -51,6 +51,11 @@ Fecha: 2026-09-26 · Estado de la aplicación: **BLOQUEADO** · Detalle de cada 
 | TR-002 | 2026-09-26 | **CORREGIDO** | Las adjudicaciones se deduplican por `uid` (SECOP I) o id de proceso + adjudicatario + valor (SECOP II), conservando la de mayor valor. Comprobado con datos reales: en SECOP I, 398 filas de UFPS Cúcuta traen solo 202 `uid` distintos. |
 | TR-003 | 2026-09-26 | **CORREGIDO** | El estado de cada fuente viaja con el resultado: si una consulta falla se muestra un aviso con su nombre y el error; con ambas caídas ya no dice "no se encontraron procesos"; si falla SECOP II no se sugiere oferta. |
 
+| SI-001 | 2026-09-26 | **PARCIAL (mejora grande, medida con datos reales)** | La consulta a SECOP I ya no toma 400 filas por `$q` y filtra después: resuelve el nombre EXACTO de la entidad en una muestra y pide sus filas con `$where=nombre_entidad='...'`, paginando (hasta 800). Medido en la API real: INVIAS pasó de 1 de 987 a 800 filas en 1,9 s; Gobernación de Norte de Santander a 800 filas de la entidad correcta (antes se colaba "SANTANDER - GOBERNACIÓN", ahora hay coincidencia estricta). **Sigue abierto:** la Alcaldía de Medellín no se identifica (su nombre en SECOP I no aparece en la muestra de filas recientes); en ese caso la pantalla lo dice ("no se pudo identificar a esta entidad en SECOP I") en vez de mostrar 0 como si no hubiera historial. Falta un índice de nombres de entidad para resolver esos casos, y la muestra `$q` puede tardar 10-30 s en SECOP I. |
+| SI-002 | 2026-09-26 | **CORREGIDO** | Timeout de 30 s (antes 15 s) con un reintento; un fallo o timeout ya no es silencioso: se avisa por fuente (TR-003) y, si la entidad no se resuelve, se explica. |
+
+Verificación de SI-001/002: 172/172 pruebas (5 nuevas) y 5 mutaciones detectadas; consultas reales a SECOP I con tres entidades.
+
 Verificación de TR-001..003: 167/167 pruebas (5 nuevas) y 4 mutaciones detectadas; `uid` y duplicados confirmados contra la API real de SECOP I.
 
 Verificación de MC-015 e IA-006..010: 162/162 pruebas (5 nuevas) y 13 mutaciones detectadas.

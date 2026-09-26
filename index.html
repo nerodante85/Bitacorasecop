@@ -7206,7 +7206,17 @@
       const chico = a.length <= b.length ? a : b, grande = a.length <= b.length ? b : a;
       return chico.length >= 2 && chico.every(w => grande.indexOf(w) !== -1);
     };
-    return { ancla, coincide };
+    // Versión ESTRICTA (SI-001): todas las palabras distintivas del nombre buscado deben estar en el
+    // candidato. `coincide` (tolerante) dejaba pasar "SANTANDER - GOBERNACIÓN" al buscar la
+    // Gobernación de NORTE de Santander; aquí se usa para resolver el nombre exacto en SECOP I.
+    const coincideEstricta = candidato => {
+      const c = norm(candidato);
+      if (!c) return false;
+      if (c === objetivo || c.indexOf(objetivo) !== -1) return true;
+      const tc = c.split(' ');
+      return toks.length >= 2 && toks.every(w => tc.indexOf(w) !== -1);
+    };
+    return { ancla, coincide, coincideEstricta, palabras: toks.slice().sort((a, b) => b.length - a.length) };
   }
 
   // La más reciente de las fechas plausibles del registro (findAllDates ya
@@ -7222,7 +7232,7 @@
   }
 
   async function buscarAdjudicaciones(entidad){
-    const { ancla, coincide } = prepararBusquedaPorNombre(entidad);
+    const { ancla, coincide, coincideEstricta, palabras } = prepararBusquedaPorNombre(entidad);
 
     async function deSecopII(){
       const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?$limit=400&$q=' + encodeURIComponent(ancla);
@@ -7263,13 +7273,22 @@
     // de cargue más reciente primero -- con 6.4M de filas en la tabla, sin
     // orden el $limit=400 podría devolver una muestra vieja y no representativa.
     async function deSecopI(){
-      const url = 'https://www.datos.gov.co/resource/' + SECOP_I_DATASET + '.json?$limit=400&$q=' +
-        encodeURIComponent(ancla) + '&$order=fecha_de_cargue_en_el_secop%20DESC';
-      const res = await withTimeout(fetch(url, socrataFetchOptions()), 15000, 'La consulta de adjudicaciones (SECOP I)');
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+      // Auditoría SI-001/SI-002: antes era `$q` + `$limit=400` y el filtro por entidad se hacía
+      // DESPUÉS en el cliente (INVIAS: 1 de 987 filas). Ahora se resuelve primero el nombre
+      // EXACTO de la entidad en una muestra y se piden sus filas con `$where` (indexable, ~0,6 s),
+      // paginando. Timeout de 30 s con un reintento (la tabla tiene 6,4 M de filas).
+      const fetchJson = params => conReintento(async () => {
+        const url = 'https://www.datos.gov.co/resource/' + SECOP_I_DATASET + '.json?' + new URLSearchParams(params).toString();
+        const res = await withTimeout(fetch(url, socrataFetchOptions()), 30000, 'La consulta de adjudicaciones (SECOP I)');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        if (!Array.isArray(d)) throw new Error('respuesta inesperada');
+        return d;
+      }, 2);
+      const resuelto = await consultarSecopIPorEntidad(ancla, coincideEstricta, fetchJson, palabras);
+      const data = resuelto.filas;
       const out = [];
+      out.entidadNoResuelta = !resuelto.nombres.length;
       data.forEach(r => {
         const ent = findField(r, ['nombre_entidad', 'entidad'], 'entidad') || '';
         if (!coincide(ent)) return;
@@ -7309,6 +7328,7 @@
     };
     const bruto = (resII.status === 'fulfilled' ? resII.value : []).concat(resI.status === 'fulfilled' ? resI.value : []);
     const out = deduplicarAdjudicaciones(bruto);
+    if (resI.status === 'fulfilled' && resI.value.entidadNoResuelta) fuentes.I.aviso = 'no se pudo identificar a esta entidad en SECOP I (el nombre allí es distinto); su historial anterior a SECOP II puede existir y no aparece aquí';
     // más recientes/grandes primero
     out.sort((a, b) => (b.valorAdj || 0) - (a.valorAdj || 0));
     out.fuentes = fuentes;
@@ -7517,9 +7537,60 @@
   function avisoFuentesHtml(fuentes){
     if (!fuentes) return '';
     const fallidas = ['II', 'I'].filter(k => fuentes[k] && !fuentes[k].ok);
-    if (!fallidas.length) return '';
+    if (!fallidas.length){
+      return (fuentes.I && fuentes.I.aviso) ? '<div class="analysis-block analysis-warn" role="status">ℹ SECOP I: ' + escapeHtml(fuentes.I.aviso) + '.</div>' : '';
+    }
     return '<div class="analysis-block analysis-warn" role="alert">⚠ No se pudo consultar ' + fallidas.map(k => 'SECOP ' + k + ' (' + escapeHtml(fuentes[k].error) + ')').join(' ni ') +
       '. Los resultados de abajo son parciales' + (fallidas.length === 2 ? ' (ninguna fuente respondió)' : '') + ': no significa que la entidad no tenga adjudicaciones.</div>';
+  }
+
+  // Auditoría SI-002: un fallo transitorio (timeout de una tabla de 6,4 M de filas) se reintenta
+  // una vez antes de darlo por perdido.
+  async function conReintento(fn, intentos){
+    let ultimo;
+    for (let i = 0; i < intentos; i++){
+      try { return await fn(); } catch(e){ ultimo = e; }
+    }
+    throw ultimo;
+  }
+
+  // Auditoría SI-001: nombres EXACTOS (los que usa el dataset) de la entidad buscada, tomados de una
+  // muestra de filas; los más frecuentes primero, máximo 3 (una entidad suele escribirse igual siempre).
+  function nombresExactosDeMuestra(muestra, coincide){
+    const cuenta = new Map();
+    (muestra || []).forEach(r => {
+      const n = r && r.nombre_entidad;
+      if (n && coincide(n)) cuenta.set(n, (cuenta.get(n) || 0) + 1);
+    });
+    return Array.from(cuenta.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
+  }
+
+  // Dos pasos: (1) muestra por `$q` -> nombres exactos; (2) todas las filas de esas entidades por
+  // `$where=nombre_entidad='...'`, hasta 800. `fetchJson(params)` se inyecta (así se prueba sin red).
+  async function consultarSecopIPorEntidad(ancla, coincide, fetchJson, palabrasExtra){
+    // Si la ancla (las 2 palabras más largas) no trae la entidad, se prueba cada palabra distintiva
+    // ('instituto nacional' no trae INVIAS, 'invias' sí).
+    const palabras = (palabrasExtra && palabrasExtra.length) ? palabrasExtra : String(ancla || '').split(' ').filter(Boolean);
+    // Las palabras institucionales genéricas ("instituto", "alcaldia"...) traen muestras dominadas por
+    // otras entidades: se prueban primero las distintivas ('invias', 'medellin').
+    const GENERICAS_ENTIDAD = /^(instituto|nacional|alcaldia|gobernacion|municipio|municipal|departamento|departamental|empresa|empresas|universidad|secretaria|ministerio|hospital|distrito|unidad|agencia|corporacion|fondo|direccion|servicio|servicios|publica|publico|social)$/;
+    const distintivas = palabras.filter(w => !GENERICAS_ENTIDAD.test(w));
+    const consultas = distintivas.concat([ancla], palabras).filter((q, i, a) => q && a.indexOf(q) === i).slice(0, 3);
+    let nombres = [];
+    for (const q of consultas){
+      const muestra = await fetchJson({ '$q': q, '$limit': '400', '$select': 'nombre_entidad', '$order': 'fecha_de_cargue_en_el_secop DESC' });
+      nombres = nombresExactosDeMuestra(muestra, coincide);
+      if (nombres.length) break;
+    }
+    const filas = [];
+    for (const nom of nombres){
+      for (let off = 0; off < 800; off += 400){
+        const pag = await fetchJson({ '$where': "nombre_entidad='" + nom.replace(/'/g, "''") + "'", '$order': 'fecha_de_cargue_en_el_secop DESC', '$limit': '400', '$offset': String(off) });
+        filas.push.apply(filas, pag);
+        if (pag.length < 400) break;
+      }
+    }
+    return { filas: filas, nombres: nombres };
   }
 
   function renderOfertaSugeridaHtml(sug){
