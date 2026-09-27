@@ -1,6 +1,6 @@
 # RELEASE-BLOCKERS — Bitácora SECOP
 
-Fecha: 2026-09-26 · Estado de la aplicación: **BLOQUEADO** · Detalle de cada ID en `AUDIT-REPORT.md`.
+Fecha: 2026-09-26 (reauditoría 2026-09-27: ver `REAUDITORIA-2026-09-27.md`) · Estado de la aplicación: **BETA CONTROLADA (condicionada)** -- antes BLOQUEADO · Detalle de cada ID en `AUDIT-REPORT.md`.
 
 ## Registro de correcciones (se actualiza al cerrar cada bloqueador)
 
@@ -84,6 +84,8 @@ Fecha: 2026-09-26 · Estado de la aplicación: **BLOQUEADO** · Detalle de cada 
 | PRIV-002 (verificación real) | 2026-09-27 | **VERIFICADO de punta a punta** | Con una cuenta desechable creada desde el panel de Supabase: la descarga trajo el perfil y el correo, y "Eliminar mi cuenta y mis datos" borró la cuenta y sus datos (el usuario desapareció de Authentication y `app_state` quedó sin filas). Resultado comunicado por la persona responsable del proyecto. La función `eliminar-cuenta` está desplegada y rechaza llamadas sin sesión válida (401). |
 | SEG-001 (verificación real) | 2026-09-27 | **CORREGIDO en el proyecto real** | `GET /auth/v1/settings` devuelve `mailer_autoconfirm: false` (comprobado dos veces) y el mínimo de contraseña se subió a 8 en el panel. Pendiente: CAPTCHA (opcional) y un remitente SMTP propio, porque con el correo integrado de Supabase los mensajes de confirmación no llegan a direcciones ajenas al equipo. |
 | `daily-digest` | 2026-09-27 | **DESPLEGADA** | Con saneamiento de nombres, límites, presupuesto de tiempo y respuesta 500 ante errores. |
+
+| RA-1..RA-7 (reauditoría) | 2026-09-27 | **CORREGIDOS** | Hallazgos nuevos encontrados con pruebas adversariales: mínimos con miles en espacio ("1 200 000 000" valía 200) y abreviaturas M/MM/K (subestimaban un mínimo = CUMPLE falso), participación dudosa, negaciones de obligatoriedad, "mts2", veredicto sin gates y afinación de la detección de inyección. 193/193 pruebas y mutaciones detectadas. Detalle en `REAUDITORIA-2026-09-27.md`. |
 
 Verificación de esta ronda: 188/188 pruebas (7 nuevas) y 9 mutaciones detectadas; respaldo (descargar y restaurar) y bloqueo por esquema más nuevo comprobados en pantalla; el bloque de almacenamiento lleno (PERF-005) y los cambios de `daily-digest` no se pudieron probar de extremo a extremo.
 

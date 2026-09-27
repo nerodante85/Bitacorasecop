@@ -4172,7 +4172,11 @@
   function valorAcreditable(c){
     if (c.valor == null) return null;
     const p = c.participacion && c.participacion.valor;
-    if (c.valorAjustado || p == null || !(p > 0) || p >= 100) return c.valor;
+    if (c.valorAjustado || p == null) return c.valor;
+    // Reauditoría: 0, un valor <= 1 sin "%" (¿0,3 = 30%?) o > 100 son datos dudosos: antes 0 y >100 valían
+    // el contrato ENTERO (sobrestimaba) y 0,3 valía 0,3% (subestimaba). Ahora no se puede verificar.
+    if (!(p > 1) || p > 100) return null;
+    if (p === 100) return c.valor;
     return c.valor * p / 100;
   }
 
@@ -4277,7 +4281,7 @@
   //   aparecen.
   const UNIDADES_CONTABLES = 'unidades?|viviendas?|aulas?|puestos?|c[aá]mas?|apartamentos?';
   // Auditoría MC-009: también abreviaturas (m, mts, ml, m.l., cm) y "metros lineales".
-  const UNIDADES_DIMENSIONALES = 'metros?|kil[oó]metros?|km|m2|m²|m3|m³|hect[aá]reas?|toneladas?|kilovatios?|kw|megavatios?|mw|kilogramos?|kg|litros?|mts?|ml|m\\.\\s?l\\.?|cent[ií]metros?|cms?|m';
+  const UNIDADES_DIMENSIONALES = 'metros?|kil[oó]metros?|km|m2|m²|m3|m³|hect[aá]reas?|toneladas?|kilovatios?|kw|megavatios?|mw|kilogramos?|kg|litros?|mts?[23²³]?|ml|m\\.\\s?l\\.?|cent[ií]metros?|cms?|m';
 
   function extraerCantidadConUnidadContable(texto){
     const patrones = [
@@ -4546,11 +4550,11 @@
     const oblRaw = normHeader(String(celdas.obligatoriedad || '') + ' ' + criterioTexto);
     // Auditoría MC-011: "No es opcional" no es opcional, y "cualquiera de los socios del
     // consorcio" no es una alternativa entre requisitos.
-    const negado = w => new RegExp('\\bno\\s+(?:(?:es|son|sera|seran|resulta|resultan|debe|deben|puede|pueden)\\s+)*(?:ser\\s+)?' + w).test(oblRaw);
+    const negado = w => new RegExp('\\b(?:no|ni|sin)\\b[^.;:]{0,40}\\b' + w).test(oblRaw);
     let obligatoriedad = 'obligatorio';
     if (/opcional/.test(oblRaw) && !negado('opcional')) obligatoriedad = 'opcional';
     else if (/complementari/.test(oblRaw) && !negado('complementari')) obligatoriedad = 'complementario';
-    else if (/alternativ|cualquiera de(?! (?:los|las) (?:socios|integrantes|miembros|consorciados|asociados|partes))|uno de los siguientes|o bien/.test(oblRaw) && !negado('alternativ')) obligatoriedad = 'alternativo';
+    else if (/alternativ|\bcualquiera de(?! (?:los|las) (?:socios|integrantes|miembros|consorciados|asociados|partes))|\buno de los siguientes|o bien/.test(oblRaw) && !negado('alternativ')) obligatoriedad = 'alternativo';
     const cntTxt = celdas.minContratos ? null : minContratosDeTexto(criterioTexto);
     const minContratos = celdas.minContratos ? parseNumCO(String(celdas.minContratos)) : (cntTxt ? cntTxt.valor : null);
     const contratosAmbiguo = (cntTxt && cntTxt.ambiguo) ? cntTxt.fragmento : null;
@@ -5366,12 +5370,17 @@
     const limpio = String(s)
       .replace(/\b(?:ley|decreto|resoluci[oó]n|circular|acuerdo|art[ií]culo|art\.?|numeral)\s*(?:n[oº°.]*\s*)?\d[\d.,\-\/]*(?:\s*(?:de|del)\s*(?:19|20)\d{2})?/gi, ' ')
       .replace(new RegExp('\\bde\\s+(?:' + MESES_RE_V + ')\\s+(?:de\\s+)?(?:19|20)\\d{2}\\b', 'gi'), ' ')
-      .replace(/\b(?:a[ñn]o|vigencia|corte)\s+(?:de\s+)?(?:19|20)\d{2}\b/gi, ' ');
+      .replace(/\b(?:a[ñn]o|vigencia|corte)\s+(?:de\s+)?(?:19|20)\d{2}\b/gi, ' ')
+      // Reauditoría: "1 200 000 000" (miles con espacio) se leía como 200 y SUBESTIMABA un mínimo.
+      .replace(/(?<![\d.,])(\d{1,3})((?:[ \u00a0]\d{3}){1,4})(?![\d])/g, (m0, a, b) => a + b.replace(/[ \u00a0]/g, ''));
     const nums = [];
     const reNum = /(\d[\d.,]*\d|\d)(?:\s*(mil\s+millones|millones?|billones?|mil)(?![a-záéíóúñ]))?/gi;
     let mN;
     while ((mN = reNum.exec(limpio)) !== null){
       if (/^\d{1,3},\d{3}$/.test(mN[1])) continue; // ambiguo: 1,5 ó 1.500
+      // Reauditoría: "$1.500 M" / "500 MM" / "20 K": abreviaturas de monto ambiguas (¿millones, miles de
+      // millones?): leerlas como 1500 SUBESTIMABA un mínimo; se descartan (=> NO DETERMINABLE).
+      if (!mN[2] && /^\s*(?:mm|m|k)(?![a-z0-9²³áéíóúñ])/i.test(limpio.slice(reNum.lastIndex))) continue;
       let n = parseNumCO(mN[1]);
       if (n == null || n < 0) continue;
       const mult = (mN[2] || '').toLowerCase().replace(/\s+/g, ' ');
@@ -5463,6 +5472,9 @@
         if (m[0].length === 0){ re.lastIndex++; continue; } // salvaguarda: evita un loop infinito si algún regex futuro pudiera matchear vacío
         const valor = parseNumCO(m[1]);
         if (valor == null) continue;
+        // El propio decreto baja el mínimo en contratos superiores a 1.000.000 SMMLV: no se alerta.
+        const ctxRF = t.slice(Math.max(0, m.index - 200), m.index + m[0].length + 200);
+        if (/1\.?000\.?000\s*(?:smmlv|s\.?m\.?m\.?l\.?v|salarios)/i.test(ctxRF)) continue;
         const base = {
           pagina: paginaDeOffset(paginaOffsets, m.index),
           snippet: (function(){ const s = m[0].trim().replace(/\s+/g, ' '); return s.length > 200 ? s.slice(0, 200) + '…' : s; })()
@@ -6046,7 +6058,7 @@
   }
 
   // IA-007: frases dirigidas a una IA dentro del PDF (intento de inyección de instrucciones).
-  const RE_INYECCION_IA = /\b(?:ignor[ae]\w*|olvida\w*|desestim\w*)\s+(?:todas?\s+)?(?:las\s+|tus\s+)?(?:instrucciones|indicaciones|reglas)|instrucciones\s+(?:anteriores|previas)|\b(?:eres|actua como)\s+(?:un\s+)?(?:asistente|ia|modelo)|\bsystem prompt\b|ignore\s+(?:all\s+|the\s+)?(?:previous|above)\s+instructions|\b(?:dirigido|para)\s+(?:a\s+)?(?:la\s+|el\s+)?(?:ia|inteligencia artificial|modelo de lenguaje|asistente de ia)\b|\bno\s+(?:reportes|extraigas|incluyas)\b.{0,40}\b(?:requisitos?|filas?)|marca\w*\s+(?:todos\s+)?(?:los\s+)?requisitos?\s+como\s+(?:cumple|cumplidos?|verificad\w*)/;
+  const RE_INYECCION_IA = /\b(?:ignor[ae]\w*|olvida\w*|desestim\w*)\s+(?:todas?\s+)?(?:las\s+|tus\s+)?(?:instrucciones|indicaciones|reglas)|\b(?:asistente|modelo|agente)\s+de\s+ia\b|\bmodelo\s+de\s+lenguaje\b|\b(?:estimado|querido)\s+(?:asistente|modelo|ia)\b|\b(?:eres|actua como)\s+(?:un\s+)?(?:asistente|ia|modelo)|\bsystem prompt\b|ignore\s+(?:all\s+|the\s+)?(?:previous|above)\s+instructions|\b(?:dirigido|para)\s+(?:a\s+)?(?:la\s+|el\s+)?(?:ia|inteligencia artificial|modelo de lenguaje|asistente de ia)\b|\bno\s+(?:reportes|extraigas|incluyas)\b.{0,40}\b(?:requisitos?|filas?)|marca\w*\s+(?:todos\s+)?(?:los\s+)?requisitos?\s+como\s+(?:cumple|cumplidos?|verificad\w*)/;
   function detectarInyeccionEnTexto(text, paginaOffsets, documento){
     const hallazgos = [];
     const offs = paginaOffsets || [];
@@ -6569,6 +6581,7 @@
   // está en verde y hay pliego, GO.
   function decidirVeredicto(gates, hayPliego){
     if (gates.some(x => x.estado === 'fail')) return 'NO-GO';
+    if (!gates.length) return 'REVISAR'; // sin nada evaluado no se afirma un GO
     if (gates.some(x => x.estado === 'revisar' || x.estado === 'nd') || !hayPliego) return 'REVISAR';
     return 'GO';
   }
