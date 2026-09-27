@@ -1137,6 +1137,17 @@
             </div>
           </div>
 
+          <div class="titleblock" id="bt-dash-respaldo-panel">
+            <div class="titleblock-head"><h2>Respaldo de tus datos</h2></div>
+            <p class="saved-note">Sin cuenta, tus perfiles, experiencia y análisis viven solo en este navegador: si borras los datos del navegador, se pierden. Descarga un respaldo de vez en cuando; puedes restaurarlo aquí o en otro navegador.</p>
+            <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="btn-secondary" id="bt-respaldo-export">⬇ Descargar respaldo (.json)</button>
+              <button type="button" class="btn-secondary" id="bt-respaldo-import">Restaurar un respaldo…</button>
+              <input type="file" id="bt-respaldo-file" accept="application/json,.json" style="display:none" aria-label="Archivo de respaldo a restaurar">
+            </div>
+            <div class="saved-note" id="bt-respaldo-msg" role="status" hidden></div>
+          </div>
+
           <div class="titleblock" id="bt-dash-alertas-panel">
             <div class="titleblock-head">
               <h2>Alertas</h2>
@@ -1754,7 +1765,7 @@
       script.integrity = 'sha384-JBR+x8blGwjDRO63aHCGiZMD4VNiTR4ZUGA+N6ZKLf3zNt1fK8IBpcgPaMrxqWBp';
       script.crossOrigin = 'anonymous';
       script.onload = () => resolve(window.supabase);
-      script.onerror = () => reject(new Error('no se pudo cargar el módulo de cuenta (revisa tu conexión)'));
+      script.onerror = () => { window.__bitacoraSupabasePromise = null; script.remove(); reject(new Error('no se pudo cargar el módulo de cuenta (revisa tu conexión)')); };
       document.head.appendChild(script);
     });
     return window.__bitacoraSupabasePromise;
@@ -1801,7 +1812,7 @@
     'historial', 'perfiles_empresa', 'perfil_activo_id', 'perfiles_activos',
     'perfil_empresa', 'analisis_pliegos', 'experiencia_evaluacion',
     'perfiles_profesionales', 'personal_activo_id', 'ultima_vista',
-    'alertas_guardadas', 'correo_digest_activo'
+    'alertas_guardadas', 'correo_digest_activo', 'schema_version'
   ];
 
   // Copia UNA sola vez lo que ya hubiera en este navegador a la cuenta recién
@@ -1834,6 +1845,7 @@
         sbCompanyId = await resolveCompanyId();
         if (sbCompanyId) await migrarLocalASupabaseSiVacio(sbCompanyId);
       }
+      await verificarVersionEsquema();
     } catch(e){
       console.error('No se pudo restaurar la sesión de cuenta, se sigue en modo local (solo este navegador)', e);
       sbSession = null; sbCompanyId = null;
@@ -1846,6 +1858,23 @@
   // por conexión no se pierde el dato, solo se avisa por consola que quedó
   // sin sincronizar.
   const localBackend = { get: window.storage.get, set: window.storage.set };
+  // ARQ-002: versión del formato de los datos guardados. Si los datos los guardó una versión MÁS NUEVA
+  // de la app, esta no los sobrescribe (evita que una pestaña con la app vieja pise datos nuevos).
+  const SCHEMA_VERSION = 1;
+  let esquemaBloqueado = false;
+  async function verificarVersionEsquema(){
+    try {
+      const r = await window.storage.get('schema_version', false);
+      const estado = evaluarVersionEsquema(r && r.value, SCHEMA_VERSION);
+      if (estado === 'mas_nueva'){
+        esquemaBloqueado = true;
+        mostrarAvisoGuardado('Tus datos los guardó una versión más nueva de Bitácora SECOP. Esta pestaña tiene una versión anterior y NO guardará cambios para no dañarlos: recarga la página (Ctrl+F5) para actualizar.');
+      } else if (estado === 'migrar'){
+        // Aún no hay migraciones (la versión 1 es el formato actual): solo se registra la versión.
+        await window.storage.set('schema_version', String(SCHEMA_VERSION), false);
+      }
+    } catch(e){ console.error('No se pudo verificar la versión de los datos', e); }
+  }
   window.storage.get = async function(key){
     if (sbSession && sbCompanyId){
       try {
@@ -1860,6 +1889,7 @@
     return localBackend.get(key);
   };
   window.storage.set = async function(key, value){
+    if (esquemaBloqueado) return { key, value };
     await localBackend.set(key, value);
     if (sbSession && sbCompanyId){
       try {
@@ -1871,6 +1901,7 @@
         if (error) throw error;
       } catch(e){
         console.error('No se pudo sincronizar "' + key + '" con la cuenta (se guardó solo en este navegador)', e);
+        mostrarAvisoGuardado('No se pudo sincronizar tus cambios con tu cuenta (' + ((e && e.message) || 'error de red') + '). Quedaron guardados solo en este navegador; no los abras en otro dispositivo hasta que se sincronicen.');
       }
     }
     return { key, value };
@@ -3295,9 +3326,21 @@
   }
 
   async function saveAnalisis(){
-    try {
-      await window.storage.set('analisis_pliegos', JSON.stringify(analisis), false);
-    } catch(e){
+    // PERF-005: si el almacenamiento del navegador se llena, se libera primero el texto completo de
+    // los pliegos más antiguos (sus resultados se conservan) y se reintenta, en vez de perder el cambio.
+    let liberados = 0;
+    for (let intento = 0; intento < 60; intento++){
+      try {
+        await window.storage.set('analisis_pliegos', JSON.stringify(analisis), false);
+        if (liberados) mostrarAvisoGuardado('El almacenamiento del navegador estaba casi lleno: se liberó el texto guardado de ' + liberados + ' pliego(s) antiguo(s). Sus resultados se conservan, pero para volver a evaluarlos hay que cargar de nuevo su PDF.');
+        return;
+      } catch(e){
+        const liberado = liberarTextoMasAntiguo(analisis);
+        if (!liberado){ console.error('No se pudo guardar el análisis en window.storage', e); break; }
+        liberados++;
+      }
+    }
+    try { throw new Error('cuota'); } catch(e){
       console.error('No se pudo guardar el análisis en window.storage', e);
       mostrarAvisoGuardado('No se pudo guardar el análisis de pliegos (posiblemente el almacenamiento del navegador está lleno). Los cambios recientes podrían perderse al recargar: elimina análisis antiguos o inicia sesión para sincronizarlos en la nube.');
     }
@@ -3567,7 +3610,7 @@
           resolve(window.pdfjsLib);
         } catch(e){ reject(e); }
       };
-      script.onerror = () => reject(new Error('no se pudo cargar el lector de PDF (revisa tu conexión)'));
+      script.onerror = () => { window.__bitacoraPdfjsPromise = null; script.remove(); reject(new Error('no se pudo cargar el lector de PDF (revisa tu conexión)')); };
       document.head.appendChild(script);
     });
     return window.__bitacoraPdfjsPromise;
@@ -3604,7 +3647,7 @@
       script.integrity = 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F';
       script.crossOrigin = 'anonymous';
       script.onload = () => resolve(window.Tesseract);
-      script.onerror = () => reject(new Error('no se pudo cargar el lector OCR (revisa tu conexión)'));
+      script.onerror = () => { window.__bitacoraTesseractPromise = null; script.remove(); reject(new Error('no se pudo cargar el lector OCR (revisa tu conexión)')); };
       document.head.appendChild(script);
     });
     return window.__bitacoraTesseractPromise;
@@ -3791,7 +3834,7 @@
       script.integrity = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
       script.crossOrigin = 'anonymous';
       script.onload = () => resolve(window.XLSX);
-      script.onerror = () => reject(new Error('no se pudo cargar el lector de Excel (revisa tu conexión)'));
+      script.onerror = () => { window.__bitacoraXlsxPromise = null; script.remove(); reject(new Error('no se pudo cargar el lector de Excel (revisa tu conexión)')); };
       document.head.appendChild(script);
     });
     return window.__bitacoraXlsxPromise;
@@ -3810,7 +3853,7 @@
       script.integrity = 'sha384-xqNXvcKbEqifokHcBnB0H32p+OQchhD/T/xJGWCMAW5fC0c0MBf9atO3weoPCT84';
       script.crossOrigin = 'anonymous';
       script.onload = () => resolve(window.mammoth);
-      script.onerror = () => reject(new Error('no se pudo cargar el lector de Word (revisa tu conexión)'));
+      script.onerror = () => { window.__bitacoraMammothPromise = null; script.remove(); reject(new Error('no se pudo cargar el lector de Word (revisa tu conexión)')); };
       document.head.appendChild(script);
     });
     return window.__bitacoraMammothPromise;
@@ -6424,6 +6467,58 @@
     return entry.numPages ? 'Leído: ' + entry.numPages + '/' + entry.numPages + ' págs' : 'Pliego analizado';
   }
   const AVISO_ORIENTATIVO = 'Orientativo. Confirma con el pliego oficial.';
+
+  // ---- Auditoría OPS-008 / ARQ-002: respaldo de datos y versión de esquema --------------
+  const RESPALDO_FORMATO = 'bitacora-respaldo';
+  const RESPALDO_VERSION = 1;
+  // `valores`: { clave: texto|null }. Solo se guardan las claves con dato.
+  function armarRespaldo(valores, ahoraISO){
+    const claves = {};
+    Object.keys(valores || {}).forEach(k => { if (valores[k] != null) claves[k] = String(valores[k]); });
+    return { formato: RESPALDO_FORMATO, version: RESPALDO_VERSION, generado: ahoraISO || new Date().toISOString(), claves: claves };
+  }
+  // Valida un archivo de respaldo ANTES de tocar nada: formato conocido, versión no mayor a la
+  // que entiende esta app, solo claves permitidas (las demás se ignoran).
+  function validarRespaldo(texto, clavesPermitidas){
+    let obj;
+    try { obj = JSON.parse(texto); } catch(_e){ return { ok: false, error: 'El archivo no es un respaldo válido (no es JSON).' }; }
+    if (!obj || obj.formato !== RESPALDO_FORMATO) return { ok: false, error: 'El archivo no es un respaldo de Bitácora SECOP.' };
+    if (typeof obj.version !== 'number' || obj.version > RESPALDO_VERSION) return { ok: false, error: 'El respaldo es de una versión más nueva de la app (' + obj.version + '): actualiza la app antes de restaurarlo.' };
+    if (!obj.claves || typeof obj.claves !== 'object') return { ok: false, error: 'El respaldo no trae datos.' };
+    const permitidas = clavesPermitidas || [];
+    const claves = {}, ignoradas = [];
+    Object.keys(obj.claves).forEach(k => {
+      if (permitidas.indexOf(k) === -1){ ignoradas.push(k); return; }
+      claves[k] = obj.claves[k];
+    });
+    if (!Object.keys(claves).length) return { ok: false, error: 'El respaldo no trae ninguna clave reconocida.' };
+    return { ok: true, claves: claves, ignoradas: ignoradas, generado: obj.generado || null };
+  }
+  // 'ok' = misma versión; 'migrar' = datos de una versión anterior o sin versión; 'mas_nueva' = los
+  // datos los guardó una versión más nueva de la app y esta NO debe sobrescribirlos.
+  function evaluarVersionEsquema(guardada, actual){
+    const g = guardada == null || guardada === '' ? 0 : Number(guardada);
+    if (isNaN(g)) return 'migrar';
+    if (g > actual) return 'mas_nueva';
+    return g === actual ? 'ok' : 'migrar';
+  }
+  // PERF-005: al llenarse el almacenamiento, se libera el texto completo de los pliegos más antiguos
+  // (lo más pesado) conservando sus resultados. Devuelve el id liberado o null si ya no hay nada.
+  function liberarTextoMasAntiguo(analisisObj){
+    const ids = Object.keys(analisisObj || {}).filter(id => {
+      const e = analisisObj[id];
+      return e && (e.text || e.ocrText || e.estudioPrevioText);
+    }).sort((a, b) => (analisisObj[a].ts || 0) - (analisisObj[b].ts || 0));
+    if (!ids.length) return null;
+    const e = analisisObj[ids[0]];
+    e.text = ''; e.ocrText = ''; e.estudioPrevioText = '';
+    e.textoLiberado = true;
+    return ids[0];
+  }
+  // SEG-005: un enlace solo se usa como href si es http(s).
+  function safeHref(url){
+    return (url && /^https?:\/\//i.test(String(url).trim())) ? String(url).trim() : null;
+  }
 
   // ---- Auditoría de pre-lanzamiento: cuándo puede aparecer un GO -------------------
   // RT-004: sin K residual en el perfil (o con el valor de la obra en 0) el gate de
@@ -9082,7 +9177,7 @@
       '<div class="recent-item-sub">' + escapeHtml(sub) + '</div>' +
       nota +
       '</div><span class="tag fuente">PAA' + (item.annio ? ' ' + escapeHtml(String(item.annio)) : '') + '</span>' +
-      (item.url ? ' <a class="link-btn" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">Ver en SECOP →</a>' : '') +
+      (safeHref(item.url) ? ' <a class="link-btn" href="' + escapeHtml(safeHref(item.url)) + '" target="_blank" rel="noopener noreferrer">Ver en SECOP →</a>' : '') +
       '</div>';
   }
 
@@ -10017,6 +10112,15 @@
   function evaluarExperienciaDeProceso(id, slot){
     const entry = analisis[id];
     if (!entry) return;
+    // PERF-005: con el texto liberado no se puede volver a extraer requisitos del pliego / estudio previo
+    // (daría "0 requisitos" en silencio); con IA y sin estudio previo, sí se puede recalcular.
+    if (entry.textoLiberado){
+      const faltaEP = !!entry.estudioPrevioFileName && !entry.estudioPrevioText;
+      if (!entry.requisitosIA || faltaEP){
+        if (slot){ const av = document.createElement('div'); av.className = 'analysis-block analysis-warn'; av.textContent = 'Este análisis conserva sus resultados, pero se liberó su texto para ahorrar espacio: vuelve a cargar el PDF del pliego para reevaluarlo.'; slot.prepend(av); }
+        return;
+      }
+    }
     if (entry.requisitosIA){
       aplicarRequisitosIAaEntry(entry);
       analisis[id] = entry;
@@ -10180,6 +10284,32 @@
     etiquetadoPendiente = setTimeout(etiquetarControles, 150);
   }).observe(document.body, { childList: true, subtree: true });
   etiquetarControles();
+
+  // OPS-008: exportar / restaurar respaldo de los datos guardados.
+  const RESPALDO_CLAVES = SYNCED_KEYS.filter(k => k !== 'ultima_vista');
+  function mensajeRespaldo(t){ const el = document.getElementById('bt-respaldo-msg'); el.textContent = t; el.hidden = !t; }
+  document.getElementById('bt-respaldo-export').addEventListener('click', async () => {
+    try {
+      const valores = {};
+      for (const k of RESPALDO_CLAVES){ const r = await window.storage.get(k, false); valores[k] = r ? r.value : null; }
+      descargarTexto('respaldo-bitacora-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(armarRespaldo(valores), null, 2));
+      mensajeRespaldo('Respaldo descargado. Guárdalo en un lugar seguro: contiene los datos de tu empresa.');
+    } catch(e){ mensajeRespaldo('No se pudo generar el respaldo: ' + ((e && e.message) || 'error')); }
+  });
+  document.getElementById('bt-respaldo-import').addEventListener('click', () => document.getElementById('bt-respaldo-file').click());
+  document.getElementById('bt-respaldo-file').addEventListener('change', async (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if (!f) return;
+    const v = validarRespaldo(await f.text(), RESPALDO_CLAVES);
+    if (!v.ok){ mensajeRespaldo('No se restauró nada: ' + v.error); return; }
+    if (!window.confirm('Restaurar este respaldo REEMPLAZARÁ los datos actuales (' + Object.keys(v.claves).length + ' grupos de datos' + (v.generado ? ', generado el ' + v.generado.slice(0, 10) : '') + '). ¿Continuar?')) return;
+    try {
+      for (const k of Object.keys(v.claves)) await window.storage.set(k, v.claves[k], false);
+      mensajeRespaldo('Respaldo restaurado. Recargando…');
+      setTimeout(() => location.reload(), 600);
+    } catch(e){ mensajeRespaldo('No se pudo restaurar: ' + ((e && e.message) || 'error')); }
+  });
 
   exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
   copySummaryBtn.addEventListener('click', copyAltaPrioridadSummary);
@@ -10472,6 +10602,7 @@
         const result = await ocrPdfPages(file, from, to, (pct, page, total) => {
           slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
         });
+        if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
         const baseLen = (entry.ocrText || '').length;
         const fullText = (entry.ocrText || '') + result.text;
         entry.ocrText = fullText;
@@ -10522,6 +10653,7 @@
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">Leyendo el resto del PDF…</div>';
         const result = await extractPdfText(file, TEXT_BATCH_PAGES, from);
+        if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
         const baseLen = (entry.text || '').length;
         const fullText = (entry.text || '') + result.text;
         entry.text = fullText;

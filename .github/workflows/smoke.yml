@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       # Sin `npm install`: tests/smoke.mjs no usa dependencias externas a
       # propósito (el proyecto no tiene package.json ni build step).
       - run: node tests/smoke.mjs

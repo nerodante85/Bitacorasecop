@@ -296,6 +296,23 @@ async function enviarCorreo(to: string, asunto: string, textoPlano: string): Pro
   if (!res.ok) throw new Error('Resend respondió ' + res.status + ': ' + (await res.text()));
 }
 
+// ---- Límites y saneamiento (auditoría SEG-003, SEG-004, ESC-001, OPS-007) ----------------
+
+// Un nombre de alerta o de empresa es TEXTO LIBRE del usuario y termina dentro de un correo: se quitan
+// saltos de línea y caracteres de control, se neutralizan los enlaces (relay de phishing) y se acota.
+function limpiarNombre(t: unknown): string {
+  return String(t ?? '')
+    .replace(/https?:\/\/[^\s]+/gi, '[enlace]')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+}
+
+const MAX_ALERTAS_POR_EMPRESA = 10;   // cota contra el fan-out hacia Socrata (SEG-004)
+const MAX_EMPRESAS_POR_EMPRESA = 10;
+const PRESUPUESTO_MS = 100_000;       // no se empiezan empresas nuevas pasado este tiempo (ESC-001)
+
 // ---- Handler ----------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
@@ -351,23 +368,32 @@ Deno.serve(async (req: Request) => {
 
   let correosEnviados = 0;
   const detalles: string[] = [];
+  const errores: string[] = [];        // OPS-007: cualquier fallo real debe verse en la respuesta (y en el estado HTTP)
+  const pendientes: string[] = [];     // ESC-001: empresas que no alcanzaron en esta corrida
+  const inicio = Date.now();
 
-  for (const [companyId, datos] of porEmpresa) {
-    if (!datos.optin || (!datos.alertas.length && !datos.empresas.length)) continue;
+  for (const [companyId, datosCompletos] of porEmpresa) {
+    if (!datosCompletos.optin || (!datosCompletos.alertas.length && !datosCompletos.empresas.length)) continue;
+    if (Date.now() - inicio > PRESUPUESTO_MS) { pendientes.push(companyId); continue; }
+    const datos = {
+      ...datosCompletos,
+      alertas: datosCompletos.alertas.slice(0, MAX_ALERTAS_POR_EMPRESA),
+      empresas: datosCompletos.empresas.slice(0, MAX_EMPRESAS_POR_EMPRESA),
+    };
     try {
       const lineasAlertas: string[] = [];
       for (const a of datos.alertas) {
         let n = 0, err: string | null = null;
-        try { n = await contarNuevosDeAlerta(a); } catch (e) { err = e instanceof Error ? e.message : String(e); }
+        try { n = await contarNuevosDeAlerta(a); } catch (e) { err = e instanceof Error ? e.message : String(e); errores.push('alerta ' + companyId + ': ' + err); }
         if (debug) debugInfo.push({ companyId, tipo: 'alerta', nombre: a.nombre, keywords: a.keywords, geos: a.geos, ultimaRevision: a.ultimaRevision, nuevos: n, error: err });
-        if (n > 0) lineasAlertas.push('- "' + a.nombre + '": ' + n + ' proceso(s) nuevo(s)');
+        if (n > 0) lineasAlertas.push('- "' + limpiarNombre(a.nombre) + '": ' + n + ' proceso(s) nuevo(s)');
       }
       const lineasEmpresas: string[] = [];
       for (const emp of datos.empresas) {
         let n = 0, err: string | null = null;
-        try { n = await contarNuevosDeEmpresa(emp); } catch (e) { err = e instanceof Error ? e.message : String(e); }
+        try { n = await contarNuevosDeEmpresa(emp); } catch (e) { err = e instanceof Error ? e.message : String(e); errores.push('empresa seguida ' + companyId + ': ' + err); }
         if (debug) debugInfo.push({ companyId, tipo: 'empresa', nombre: emp.nombre, ultimaRevision: emp.ultimaRevision, nuevos: n, error: err });
-        if (n > 0) lineasEmpresas.push('- ' + emp.nombre + ': ' + n + ' contrato(s) nuevo(s)');
+        if (n > 0) lineasEmpresas.push('- ' + limpiarNombre(emp.nombre) + ': ' + n + ' contrato(s) nuevo(s)');
       }
       if (!lineasAlertas.length && !lineasEmpresas.length) continue;
 
@@ -392,6 +418,7 @@ Deno.serve(async (req: Request) => {
         try {
           await enviarCorreo(userData.user.email, 'Bitácora SECOP: ' + totalNuevos + ' novedad(es) hoy', cuerpo);
         } catch (mailErr) {
+          errores.push('correo ' + companyId + ': ' + (mailErr instanceof Error ? mailErr.message : String(mailErr)));
           if (debug) debugInfo.push({ companyId, tipo: 'envio_correo', error: mailErr instanceof Error ? mailErr.message : String(mailErr) });
           continue;
         }
@@ -400,13 +427,20 @@ Deno.serve(async (req: Request) => {
       }
     } catch (e) {
       console.error('daily-digest: falló la empresa ' + companyId, e);
+      errores.push('empresa ' + companyId + ': ' + (e instanceof Error ? e.message : String(e)));
       if (debug) debugInfo.push({ companyId, tipo: 'error_empresa', error: e instanceof Error ? e.message : String(e) });
     }
   }
 
-  const body: Record<string, unknown> = { empresasRevisadas: porEmpresa.size, correosEnviados, detalles };
-  if (debug) body.debug = debugInfo;
+  const body: Record<string, unknown> = { empresasRevisadas: porEmpresa.size, correosEnviados, errores: errores.length, pendientes: pendientes.length };
+  // Los correos de los usuarios (detalles) solo se devuelven en modo debug.
+  if (debug) { body.detalles = detalles; body.debug = debugInfo; body.mensajesError = errores; }
+  // OPS-007: con errores o empresas sin atender la respuesta es 500, para que quien invoque el cron
+  // (pg_net, un monitor externo) lo detecte en vez de ver siempre un 200 aunque no se enviara nada.
+  const huboProblemas = errores.length > 0 || pendientes.length > 0;
+  if (huboProblemas) console.error('daily-digest: ' + errores.length + ' error(es), ' + pendientes.length + ' empresa(s) pendiente(s)');
   return new Response(JSON.stringify(body), {
+    status: huboProblemas ? 500 : 200,
     headers: { 'Content-Type': 'application/json' },
   });
 });

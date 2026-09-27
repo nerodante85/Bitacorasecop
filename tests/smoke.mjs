@@ -272,7 +272,7 @@ function extractExperienceEngine() {
   globalThis.fmtMoney = v => (v == null ? null : '$' + Number(v).toLocaleString('es-CO'));
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE + '\n' + blockF +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2196,6 +2196,71 @@ await check('PRIV-002: hay botones de descargar y eliminar; la función exige co
   assert(iEmpresa !== -1 && iUsuario > iEmpresa, 'el usuario se elimina después de los datos');
   assert(/storage\.from\(BUCKET\)\.remove/.test(fn), 'borra también el almacenamiento');
   assert(/\[functions\.eliminar-cuenta\]\s*\nverify_jwt = true/.test(readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8').replace(/\r/g, '')), 'verify_jwt declarado');
+});
+
+// ---- Auditoría OPS-008, ARQ-002, PERF-005, REL-001, SEG-005, ARQ-003 ----------------
+await check('OPS-008: el respaldo se arma solo con claves con dato y se valida antes de restaurar (formato, versión, claves permitidas)', () => {
+  const PERMITIDAS = ['perfiles_empresa', 'historial', 'analisis_pliegos'];
+  const r = expEngine.armarRespaldo({ perfiles_empresa: '{"a":1}', historial: null, analisis_pliegos: '{}' }, '2026-09-27T10:00:00.000Z');
+  assert(r.formato === 'bitacora-respaldo' && r.version === 1 && !('historial' in r.claves) && r.claves.perfiles_empresa === '{"a":1}', 'armado: ' + JSON.stringify(r));
+  const ok = expEngine.validarRespaldo(JSON.stringify(r), PERMITIDAS);
+  assert(ok.ok && Object.keys(ok.claves).length === 2, 'un respaldo propio debe validar');
+  assert(!expEngine.validarRespaldo('no es json', PERMITIDAS).ok, 'texto que no es JSON');
+  assert(!expEngine.validarRespaldo(JSON.stringify({ formato: 'otro', version: 1, claves: { historial: '{}' } }), PERMITIDAS).ok, 'formato ajeno');
+  assert(/más nueva/.test(expEngine.validarRespaldo(JSON.stringify({ formato: 'bitacora-respaldo', version: 99, claves: { historial: '{}' } }), PERMITIDAS).error), 'versión mayor');
+  const extra = expEngine.validarRespaldo(JSON.stringify({ formato: 'bitacora-respaldo', version: 1, claves: { historial: '{}', 'malicioso': 'x', '__proto__x': 'y' } }), PERMITIDAS);
+  assert(extra.ok && !('malicioso' in extra.claves) && extra.ignoradas.length === 2, 'las claves no permitidas se ignoran');
+  assert(!expEngine.validarRespaldo(JSON.stringify({ formato: 'bitacora-respaldo', version: 1, claves: { otra: 'x' } }), PERMITIDAS).ok, 'sin claves reconocidas no se restaura');
+});
+
+await check('ARQ-002: la versión de esquema distingue ok / migrar / más nueva (esta app no sobrescribe datos de una versión mayor)', () => {
+  assert(expEngine.evaluarVersionEsquema(null, 1) === 'migrar' && expEngine.evaluarVersionEsquema('', 1) === 'migrar', 'sin versión: migrar');
+  assert(expEngine.evaluarVersionEsquema('1', 1) === 'ok', 'misma versión');
+  assert(expEngine.evaluarVersionEsquema('2', 1) === 'mas_nueva', 'datos de una versión mayor');
+  assert(expEngine.evaluarVersionEsquema('basura', 1) === 'migrar', 'valor ilegible');
+  const src = readFileSync(HTML_PATH, 'utf8');
+  assert(/if \(esquemaBloqueado\) return \{ key, value \};/.test(src), 'con esquema bloqueado no se escribe');
+});
+
+await check('PERF-005: al llenarse el almacenamiento se libera primero el texto del pliego MÁS antiguo y se conservan sus resultados', () => {
+  const a = { viejo: { ts: 1, text: 'x'.repeat(100), ocrText: '', estudioPrevioText: 'ep', experienciaResultado: { r: 1 } }, nuevo: { ts: 9, text: 'y', experienciaResultado: { r: 2 } } };
+  assert(expEngine.liberarTextoMasAntiguo(a) === 'viejo', 'primero el más antiguo');
+  assert(a.viejo.text === '' && a.viejo.estudioPrevioText === '' && a.viejo.textoLiberado === true && a.viejo.experienciaResultado.r === 1, 'libera texto, conserva resultados');
+  assert(a.nuevo.text === 'y', 'el reciente no se toca todavía');
+  assert(expEngine.liberarTextoMasAntiguo(a) === 'nuevo', 'luego el siguiente');
+  assert(expEngine.liberarTextoMasAntiguo(a) === null, 'cuando no queda nada, null');
+  const src = readFileSync(HTML_PATH, 'utf8');
+  assert(/if \(entry\.textoLiberado\)\{\s*const faltaEP/.test(src), 'no se re-evalúa con el texto liberado');
+});
+
+await check('REL-001: un fallo de CDN no queda cacheado: cada cargador limpia su promesa y quita el script al fallar', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  ['Supabase', 'Pdfjs', 'Tesseract', 'Xlsx', 'Mammoth'].forEach(n => {
+    assert(new RegExp('script\\.onerror = \\(\\) => \\{ window\\.__bitacora' + n + 'Promise = null; script\\.remove\\(\\); reject\\(').test(src), 'cargador ' + n);
+  });
+});
+
+await check('SEG-005: safeHref solo deja pasar http(s)', () => {
+  assert(expEngine.safeHref('https://community.secop.gov.co/x') === 'https://community.secop.gov.co/x', 'https ok');
+  assert(expEngine.safeHref('javascript:alert(1)') === null && expEngine.safeHref('data:text/html,x') === null && expEngine.safeHref('  JavaScript:alert(1)') === null && expEngine.safeHref('') === null && expEngine.safeHref(null) === null, 'esquemas peligrosos y vacíos');
+  const src = readFileSync(HTML_PATH, 'utf8');
+  assert(/safeHref\(item\.url\) \? ' <a class="link-btn" href="/.test(src), 'el PAA usa safeHref');
+});
+
+await check('ARQ-003: un fallo de sincronización con la cuenta se avisa en pantalla, no solo en la consola', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  const i = src.indexOf('No se pudo sincronizar "\' + key');
+  assert(i !== -1 && /mostrarAvisoGuardado\('No se pudo sincronizar tus cambios/.test(src.slice(i, i + 600)), 'aviso visible');
+});
+
+await check('SEG-003/SEG-004/ESC-001/OPS-007: el digest sanea nombres, acota alertas, tiene presupuesto de tiempo y responde 500 si hubo errores', () => {
+  const fn = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  assert(/function limpiarNombre\(/.test(fn) && /\[enlace\]/.test(fn) && /\.slice\(0, 60\)/.test(fn), 'nombres saneados y acotados');
+  assert(/limpiarNombre\(a\.nombre\)/.test(fn) && /limpiarNombre\(emp\.nombre\)/.test(fn), 'los nombres pasan por limpiarNombre antes del correo');
+  assert(/MAX_ALERTAS_POR_EMPRESA = 10/.test(fn) && /\.slice\(0, MAX_ALERTAS_POR_EMPRESA\)/.test(fn), 'cota de alertas por empresa');
+  assert(/PRESUPUESTO_MS/.test(fn) && /pendientes\.push\(companyId\)/.test(fn), 'presupuesto de tiempo');
+  assert(/status: huboProblemas \? 500 : 200/.test(fn), 'estado 500 ante errores o pendientes');
+  assert(/if \(debug\) \{ body\.detalles = detalles;/.test(fn), 'los correos (detalles) solo salen en modo debug');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
