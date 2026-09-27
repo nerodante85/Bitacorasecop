@@ -20,7 +20,7 @@
 // - Los PDFs se borran de Storage siempre: el bucket es solo tránsito.
 // - Modo debug: solo con el secret DEBUG_SECRET configurado y el header x-debug igual a él.
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { encodeBase64 } from 'jsr:@std/encoding@1/base64';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
@@ -29,6 +29,15 @@ const BUCKET = 'pliegos';
 const MAX_DOCUMENTOS = 6;                 // 1 pliego + hasta 5 adendas
 const MAX_BYTES_TOTAL = 24 * 1024 * 1024; // 24 MB de PDF (base64 infla ~33%; el API acepta 32 MB por petición)
 const LIMITE_DIARIO = 10;                 // extracciones por empresa en 24 h
+// Auditoría ESC-003: tope GLOBAL (todas las empresas) de extracciones en 24 h: acota el gasto aunque se
+// creen muchas cuentas. Se puede cambiar con el secret LIMITE_GLOBAL_DIARIO sin volver a desplegar.
+const LIMITE_GLOBAL_DEFECTO = 100;
+// La llamada a Anthropic se aborta pasado este tiempo (antes podía colgarse hasta el límite de la plataforma).
+const TIMEOUT_ANTHROPIC_MS = 140_000;
+// Auditoría OPS-003: versión del "contrato" entre esta función y el navegador. Si el navegador espera
+// otra, muestra "función desactualizada" en vez de fallar de forma rara. Súbela en AMBOS lados al cambiar
+// la forma de la respuesta (index.html: CONTRATO_EXTRACCION).
+const CONTRATO_VERSION = 2;
 const FUNCTION_NAME = 'extraer-requisitos';
 
 const CORS_HEADERS = {
@@ -232,6 +241,21 @@ Deno.serve(async (req: Request) => {
       await liberarReserva();
       return json({ error: `Alcanzaste el máximo de ${LIMITE_DIARIO} extracciones con IA en 24 horas. Intenta de nuevo más tarde.` }, 429);
     }
+    // Tope global (ESC-003).
+    const limiteGlobal = Number(Deno.env.get('LIMITE_GLOBAL_DIARIO') ?? LIMITE_GLOBAL_DEFECTO) || LIMITE_GLOBAL_DEFECTO;
+    const { count: usadasGlobal, error: globalErr } = await supabase
+      .from('ai_usage')
+      .select('id', { count: 'exact', head: true })
+      .eq('function_name', FUNCTION_NAME)
+      .gte('created_at', desde);
+    if (globalErr) {
+      await liberarReserva();
+      return json({ error: 'No se pudo verificar el tope global de uso de IA.' }, 500);
+    }
+    if ((usadasGlobal ?? 0) > limiteGlobal) {
+      await liberarReserva();
+      return json({ error: 'El servicio de extracción con IA alcanzó su límite diario. Intenta de nuevo mañana.' }, 503);
+    }
 
     // 5. Bajar los PDFs de Storage y armar los bloques `document`
     const contenido: unknown[] = [];
@@ -267,6 +291,7 @@ Deno.serve(async (req: Request) => {
           'x-api-key': anthropicKey,
           'anthropic-version': '2023-06-01',
         },
+        signal: AbortSignal.timeout(TIMEOUT_ANTHROPIC_MS),
         body: JSON.stringify({
           model: MODEL,
           max_tokens: 16000,
@@ -318,6 +343,7 @@ Deno.serve(async (req: Request) => {
         await supabase.from('ai_usage').update({ results_count: requisitos.length }).eq('id', reservaId);
       }
       return {
+        contrato: CONTRATO_VERSION,
         requisitos,
         uso: { input_tokens: inputTokens, output_tokens: outputTokens },
         modelo: MODEL,
@@ -336,9 +362,15 @@ Deno.serve(async (req: Request) => {
         try {
           payload = await llamarAnthropic();
         } catch (err) {
-          await liberarReserva(); // falló antes de recibir respuesta (red): no hubo gasto
           const msg = err instanceof Error ? err.message : String(err);
-          payload = { error: debug ? `Error interno: ${msg}` : 'Error interno al procesar el documento.' };
+          if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+            // Se agotó el tiempo: Anthropic pudo haber procesado (y cobrado) el documento, así que el
+            // cupo NO se libera. El cliente recibe un mensaje claro.
+            payload = { error: 'La IA tardó demasiado en leer el documento (más de ' + Math.round(TIMEOUT_ANTHROPIC_MS / 1000) + ' s). Prueba con un PDF más corto o sin adendas.' };
+          } else {
+            await liberarReserva(); // falló antes de recibir respuesta (red): no hubo gasto
+            payload = { error: debug ? `Error interno: ${msg}` : 'Error interno al procesar el documento.' };
+          }
         } finally {
           clearInterval(latido);
           await limpiarPdfs();

@@ -34,7 +34,7 @@
 // los usuarios. Ver supabase/cron.sql para cómo se manda ese secreto.
 // ============================================================================
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 
 const SECOP_II_DATASET = 'p6dx-8zbt';
 const SECOP_I_DATASET = 'f789-7hwg';

@@ -1,0 +1,55 @@
+name: Publicar en GitHub Pages
+
+# OPS-001: el sitio solo se publica si las pruebas de humo pasan.
+#
+# Para activarlo (pasos tuyos en GitHub, una sola vez):
+#   1. Settings > Pages > Build and deployment > Source: "GitHub Actions".
+#   2. Settings > Secrets and variables > Actions > pestaña "Variables" > New repository variable:
+#        PAGES_POR_ACTIONS = true
+# Mientras esa variable no exista, este workflow SOLO corre las pruebas (no despliega), así que es seguro
+# tenerlo aunque Pages siga publicando desde la rama.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - run: node tests/smoke.mjs
+
+  deploy:
+    needs: smoke
+    if: ${{ vars.PAGES_POR_ACTIONS == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # Solo los archivos del sitio (no tests, auditoría ni código de Supabase).
+      - name: Preparar el sitio
+        run: |
+          mkdir _site
+          cp index.html 404.html privacidad.html snapshot.json sitemap.xml _site/
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

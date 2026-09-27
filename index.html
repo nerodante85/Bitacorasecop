@@ -7822,6 +7822,19 @@
       '. Los resultados de abajo son parciales' + (fallidas.length === 2 ? ' (ninguna fuente respondió)' : '') + ': no significa que la entidad no tenga adjudicaciones.</div>';
   }
 
+  // Auditoría ESC-002: cada visita al Dashboard/Buscar repetía las mismas consultas a datos.gov.co, todas
+  // bajo un solo App Token. Caché en memoria con vencimiento (5 min): una misma consulta no se repite
+  // mientras la página siga abierta y el dato siga fresco (el dataset se actualiza una vez al día).
+  function crearCacheTtl(ttlMs, ahora){
+    const reloj = ahora || (() => Date.now());
+    const m = new Map();
+    return {
+      get(k){ const e = m.get(k); if (!e) return undefined; if (reloj() - e.t > ttlMs){ m.delete(k); return undefined; } return e.v; },
+      set(k, v){ m.set(k, { t: reloj(), v: v }); if (m.size > 60){ m.delete(m.keys().next().value); } return v; }
+    };
+  }
+  const cacheSocrata = crearCacheTtl(5 * 60 * 1000);
+
   // Auditoría SI-002: un fallo transitorio (timeout de una tabla de 6,4 M de filas) se reintenta
   // una vez antes de darlo por perdido.
   async function conReintento(fn, intentos){
@@ -9019,11 +9032,14 @@
     // con el esquema real (fuera de nuestro control, puede cambiar), se reintenta
     // sin orden en vez de fallar la consulta completa.
     async function intentar(url){
+      const guardado = cacheSocrata.get(url);
+      if (guardado) return guardado.slice();
       const res = await withTimeout(fetch(url, socrataFetchOptions()), 12000, 'La consulta a SECOP');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (!Array.isArray(data)) throw new Error('respuesta inesperada');
-      return data;
+      cacheSocrata.set(url, data);
+      return data.slice();
     }
     let data;
     const esSecopII = datasetId === 'p6dx-8zbt' && (!ordenCol || ordenCol === 'fecha_de_publicacion_del');
@@ -10178,6 +10194,8 @@
   // el texto real del PDF (pdf.js, en el navegador) y guarda todo en el entry.
   const IA_MAX_BYTES = 20 * 1024 * 1024;
   const iaEnCurso = {}; // { id: true } -- evita doble clic y extracciones simultáneas del mismo proceso
+  // Versión del contrato con supabase/functions/extraer-requisitos (CONTRATO_VERSION allí). Súbela en ambos lados.
+  const CONTRATO_EXTRACCION = 2;
   async function extraerRequisitosConIA(id, slot){
     const entry = analisis[id];
     if (!entry || !slot) return;
@@ -10225,6 +10243,8 @@
       // La función responde 200 aunque falle una vez que empieza a transmitir (para mantener viva
       // la conexión durante la lectura), así que el error puede venir dentro del cuerpo.
       if (data && data.error) throw new Error(data.error);
+      // OPS-003: la función del servidor debe hablar la misma versión de contrato que esta página.
+      if (data && data.contrato !== CONTRATO_EXTRACCION) throw new Error('La función de extracción del servidor está desactualizada (contrato ' + (data.contrato == null ? 'antiguo' : data.contrato) + ', se esperaba ' + CONTRATO_EXTRACCION + '): hay que volver a desplegar extraer-requisitos.');
       if (!data || !Array.isArray(data.requisitos)) throw new Error('Respuesta inesperada de la función.');
 
       // Verificación: texto completo de cada PDF (solo para citas; sin costo de IA).

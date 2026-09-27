@@ -13,7 +13,7 @@
 //
 // NO VERIFICADO hasta desplegarla: se escribió sin poder ejecutar Deno ni probar contra el proyecto real.
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 
 const BUCKET = 'pliegos';
 
