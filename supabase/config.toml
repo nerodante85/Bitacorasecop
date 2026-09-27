@@ -19,3 +19,29 @@ verify_jwt = false
 # estaba declarado).
 [functions.extraer-requisitos]
 verify_jwt = true
+
+# eliminar-cuenta (PRIV-002, derecho de supresión): la llama el navegador con la sesión del usuario.
+[functions.eliminar-cuenta]
+verify_jwt = true
+
+# ----------------------------------------------------------------------------
+# SEG-001 -- Autenticación del proyecto REAL (se configura en el panel de Supabase, no aquí).
+# Estado medido el 2026-09-27 con GET /auth/v1/settings: mailer_autoconfirm = true y
+# disable_signup = false, es decir, cualquiera crea una cuenta con un correo AJENO y obtiene
+# sesión inmediata (pre-secuestro de cuentas, cuentas ilimitadas, correos a terceros).
+# Se dejan comentados a propósito: `supabase config push` sobrescribiría también el Site URL y los
+# Redirect URLs (de los que depende "recuperar contraseña") con los valores por defecto.
+#
+# Pasos en Authentication (panel de Supabase):
+#   - Sign In / Providers > Email > "Confirm email": ACTIVADO.
+#   - Sign In / Providers > Email > "Minimum password length": 8, y "Password requirements" con
+#     letras y números; activar "Prevent use of leaked passwords" si el plan lo permite.
+#   - Attack Protection: activar CAPTCHA (Cloudflare Turnstile o hCaptcha) -- requiere una clave
+#     del proveedor y un cambio en el formulario de registro.
+#   - Rate Limits: revisar los límites de correos y de registros por hora e IP.
+# Comprobación: GET https://<proyecto>.supabase.co/auth/v1/settings con la anon key debe mostrar
+# "mailer_autoconfirm": false, y signUp no debe devolver sesión hasta confirmar el correo.
+# [auth.email]
+# enable_confirmations = true
+# [auth]
+# minimum_password_length = 8

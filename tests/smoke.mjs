@@ -262,8 +262,17 @@ function extractExperienceEngine() {
   const blockE = scriptBody.slice(iE0, iE1);
   globalThis.normalizeGeo = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
-  const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
+  // Bloque F: generadores de documentos (carta, anexos, paquete) -- DG-001..DG-003. Usan
+  // truncate/fmtMoney solo al ejecutarse; se inyectan como globales mínimos.
+  const iF0 = scriptBody.indexOf('const MARCA_CONFIRMAR = ');
+  const iF1 = scriptBody.indexOf('function generarHojaDeVidaTexto(pp){', iF0);
+  assert(iF0 !== -1 && iF1 !== -1 && iF1 > iF0, 'no se encontraron las anclas de los generadores de documentos');
+  const blockF = scriptBody.slice(iF0, iF1);
+  globalThis.truncate = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; };
+  globalThis.fmtMoney = v => (v == null ? null : '$' + Number(v).toLocaleString('es-CO'));
+
+  const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE + '\n' + blockF +
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2118,6 +2127,75 @@ await check('UX-001/002/005: la lista pide "mostrar más", el vacío explica qu�
   assert(/data-quitar-filtro/.test(src) && /const paso = \(clave, nombre, pred\)/.test(src), 'UX-002');
   assert(/function etiquetarControles\(\)/.test(src) && /new MutationObserver/.test(src), 'UX-005');
   assert(/if \(isDemo\)\{ alert\('Estás viendo datos de ejemplo/.test(src), 'TR-008: carta/paquete bloqueados en demo');
+});
+
+// ---- Auditoría DG-001..DG-003: documentos que se firman --------------------------
+const PERFIL_DOC_VACIO = { nombre: '', nit: '', representanteLegal: '', representanteCedula: '', ciudad: '', direccion: '', telefono: '', correo: '' };
+const ITEM_DOC = { entidad: 'Alcaldía X', objeto: 'Obra Y', modalidad: 'Licitación pública', referencia: 'LP-001-2026' };
+const cuerpoFirmable = t => t.split('[NOTAS INTERNAS')[0].split('════════════════════════════════════════════════════════\n\n').pop();
+const entryExp = (resultados, global) => ({ experienciaResultado: { resultados, resultadoGlobal: global, conteo: { 'CUMPLE': resultados.filter(r => r.resultado === 'CUMPLE').length, 'NO CUMPLE': resultados.filter(r => r.resultado === 'NO CUMPLE').length, 'NO DETERMINABLE': resultados.filter(r => r.resultado === 'NO DETERMINABLE').length } } });
+const resExp = (criterio, resultado, contratos) => ({ requisito: { criterio }, resultado, justificacion: 'motivo interno', contratosEvaluados: contratos || [] });
+const CONTRATO_EXP = { objeto: 'Pavimentación X', contratante: 'Alcaldía Z', valor: 0, numeroContrato: '123-2020', fechaInicio: '2020-01-01', fechaFin: '2020-12-31' };
+
+await check('DG-001: solo un requisito que CUMPLE dice "Contratos que lo acreditan"; un NO CUMPLE con contrato de $0 ya no los presenta como acreditados', () => {
+  const t = expEngine.generarFormatoExperienciaTexto(PERFIL_DOC_VACIO, ITEM_DOC, entryExp([resExp('Pavimentación de vías', 'NO CUMPLE', [CONTRATO_EXP])], 'NO CUMPLE'));
+  assert(!/Contratos que lo acreditan/.test(t), 'no debe rotular como acreditado a un requisito que no cumple');
+  assert(/\[COMPLETAR: contrato\(s\) que acrediten este requisito\]/.test(t), 'debe pedir completarlo');
+  const ok = expEngine.generarFormatoExperienciaTexto(PERFIL_DOC_VACIO, ITEM_DOC, entryExp([resExp('Puentes', 'CUMPLE', [CONTRATO_EXP])], 'CUMPLE'));
+  assert(/Contratos que lo acreditan/.test(ok) && /Contrato No\. 123-2020/.test(ok) && /2020-01-01 a 2020-12-31/.test(ok), 'un CUMPLE sí lista contrato, número y fechas');
+});
+
+await check('DG-002: el cuerpo firmable del anexo no trae la autoevaluación interna ni textos de la interfaz; el aviso y las notas van marcados para borrar', () => {
+  const t = expEngine.generarFormatoExperienciaTexto(PERFIL_DOC_VACIO, ITEM_DOC, entryExp([resExp('A', 'NO DETERMINABLE'), resExp('B', 'CUMPLE', [CONTRATO_EXP])], 'REQUIERE REVISIÓN'));
+  const cuerpo = t.split('[NOTAS INTERNAS')[0];
+  const sinAviso = cuerpo.split('════════════════════════════════════════════════════════\n\n').slice(1).join('');
+  assert(!/Buscar procesos/.test(sinAviso) && !/NO DETERMINABLE/.test(sinAviso) && !/motivo interno/.test(sinAviso) && !/Resultado global/.test(sinAviso), 'el cuerpo firmable filtra texto interno: ' + sinAviso.slice(0, 300));
+  assert(/^\[AVISO INTERNO -- borra este bloque/.test(t), 'con global distinto de CUMPLE hay un aviso al inicio');
+  assert(/\[NOTAS INTERNAS -- borra desde aquí/.test(t) && /Buscar procesos|NO DETERMINABLE/.test(t.split('[NOTAS INTERNAS')[1]), 'el detalle interno queda en las notas marcadas');
+  const vacio = expEngine.generarFormatoExperienciaTexto(PERFIL_DOC_VACIO, ITEM_DOC, undefined);
+  assert(!/Buscar procesos/.test(vacio.split('[NOTAS INTERNAS')[0]), 'sin evaluación tampoco hay textos de interfaz en el cuerpo');
+  const limpio = expEngine.generarFormatoExperienciaTexto(PERFIL_DOC_VACIO, ITEM_DOC, entryExp([resExp('B', 'CUMPLE', [CONTRATO_EXP])], 'CUMPLE'));
+  assert(!/^\[AVISO INTERNO/.test(limpio), 'con CUMPLE global no hay aviso');
+});
+
+await check('DG-003: ninguna declaración fáctica queda sin marca [CONFIRMAR], incluso con el perfil vacío; el paquete abre con el aviso', () => {
+  const carta = expEngine.generarCartaTexto(PERFIL_DOC_VACIO, ITEM_DOC);
+  ['2. ', '3. ', '7. '].forEach(n => assert(new RegExp('\\n' + n + '\\[CONFIRMAR\\] ').test(carta), 'carta ítem ' + n + ' sin marca'));
+  assert(/^\[AVISO INTERNO -- borra este bloque antes de presentar\]/.test(carta) && /gravedad de juramento|consecuencias legales/.test(carta.split('════')[0]), 'aviso inicial en la carta');
+  const anti = expEngine.generarAnticorrupcionTexto(PERFIL_DOC_VACIO, ITEM_DOC);
+  assert(/\n6\. \[CONFIRMAR\] Declaro que/.test(anti), 'anticorrupción ítem 6');
+  const para = expEngine.generarParafiscalesTexto(PERFIL_DOC_VACIO, ITEM_DOC);
+  ['1. ', '2. ', '3. '].forEach(n => assert(new RegExp('\\n' + n + '\\[CONFIRMAR\\] ').test(para), 'parafiscales ítem ' + n + ' sin marca'));
+  const paq = expEngine.generarPaqueteTexto(PERFIL_DOC_VACIO, ITEM_DOC, undefined);
+  assert(/^\[AVISO INTERNO -- borra este bloque antes de presentar\]/.test(paq), 'el paquete abre con el aviso');
+  assert((paq.match(/\[AVISO INTERNO -- borra este bloque antes de presentar\]/g) || []).length === 1, 'un solo aviso de declaraciones en el paquete, no uno por documento');
+  assert((paq.match(/\[CONFIRMAR\] /g) || []).length >= 7, 'las 7 declaraciones fácticas marcadas en el paquete');
+});
+
+// ---- Auditoría SEG-001, PRIV-001, PRIV-002 (estático: dependen de Supabase y del DOM) ----
+await check('PRIV-001/SEG-001: el registro exige aceptar la política y una contraseña de 8+, y guarda versión y fecha de aceptación; existe la página de política', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  const i = src.indexOf("if (accountModalMode === 'signup'){");
+  const bloque = src.slice(i, i + 1400);
+  assert(/bt-account-consent'\)\.checked/.test(bloque) && /password\.length < 8/.test(bloque), 'signup debe exigir consentimiento y 8 caracteres');
+  assert(/consent_privacidad: \{ version: POLITICA_VERSION, aceptadaEn:/.test(bloque), 'la aceptación debe guardarse con versión y fecha');
+  assert(/id="bt-account-consent"/.test(src) && /href="privacidad\.html"/.test(src), 'casilla y enlace a la política');
+  assert(!/Mínimo 6 caracteres/.test(src), 'ya no debe decir mínimo 6');
+  const pol = readFileSync(path.join(ROOT, 'privacidad.html'), 'utf8');
+  assert(/Ley 1581/.test(pol) && /BORRADOR/.test(pol) && /Anthropic/.test(pol) && /Supabase/.test(pol) && /eliminar tu cuenta/.test(pol), 'política con terceros, derechos y aviso de borrador');
+});
+
+await check('PRIV-002: hay botones de descargar y eliminar; la función exige confirmación, valida el JWT y borra al usuario AL FINAL', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  assert(/id="bt-account-export"/.test(src) && /id="bt-account-delete"/.test(src) && /functions\.invoke\('eliminar-cuenta'/.test(src), 'botones y llamada a la función');
+  assert(/trim\(\) !== 'ELIMINAR'/.test(src), 'el cliente pide escribir ELIMINAR');
+  const fn = readFileSync(path.join(ROOT, 'supabase/functions/eliminar-cuenta/index.ts'), 'utf8');
+  assert(/confirmacion !== 'ELIMINAR'/.test(fn) && /auth\.getUser\(\)/.test(fn), 'la función exige confirmación y valida la sesión');
+  const iEmpresa = fn.indexOf(".from('companies').delete()");
+  const iUsuario = fn.indexOf('auth.admin.deleteUser');
+  assert(iEmpresa !== -1 && iUsuario > iEmpresa, 'el usuario se elimina después de los datos');
+  assert(/storage\.from\(BUCKET\)\.remove/.test(fn), 'borra también el almacenamiento');
+  assert(/\[functions\.eliminar-cuenta\]\s*\nverify_jwt = true/.test(readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8').replace(/\r/g, '')), 'verify_jwt declarado');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

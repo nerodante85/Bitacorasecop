@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Política de tratamiento de datos — Bitácora SECOP</title>
+<style>
+  :root { --bg:#EEF1F6; --paper:#FFFFFF; --ink:#171B26; --muted:#55607A; --line:#D3D9E4; --warn-bg:#FFF3D6; --warn-ink:#6B4300; --accent:#A6660A; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12182A; --paper:#1B2338; --ink:#E9EDF6; --muted:#A9B3C9; --line:#33405C; --warn-bg:#3A2C08; --warn-ink:#F6D58B; --accent:#F2A93C; }
+  }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 "IBM Plex Sans", system-ui, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
+  article { background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:24px 20px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  h2 { font-size:18px; margin:28px 0 6px; }
+  p, li { max-width:65ch; }
+  .sub { color:var(--muted); margin-top:0; }
+  .borrador { background:var(--warn-bg); color:var(--warn-ink); border:1px solid var(--accent); border-radius:8px; padding:12px 14px; margin:16px 0; }
+  a { color:var(--accent); }
+  .pend { background:var(--warn-bg); color:var(--warn-ink); padding:0 4px; border-radius:3px; }
+</style>
+</head>
+<body>
+<main>
+<article>
+  <p><a href="./">← Volver a Bitácora SECOP</a></p>
+  <h1>Política de tratamiento de datos personales</h1>
+  <p class="sub">Versión <strong>2026-09-27-borrador</strong> · Ley 1581 de 2012 y Decreto 1377 de 2013 (compilado en el Decreto 1074 de 2015)</p>
+
+  <div class="borrador" role="note">
+    <strong>BORRADOR pendiente de revisión jurídica.</strong> Este texto describe cómo funciona hoy la aplicación, pero
+    no ha sido revisado por un abogado y los datos del responsable aún están por completar
+    (<span class="pend">[COMPLETAR]</span>). No debe tomarse como texto definitivo hasta que se revise y se publique una versión firmada.
+  </div>
+
+  <h2>1. Responsable del tratamiento</h2>
+  <p><span class="pend">[COMPLETAR: razón social o nombre, NIT, domicilio, correo y teléfono de contacto del responsable]</span></p>
+
+  <h2>2. Datos que se tratan</h2>
+  <ul>
+    <li><strong>Cuenta:</strong> correo electrónico y contraseña (la contraseña se guarda cifrada por el proveedor de autenticación; no la conocemos), y el registro de aceptación de esta política (versión y fecha).</li>
+    <li><strong>Datos de tu empresa que tú escribes o cargas:</strong> razón social, NIT, representante legal y su cédula, dirección, teléfono, correo, indicadores financieros, contratos en ejecución, certificado RUP y RUT.</li>
+    <li><strong>Datos de tu equipo de trabajo (sección "Personal"):</strong> nombre, cargo, formación y experiencia de profesionales. Al registrarlos declaras que cuentas con la autorización de esas personas para hacerlo.</li>
+    <li><strong>Documentos:</strong> tu experiencia acreditada, los pliegos y estudios previos que analizas y sus adendas.</li>
+    <li><strong>Uso:</strong> alertas guardadas, historial de procesos vistos o descartados y preferencia de correo diario.</li>
+  </ul>
+  <p>La aplicación no está dirigida a menores de edad ni pide datos sensibles.</p>
+
+  <h2>3. Finalidades</h2>
+  <ul>
+    <li>Crear y mantener tu cuenta y sincronizar tus datos entre dispositivos.</li>
+    <li>Comparar los requisitos de un proceso de contratación con la información de tu empresa y generar los informes y documentos que solicitas.</li>
+    <li>Enviarte, si lo activas, el resumen diario por correo de tus alertas.</li>
+    <li>Responder tus solicitudes y garantizar la seguridad del servicio.</li>
+  </ul>
+
+  <h2>4. Encargados y terceros que intervienen</h2>
+  <ul>
+    <li><strong>Supabase</strong> (base de datos, autenticación y almacenamiento temporal de archivos): guarda tus datos de cuenta y de la aplicación.</li>
+    <li><strong>Anthropic</strong> (extracción de requisitos con inteligencia artificial): solo si usas esa función, el PDF del pliego se envía a Anthropic para leerlo. El archivo se borra del almacenamiento tras la lectura.</li>
+    <li><strong>Resend</strong> (envío del resumen diario por correo): recibe tu correo y el resumen, solo si activas esa opción.</li>
+    <li><strong>datos.gov.co</strong> (datos abiertos de SECOP): las consultas son de datos públicos; no se envían tus datos personales.</li>
+    <li><strong>GitHub Pages y redes de distribución de contenido</strong> (alojamiento de la página y de las librerías que usa).</li>
+  </ul>
+
+  <h2>5. Transmisión y transferencia internacional</h2>
+  <p>Algunos de estos proveedores pueden tratar datos fuera de Colombia. <span class="pend">[COMPLETAR: países/regiones concretos y garantías, según los contratos con cada proveedor]</span></p>
+
+  <h2>6. Tus derechos</h2>
+  <p>Como titular puedes conocer, actualizar y rectificar tus datos; solicitar prueba de la autorización; ser informado del uso que se les da; presentar quejas ante la Superintendencia de Industria y Comercio; revocar la autorización y solicitar la supresión de tus datos; y acceder a ellos de forma gratuita.</p>
+  <p>Sin necesidad de escribirnos, dentro de la aplicación (menú <em>Tu cuenta</em>) puedes <strong>descargar tus datos</strong> y <strong>eliminar tu cuenta y todos tus datos</strong>.</p>
+
+  <h2>7. Cómo ejercer tus derechos</h2>
+  <p>Escribe a <span class="pend">[COMPLETAR: correo de contacto]</span>. <span class="pend">[COMPLETAR: plazos de respuesta según la Ley 1581 (10 días hábiles para consultas, 15 para reclamos)]</span></p>
+
+  <h2>8. Conservación</h2>
+  <p>Tus datos se conservan mientras tengas la cuenta. Al eliminarla se borran tu cuenta, tu empresa y todos los datos asociados. <span class="pend">[COMPLETAR: si se conservan copias de respaldo y por cuánto tiempo]</span></p>
+
+  <h2>9. Seguridad</h2>
+  <p>Los datos de cada empresa están aislados por reglas de acceso a nivel de base de datos, y la comunicación viaja cifrada. Ningún sistema es infalible; no cargues información que no debas compartir con estos proveedores.</p>
+
+  <h2>10. Cambios</h2>
+  <p>Si esta política cambia, se publicará una nueva versión y se te pedirá aceptarla de nuevo.</p>
+</article>
+</main>
+</body>
+</html>

@@ -1639,8 +1639,14 @@
         </div>
         <div class="field" id="bt-account-password-field">
           <label for="bt-account-password">Contraseña</label>
-          <input type="password" id="bt-account-password" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+          <input type="password" id="bt-account-password" autocomplete="current-password" placeholder="Mínimo 8 caracteres">
         </div>
+        <!-- PRIV-001: solo al crear cuenta. La aceptación queda registrada en el perfil de la cuenta
+             (versión de la política + fecha). -->
+        <label class="toggle" id="bt-account-consent-row" style="white-space:normal;align-items:flex-start;margin:8px 0;" hidden>
+          <input type="checkbox" id="bt-account-consent" style="margin-top:3px;flex-shrink:0;">
+          <span>He leído y acepto la <a href="privacidad.html" target="_blank" rel="noopener">política de tratamiento de datos personales</a> (Ley 1581 de 2012).</span>
+        </label>
         <div class="actions">
           <button class="btn-primary" id="bt-account-submit" type="button">Iniciar sesión</button>
         </div>
@@ -1664,7 +1670,7 @@
         <div class="account-error" id="bt-account-recovery-error" hidden></div>
         <div class="field">
           <label for="bt-account-new-password">Nueva contraseña</label>
-          <input type="password" id="bt-account-new-password" autocomplete="new-password" placeholder="Mínimo 6 caracteres">
+          <input type="password" id="bt-account-new-password" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
         </div>
         <div class="field">
           <label for="bt-account-new-password-confirm">Confirmar contraseña</label>
@@ -1686,6 +1692,13 @@
           <input type="checkbox" id="bt-account-digest-toggle" style="margin-top:3px;flex-shrink:0;">
           <span>Recibir un resumen diario por correo si hay procesos nuevos en mis alertas guardadas o novedades de empresas seguidas</span>
         </label>
+        <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+        <p class="sub" style="margin:0 0 8px;"><strong>Tus datos</strong> (<a href="privacidad.html" target="_blank" rel="noopener">política de tratamiento de datos</a>)</p>
+        <div class="actions" style="flex-wrap:wrap;gap:8px;">
+          <button class="btn-secondary" id="bt-account-export" type="button">Descargar mis datos (.json)</button>
+          <button class="btn-secondary" id="bt-account-delete" type="button" style="color:var(--danger);border-color:var(--danger);">Eliminar mi cuenta y mis datos</button>
+        </div>
+        <div class="account-error" id="bt-account-data-msg" hidden></div>
         <p class="sub" id="bt-account-digest-note" style="margin-top:6px;">Requiere que tu Edge Function de correo esté activada (ver CLAUDE.md, "Fase 6: correo/job de alertas") -- sin eso, activar esto no envía nada.</p>
       </div>
     </div>
@@ -1899,6 +1912,7 @@
     // de "forgot" (ya se está en ese flujo).
     document.getElementById('bt-account-password-field').hidden = mode === 'forgot';
     document.getElementById('bt-account-forgot-row').hidden = mode !== 'login';
+    document.getElementById('bt-account-consent-row').hidden = mode !== 'signup';
     if (mode === 'forgot'){
       document.getElementById('bt-account-toggle-text').textContent = '';
       document.getElementById('bt-account-toggle-btn').textContent = 'Volver a iniciar sesión';
@@ -2005,6 +2019,56 @@
     el.hidden = false;
   }
 
+  // PRIV-001: versión de la política que el usuario acepta al registrarse. Súbela cuando el texto
+  // definitivo de privacidad.html cambie (queda registrada junto con la fecha de aceptación).
+  const POLITICA_VERSION = '2026-09-27-borrador';
+
+  // PRIV-002: derecho de acceso (descargar) y de supresión (eliminar cuenta y datos).
+  function mostrarMensajeDatos(msg){
+    const el = document.getElementById('bt-account-data-msg');
+    el.textContent = msg;
+    el.hidden = !msg;
+  }
+  async function descargarMisDatos(){
+    mostrarMensajeDatos('');
+    try {
+      const client = await getSupabaseClient();
+      const paquete = { generado: new Date().toISOString(), politica: POLITICA_VERSION, cuenta: null, datos: {} };
+      const { data: u } = await client.auth.getUser();
+      if (u && u.user) paquete.cuenta = { id: u.user.id, correo: u.user.email, creada: u.user.created_at, consentimiento: (u.user.user_metadata || {}).consent_privacidad || null };
+      const { data: filas, error } = await client.from('app_state').select('key,value');
+      if (error) throw error;
+      (filas || []).forEach(f => { paquete.datos[f.key] = f.value; });
+      // Copia local (por si algo aún no se sincronizó).
+      paquete.copiaLocal = {};
+      Object.keys(localStorage).filter(k => k.indexOf('bitacora_') === 0).forEach(k => { paquete.copiaLocal[k] = localStorage.getItem(k); });
+      descargarTexto('mis-datos-bitacora-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(paquete, null, 2));
+    } catch(e){
+      mostrarMensajeDatos('No se pudieron descargar tus datos: ' + ((e && e.message) || 'error'));
+    }
+  }
+  async function eliminarMiCuenta(){
+    mostrarMensajeDatos('');
+    const txt = window.prompt('Se eliminarán tu cuenta y TODOS tus datos (perfiles, experiencia, análisis, alertas). No se puede deshacer.\n\nEscribe ELIMINAR para confirmar:');
+    if (txt === null) return;
+    if (String(txt).trim() !== 'ELIMINAR'){ mostrarMensajeDatos('No se eliminó nada: hay que escribir ELIMINAR exactamente.'); return; }
+    const btn = document.getElementById('bt-account-delete');
+    btn.disabled = true;
+    try {
+      const client = await getSupabaseClient();
+      const { data, error } = await client.functions.invoke('eliminar-cuenta', { body: { confirmacion: 'ELIMINAR' } });
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+      try { Object.keys(localStorage).filter(k => k.indexOf('bitacora_') === 0).forEach(k => localStorage.removeItem(k)); } catch(_e){ /* nada */ }
+      try { await client.auth.signOut(); } catch(_e){ /* la sesión ya no existe */ }
+      alert('Tu cuenta y tus datos fueron eliminados.');
+      location.reload();
+    } catch(e){
+      mostrarMensajeDatos('No se pudo eliminar la cuenta: ' + ((e && e.message) || 'error') + '. No se borró nada a medias que no puedas reintentar.');
+      btn.disabled = false;
+    }
+  }
+
   async function handleAccountSubmit(){
     const email = document.getElementById('bt-account-email').value.trim();
     const password = document.getElementById('bt-account-password').value;
@@ -2044,7 +2108,17 @@
         return;
       }
       if (accountModalMode === 'signup'){
-        const { data, error } = await client.auth.signUp({ email, password });
+        // PRIV-001 / SEG-001: aceptación de la política (registrada con versión y fecha en el perfil de
+        // la cuenta) y contraseña de al menos 8 caracteres.
+        if (!document.getElementById('bt-account-consent').checked){
+          showAccountError('Para crear la cuenta debes aceptar la política de tratamiento de datos personales.');
+          return;
+        }
+        if (password.length < 8){
+          showAccountError('La contraseña debe tener al menos 8 caracteres.');
+          return;
+        }
+        const { data, error } = await client.auth.signUp({ email, password, options: { data: { consent_privacidad: { version: POLITICA_VERSION, aceptadaEn: new Date().toISOString() } } } });
         if (error) throw error;
         if (!data.session){
           setAccountModalMode('login');
@@ -2097,6 +2171,8 @@
     document.getElementById('bt-account-submit').addEventListener('click', handleAccountSubmit);
     document.getElementById('bt-account-recovery-submit').addEventListener('click', handleSetNewPassword);
     document.getElementById('bt-account-logout').addEventListener('click', handleAccountLogout);
+    document.getElementById('bt-account-export').addEventListener('click', descargarMisDatos);
+    document.getElementById('bt-account-delete').addEventListener('click', eliminarMiCuenta);
     const digestToggle = document.getElementById('bt-account-digest-toggle');
     if (digestToggle) digestToggle.addEventListener('change', () => {
       window.storage.set('correo_digest_activo', digestToggle.checked ? 'true' : 'false', false);
@@ -6955,9 +7031,29 @@
   // como [COMPLETAR], nunca inventados ni asumidos como si fueran el
   // presupuesto oficial del proceso.
   // ============================================================================
-  function generarCartaTexto(perfil, item){
+  // Auditoría DG-003: los documentos traían declaraciones bajo juramento ("no incurro en inhabilidades",
+  // "los aportes están pagados", "no he sido sancionada") escritas como texto fijo, listas para firmar
+  // incluso con el perfil vacío, y el aviso de "plantilla" iba al final hablando del formato. Ahora
+  // (1) cada afirmación fáctica lleva la marca [CONFIRMAR] que hay que borrar tras verificarla, y
+  // (2) un bloque inicial (que se borra antes de presentar) lista lo que la empresa debe verificar.
+  // Esto es una plantilla, no asesoría legal: una declaración falsa tiene consecuencias legales y debe
+  // revisarla un profesional.
+  const MARCA_CONFIRMAR = '[CONFIRMAR] ';
+  const MENSAJE_CONFIRMAR_DECLARACIONES = 'Este documento incluye declaraciones (inhabilidades, veracidad, aportes pagados, juramento...) marcadas [CONFIRMAR] que NO se pueden verificar desde la app.\n\nNo las firmes hasta comprobar que son ciertas para tu empresa; una declaración falsa puede tener consecuencias legales. Es una plantilla, no asesoría legal.\n\n¿Descargar el documento?';
+  function bloqueDeclaracionesPorVerificar(items){
+    const L = [];
+    L.push('[AVISO INTERNO -- borra este bloque antes de presentar]');
+    L.push('ANTES DE FIRMAR: este documento contiene declaraciones sobre hechos que SOLO tú puedes verificar. Cada una lleva la marca [CONFIRMAR]: bórrala únicamente cuando hayas comprobado que es cierta para tu empresa. Firmar una declaración falsa (más aún "bajo la gravedad de juramento") puede tener consecuencias legales; haz que la revise un abogado o tu contador.');
+    (items || []).forEach(t => L.push('  - ' + t));
+    L.push('════════════════════════════════════════════════════════');
+    L.push('');
+    return L;
+  }
+
+  function generarCartaTexto(perfil, item, sinAviso){
     const p = perfil; // alias corto -- evita repetir "perfil." en cada línea
     const L = [];
+    if (!sinAviso) bloqueDeclaracionesPorVerificar(DECLARACIONES_CARTA).forEach(x => L.push(x));
     L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
     L.push('');
     L.push('Señores');
@@ -6977,12 +7073,12 @@
       ', una vez conocido el contenido del proceso de la referencia, manifiesto:');
     L.push('');
     L.push('1. Que presento oferta para participar en el proceso de la referencia y que conozco y acepto el pliego de condiciones, sus anexos, adendas y demás documentos del proceso.');
-    L.push('2. Que ni ' + (p.nombre || '[RAZÓN SOCIAL]') + ' ni su representante legal se encuentran incursos en las causales de inhabilidad, incompatibilidad o conflicto de interés para contratar con el Estado, establecidas en la Constitución y la ley.');
-    L.push('3. Que la información y los documentos aportados con esta propuesta son veraces y verificables.');
+    L.push('2. ' + MARCA_CONFIRMAR + 'Que ni ' + (p.nombre || '[RAZÓN SOCIAL]') + ' ni su representante legal se encuentran incursos en las causales de inhabilidad, incompatibilidad o conflicto de interés para contratar con el Estado, establecidas en la Constitución y la ley.');
+    L.push('3. ' + MARCA_CONFIRMAR + 'Que la información y los documentos aportados con esta propuesta son veraces y verificables.');
     L.push('4. Que en caso de resultar favorecidos con la adjudicación, ' + (p.nombre || '[RAZÓN SOCIAL]') + ' se compromete a suscribir el contrato dentro del término señalado en los documentos del proceso y a constituir las garantías exigidas.');
     L.push('5. Que el valor total de la presente propuesta es de [COMPLETAR: valor de la oferta], suma que incluye todos los costos directos e indirectos, impuestos, tasas y contribuciones a que haya lugar.');
     L.push('6. Que el plazo de ejecución ofrecido es de [COMPLETAR: plazo ofrecido], contado a partir de [COMPLETAR: fecha o acta de inicio].');
-    L.push('7. Que declaro lo anterior bajo la gravedad de juramento.');
+    L.push('7. ' + MARCA_CONFIRMAR + 'Que declaro lo anterior bajo la gravedad de juramento.');
     L.push('');
     L.push('Atentamente,');
     L.push('');
@@ -7006,9 +7102,10 @@
   // (Ley 190 de 1995 art. 78, Ley 1474 de 2011 "Estatuto Anticorrupción").
   // Mismo criterio de siempre: plantilla orientativa con la estructura y el
   // compromiso estándar, no el Anexo/Formato exacto de cada entidad.
-  function generarAnticorrupcionTexto(perfil, item){
+  function generarAnticorrupcionTexto(perfil, item, sinAviso){
     const p = perfil;
     const L = [];
+    if (!sinAviso) bloqueDeclaracionesPorVerificar(DECLARACIONES_ANTICORRUPCION).forEach(x => L.push(x));
     L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
     L.push('');
     L.push('COMPROMISO ANTICORRUPCIÓN');
@@ -7029,7 +7126,7 @@
     L.push('3. No permitiré que a nombre de ' + (p.nombre || '[RAZÓN SOCIAL]') + ' se ofrezca u otorgue dádiva alguna a ningún servidor público, ni a terceros, en relación con este proceso.');
     L.push('4. No efectuaré acuerdos, ni realizaré actos o conductas que tengan por objeto o efecto la colusión con otros proponentes en este proceso.');
     L.push('5. En caso de conocer situaciones irregulares en el desarrollo del proceso de contratación, informaré de manera inmediata a la entidad contratante y a los organismos de control del Estado.');
-    L.push('6. Declaro que ' + (p.nombre || '[RAZÓN SOCIAL]') + ' no ha sido sancionada por prácticas corruptas ni sometida a investigaciones por hechos que constituyan corrupción, en Colombia o en el exterior.');
+    L.push('6. ' + MARCA_CONFIRMAR + 'Declaro que ' + (p.nombre || '[RAZÓN SOCIAL]') + ' no ha sido sancionada por prácticas corruptas ni sometida a investigaciones por hechos que constituyan corrupción, en Colombia o en el exterior.');
     L.push('');
     L.push('En constancia de lo anterior, firmo el presente documento en la fecha señalada.');
     L.push('');
@@ -7056,9 +7153,10 @@
   // art. 203) -- dato que esta app no tiene forma de conocer con certeza,
   // así que se deja como una decisión explícita para el usuario en vez de
   // asumir una de las dos.
-  function generarParafiscalesTexto(perfil, item){
+  function generarParafiscalesTexto(perfil, item, sinAviso){
     const p = perfil;
     const L = [];
+    if (!sinAviso) bloqueDeclaracionesPorVerificar(DECLARACIONES_PARAFISCALES).forEach(x => L.push(x));
     L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
     L.push('');
     L.push('CERTIFICACIÓN DE PAGO DE APORTES AL SISTEMA DE SEGURIDAD SOCIAL INTEGRAL Y PARAFISCALES');
@@ -7073,9 +7171,9 @@
     L.push('');
     L.push('El(la) suscrito(a) [COMPLETAR: nombre de quien certifica -- representante legal, o revisor fiscal si aplica], identificado(a) con cédula de ciudadanía No. [COMPLETAR] y tarjeta profesional No. [COMPLETAR, solo si firma el revisor fiscal], certifico:');
     L.push('');
-    L.push('1. Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ', identificada con NIT ' + (p.nit || '[NIT]') + ', ha efectuado el pago de los aportes a los sistemas de salud, pensión y riesgos laborales de sus empleados, correspondientes a los últimos seis (6) meses anteriores a la fecha de cierre del presente proceso.');
-    L.push('2. Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ' ha efectuado el pago de los aportes parafiscales (Cajas de Compensación Familiar, ICBF y SENA) a que esté obligada, correspondientes al mismo período.');
-    L.push('3. Que no existen sumas pendientes de pago por concepto de aportes al sistema de seguridad social integral y parafiscales, o que las diferencias existentes no superan los límites legalmente aceptados.');
+    L.push('1. ' + MARCA_CONFIRMAR + 'Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ', identificada con NIT ' + (p.nit || '[NIT]') + ', ha efectuado el pago de los aportes a los sistemas de salud, pensión y riesgos laborales de sus empleados, correspondientes a los últimos seis (6) meses anteriores a la fecha de cierre del presente proceso.');
+    L.push('2. ' + MARCA_CONFIRMAR + 'Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ' ha efectuado el pago de los aportes parafiscales (Cajas de Compensación Familiar, ICBF y SENA) a que esté obligada, correspondientes al mismo período.');
+    L.push('3. ' + MARCA_CONFIRMAR + 'Que no existen sumas pendientes de pago por concepto de aportes al sistema de seguridad social integral y parafiscales, o que las diferencias existentes no superan los límites legalmente aceptados.');
     L.push('');
     L.push('Se expide la presente certificación a solicitud del interesado, para efectos de acreditar el cumplimiento del artículo 50 de la Ley 789 de 2002 ante ' + (item.entidad || '[ENTIDAD CONTRATANTE]') + '.');
     L.push('');
@@ -7104,6 +7202,16 @@
   function generarFormatoExperienciaTexto(perfil, item, entry){
     const p = perfil;
     const L = [];
+    const ev = entry && entry.experienciaResultado;
+    const hayResultados = !!(ev && ev.resultados && ev.resultados.length);
+    // DG-002: el resultado de la autoevaluación interna NO va en el cuerpo firmable; si el global no es
+    // CUMPLE se avisa arriba (bloque interno que se borra) y el detalle queda al final.
+    if (hayResultados && ev.resultadoGlobal !== 'CUMPLE'){
+      L.push('[AVISO INTERNO -- borra este bloque antes de presentar]');
+      L.push('La evaluación automática de experiencia NO dio un cumplimiento completo: hay requisitos sin contratos que los acrediten (marcados [COMPLETAR] abajo). Revisa las notas internas al final antes de firmar.');
+      L.push('════════════════════════════════════════════════════════');
+      L.push('');
+    }
     L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
     L.push('');
     L.push('FORMATO DE EXPERIENCIA ACREDITADA');
@@ -7114,24 +7222,28 @@
     L.push('Objeto: ' + (item.objeto || '[OBJETO DEL PROCESO]'));
     L.push('Proponente: ' + (p.nombre || '[RAZÓN SOCIAL]') + ' · NIT ' + (p.nit || '[NIT]'));
     L.push('');
-    const ev = entry && entry.experienciaResultado;
-    if (!ev || !ev.resultados || !ev.resultados.length){
-      L.push('[No se pudo generar este anexo: todavía no se evaluó la experiencia de este proceso. Ve a "Buscar procesos", analiza el pliego y evalúa la experiencia -- luego vuelve a generar el paquete.]');
+    if (!hayResultados){
+      L.push('[COMPLETAR: relaciona aquí, para cada requisito de experiencia del pliego, los contratos ejecutados que lo acreditan (objeto, contratante, valor, fechas y número de contrato).]');
     } else {
-      L.push('Con base en el análisis automático de "Experiencia requerida" (extraído del Pliego/Estudio Previo de este proceso) y los contratos ejecutados registrados en "Experiencia", se relaciona a continuación el cumplimiento de cada requisito:');
+      L.push('Se relacionan a continuación los contratos ejecutados que acreditan cada requisito de experiencia:');
       L.push('');
       ev.resultados.forEach((r, i) => {
         L.push((i + 1) + '. ' + truncate(r.requisito.criterio, 200));
-        L.push('   Resultado: ' + r.resultado);
-        if (r.contratosEvaluados.length){
+        // DG-001: solo un requisito que CUMPLE tiene "contratos que lo acreditan"; en los demás casos la
+        // coincidencia por palabras NO es una acreditación y no se presenta como tal.
+        const acreditan = r.resultado === 'CUMPLE' ? (r.contratosEvaluados || []) : [];
+        if (acreditan.length){
           L.push('   Contratos que lo acreditan:');
-          r.contratosEvaluados.forEach(c => L.push('     - ' + truncate(c.objeto || '(sin objeto)', 140) + (c.contratante ? ' · ' + c.contratante : '') + (c.valor != null ? ' · ' + (fmtMoney(c.valor) || c.valor) : '')));
+          acreditan.forEach(c => L.push('     - ' + truncate(c.objeto || '(sin objeto)', 140) +
+            (c.numeroContrato ? ' · Contrato No. ' + c.numeroContrato : '') +
+            (c.contratante ? ' · ' + c.contratante : '') +
+            (c.valor != null ? ' · ' + (fmtMoney(c.valor) || c.valor) : '') +
+            ((c.fechaInicio || c.fechaFin) ? ' · ' + (c.fechaInicio || '?') + ' a ' + (c.fechaFin || '?') : '')));
         } else {
-          L.push('   Sin contratos relacionados encontrados en el Excel de experiencia.');
+          L.push('   [COMPLETAR: contrato(s) que acrediten este requisito]');
         }
         L.push('');
       });
-      L.push('Resultado global: ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' + ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' + ev.resultados.length + ' requisito(s)).');
     }
     L.push('');
     L.push('Atentamente,');
@@ -7145,7 +7257,15 @@
     L.push('NIT: ' + (p.nit || '[NIT]'));
     L.push('');
     L.push('════════════════════════════════════════════════════════');
-    L.push('PLANTILLA ORIENTATIVA -- el CUMPLE/NO CUMPLE/NO DETERMINABLE de cada requisito y los contratos citados salen del mismo motor de evaluación automática de "Experiencia requerida" (Buscar procesos), no se recalculan aparte. Revísalo contra tus contratos reales y contra el pliego antes de presentarlo -- un NO DETERMINABLE significa que el sistema no tuvo información suficiente, no que no cumples: confírmalo a mano. NO es el Anexo/Formato exacto de esta entidad.');
+    L.push('[NOTAS INTERNAS -- borra desde aquí antes de presentar]');
+    if (!hayResultados){
+      L.push('Todavía no se evaluó la experiencia de este proceso. Ve a "Buscar procesos", analiza el pliego y evalúa la experiencia; luego vuelve a generar el paquete.');
+    } else {
+      L.push('Autoevaluación automática (orientativa, del motor de "Experiencia requerida"): ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' + ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' + ev.resultados.length + ' requisito(s)).');
+      ev.resultados.forEach((r, i) => { if (r.resultado !== 'CUMPLE') L.push('  - Requisito ' + (i + 1) + ': ' + r.resultado + ' -- ' + truncate(r.justificacion || '', 220)); });
+      L.push('Un "no determinable" significa que el sistema no tuvo información suficiente, no que no cumplas: confírmalo a mano contra tus contratos y el pliego.');
+    }
+    L.push('PLANTILLA ORIENTATIVA -- no es el Anexo/Formato exacto de esta entidad. Compárala con el pliego real antes de presentarla.');
     return L.join('\n');
   }
 
@@ -7153,10 +7273,25 @@
   // anexos base, en el orden en que normalmente se anexan a una oferta.
   // Un solo botón/archivo (pedido explícito del usuario) en vez de 4
   // descargas sueltas -- más fácil de copiar a Word/PDF de una sola vez.
+  const DECLARACIONES_CARTA = [
+    'Carta ítem 2: que ni la empresa ni el representante legal tienen inhabilidades, incompatibilidades o conflictos de interés.',
+    'Carta ítem 3: que la información y los documentos de la propuesta son veraces y verificables.',
+    'Carta ítem 7: declaración bajo la gravedad de juramento.'
+  ];
+  const DECLARACIONES_ANTICORRUPCION = [
+    'Compromiso anticorrupción ítem 6: que la empresa no ha sido sancionada ni investigada por corrupción, en Colombia ni en el exterior.'
+  ];
+  const DECLARACIONES_PARAFISCALES = [
+    'Certificación de aportes ítems 1 y 2: que los aportes a salud, pensión, riesgos laborales y parafiscales de los últimos seis meses están pagados.',
+    'Certificación de aportes ítem 3: que no hay sumas pendientes de pago.',
+    'Además: quién firma (representante legal o revisor fiscal) depende de tu situación legal.'
+  ];
+
   function generarPaqueteTexto(perfil, item, entry){
     const p = perfil;
     const sep = '\n\n════════════════════════════════════════════════════════\n════════════════════════════════════════════════════════\n\n';
     const L = [];
+    bloqueDeclaracionesPorVerificar(DECLARACIONES_CARTA.concat(DECLARACIONES_ANTICORRUPCION, DECLARACIONES_PARAFISCALES)).forEach(x => L.push(x));
     L.push('PAQUETE DE PROPUESTA — ' + (p.nombre || 'Proponente'));
     L.push((item.entidad || 'Entidad') + ' · ' + (item.referencia || item.objeto || 'Proceso'));
     L.push('Generado: ' + new Date().toLocaleString('es-CO'));
@@ -7167,11 +7302,11 @@
     L.push('  3. Certificación de pago de aportes parafiscales');
     L.push('  4. Formato de experiencia acreditada');
     L.push('');
-    L.push('Cada documento es una PLANTILLA ORIENTATIVA (ver el aviso al final de cada uno) -- revisa los campos [COMPLETAR] y compara contra el pliego real antes de presentar la oferta. Ninguno reemplaza el Anexo/Formato exacto que pida esta entidad en particular.');
+    L.push('Cada documento es una PLANTILLA ORIENTATIVA (ver el aviso al final de cada uno) -- revisa los campos [COMPLETAR] y [CONFIRMAR] y compara contra el pliego real antes de presentar la oferta. Ninguno reemplaza el Anexo/Formato exacto que pida esta entidad en particular.');
     return L.join('\n') + sep +
-      generarCartaTexto(p, item) + sep +
-      generarAnticorrupcionTexto(p, item) + sep +
-      generarParafiscalesTexto(p, item) + sep +
+      generarCartaTexto(p, item, true) + sep +
+      generarAnticorrupcionTexto(p, item, true) + sep +
+      generarParafiscalesTexto(p, item, true) + sep +
       generarFormatoExperienciaTexto(p, item, entry);
   }
 
@@ -9438,6 +9573,7 @@
       const p = perfiles[cartaBtn.getAttribute('data-perfil-id')];
       if (!s || !p) return;
       if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera la carta de un proceso que no existe. Haz una búsqueda real primero.'); return; }
+      if (!window.confirm(MENSAJE_CONFIRMAR_DECLARACIONES)) return;
       descargarTexto('carta-presentacion-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarCartaTexto(migrarPerfil(p), s.item) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
       return;
     }
@@ -9446,6 +9582,7 @@
       const p = perfiles[paqueteBtn.getAttribute('data-perfil-id')];
       if (!s || !p) return;
       if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera el paquete de un proceso que no existe. Haz una búsqueda real primero.'); return; }
+      if (!window.confirm(MENSAJE_CONFIRMAR_DECLARACIONES)) return;
       const entryPaquete = analisis[s.item.id];
       descargarTexto('paquete-propuesta-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarPaqueteTexto(migrarPerfil(p), s.item, entryPaquete) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
       return;
