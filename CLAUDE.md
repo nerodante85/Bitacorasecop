@@ -5197,3 +5197,13 @@ específica del Director de Obra). Resultado: 28 filas (27 del pliego + 1 de la 
 adenda. 130.923 tokens de entrada, 10.702 de salida, ~60 s, 0 errores de consola. Confirma que el remapeo de
 páginas (que solo toca filas con `documento === 'Pliego de Condiciones'`) no interfiere con las filas que vienen
 de una adenda.
+
+**Verificado también la combinación más exigente: pliego LARGO (el mismo de 73 páginas que antes fallaba 3 veces)
++ adenda a la vez** -- el caso donde más podía romperse algo, porque junta el recorte de páginas del pliego CON
+un segundo documento sin recortar en la misma respuesta. Misma Adenda 1 sintética que antes, adaptada a este
+pliego (modifica la garantía de responsabilidad civil extracontractual de 200 a 300 SMMLV). Resultado: 26 filas
+en ~80 s (contra 130-145 s agotando el tiempo, sin resultado, en los intentos que fallaron antes del arreglo) --
+25 del pliego (19 verificadas, páginas reales correctas: 14, 18, 22...) + 1 de la adenda (`documento: "Adenda 1"`,
+`pagina: 1`, verificada exacta, `modificado_por_adenda: true`). 215.079 tokens de entrada, 11.013 de salida, 0
+errores de consola. Confirma que el recorte de páginas (solo al pliego) y el manejo de adendas (siempre
+completas) conviven bien sin pisarse, incluso en el caso más largo y con más documentos a la vez.
