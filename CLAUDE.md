@@ -5184,3 +5184,16 @@ técnica" en vez de "capacidad organizacional") -- por diseño, ante la duda el 
 salvaguarda de "menos de 4 páginas -> mandar todo" mitigan esto, pero no lo eliminan. Si en el futuro se nota que
 faltan requisitos reales que sí estaban en el PDF, revisar primero si `TRIGGERS_PAGINAS_IA` necesita más frases
 ancla antes de sospechar de otra parte del sistema.
+
+**Verificado también con adenda real (crédito real)**: el recorte a páginas relevantes solo aplica al documento
+con rol `'pliego'` -- las adendas se mandan siempre completas, así que era el caso más probable de romper el
+remapeo de páginas (dos documentos, uno recortado y uno no, en la misma respuesta). Se probó con el mismo pliego
+corto de Zapatoca (42 páginas, ya probado antes) más una Adenda 1 sintética (1 página, generada con `fpdf2` --
+mismo patrón temporal ya usado en el proyecto -- que reduce de tres a dos proyectos el requisito de experiencia
+específica del Director de Obra). Resultado: 28 filas (27 del pliego + 1 de la adenda), la fila de la adenda con
+`documento: "Adenda 1"`, `pagina: 1` (correcta, sin necesitar remapeo -- la adenda nunca se recorta),
+`min_contratos: 2` (el valor YA corregido) y `modificado_por_adenda: true`; el requisito original del pliego
+("tres (03) proyectos") NO aparece duplicado -- la IA siguió la regla de reportar solo el valor vigente tras la
+adenda. 130.923 tokens de entrada, 10.702 de salida, ~60 s, 0 errores de consola. Confirma que el remapeo de
+páginas (que solo toca filas con `documento === 'Pliego de Condiciones'`) no interfiere con las filas que vienen
+de una adenda.
