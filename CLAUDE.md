@@ -5111,3 +5111,12 @@ encola el trabajo y responde de inmediato; el resultado llega después, por ejem
 notificación) -- es un cambio de arquitectura, no una constante, y queda pendiente de que el usuario decida si
 vale la pena para el caso de pliegos largos. Mientras tanto, para un pliego así, "Analizar pliego (PDF)" (el motor
 regex, sin límite de tiempo de IA) sigue funcionando igual de bien que siempre.
+
+**Decisión del usuario, cerrando este hallazgo por ahora**: al preguntarle si valía la pena revisar el plan de
+Supabase para ganar margen (el de pago sube el límite del gateway a 400 s), respondió que subir de plan cuesta
+US$25/mes y no lo va a hacer solo para esto. Se descarta subir el timeout más allá de 145 s mientras el proyecto
+siga en el plan gratuito (tope real de 150 s) -- el margen que queda (5 s) no alcanza para nada más. Los pliegos
+muy largos (~70+ páginas con matriz extensa) se quedan, por ahora, sin extracción con IA -- siguen usando el
+análisis regex de siempre, que no tiene este límite. Si en el futuro se decide encarar esto en serio, la opción
+real es el patrón asíncrono ya mencionado arriba (no depende del plan de Supabase, cambia cómo espera el
+resultado), no seguir subiendo esta constante.
