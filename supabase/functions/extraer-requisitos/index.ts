@@ -22,6 +22,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { encodeBase64 } from 'jsr:@std/encoding@1/base64';
+import { PDFDocument } from 'npm:pdf-lib@1.17.1';
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-5';
@@ -50,6 +51,40 @@ interface DocumentoEntrada {
   path: string;
   rol: 'pliego' | 'adenda';
   nombre?: string;
+  // Páginas (1-indexadas, del PDF real) que el navegador ya detectó como relevantes por
+  // anclas de texto (ver paginasRelevantesParaIA en index.html) -- si viene, la función
+  // recorta el PDF a solo esas páginas antes de mandarlo a Claude, para que un pliego
+  // largo no agote el tiempo. Opcional: sin esto, o si el recorte falla, se manda el
+  // documento completo (nunca se arriesga a omitir contenido por un heurístico frágil).
+  paginas?: number[];
+}
+
+// Auditoría: un pliego largo puede agotar el tiempo/tokens de la IA (ver CLAUDE.md,
+// "Primera prueba real..."). Cuando el navegador manda `paginas`, se arma un PDF nuevo
+// SOLO con esas páginas (Claude lo sigue leyendo como IMAGEN -- conserva su ventaja real
+// de leer tablas/matrices, a diferencia de mandar texto plano) y se devuelve el mapeo
+// posición-en-el-recorte -> página real, para poder corregir `pagina` en la respuesta de
+// la IA antes de devolverla (el cliente verifica cada cita contra el PDF ORIGINAL
+// completo, así que un `pagina` sin corregir rompería esa verificación). Nunca lanza: si
+// algo falla, devuelve null y el llamador usa el PDF sin recortar.
+async function recortarPdfAPaginas(bytes: Uint8Array, paginas: number[]): Promise<{ bytes: Uint8Array; mapa: number[] } | null> {
+  try {
+    const limpio = Array.from(new Set(paginas.filter((p) => Number.isInteger(p) && p >= 1))).sort((a, b) => a - b);
+    if (!limpio.length) return null;
+    const src = await PDFDocument.load(bytes);
+    const total = src.getPageCount();
+    const validas = limpio.filter((p) => p <= total);
+    // Sin ahorro real (recortó a casi todo el documento) -> no vale la pena el riesgo, se manda completo.
+    if (!validas.length || validas.length >= total * 0.9) return null;
+    const dst = await PDFDocument.create();
+    // deno-lint-ignore no-explicit-any -- tipos reales de pdf-lib no resolubles fuera de Deno; ver nota de arriba.
+    const copiadas = await dst.copyPages(src, validas.map((p: number) => p - 1));
+    copiadas.forEach((p: any) => dst.addPage(p));
+    const bytesRecortados = await dst.save();
+    return { bytes: bytesRecortados, mapa: validas }; // mapa[i] = página real de la posición i+1 del recorte
+  } catch {
+    return null; // cualquier fallo del PDF (cifrado, corrupto, etc.) -> se manda completo, no se bloquea la extracción
+  }
 }
 
 const CATEGORIAS = [
@@ -257,9 +292,11 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'El servicio de extracción con IA alcanzó su límite diario. Intenta de nuevo mañana.' }, 503);
     }
 
-    // 5. Bajar los PDFs de Storage y armar los bloques `document`
+    // 5. Bajar los PDFs de Storage y armar los bloques `document` -- recortando a las
+    //    páginas relevantes cuando el navegador las mandó (ver recortarPdfAPaginas arriba).
     const contenido: unknown[] = [];
     let bytesTotal = 0;
+    const mapaPorTitulo: Record<string, number[]> = {};
     for (const d of documentos) {
       const { data: blob, error: dlErr } = await supabase.storage.from(BUCKET).download(d.path);
       if (dlErr || !blob) return json({ error: 'No se pudo leer uno de los documentos de Storage' }, 404);
@@ -267,12 +304,24 @@ Deno.serve(async (req: Request) => {
       if (bytesTotal > MAX_BYTES_TOTAL) {
         return json({ error: 'Los PDFs suman más de 24 MB. Sube menos documentos o un archivo más liviano.' }, 413);
       }
-      const b64 = encodeBase64(new Uint8Array(await blob.arrayBuffer()));
+      let bytesPdf = new Uint8Array(await blob.arrayBuffer());
       // `nombre` viene del cliente y va al título del documento: se sanea y se acorta.
       const nombreSeguro = String(d.nombre ?? '').replace(/[^\p{L}\p{N} ._-]/gu, '').slice(0, 60);
+      const titulo = d.rol === 'pliego' ? 'Pliego de Condiciones' : (nombreSeguro || 'Adenda');
+      if (Array.isArray(d.paginas) && d.paginas.length) {
+        const recorte = await recortarPdfAPaginas(bytesPdf, d.paginas);
+        if (recorte) {
+          bytesPdf = recorte.bytes;
+          mapaPorTitulo[titulo] = recorte.mapa;
+          if (debug) log.push({ step: 'recorte', titulo, paginasPedidas: d.paginas.length, paginasUsadas: recorte.mapa.length });
+        } else if (debug) {
+          log.push({ step: 'recorte_omitido', titulo, paginasPedidas: d.paginas.length });
+        }
+      }
+      const b64 = encodeBase64(bytesPdf);
       contenido.push({
         type: 'document',
-        title: d.rol === 'pliego' ? 'Pliego de Condiciones' : (nombreSeguro || 'Adenda'),
+        title: titulo,
         source: { type: 'base64', media_type: 'application/pdf', data: b64 },
       });
     }
@@ -296,7 +345,9 @@ Deno.serve(async (req: Request) => {
           model: MODEL,
           max_tokens: 32000,
           output_config: {
-            effort: 'medium',
+            // Auditoría: 'low' genera una respuesta más rápida y compacta que 'medium' -- menos
+            // riesgo de chocar con el timeout/max_tokens en un pliego largo (ver CLAUDE.md).
+            effort: 'low',
             format: { type: 'json_schema', schema: REQUISITOS_SCHEMA },
           },
           // Auditoría IA-007: un pliego (o un PDF subido por error) puede traer texto dirigido a la IA.
@@ -338,6 +389,20 @@ Deno.serve(async (req: Request) => {
         requisitos = Array.isArray(parsed.requisitos) ? parsed.requisitos : [];
       } catch {
         return { error: 'Respuesta inesperada de la IA (JSON inválido)', ...(debug ? { log, raw: data } : {}) };
+      }
+      // Si algún documento se mandó recortado, `pagina` que devuelve la IA es la posición
+      // DENTRO del recorte, no la página real del PDF -- se corrige aquí, antes de que el
+      // cliente reciba la respuesta (el cliente verifica cada cita contra el PDF ORIGINAL
+      // completo, así que un `pagina` sin corregir haría fallar esa verificación).
+      if (Object.keys(mapaPorTitulo).length) {
+        requisitos = requisitos.map((r) => {
+          const fila = r as { documento?: string; pagina?: number };
+          const mapa = fila.documento ? mapaPorTitulo[fila.documento] : undefined;
+          if (mapa && typeof fila.pagina === 'number' && fila.pagina >= 1 && fila.pagina <= mapa.length) {
+            return { ...fila, pagina: mapa[fila.pagina - 1] };
+          }
+          return fila;
+        });
       }
       if (reservaId != null) {
         await supabase.from('ai_usage').update({ results_count: requisitos.length }).eq('id', reservaId);

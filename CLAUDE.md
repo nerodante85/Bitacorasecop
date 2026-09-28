@@ -5120,3 +5120,67 @@ muy largos (~70+ páginas con matriz extensa) se quedan, por ahora, sin extracci
 análisis regex de siempre, que no tiene este límite. Si en el futuro se decide encarar esto en serio, la opción
 real es el patrón asíncrono ya mencionado arriba (no depende del plan de Supabase, cambia cómo espera el
 resultado), no seguir subiendo esta constante.
+
+## Solución real para pliegos largos: recortar a páginas relevantes + respuesta más compacta
+
+Con la decisión de arriba (no subir de plan de Supabase), el usuario pidió buscar una solución que sí sirviera sin
+pagar. Se presentaron 4 opciones (dividir en tandas como el OCR, mandarle a la IA solo las páginas relevantes,
+pedirle una respuesta más compacta, o un patrón asíncrono real) y se eligieron las dos primeras -- rápidas de
+construir, atacan la causa real (cuánto tiene que leer/generar el modelo), sin tocar la arquitectura.
+
+**Aclaración importante antes de construir**: la función NO le manda texto plano a Claude -- le manda el PDF
+completo como IMAGEN (`type: 'document'`), página por página, justo para poder leer tablas/matrices que el motor
+de reglas no puede (esa es la ventaja real de usar IA aquí). Por eso "mandar solo lo relevante" no podía ser
+"extraer y mandar solo el texto de esas páginas" (habría perdido esa ventaja, la razón misma de tener esta
+función) -- tenía que ser "recortar el PDF a menos páginas, pero seguir mandándolas como imagen".
+
+**C -- respuesta más compacta**: `output_config.effort` de `'medium'` a `'low'` en la llamada a Anthropic
+(`supabase/functions/extraer-requisitos/index.ts`) -- una sola línea, sin ningún otro cambio.
+
+**B -- solo las páginas relevantes**: nueva función `paginasRelevantesParaIA(entry)` en `index.html`, junto a
+`localizarSeccionesExperiencia`/`patronAncla`/`paginaDeOffset` que ya existían -- mismo patrón (regex tolerante a
+tildes sobre el texto SIN normalizar, para no perder los índices reales; `paginaDeOffset` para mapear cada
+coincidencia a su página real). `TRIGGERS_PAGINAS_IA` es una lista NUEVA y separada de `REQUISITO_CATEGORIAS` (que
+sirve para otra cosa, el bloque regex "Otros requisitos habilitantes" -- tocarla habría arriesgado un efecto
+secundario ahí) que cubre las categorías que la IA extrae y el motor de reglas no anclaba todavía: jurídico
+(carta de presentación, existencia y representación legal, RUP, inhabilidades...), capacidad financiera/
+organizacional/K residual (reutiliza los mismos triggers que ya tenía `REQUISITO_CATEGORIAS`, solo copiados, no
+importados, a esta lista nueva), personal, garantías, UNSPSC, más `REGEX_ANCLAS_EXPERIENCIA` ya existente para
+experiencia. Cada mención encontrada suma también la página anterior y la siguiente (`MARGEN_PAGINAS_IA = 1`, por
+si la cifra exacta queda en la página siguiente al título de la sección). **Salvaguarda**: si detecta menos de
+`MIN_PAGINAS_FILTRO_IA = 4` páginas, devuelve `null` y el llamador manda el PDF completo, sin filtrar nada --
+mejor no arriesgar omitir contenido real por un heurístico que encontró muy poco.
+
+`extraerRequisitosConIA` manda esa lista de páginas (`paginas`) SOLO para el documento con rol `'pliego'` (las
+adendas, normalmente cortas, se mandan siempre completas). El servidor (`supabase/functions/extraer-requisitos/
+index.ts`), con `pdf-lib` (`npm:pdf-lib@1.17.1`, importado igual que `supabase-js` -- primera dependencia nueva de
+esta función), arma un PDF nuevo SOLO con esas páginas (`recortarPdfAPaginas`) y guarda el mapeo
+"posición-en-el-recorte -> página real" (`mapaPorTitulo`). Salvaguardas del lado del servidor, además de la del
+cliente: si el recorte no ahorra nada real (≥90% de las páginas del documento) o falla por cualquier razón (PDF
+cifrado, corrupto, páginas fuera de rango...), se manda el PDF sin recortar -- nunca se bloquea la extracción por
+un fallo de esta optimización.
+
+**El problema real que había que resolver, y cómo**: la IA ahora lee un PDF de MENOS páginas, así que sus
+citas dicen "página 3" (del recorte), no "página 23" (la real) -- y el navegador verifica cada cita contra el
+texto del PDF ORIGINAL completo (con las páginas reales), así que sin corregir esto la verificación fallaría
+para casi todas las filas. Se corrige ANTES de devolver la respuesta al navegador: después de parsear
+`requisitos`, cada fila con `documento === 'Pliego de Condiciones'` (el título exacto que ya usa la función, y
+que la propia instrucción le pide a Claude que use tal cual) se remapea con `mapaPorTitulo[...][fila.pagina - 1]`
+-- el cliente nunca se entera de que hubo un recorte, solo recibe páginas reales.
+
+**Verificado**: TypeScript sin errores reales (`tsc --noEmit`, solo los esperables por Deno/`npm:`/`jsr:` no
+resueltos localmente) y 198/198 tests de humo (el cambio no toca ninguna función que el arnés ejercite
+directamente, pero confirma que no se rompió nada del resto del archivo). Redesplegado y probado en vivo con
+CRÉDITO REAL contra el mismo pliego de 73 páginas que antes fallaba 3 veces seguidas (truncado, luego 2 timeouts):
+**26 requisitos extraídos en ~60 s** (contra 130-145 s agotando el tiempo, sin resultado, en los intentos
+anteriores), 21 de 26 filas verificadas contra el PDF real (exacta o aproximada) con páginas reales correctas
+(14, 18, 19, 22, 25...) -- confirma que el remapeo de páginas funciona. 213.258 tokens de entrada (el recorte
+sigue siendo bastante amplio -- el detector encontró contenido relevante disperso en varias zonas del documento)
+y 10.987 de salida, sin errores de consola.
+
+**Limitación que queda, no resuelta aquí**: el heurístico de páginas relevantes puede pasar por alto una sección
+que ninguno de los `TRIGGERS_PAGINAS_IA` menciona con esas palabras exactas (ej. un pliego que redacte "capacidad
+técnica" en vez de "capacidad organizacional") -- por diseño, ante la duda el margen de ±1 página y la
+salvaguarda de "menos de 4 páginas -> mandar todo" mitigan esto, pero no lo eliminan. Si en el futuro se nota que
+faltan requisitos reales que sí estaban en el PDF, revisar primero si `TRIGGERS_PAGINAS_IA` necesita más frases
+ancla antes de sospechar de otra parte del sistema.

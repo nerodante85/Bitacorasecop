@@ -5573,6 +5573,60 @@
   const PATRON_MATRIZ_EXPERIENCIA = 'matriz\\s*(?:n?[°º]?\\s*\\d+)?\\s*[-–—:]?\\s*(?:de\\s+)?experiencia';
   const REGEX_ANCLAS_EXPERIENCIA = new RegExp('(?:' + ANCLAS_EXPERIENCIA.map(patronAncla).join('|') + '|' + PATRON_MATRIZ_EXPERIENCIA + ')', 'gi');
 
+  // ── Páginas relevantes para extraer-requisitos con IA ───────────────────
+  // Un pliego largo (70+ páginas) puede agotar el tiempo de la Edge Function
+  // (ver CLAUDE.md, "Primera prueba real de la extracción con IA"): la IA lee
+  // el PDF como IMAGEN, página por página, para poder leer tablas/matrices
+  // que el motor de reglas no puede -- por eso no se le manda texto plano,
+  // se le recorta el PDF a solo las páginas que YA se sabe, por este mismo
+  // tipo de detección por anclas, que mencionan alguna categoría de
+  // requisito (jurídico, experiencia, financiera, organizacional, personal,
+  // garantías, UNSPSC). Lista propia y NO acoplada a REQUISITO_CATEGORIAS
+  // (que sirve para otra cosa -- el bloque "Otros requisitos habilitantes"
+  // del análisis regex) para no arriesgar un efecto secundario ahí.
+  const TRIGGERS_PAGINAS_IA = [
+    'carta de presentacion', 'existencia y representacion legal', 'registro unico de proponentes',
+    'inhabilidades e incompatibilidades', 'seguridad social y parafiscales', 'documento de identidad',
+    'capacidad k residual', 'k residual', 'capacidad residual de contratacion', 'capacidad residual',
+    'capacidad financiera', 'indice de liquidez', 'nivel de endeudamiento', 'patrimonio',
+    'razon de cobertura', 'capacidad organizacional', 'rentabilidad sobre el patrimonio',
+    'rentabilidad del patrimonio', 'rentabilidad sobre activos', 'rentabilidad del activo',
+    'capital de trabajo', 'clasificador unspsc', 'codigos unspsc',
+    'equipo de trabajo', 'personal minimo', 'personal requerido', 'personal clave',
+    'director de obra', 'residente de obra', 'equipo minimo de trabajo', 'personal propuesto',
+    'garantia de seriedad', 'garantia de cumplimiento', 'garantia de responsabilidad civil', 'poliza',
+  ];
+  const REGEX_PAGINAS_IA = new RegExp(
+    '(?:' + TRIGGERS_PAGINAS_IA.map(patronAncla).join('|') + '|' + REGEX_ANCLAS_EXPERIENCIA.source + ')', 'gi'
+  );
+  const MARGEN_PAGINAS_IA = 1; // páginas antes/después de cada mención -- la cifra exacta a veces sigue en la página siguiente
+  const MIN_PAGINAS_FILTRO_IA = 4; // con menos que esto detectado, mejor mandar el PDF completo (no arriesgar omitir contenido real)
+
+  // Devuelve las páginas (1-indexadas, del PDF real ya leído en `entry`) que
+  // conviene mandarle a la IA, o null si el heurístico no encontró
+  // suficientes -- en ese caso el llamador debe mandar el PDF completo, sin
+  // filtrar nada.
+  function paginasRelevantesParaIA(entry){
+    const text = textoPliegoDe(entry);
+    const offsets = entry && entry.paginaOffsets;
+    if (!text || !offsets || !offsets.length) return null;
+    const numPages = entry.numPages || offsets[offsets.length - 1].pagina;
+    const set = new Set();
+    const re = new RegExp(REGEX_PAGINAS_IA.source, 'gi');
+    let m;
+    while ((m = re.exec(text)) !== null){
+      if (m[0].length === 0){ re.lastIndex++; continue; }
+      const p = paginaDeOffset(offsets, m.index);
+      if (p == null) continue;
+      for (let d = -MARGEN_PAGINAS_IA; d <= MARGEN_PAGINAS_IA; d++){
+        const pp = p + d;
+        if (pp >= 1 && pp <= numPages) set.add(pp);
+      }
+    }
+    if (set.size < MIN_PAGINAS_FILTRO_IA) return null;
+    return Array.from(set).sort((a, b) => a - b);
+  }
+
   // Techo de cuánto texto puede abarcar UNA zona (desde una ancla hasta la
   // siguiente, o hasta el techo si no hay otra ancla cerca) -- evita
   // arrastrar la mitad del documento cuando dos menciones de experiencia
@@ -10229,8 +10283,19 @@
         subidos.push(path);
       }
       estado('La IA está leyendo el pliego (puede tardar 1-2 minutos)...');
+      // Si el pliego es largo, se le manda a la IA solo las páginas que este mismo
+      // motor de reglas ya detecta como relevantes (ver "Páginas relevantes..." arriba)
+      // -- reduce cuánto tiene que leer/generar la IA, sin perder la ventaja de leer
+      // el PDF como imagen (tablas/matrices). Las adendas se mandan siempre completas.
+      const paginasRelevantes = paginasRelevantesParaIA(entry);
       const { data, error } = await client.functions.invoke('extraer-requisitos', {
-        body: { company_id: sbCompanyId, documentos: docs.map(d => ({ path: d.path, rol: d.rol, nombre: d.nombre })) }
+        body: {
+          company_id: sbCompanyId,
+          documentos: docs.map(d => Object.assign(
+            { path: d.path, rol: d.rol, nombre: d.nombre },
+            (d.rol === 'pliego' && paginasRelevantes) ? { paginas: paginasRelevantes } : {}
+          )),
+        }
       });
       if (error){
         let msg = error.message || 'Error al invocar la función.';
