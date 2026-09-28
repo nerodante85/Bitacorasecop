@@ -33,7 +33,7 @@ const LIMITE_DIARIO = 10;                 // extracciones por empresa en 24 h
 // creen muchas cuentas. Se puede cambiar con el secret LIMITE_GLOBAL_DIARIO sin volver a desplegar.
 const LIMITE_GLOBAL_DEFECTO = 100;
 // La llamada a Anthropic se aborta pasado este tiempo (antes podía colgarse hasta el límite de la plataforma).
-const TIMEOUT_ANTHROPIC_MS = 140_000;
+const TIMEOUT_ANTHROPIC_MS = 145_000;
 // Auditoría OPS-003: versión del "contrato" entre esta función y el navegador. Si el navegador espera
 // otra, muestra "función desactualizada" en vez de fallar de forma rara. Súbela en AMBOS lados al cambiar
 // la forma de la respuesta (index.html: CONTRATO_EXTRACCION).
@@ -294,7 +294,7 @@ Deno.serve(async (req: Request) => {
         signal: AbortSignal.timeout(TIMEOUT_ANTHROPIC_MS),
         body: JSON.stringify({
           model: MODEL,
-          max_tokens: 16000,
+          max_tokens: 32000,
           output_config: {
             effort: 'medium',
             format: { type: 'json_schema', schema: REQUISITOS_SCHEMA },

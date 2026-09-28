@@ -5071,3 +5071,43 @@ que sí quedan: labels de formularios y `aria-expanded` en `.tag-tip`.
 
 **Verificado.** 93/93 tests de humo. Probado en navegador con el fixture simulado de la IA: hero, estados, botón de
 iniciar sesión abriendo el modal, consola limpia (0 errores) en una pestaña nueva con la CSP nueva.
+
+## Primera prueba real de la extracción con IA: éxito con un pliego corto, límite de tiempo confirmado con uno largo
+
+Con crédito ya cargado en Anthropic y la clave configurada como secreto en Supabase, se probó `extraer-requisitos`
+por primera vez contra pliegos reales de Descargas del usuario (servidor local, misma cuenta de Supabase real,
+login con una de las cuentas de prueba de beta manual) -- no un fixture simulado como hasta ahora.
+
+**Primer intento, pliego real de Norte de Santander (73 páginas, el mismo `03 PREPLIEGO DE CONDICIONES.pdf` con
+matriz de experiencia ya visto en "Extracción de requisitos... probada contra pliegos reales" más arriba): 3 fallos
+seguidos, cada uno gastando una extracción de las 10 diarias y crédito real.**
+1. Con `max_tokens: 16000` (el valor original) -> `stop_reason: 'max_tokens'`, "La respuesta de la IA se cortó por
+   longitud" -- el pliego trae una matriz de experiencia extensa (ver los hallazgos de "posible tabla no leída" de
+   la sección regex) y el modelo generó más filas/JSON del que cabía en 16k tokens de salida.
+2. Subido a `max_tokens: 32000` (redesplegado) -> ahora se agotó el timeout interno de la función
+   (`TIMEOUT_ANTHROPIC_MS = 140_000`) antes de que Anthropic terminara de generar la respuesta más larga.
+3. Subido el timeout a 145.000 ms (redesplegado) -> **mismo resultado**, timeout de nuevo. Este pliego en particular
+   simplemente necesita más de 145 s para que el modelo genere la respuesta completa -- no es un ajuste fino de
+   configuración, es que el documento es grande para el presupuesto de tiempo actual.
+
+**Segundo intento, con un pliego real más corto para separar "¿funciona la función?" de "¿este documento es
+demasiado grande?"**: el Estudio Previo de Zapatoca (`2- ESTUDIOS PREVIOS LP-005-2026.pdf`, 42 páginas, el mismo
+que en la sección de extracción por regex había dado 0 requisitos honestos). **Éxito completo, primera vez de punta
+a punta con datos reales**: 21 filas extraídas (jurídico, experiencia general/específica de Director y Residente de
+obra con cifras exactas -- "quince (15) años"/"tres (03) proyectos" citando página real --, capacidad financiera
+con varios indicadores marcados confianza baja porque el documento solo trae el título sin la cifra -- el motor
+correctamente los deja en conflicto, no inventa un valor --, códigos UNSPSC, y las 4 garantías con sus porcentajes
+y vigencias exactas). Costo real: 129.097 tokens de entrada + 11.233 de salida. 0 errores de consola.
+
+**Cambios que quedaron desplegados** (`supabase/functions/extraer-requisitos/index.ts`): `max_tokens` 16000 ->
+32000, `TIMEOUT_ANTHROPIC_MS` 140_000 -> 145_000 -- ambos ayudan en el caso general (pliegos de tamaño típico), y
+no perjudicaron el caso que sí funcionó.
+
+**Limitación real que queda documentada, no resuelta en esta pasada**: un pliego muy largo (~70+ páginas con una
+matriz de experiencia extensa) puede seguir agotando el tiempo -- 145 s está a solo 5 s del límite de 150 s del
+plan gratuito de Supabase para el gateway completo (no solo la llamada a Anthropic), así que casi no queda margen
+para subirlo más sin cambiar de plan. La solución real para ese caso sería pasar a un patrón asíncrono (la función
+encola el trabajo y responde de inmediato; el resultado llega después, por ejemplo revisando de nuevo o con
+notificación) -- es un cambio de arquitectura, no una constante, y queda pendiente de que el usuario decida si
+vale la pena para el caso de pliegos largos. Mientras tanto, para un pliego así, "Analizar pliego (PDF)" (el motor
+regex, sin límite de tiempo de IA) sigue funcionando igual de bien que siempre.
