@@ -277,8 +277,39 @@ function extractExperienceEngine() {
   assert(iG0 !== -1 && iG1 !== -1 && iG1 > iG0, 'no se encontraron las anclas de parsearRUP');
   const blockG = scriptBody.slice(iG0, iG1);
 
+  // Bloque H: gate de experiencia (lectura simple del resultado ya evaluado) -- QA-001.
+  const iH0 = scriptBody.indexOf('function experienciaGateDetalle(entry){');
+  const iH1 = scriptBody.indexOf('const REQUISITO_CATEGORIAS', iH0);
+  assert(iH0 !== -1 && iH1 !== -1 && iH1 > iH0, 'no se encontraron las anclas de experienciaGateDetalle');
+  const blockH = scriptBody.slice(iH0, iH1);
+
+  // Bloque I: evaluarProceso completo (GO/NO-GO) y sus gates auxiliares -- QA-001. Usa
+  // getInputs() (lee inputs del DOM en la app real) y perfilesProfesionales (estado global
+  // mutable) -- ambos se inyectan como globales mínimos más abajo, mismo patrón que el resto
+  // de shims de esta función.
+  const iI0 = scriptBody.indexOf('function compsDe(entry){');
+  const iI1 = scriptBody.indexOf('function evaluarMejor(item, s, entry){', iI0);
+  assert(iI0 !== -1 && iI1 !== -1 && iI1 > iI0, 'no se encontraron las anclas del bloque compsDe..evaluarProceso');
+  const blockI = scriptBody.slice(iI0, iI1);
+
+  // Bloque J: lectura del RUT por posición (x,y) de los items de pdf.js -- QA-001. Mismo
+  // patrón que parsearRUP (bloque G), pero por coordenadas en vez de solo texto plano.
+  const iJ0 = scriptBody.indexOf('function pareceEtiquetaRUT(s){');
+  const iJ1 = scriptBody.indexOf('function aplicarRUTaCampos(data){', iJ0);
+  assert(iJ0 !== -1 && iJ1 !== -1 && iJ1 > iJ0, 'no se encontraron las anclas del bloque parsearRUT');
+  const blockJ = scriptBody.slice(iJ0, iJ1);
+
+  // Bloque K: aplica una extracción de requisitos con IA ya guardada al entry (conflictos,
+  // exigencias, experiencia) -- QA-001. Usa expevalContratos (estado global mutable), se
+  // inyecta como global más abajo.
+  const iK0 = scriptBody.indexOf('function aplicarRequisitosIAaEntry(entry){');
+  const iK1 = scriptBody.indexOf('function conservarCamposAuxiliares(entryNuevo, entryPrevio){', iK0);
+  assert(iK0 !== -1 && iK1 !== -1 && iK1 > iK0, 'no se encontraron las anclas de aplicarRequisitosIAaEntry');
+  const blockK = scriptBody.slice(iK0, iK1);
+
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE + '\n' + blockF + '\n' + blockG +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto };';
+    '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK +
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, experienciaGateDetalle, compsDe, codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, setPerfilesProfesionales: v => { globalThis.perfilesProfesionales = v; }, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setInputsFake: v => { globalThis.getInputs = () => v; } };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -298,6 +329,13 @@ function extractExperienceEngine() {
       return { querySelector: (sel) => (sel === 'table' && tableHtml) ? { querySelectorAll: () => trs } : null };
     }
   };
+  // evaluarProceso (bloque I) lee getInputs() (inputs del DOM en la app real, aquí un valor
+  // fijo por defecto) y perfilesProfesionales (estado global mutable); aplicarRequisitosIAaEntry
+  // (bloque K) lee expevalContratos -- los tests ajustan estos tres con
+  // setInputsFake/setPerfilesProfesionales/setExpevalContratos antes de cada caso.
+  globalThis.getInputs = () => ({ keywords: [], geos: [], municipios: [], minV: 0, maxV: 0, numProceso: '' });
+  globalThis.perfilesProfesionales = {};
+  globalThis.expevalContratos = null;
   const factory = new Function('window', source);
   return factory(fakeWindow);
 }
@@ -2333,6 +2371,111 @@ await check('QA-001 RUP: indicadores financieros con su valor; "Rentabilidad del
   assert(r.capResidual === null, 'el RUP no trae capacidad residual: no se inventa');
   const conRes = expEngine.parsearRUP(RUP_REAL + ' Capacidad residual de contratación 12.500 SMMLV');
   assert(conRes.capResidual && /12\.500/.test(conRes.capResidual), 'si la trae, se lee');
+});
+
+// ---- QA-001: parsearRUT (posición x,y de pdf.js, no solo texto plano) ----------------
+// Simula el layout real del formulario del RUT: etiqueta numerada arriba/izquierda, valor
+// llenado a la derecha o debajo. `it.pagina` (no `it.page`) es el nombre real del campo que
+// usa procesarRUT() al extraer con pdf.js.
+function rutItem(str, x, y, pagina) { return { str, x, y, pagina: pagina || 1 }; }
+
+await check('parsearRUT: caso feliz (persona jurídica) -- NIT y DV en el mismo renglón no se mezclan entre sí (regresión real: sin encadenar el xMin de cada columna al xMax de la etiqueta anterior, "6. DV" se comía dígitos que eran del NIT vecino), razón social debajo de su etiqueta', () => {
+  const items = [
+    rutItem('5. Número de Identificación Tributaria', 10, 500), rutItem('6. DV', 300, 500),
+    rutItem('900123456', 10, 485),
+    // "99" simula un fragmento del NIT que pdf.js separó en su propio item, pegado justo
+    // antes de la columna de DV (x=288, entre el xMin viejo sin encadenar sería 280 y el
+    // xMin real encadenado al xMax de "5." que es 295) -- sin la corrección, DV se lo comía.
+    rutItem('99', 288, 485), rutItem('7', 300, 485),
+    rutItem('35. Razón social', 10, 400), rutItem('CONSTRUCTORA XYZ SAS', 10, 385),
+  ];
+  const r = expEngine.parsearRUT(items);
+  assert(r.nit === '90012345699', 'NIT: ' + r.nit + ' (debe incluir el fragmento "99", que es suyo)');
+  assert(r.dv === '7', 'DV: ' + r.dv + ' (NO debe traer el fragmento "99" del NIT vecino)');
+  assert(r.nombre === 'CONSTRUCTORA XYZ SAS', 'nombre/razón social: ' + r.nombre);
+  assert(r.encontrado === 2, 'encontrado cuenta nit+nombre, fue ' + r.encontrado);
+});
+
+await check('parsearRUT: persona natural (sin "35. Razón social") arma el nombre con apellidos + nombres', () => {
+  const items = [
+    rutItem('31. Primer apellido', 10, 500), rutItem('PEREZ', 10, 485),
+    rutItem('33. Primer nombre', 10, 400), rutItem('JUAN', 10, 385),
+  ];
+  const r = expEngine.parsearRUT(items);
+  assert(r.nombre === 'PEREZ JUAN', 'nombre ensamblado: ' + r.nombre);
+});
+
+await check('parsearRUT: sin ningún item reconocible, todo queda null/0 -- no se inventa nada', () => {
+  const r = expEngine.parsearRUT([]);
+  assert(r.nit === null && r.dv === null && r.nombre === null && r.direccion === null, 'todo null: ' + JSON.stringify(r));
+  assert(r.responsabilidades.length === 0 && r.encontrado === 0, 'sin datos: ' + JSON.stringify(r));
+});
+
+// ---- QA-001: evaluarProceso completo (el veredicto GO/NO-GO/REVISAR real, no solo sus gates aislados) ----
+function itemProceso(extra) { return Object.assign({ id: 'p1', entidad: 'Alcaldía X', valor: 500000000, estado: 'Abierta' }, extra || {}); }
+function matrizFeliz(extra) {
+  return Object.assign({
+    id: 'perf1', nombre: 'Mi empresa', codigos: [], kResidual: { unidad: 'COP', valor: 600000000 },
+    capacidadEstimada: null, liquidez: 1.5, endeudamiento: 0.4, cobertura: null, patrimonio: null, capitalTrabajo: null
+  }, extra || {});
+}
+function entryFeliz(extra) {
+  return Object.assign({
+    id: 'p1', exigencias: { liquidez: { valor: 1.2, porcentaje: false }, endeudamiento: { valor: 0.6, porcentaje: false } },
+    experienciaResultado: { resultadoGlobal: 'CUMPLE', conteo: { 'CUMPLE': 1, 'NO CUMPLE': 0, 'NO DETERMINABLE': 0 }, resultados: [{ id: 1 }], totalObligatorios: 1 }
+  }, extra || {});
+}
+
+await check('evaluarProceso: caso feliz -- todo en verde (plazo, valor, capacidad, índices, experiencia) da GO', () => {
+  expEngine.setInputsFake({ minV: 0, maxV: 0 });
+  const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entryFeliz());
+  assert(res.veredicto === 'GO', 'se esperaba GO, fue ' + res.veredicto + ' -- gates: ' + JSON.stringify(res.gates));
+  assert(res.conPliego === true, 'con entry, conPliego debe ser true');
+  assert(!res.gates.some(g => g.estado === 'fail' || g.estado === 'nd' || g.estado === 'revisar'), 'ningún gate debería quedar pendiente: ' + JSON.stringify(res.gates));
+});
+
+await check('evaluarProceso: límite -- sin K residual en el perfil, todo lo demás en verde, el veredicto NUNCA es GO (RT-004, probado de punta a punta)', () => {
+  expEngine.setInputsFake({ minV: 0, maxV: 0 });
+  const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz({ kResidual: null }), entryFeliz());
+  assert(res.veredicto === 'REVISAR', 'sin K residual el veredicto máximo es REVISAR, fue ' + res.veredicto);
+  const gCap = res.gates.find(g => g.nombre === 'Capacidad vs valor');
+  assert(gCap && gCap.estado === 'nd', 'el gate de capacidad debe existir y quedar "requiere verificación": ' + JSON.stringify(gCap));
+});
+
+await check('evaluarProceso: inválido -- un proceso ya adjudicado da NO-GO aunque todo lo demás esté en verde', () => {
+  expEngine.setInputsFake({ minV: 0, maxV: 0 });
+  const res = expEngine.evaluarProceso(itemProceso({ estado: 'Adjudicado' }), { daysLeft: 10 }, matrizFeliz(), entryFeliz());
+  assert(res.veredicto === 'NO-GO', 'un proceso adjudicado debe dar NO-GO, fue ' + res.veredicto);
+  assert(res.gates.some(g => g.nombre === 'Estado del proceso' && g.estado === 'fail'), 'debe existir el gate de estado en fail: ' + JSON.stringify(res.gates));
+});
+
+// ---- QA-001: aplicarRequisitosIAaEntry (cablea conflictos + exigencias + experiencia al entry) ----
+await check('aplicarRequisitosIAaEntry: una extracción de IA ya guardada evalúa la experiencia contra expevalContratos (global) y llena exigenciasIA/codigosUnspscIA', () => {
+  const filas = expEngine.verificarFilasIA([filaIA()], IA_TEXTO, IA_OFFSETS);
+  const entry = { id: 'p1', requisitosIA: { filas } };
+  expEngine.setExpevalContratos({ headers: [], cols: {}, contratos: contratosPuentes(900000000, '2024-06-01') });
+  expEngine.aplicarRequisitosIAaEntry(entry);
+  assert(entry.experienciaResultado && entry.experienciaResultado.resultadoGlobal, 'debe evaluar experiencia con expevalContratos: ' + JSON.stringify(entry.experienciaResultado));
+  assert(entry.requisitosExperiencia.length === 1, 'un requisito de experiencia viene de la fila de IA, fueron ' + entry.requisitosExperiencia.length);
+  assert(Array.isArray(entry.codigosUnspscIA) && Array.isArray(entry.hallazgosPersonalIA), 'listas auxiliares presentes aunque vacías');
+  expEngine.setExpevalContratos(null);
+});
+
+await check('aplicarRequisitosIAaEntry: sin experiencia de la empresa cargada (expevalContratos null), experienciaResultado queda null -- no se inventa un veredicto', () => {
+  const filas = expEngine.verificarFilasIA([filaIA()], IA_TEXTO, IA_OFFSETS);
+  const entry = { id: 'p2', requisitosIA: { filas } };
+  expEngine.setExpevalContratos(null);
+  expEngine.aplicarRequisitosIAaEntry(entry);
+  assert(entry.experienciaResultado === null, 'sin expevalContratos, experienciaResultado debe quedar null, fue ' + JSON.stringify(entry.experienciaResultado));
+});
+
+await check('aplicarRequisitosIAaEntry: dos filas del mismo indicador con valores distintos (pliego vs adenda) quedan marcadas en conflicto en el entry', () => {
+  const filas = [filaFin({ documento: 'Pliego de Condiciones', pagina: 4, valor_indicador: 1.2 }), filaFin({ documento: 'Adenda 1', pagina: 2, valor_indicador: 1.5, modificado_por_adenda: true })];
+  const entry = { id: 'p3', requisitosIA: { filas } };
+  expEngine.setExpevalContratos(null);
+  expEngine.aplicarRequisitosIAaEntry(entry);
+  assert(entry.requisitosIA.filas[0].conflictoIA && entry.requisitosIA.filas[1].conflictoIA, 'ambas filas deben quedar con conflictoIA tras aplicar: ' + JSON.stringify(entry.requisitosIA.filas.map(f => f.conflictoIA)));
+  assert(entry.exigenciasIA.liquidez && entry.exigenciasIA.liquidez.conflicto === true, 'la exigencia de liquidez debe quedar en conflicto, no elegir un valor: ' + JSON.stringify(entry.exigenciasIA.liquidez));
 });
 
 await check('ESC-002: la caché devuelve lo guardado mientras esté fresco y lo descarta al vencer', () => {

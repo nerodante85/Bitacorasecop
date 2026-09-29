@@ -5436,3 +5436,49 @@ guardado habría borrado el primero). Filas de prueba borradas después. **No ve
 extremo a extremo en el navegador con dos sesiones reales de cuenta -- decisión explícita con el usuario de
 cerrar con la evidencia de base de datos + revisión de código en vez de crear una cuenta de prueba para
 esta ronda (mismo patrón ya usado para PRIV-002, disponible si se quiere profundizar después).
+
+## QA-001: cobertura de evaluarProceso completo, parsearRUT y aplicarRequisitosIAaEntry
+
+Lo que quedaba pendiente de QA-001 (ver `RELEASE-BLOCKERS.md`): tres funciones críticas sin ninguna prueba
+de comportamiento (solo se sabía que EXISTÍAN, por el check 3 de `tests/smoke.mjs`, no que decidieran bien).
+`tests/smoke.mjs` extrae funciones del `<script>` principal por anclas de texto y las corre con
+`new Function(...)` (ver `extractExperienceEngine()`) -- las tres se sumaron con el mismo patrón, en bloques
+nuevos (H, I, J, K) junto a los A-G que ya existían.
+
+**`evaluarProceso` (bloque I, con `compsDe`/`codigosExigidosEnPliego`/`gatePersonalRequerido`)**: la función
+que decide el veredicto GO/NO-GO/REVISAR real -- hasta ahora solo se probaban sus GATES aislados
+(`gateCapacidadVsValor`, `decidirVeredicto`...), nunca la función completa de punta a punta. Depende de
+`getInputs()` (lee `<input>` del DOM real) y de `perfilesProfesionales` (estado global mutable) -- se
+inyectan como funciones auxiliares del `expEngine` (`setInputsFake`, `setPerfilesProfesionales`), mismo
+patrón que los shims de `truncate`/`fmtMoney`/`normalizeGeo`/`DOMParser` que ya existían. 3 casos (feliz:
+todo en verde da GO; límite: sin K residual el veredicto nunca es GO, aunque todo lo demás esté en verde --
+RT-004 probado ahora de punta a punta, no solo en su gate aislado; inválido: un proceso ya adjudicado da
+NO-GO pase lo que pase con el resto).
+
+**`parsearRUT` (bloque J, con `pareceEtiquetaRUT`/`limitesColumnaRUT`/`itemsDeCampoRUT`/`campoTextoRUT`/
+`campoNumericoRUT`)**: lee el RUT por POSICIÓN (x, y de pdf.js, campo `pagina`, no `page`) en vez de solo
+texto plano como `parsearRUP` -- mismo espíritu que el bloque G ya existente, pero ningún caso probaba el
+posicionamiento real. 3 casos (feliz: persona jurídica, NIT+DV+razón social; límite: persona natural, nombre
+ensamblado de apellidos+nombres sin "35. Razón social"; inválido: sin items, todo null/0). El caso feliz
+reproduce a propósito el bug real ya documentado en el comentario de `limitesColumnaRUT` (una etiqueta corta
+como "6. DV", con un margen de columna SIN encadenar al xMax de la etiqueta anterior, se comía dígitos que
+eran del NIT vecino) -- confirmado por mutación: quitar el `Math.max(lab.x - 20, prevXMax)` (dejar solo
+`lab.x - 20`, el bug original) hace fallar este test específico.
+
+**`aplicarRequisitosIAaEntry` (bloque K)**: aplica una extracción de IA ya guardada al `entry` (conflictos,
+exigencias, experiencia) -- se llama desde 9 sitios distintos (los mismos que ARQ-003 tocó para
+`saveAnalisis(id)`) pero nunca se probó en sí misma, solo sus piezas sueltas (`detectarConflictosFilasIA`,
+`exigenciasDesdeIA`...). Depende de `expevalContratos` (estado global mutable) -- se inyecta con
+`setExpevalContratos`. 3 casos (feliz: con `expevalContratos` cargado, evalúa experiencia y llena
+`exigenciasIA`/`codigosUnspscIA`; límite: sin `expevalContratos`, `experienciaResultado` queda `null` -- no
+se inventa un veredicto sin la experiencia de la empresa; inválido/reutilización: dos filas del mismo
+indicador con valores distintos -- pliego vs. adenda -- quedan marcadas `conflictoIA` en el propio `entry`
+tras aplicar, reusando los fixtures `filaIA`/`filaFin` de los tests de IA-004 ya existentes).
+
+**Verificado por mutación** (como pide la regla del gate en `RELEASE-BLOCKERS.md`, "no se cierra sin
+mutación"): los 3 bloques se probaron rompiendo a propósito el código real y confirmando que el test nuevo
+correspondiente falla -- `gateCapacidadVsValor` sin el chequeo `!kResidual` (el test "límite" de
+`evaluarProceso` falla), `limitesColumnaRUT` sin encadenar `xMin` (el test "feliz" de `parsearRUT` falla),
+`aplicarRequisitosIAaEntry` ignorando `expevalContratos` nulo (el test "límite" correspondiente falla) --
+las 3 mutaciones se revirtieron después. `node tests/smoke.mjs`: 207/207 (9 pruebas nuevas), 0 regresiones
+en las 198 que ya existían. Solo se tocó `tests/smoke.mjs` -- `index.html` queda exactamente igual.
