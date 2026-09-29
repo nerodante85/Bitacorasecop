@@ -574,6 +574,15 @@
   #bitacora-root .ia-cita summary { cursor: pointer; }
   #bitacora-root .ia-confirmar { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; margin-top: 6px; min-height: 32px; }
   #bitacora-root .ia-confirmar input { width: 18px; height: 18px; flex: 0 0 auto; margin: 0; }
+  /* IA-006 (pendiente restante): comparar el campo extraído contra la cita textual del PDF
+     lado a lado, en vez de una cita colapsada lejos de la columna "Exigido" -- para confirmar
+     una fila hay que poder leer ambos a la vez, no recordar uno mientras se abre el otro. */
+  #bitacora-root tr.ia-comparar-row td { background: var(--bg); padding-top: 4px; padding-bottom: 10px; }
+  #bitacora-root .ia-comparar { display: flex; gap: 14px; flex-wrap: wrap; }
+  #bitacora-root .ia-comparar-campo, #bitacora-root .ia-comparar-cita { flex: 1 1 260px; min-width: 220px; font-size: 12.5px; }
+  #bitacora-root .ia-comparar-cita { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }
+  #bitacora-root .ia-comparar-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); margin-bottom: 3px; }
+  #bitacora-root .ia-comparar-notas { color: var(--text-muted); font-style: italic; margin-top: 4px; }
   #bitacora-root .expeval-sinverificar { border: 1px dashed currentColor; background: transparent; }
   @media (prefers-reduced-motion: reduce) {
     #bitacora-root *, #bitacora-root *::before, #bitacora-root *::after {
@@ -8240,17 +8249,31 @@
         const fuente = escapeHtml(f.documento || 'Pliego') + (f.pagina ? ', p. ' + escapeHtml(String(f.pagina)) : '') +
           (f.modificadaPorAdenda ? ' <span class="tag">modificado por adenda</span>' : '') +
           (f.verificada ? ' <span title="La cita se encontró en el texto del PDF">✓</span>' : '');
-        const cita = f.cita ? '<details class="ia-cita"><summary>ver cita</summary>«' + escapeHtml(f.cita) + '»' + (f.notas ? '<br><i>' + escapeHtml(f.notas) + '</i>' : '') + '</details>' : '';
         // El control se mantiene visible aunque ya esté confirmada (para poder revertirla).
         const confirmar = (f.bloqueo || f.confirmada)
           ? '<label class="ia-confirmar"><input type="checkbox" data-ia-confirmar data-ia-id="' + id + '" data-ia-index="' + f.iaIndex + '"' + (f.confirmada ? ' checked' : '') + '> <span>' + (f.confirmada ? 'Confirmada por ti (desmarca para revertir)' : 'Revisé la cita en el PDF' + (f.pagina ? ' (p. ' + escapeHtml(String(f.pagina)) + ')' : '') + ' y es correcta') + '</span></label>'
+          : '';
+        // IA-006 (pendiente restante): una fila que hay que confirmar (o ya confirmada, para
+        // poder revisarla otra vez) muestra el campo "Exigido" y la cita textual LADO A LADO,
+        // en vez de una cita colapsada en la misma celda angosta que el checkbox -- comparar
+        // los dos a la vez es justo lo que pide la confirmación. Las filas sin ese control (ya
+        // confiables, sin nada que confirmar) conservan la cita colapsada de siempre.
+        const necesitaComparar = !!confirmar && !!f.cita;
+        const cita = (!necesitaComparar && f.cita)
+          ? '<details class="ia-cita"><summary>ver cita</summary>«' + escapeHtml(f.cita) + '»' + (f.notas ? '<br><i>' + escapeHtml(f.notas) + '</i>' : '') + '</details>'
+          : '';
+        const filaComparar = necesitaComparar
+          ? '<tr class="ia-comparar-row"><td colspan="5"><div class="ia-comparar">' +
+              '<div class="ia-comparar-campo"><div class="ia-comparar-label">Exigido (extraído por la IA)</div>' + escapeHtml(f.exigido) + '</div>' +
+              '<div class="ia-comparar-cita"><div class="ia-comparar-label">Cita textual del PDF' + (f.pagina ? ' -- p. ' + escapeHtml(String(f.pagina)) : '') + '</div>«' + escapeHtml(f.cita) + '»' + (f.notas ? '<div class="ia-comparar-notas">' + escapeHtml(f.notas) + '</div>' : '') + '</div>' +
+            '</div></td></tr>'
           : '';
         return '<tr' + (f.confiable ? '' : ' class="fila-esencial-faltante"') + '>' +
           '<td>' + escapeHtml(f.categoriaLabel) + '</td>' +
           '<td>' + escapeHtml(f.descripcion || '') + '</td>' +
           '<td>' + escapeHtml(f.exigido) + '</td>' +
           '<td>' + badgeEstadoIA(f.estado) + '<div class="ia-cita">' + escapeHtml(truncate(f.detalle, 260)) + '</div></td>' +
-          '<td>' + fuente + cita + confirmar + '</td></tr>';
+          '<td>' + fuente + cita + confirmar + '</td></tr>' + filaComparar;
       }).join('');
       const avisoInyeccion = (ia.avisosInyeccion && ia.avisosInyeccion.length)
         ? '<div class="analysis-block analysis-warn" role="alert">⚠ Este PDF contiene texto dirigido a una IA (' + ia.avisosInyeccion.map(h => escapeHtml(h.documento + (h.pagina ? ', p. ' + h.pagina : ''))).join('; ') + '). Puede ser un intento de manipular la lectura: ninguna fila se da por buena hasta que la confirmes a mano.</div>' : '';

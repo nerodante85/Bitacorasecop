@@ -5299,3 +5299,41 @@ correctamente al hacer clic, con `#bt-contrato-nuevo` accesible tras expandir; l
 se ve en el Dashboard de una cuenta vacía, debajo del paso 4. 0 errores de consola en ambas vistas. Con esto
 quedan implementados los 7 hallazgos de la auditoría UX/UI completa (2 críticos, 2 altos, 2 medios, 1 bajo ya
 resuelto de antemano) -- ninguno pendiente.
+
+## OPS-001 y OPS-003 activados; IA-006 completado (cita y campo lado a lado)
+
+Tras cerrar la auditoría UX/UI, se atacaron tres pendientes de `auditoria/RELEASE-BLOCKERS.md`.
+
+**OPS-001** (Pages solo publica si pasan los tests): ya estaba en el código (`pages.yml`), solo faltaba
+activarlo en GitHub. Se depuró en vivo con el usuario, consultando la API pública de GitHub
+(`GET /repos/.../actions/runs/{id}/jobs`) tras cada intento en vez de confiar en la lectura de pantalla --
+el primer intento del usuario guardó la variable como `PAGES_FOR_ACTIONS` (inglés) cuando el workflow busca
+`PAGES_POR_ACTIONS` (español); corregido el nombre, la ejecución #16 corrió el job `deploy` completo
+(`checkout` -> `Preparar el sitio` -> `upload-pages-artifact` -> `deploy-pages`). El README.md tenía una
+frase ya falsa ("GitHub Pages publica el cambio igual, sin esperar a que termine") -- corregida.
+
+**OPS-003** (despliegue automático de Edge Functions): mismo patrón (secreto `SUPABASE_ACCESS_TOKEN` +
+variable `DEPLOY_FUNCIONES=true`), verificado igual por API tras un `workflow_dispatch` real (ejecución #4):
+job `probar` + job `desplegar` (`supabase functions deploy --project-ref ... --use-api`) en verde.
+
+**IA-006 (pendiente restante: "mostrar cita y campos lado a lado")**: la tabla de requisitos extraídos por IA
+(`bloqueRequisitosIAHtml`, dentro de "Buscar procesos" y "Evaluación") tenía la cita textual del PDF colapsada
+en un `<details>` compartiendo la misma celda angosta ("Fuente") con el checkbox de confirmación -- para
+confirmar una fila había que abrir la cita y compararla mentalmente contra la columna "Exigido", varias
+columnas a la izquierda. Ahora, cuando una fila necesita confirmación (`f.bloqueo` o ya `f.confirmada`, para
+poder revisarla de nuevo) y tiene cita, se agrega una fila extra (`tr.ia-comparar-row`, `colspan="5"`) justo
+debajo con un panel `flex` de dos columnas: "Exigido (extraído por la IA)" y "Cita textual del PDF -- p. N",
+una junto a la otra. Las filas SIN nada que confirmar (ya confiables) conservan la cita colapsada de siempre,
+sin ese bloque extra -- no hay nada que decidir ahí, así que no hace falta el espacio. `filaIAHabilitante`/
+`motivoBloqueoFilaIA`/`filaIAConfiable` (la lógica de qué fila necesita confirmación) no se tocaron: el cambio
+es solo de presentación.
+
+**Verificado**: `node tests/smoke.mjs` (198/198) sin regresiones (el cambio no toca ninguna función de
+extracción/evaluación, solo el render HTML). Probado visualmente con un archivo HTML aislado que reutiliza
+el `<style>` completo de `index.html` (mismo `#bitacora-root`, mismas variables de tema) más dos filas de
+ejemplo -- una que necesita confirmación (con panel de comparación) y otra ya verificada (con cita colapsada
+como antes) -- en vez de inyectar estado real de la app, porque una extracción de IA real requiere sesión y
+crédito, que hoy no aportarían nada nuevo a un cambio puramente visual ya cubierto por los tests. Confirmado
+en escritorio (1200px, panel lado a lado legible) y en móvil (375px: la tabla completa se desplaza
+horizontalmente, mismo patrón ya establecido para esta tabla en el resto de la app, no una regresión). El
+archivo de prueba se borró antes de terminar (`git status --porcelain` limpio).
