@@ -5258,3 +5258,44 @@ correctos y ambos clics (carta y paquete) ejecutaron sin errores nuevos en conso
 ven bien tanto en escritorio como en viewport móvil (375×812), colapsados por defecto y expandiendo correctamente
 al hacer clic en el `<summary>`. `localStorage.clear()` + reload confirmó que el fix del `TypeError` no vuelve a
 aparecer.
+
+## Auditoría UX/UI: implementados también los hallazgos MEDIO y BAJO
+
+Tras implementar CRÍTICO/ALTO (ver sección anterior), el usuario pidió completar también los hallazgos MEDIO y
+BAJO que habían quedado pendientes de la misma auditoría (informe original: sección 2, tabla de problemas por
+prioridad).
+
+**MEDIO -- "Perfil de la empresa" con una calculadora incrustada al final**: el sub-panel "Capacidad contractual
+estimada" (registro de contratos en ejecución, para descontar su saldo pendiente del K residual) se sentía pegado
+al final del formulario largo de datos de la empresa (RUP, K, NIT, contacto), en vez de sentirse como una
+herramienta aparte. Mismo patrón que Alertas/PAA de la ronda anterior: el contenido interactivo
+(`#bt-contratos-ejecucion-list`, el botón "+ Agregar contrato en ejecución" y `#bt-capacidad-estimada-out`) se
+envolvió en un `<details><summary>Mostrar / registrar contratos en ejecución</summary>` (cerrado por defecto),
+dejando el `titleblock-head` (título + descripción) siempre visible fuera del `<details>`. Sin cambios de JS --
+los tres ids siguen existiendo tal cual, todos referenciados por `getElementById` (no dependen de que el
+`<details>` esté abierto).
+
+**MEDIO -- orden del sidebar no coincide con "Primeros pasos"**: el informe original señalaba que el sidebar
+(Inicio, **Buscar procesos**, Perfil, Experiencia, Personal, Evaluación) pone "Buscar procesos" en la posición
+más prominente, mientras que "Primeros pasos" del Dashboard enseña Perfil → Experiencia → Personal → Buscar
+procesos -- quien hace clic primero en la posición más visible del menú choca con "🔒 Analizar pliego (completa
+Experiencia y Personal)". El propio informe proponía la solución de menor riesgo: NO reordenar el sidebar (buscar
+sin perfil completo es un uso válido -- no es un bug, es una decisión de diseño legítima), sino aclarar el punto
+explícitamente. Se agregó una frase al final de la lista numerada de "Primeros pasos": *"Puedes buscar procesos
+desde ya -- el paso 4 no depende de los anteriores. Solo necesitas completar los pasos 1 a 3 antes de poder
+**analizar** el pliego de un proceso puntual."*
+
+**BAJO -- peso visual de "Analizar pliego" vs. "Marcar visto"/"Descartar" -- ya resuelto, sin cambios**: el
+informe señalaba que los tres botones de la tarjeta compartían la misma clase `.btn-mini` y por tanto el mismo
+peso visual. Al revisar el CSS actual (`#bitacora-root .btn-mini.analizar`, ya presente desde el rediseño
+profesional de la app -- commit `d4c4911`, anterior a esta auditoría), el botón "Analizar pliego" YA tiene un
+estilo distintivo (fondo/borde verde `--success`) frente al estilo neutro de "Marcar visto"/"Descartar". La
+premisa del hallazgo ya no aplicaba al momento de implementar -- no se tocó nada aquí, para no introducir un
+cambio sin una razón real que lo respalde.
+
+**Verificado**: `node tests/smoke.mjs` (198/198) sin regresiones, y en navegador real -- "Capacidad contractual
+estimada" se ve colapsada por defecto en "Perfil de la empresa" (solo el resumen visible) y expande
+correctamente al hacer clic, con `#bt-contrato-nuevo` accesible tras expandir; la frase nueva de "Primeros pasos"
+se ve en el Dashboard de una cuenta vacía, debajo del paso 4. 0 errores de consola en ambas vistas. Con esto
+quedan implementados los 7 hallazgos de la auditoría UX/UI completa (2 críticos, 2 altos, 2 medios, 1 bajo ya
+resuelto de antemano) -- ninguno pendiente.

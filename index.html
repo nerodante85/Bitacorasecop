@@ -1112,6 +1112,13 @@
               <li><button type="button" class="primeros-pasos-item" data-view="personal"><span class="primeros-pasos-num">3</span><span><strong>Personal</strong> — registra al menos un profesional de tu equipo de trabajo.</span></button></li>
               <li><button type="button" class="primeros-pasos-item" data-view="buscar"><span class="primeros-pasos-num">4</span><span><strong>Buscar procesos</strong> — encuentra licitaciones abiertas y analiza el pliego que te interese.</span></button></li>
             </ol>
+            <!-- Auditoría UX/UI (arquitectura de información, hallazgo MEDIO): el orden del
+                 sidebar (Buscar procesos en la posición más prominente, antes de Perfil/
+                 Experiencia/Personal) no coincide con este orden recomendado -- quien hace clic
+                 ahí primero choca con "Analizar pliego" bloqueado. No se reordena el sidebar
+                 (buscar sin perfil completo es un uso válido), solo se aclara aquí que ese orden
+                 es opcional. -->
+            <p class="saved-note" style="margin-top:10px;">Puedes buscar procesos desde ya -- el paso 4 no depende de los anteriores. Solo necesitas completar los pasos 1 a 3 antes de poder <strong>analizar</strong> el pliego de un proceso puntual.</p>
           </div>
 
           <div class="stat-grid">
@@ -1471,15 +1478,23 @@
             </div>
             <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga en "Experiencia" y se compara automáticamente contra cada pliego que analices. El RUP tampoco se usa aquí para inferir experiencia. Los datos de NIT/representante/contacto se usan solo para generar la carta de presentación (ver "Evaluación") — ningún dato sale de tu navegador salvo que actives cuenta/sincronización.</div>
 
+            <!-- Auditoría UX/UI (arquitectura de información, hallazgo MEDIO): esta calculadora
+                 se sentía pegada al final del formulario de la empresa (RUP, K, NIT, contacto) en
+                 vez de una herramienta aparte -- colapsada en un <details> nativo por el mismo
+                 patrón que Alertas/PAA en "Buscar procesos" (cerrado por defecto, el contenido
+                 sigue en el DOM tal cual, ningún id/lógica cambia). -->
             <div class="titleblock-head" style="border:none;margin:22px 0 10px;padding-bottom:0;">
               <h2 style="font-size:14.5px;">Capacidad contractual estimada</h2>
               <span>Registra los contratos de obra que esta empresa tiene actualmente en ejecución, para descontar su saldo pendiente del K residual declarado arriba</span>
             </div>
-            <div id="bt-contratos-ejecucion-list"></div>
-            <div class="actions" style="margin-top:0;">
-              <button type="button" class="btn-secondary" id="bt-contrato-nuevo">+ Agregar contrato en ejecución</button>
-            </div>
-            <div id="bt-capacidad-estimada-out"></div>
+            <details>
+              <summary style="cursor:pointer;">Mostrar / registrar contratos en ejecución</summary>
+              <div id="bt-contratos-ejecucion-list" style="margin-top:12px;"></div>
+              <div class="actions" style="margin-top:0;">
+                <button type="button" class="btn-secondary" id="bt-contrato-nuevo">+ Agregar contrato en ejecución</button>
+              </div>
+              <div id="bt-capacidad-estimada-out"></div>
+            </details>
           </div>
         </section>
 
