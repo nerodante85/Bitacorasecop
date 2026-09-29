@@ -5383,3 +5383,56 @@ directamente con la API nativa del navegador) contenía el texto real, 23.092 ca
 Volver a analizar"), mostró sus resultados, y NO apareció el aviso de "se liberó su texto" -- confirma que
 `loadAnalisis()` hidrata correctamente antes de que el resto de la app lo necesite. 0 errores de consola.
 Archivo de PDF de prueba borrado antes de terminar (`git status --porcelain` limpio).
+
+## ARQ-003 (alcance inicial: analisis_pliegos): versionado por elemento en la sincronización
+
+**El bug real**: cada clave sincronizada (`analisis_pliegos`, `perfiles_empresa`...) vivía como UNA fila en
+`app_state(company_id, key, value)` con el JSON completo adentro. Guardar sobrescribía la fila entera. Si el
+dispositivo A cargaba esa fila, agregaba un pliego nuevo y guardaba, y casi al mismo tiempo el dispositivo B
+(con la copia vieja, sin el cambio de A) agregaba OTRO pliego distinto y guardaba -- B pisaba completo lo
+que A acababa de escribir, y el pliego de A desaparecía, aunque nunca tocaron el mismo elemento. Discutido
+el alcance con el usuario antes de tocar nada (esto requiere migrar el esquema de su Supabase real, no solo
+JS): se decidió empezar solo por `analisis_pliegos` (la colección con más peso y ediciones concurrentes
+probables), dejando `perfiles_empresa`/`perfiles_profesionales`/`alertas_guardadas` con el comportamiento
+actual -- mismo patrón se puede extender después si hace falta.
+
+**Esquema nuevo**: `supabase/migrations/20260929_analisis_pliegos_items.sql` -- tabla
+`app_state_analisis_items(company_id, item_id, value, updated_at)`, `item_id` = id del proceso (el mismo que
+usa `analisis[id]` en el cliente), con las mismas 4 políticas RLS que `app_state` (aislamiento por
+`company_members`). Migración puramente aditiva (`create table if not exists`, políticas con
+`drop policy if exists` antes de recrearlas) -- no toca ninguna tabla existente. **Aplicada por el usuario
+en su proyecto real** (`mfqdeqxuwnczexonhlxu`) vía SQL Editor -- el intento de aplicarla yo mismo con la MCP
+de Supabase (`apply_migration`) fue bloqueado por el clasificador de modo automático ("Production Deploy"),
+como corresponde: un cambio de esquema en la base de datos real del usuario no es algo que deba ejecutar
+sin más, ni rodear el bloqueo.
+
+**Cliente**: `cargarAnalisisRemoto()`/`guardarAnalisisRemotoItem(id, valor)`/
+`reemplazarAnalisisRemotoCompleto(obj)` (junto a `window.storage.set`, mismo patrón de `getSupabaseClient()`
+ya usado en el resto del archivo) reemplazan el camino genérico SOLO para `analisis_pliegos`.
+`loadAnalisis()` arma `analisis` desde `app_state_analisis_items` (una fila por proceso) con cuenta activa,
+o desde `localBackend` sin cuenta (sin multi-dispositivo posible, nada que versionar ahí). `saveAnalisis(id)`
+ahora recibe el id del elemento que cambió (los 9 sitios que la llaman ya sabían cuál era; se actualizaron
+todos) -- con cuenta activa, sincroniza SOLO ese elemento vía upsert a su propia fila; sin `id` (nadie lo
+pasa hoy, es un resguardo), sincroniza todos los elementos en memoria, upsert por fila cada uno (más lento,
+sigue siendo correcto: nunca borra lo que este dispositivo no tenga cargado). La caché local
+(`localStorage['bitacora_analisis_pliegos']`) se mantiene siempre al día, con o sin cuenta -- mismo patrón
+que el resto de claves sincronizadas.
+
+`migrarLocalASupabaseSiVacio` (la migración única de localStorage a una cuenta recién conectada) excluye
+`analisis_pliegos` del lote genérico y la migra aparte, item por item, con `reemplazarAnalisisRemotoCompleto`.
+El respaldo/restauración (OPS-008) también se especializó: exportar lee `analisis_pliegos` directo de la
+caché local (nunca del camino genérico, que ya no se actualiza para esta clave y podría devolver una fila
+vieja); restaurar reemplaza tanto la caché local como, con cuenta activa, TODAS las filas remotas de golpe
+(único caso legítimo de reemplazo completo -- el usuario ya confirmó "esto reemplaza tus datos actuales"
+antes de restaurar).
+
+**Verificado**: `node tests/smoke.mjs` (198/198) sin regresiones. La migración se confirmó aplicada
+consultando la base real con la MCP de Supabase en modo lectura (`list_tables`: `app_state_analisis_items`
+con RLS activado; `pg_policies`: las 4 políticas SELECT/INSERT/UPDATE/DELETE presentes). **La prueba más
+directa del bug real** se hizo con SQL contra la base real: dos upserts fila-por-fila simulando dos
+"dispositivos" guardando casi a la vez, cada uno un pliego DISTINTO (`test-arq003-proc-A`/`-proc-B`) --
+ambas filas sobrevivieron intactas (en el diseño viejo, con un blob por toda la colección, el segundo
+guardado habría borrado el primero). Filas de prueba borradas después. **No verificado**: sincronización de
+extremo a extremo en el navegador con dos sesiones reales de cuenta -- decisión explícita con el usuario de
+cerrar con la evidencia de base de datos + revisión de código en vez de crear una cuenta de prueba para
+esta ronda (mismo patrón ya usado para PRIV-002, disponible si se quiere profundizar después).

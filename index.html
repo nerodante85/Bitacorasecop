@@ -1917,10 +1917,22 @@
     if (error || (existentes && existentes.length)) return;
     const filas = [];
     SYNCED_KEYS.forEach(key => {
+      if (key === 'analisis_pliegos') return; // ARQ-003: se migra aparte, item por item (ver abajo)
       const raw = localStorage.getItem('bitacora_' + key);
       if (raw !== null) filas.push({ company_id: companyId, key, value: raw });
     });
     if (filas.length) await client.from('app_state').upsert(filas, { onConflict: 'company_id,key' });
+    // ARQ-003: analisis_pliegos va a su propia tabla, item por item, no como un blob en
+    // app_state -- mismo motivo que el resto de este cambio (ver app_state_analisis_items.sql).
+    const rawAnalisis = localStorage.getItem('bitacora_analisis_pliegos');
+    if (rawAnalisis !== null){
+      try {
+        const obj = JSON.parse(rawAnalisis);
+        // reemplazarAnalisisRemotoCompleto usa sbCompanyId (global) -- ya está asignado acá
+        // (bootstrapAccountSession lo setea ANTES de llamar a esta función).
+        if (Object.keys(obj).length) await reemplazarAnalisisRemotoCompleto(obj);
+      } catch(e){ console.error('No se pudo migrar los pliegos analizados a la cuenta', e); }
+    }
   }
 
   // Se restaura al arrancar (sesión persistida por supabase-js) y también tras
@@ -1999,6 +2011,47 @@
     }
     return { key, value };
   };
+
+  // ARQ-003: versionado por elemento para "analisis_pliegos" -- la colección con más peso y
+  // ediciones concurrentes probables (ver la migración app_state_analisis_items.sql para el
+  // porqué). En vez del camino genérico de arriba (una fila con el blob COMPLETO bajo
+  // app_state), cada pliego analizado es su propia fila en app_state_analisis_items
+  // (company_id, item_id = id del proceso) -- dos dispositivos que editan procesos DISTINTOS
+  // ya no se pisan; si editan el MISMO proceso, sigue siendo última escritura gana para ESE
+  // elemento (caso legítimo). El resto de claves-colección (perfiles, alertas) se quedan con
+  // el comportamiento genérico de arriba -- alcance de esta primera ronda, ver CLAUDE.md.
+  async function cargarAnalisisRemoto(){
+    const client = await getSupabaseClient();
+    const { data, error } = await client.from('app_state_analisis_items').select('item_id,value').eq('company_id', sbCompanyId);
+    if (error) throw error;
+    const obj = {};
+    (data || []).forEach(f => {
+      try { obj[f.item_id] = JSON.parse(f.value); }
+      catch(e){ console.error('Fila de análisis dañada en la cuenta (item_id=' + f.item_id + '), se ignora', e); }
+    });
+    return obj;
+  }
+  async function guardarAnalisisRemotoItem(id, valorLigero){
+    const client = await getSupabaseClient();
+    const { error } = await client.from('app_state_analisis_items').upsert(
+      { company_id: sbCompanyId, item_id: id, value: JSON.stringify(valorLigero), updated_at: new Date().toISOString() },
+      { onConflict: 'company_id,item_id' }
+    );
+    if (error) throw error;
+  }
+  // Reemplazo COMPLETO (borra todas las filas de la empresa y vuelve a insertar) -- se usa
+  // solo para restaurar un respaldo (OPS-008), donde el usuario explícitamente pidió
+  // reemplazar todo. El guardado normal (guardarAnalisisRemotoItem) nunca borra filas, para
+  // no perder pliegos que otro dispositivo haya agregado y este todavía no haya cargado.
+  async function reemplazarAnalisisRemotoCompleto(obj){
+    const client = await getSupabaseClient();
+    const { error: errBorrar } = await client.from('app_state_analisis_items').delete().eq('company_id', sbCompanyId);
+    if (errBorrar) throw errBorrar;
+    const filas = Object.keys(obj).map(id => ({ company_id: sbCompanyId, item_id: id, value: JSON.stringify(obj[id]), updated_at: new Date().toISOString() }));
+    if (!filas.length) return;
+    const { error } = await client.from('app_state_analisis_items').upsert(filas, { onConflict: 'company_id,item_id' });
+    if (error) throw error;
+  }
 
   // -- UI del modal de cuenta -----------------------------------------------
   let accountModalMode = 'login'; // 'login' | 'signup' | 'forgot'
@@ -3410,12 +3463,24 @@
   let analisis = {};
 
   async function loadAnalisis(){
+    // ARQ-003: analisis_pliegos ya no pasa por el camino genérico de window.storage (que
+    // trataría toda la colección como UN blob) -- con cuenta activa, se arma desde
+    // app_state_analisis_items (una fila por proceso); sin cuenta, sigue siendo un blob
+    // simple en localStorage (sin multi-dispositivo posible, no hay nada que versionar).
     try {
-      const r = await window.storage.get('analisis_pliegos', false);
-      analisis = (r && r.value) ? JSON.parse(r.value) : {};
+      if (sbSession && sbCompanyId){
+        analisis = await cargarAnalisisRemoto();
+        await localBackend.set('analisis_pliegos', JSON.stringify(analisis)); // caché local, igual que el resto de claves sincronizadas
+      } else {
+        const r = await localBackend.get('analisis_pliegos');
+        analisis = (r && r.value) ? JSON.parse(r.value) : {};
+      }
     } catch(e){
-      analisis = {};
-      return;
+      console.error('No se pudo cargar los pliegos analizados de la cuenta, se usa lo guardado en este navegador', e);
+      try {
+        const r = await localBackend.get('analisis_pliegos');
+        analisis = (r && r.value) ? JSON.parse(r.value) : {};
+      } catch(e2){ analisis = {}; return; }
     }
     // PERF-005: el texto completo vive aparte en IndexedDB -- se hidrata aquí para que el
     // resto del código (verificación de citas, extracción con IA, informes) siga leyendo
@@ -3431,20 +3496,27 @@
     }));
   }
 
-  async function saveAnalisis(){
-    // PERF-005: el texto completo (lo pesado) se guarda aparte en IndexedDB; el blob que va a
-    // window.storage (localStorage y, con cuenta, Supabase) se queda solo con los resultados
-    // -- liviano, ya sin el límite de cuota que antes obligaba a liberar texto para poder
-    // seguir guardando. Si IndexedDB falla al escribir (poco común: sin soporte, navegación
-    // privada que la bloquea, su propia cuota agotada), esa entrada queda marcada
-    // textoLiberado -- mismo aviso que ya existía para "vuelve a cargar el PDF".
+  // ARQ-003: `id` es opcional -- cuando se sabe cuál proceso cambió (todos los llamadores
+  // reales lo saben, ver los `saveAnalisis(id)` repartidos más abajo), con cuenta activa solo
+  // se sincroniza ESE elemento (rápido, y nunca pisa lo que otro dispositivo haya guardado
+  // para OTRO proceso mientras tanto). Sin `id` (llamador desconocido, o nadie lo pasó), se
+  // sincronizan todos los elementos en memoria -- más lento pero sigue siendo correcto
+  // (upsert por fila, nunca borra lo que este dispositivo no tenga cargado).
+  async function saveAnalisis(id){
+    // PERF-005: el texto completo (lo pesado) se guarda aparte en IndexedDB; el blob que
+    // persiste (localStorage siempre; con cuenta, además app_state_analisis_items) se queda
+    // solo con los resultados -- liviano. Si IndexedDB falla al escribir (poco común: sin
+    // soporte, navegación privada que la bloquea, su propia cuota agotada), esa entrada queda
+    // marcada textoLiberado -- mismo aviso que ya existía para "vuelve a cargar el PDF".
+    const idsAGuardar = id != null ? [id] : Object.keys(analisis);
     const ligero = {};
     let liberadosPorFalloIdb = 0;
-    for (const id of Object.keys(analisis)){
-      const e = analisis[id];
+    for (const unId of idsAGuardar){
+      const e = analisis[unId];
+      if (!e) continue; // pudo borrarse entre que se llamó y que corrió esto -- no hay nada que guardar
       const { text, ocrText, estudioPrevioText, ...resto } = e;
       if (text || ocrText || estudioPrevioText){
-        const ok = await idbSetTexto(id, { text: text || '', ocrText: ocrText || '', estudioPrevioText: estudioPrevioText || '' });
+        const ok = await idbSetTexto(unId, { text: text || '', ocrText: ocrText || '', estudioPrevioText: estudioPrevioText || '' });
         if (!ok){
           e.text = ''; e.ocrText = ''; e.estudioPrevioText = '';
           e.textoLiberado = true;
@@ -3452,14 +3524,21 @@
           liberadosPorFalloIdb++;
         }
       }
-      ligero[id] = resto;
+      ligero[unId] = resto;
     }
     try {
-      await window.storage.set('analisis_pliegos', JSON.stringify(ligero), false);
-      if (liberadosPorFalloIdb) mostrarAvisoGuardado('No se pudo guardar el texto completo de ' + liberadosPorFalloIdb + ' pliego(s) en este navegador (revisa si estás en modo privado). Sus resultados se conservan, pero para volver a evaluarlos hay que cargar de nuevo su PDF.');
+      await localBackend.set('analisis_pliegos', JSON.stringify(analisis)); // caché local siempre, igual que el resto de claves
     } catch(e){
-      console.error('No se pudo guardar el análisis en window.storage', e);
+      console.error('No se pudo guardar el análisis en este navegador', e);
       mostrarAvisoGuardado('No se pudo guardar el análisis de pliegos (posiblemente el almacenamiento del navegador está lleno). Los cambios recientes podrían perderse al recargar: elimina análisis antiguos o inicia sesión para sincronizarlos en la nube.');
+    }
+    if (liberadosPorFalloIdb) mostrarAvisoGuardado('No se pudo guardar el texto completo de ' + liberadosPorFalloIdb + ' pliego(s) en este navegador (revisa si estás en modo privado). Sus resultados se conservan, pero para volver a evaluarlos hay que cargar de nuevo su PDF.');
+    if (esquemaBloqueado || !sbSession || !sbCompanyId) return;
+    try {
+      await Promise.all(Object.keys(ligero).map(unId => guardarAnalisisRemotoItem(unId, ligero[unId])));
+    } catch(e){
+      console.error('No se pudo sincronizar el análisis de pliegos con la cuenta (se guardó solo en este navegador)', e);
+      mostrarAvisoGuardado('No se pudo sincronizar tus pliegos analizados con tu cuenta (' + ((e && e.message) || 'error de red') + '). Quedaron guardados solo en este navegador; no los abras en otro dispositivo hasta que se sincronicen.');
     }
   }
 
@@ -10286,7 +10365,7 @@
       entry.estudioPrevioViaOcr = !!viaOcr;
       entry.estudioPrevioTs = Date.now();
       analisis[entry.id] = entry;
-      saveAnalisis();
+      saveAnalisis(entry.id);
       if (slot){ const ctx = itemYScorePara(entry.id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
     } catch(err){
       alert('No se pudo leer el Estudio Previo (' + mensajeErrorPdf(err) + ').');
@@ -10303,7 +10382,7 @@
       entry.estudioPrevioViaOcr = false;
       entry.estudioPrevioTs = Date.now();
       analisis[entry.id] = entry;
-      saveAnalisis();
+      saveAnalisis(entry.id);
       if (slot){ const ctx = itemYScorePara(entry.id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
     } catch(err){
       alert('No se pudo leer el Estudio Previo (' + (err && err.message ? err.message : 'error') + ').');
@@ -10381,7 +10460,7 @@
     if (entry.requisitosIA){
       aplicarRequisitosIAaEntry(entry);
       analisis[id] = entry;
-      saveAnalisis();
+      saveAnalisis(id);
       if (slot){ const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
       return;
     }
@@ -10412,7 +10491,7 @@
       });
       entry.experienciaResultado = evaluarExperienciaCompleta(expevalContratos.contratos, todos);
       analisis[id] = entry;
-      saveAnalisis();
+      saveAnalisis(id);
     }
     if (slot){ const ctx = itemYScorePara(id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
   }
@@ -10521,7 +10600,7 @@
       };
       aplicarRequisitosIAaEntry(actual);
       analisis[id] = actual;
-      saveAnalisis();
+      saveAnalisis(id);
       const ctx = itemYScorePara(id);
       slot.innerHTML = renderAnalysisHtml(actual, ctx.item, ctx.s);
     } catch(e){
@@ -10563,7 +10642,14 @@
   document.getElementById('bt-respaldo-export').addEventListener('click', async () => {
     try {
       const valores = {};
-      for (const k of RESPALDO_CLAVES){ const r = await window.storage.get(k, false); valores[k] = r ? r.value : null; }
+      for (const k of RESPALDO_CLAVES){
+        // ARQ-003: analisis_pliegos ya no pasa por window.storage genérico (con cuenta,
+        // ese camino leería la fila vieja de app_state, que ya no se actualiza) -- se lee
+        // directo de la caché local, que loadAnalisis/saveAnalisis mantienen siempre al día,
+        // con o sin cuenta.
+        const r = k === 'analisis_pliegos' ? await localBackend.get(k) : await window.storage.get(k, false);
+        valores[k] = r ? r.value : null;
+      }
       descargarTexto('respaldo-bitacora-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(armarRespaldo(valores), null, 2));
       mensajeRespaldo('Respaldo descargado. Guárdalo en un lugar seguro: contiene los datos de tu empresa.');
     } catch(e){ mensajeRespaldo('No se pudo generar el respaldo: ' + ((e && e.message) || 'error')); }
@@ -10577,7 +10663,21 @@
     if (!v.ok){ mensajeRespaldo('No se restauró nada: ' + v.error); return; }
     if (!window.confirm('Restaurar este respaldo REEMPLAZARÁ los datos actuales (' + Object.keys(v.claves).length + ' grupos de datos' + (v.generado ? ', generado el ' + v.generado.slice(0, 10) : '') + '). ¿Continuar?')) return;
     try {
-      for (const k of Object.keys(v.claves)) await window.storage.set(k, v.claves[k], false);
+      for (const k of Object.keys(v.claves)){
+        if (k === 'analisis_pliegos'){
+          // ARQ-003: restaurar un respaldo reemplaza TODO a propósito (el usuario ya lo
+          // confirmó arriba) -- va a la caché local y, con cuenta, también reemplaza por
+          // completo app_state_analisis_items (nunca al camino genérico de app_state, que
+          // ya no se lee para esta clave).
+          await localBackend.set('analisis_pliegos', v.claves[k]);
+          if (sbSession && sbCompanyId){
+            const obj = v.claves[k] ? JSON.parse(v.claves[k]) : {};
+            await reemplazarAnalisisRemotoCompleto(obj);
+          }
+          continue;
+        }
+        await window.storage.set(k, v.claves[k], false);
+      }
       mensajeRespaldo('Respaldo restaurado. Recargando…');
       setTimeout(() => location.reload(), 600);
     } catch(e){ mensajeRespaldo('No se pudo restaurar: ' + ((e && e.message) || 'error')); }
@@ -10813,7 +10913,7 @@
         const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, text: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad };
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
-        saveAnalisis();
+        saveAnalisis(id);
         // El archivo solo se descarta de memoria si ya se leyó completo --
         // si quedan páginas pendientes, "Seguir leyendo más páginas" (ver
         // .analysis-continue-btn más abajo) lo necesita para continuar. Mismo
@@ -10856,7 +10956,7 @@
         const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaOcr: true };
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
-        saveAnalisis();
+        saveAnalisis(id);
         // Identifica y evalúa la experiencia requerida automáticamente, sin
         // esperar un segundo clic en "Evaluar cumplimiento de experiencia".
         evaluarExperienciaDeProceso(id, slot);
@@ -10906,7 +11006,7 @@
         entry.viabilidad = calcularViabilidad(entry.redFlags);
         delete entry.comp; // por si venía del esquema viejo de un solo perfil
         analisis[id] = entry;
-        saveAnalisis();
+        saveAnalisis(id);
         // Cada tanda nueva puede traer requisitos de experiencia que las
         // páginas anteriores no tenían -- se re-evalúa con el texto
         // acumulado, igual que en las otras 2 rutas de lectura del pliego.
@@ -10957,7 +11057,7 @@
         entry.viabilidad = calcularViabilidad(entry.redFlags);
         delete entry.comp; // por si venía del esquema viejo de un solo perfil
         analisis[id] = entry;
-        saveAnalisis();
+        saveAnalisis(id);
         // Cada tanda nueva puede traer requisitos de experiencia que las
         // páginas anteriores no tenían -- se re-evalúa con el texto
         // acumulado, igual que en las otras 2 rutas de lectura del pliego.
