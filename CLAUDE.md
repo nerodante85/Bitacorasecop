@@ -5337,3 +5337,49 @@ crédito, que hoy no aportarían nada nuevo a un cambio puramente visual ya cubi
 en escritorio (1200px, panel lado a lado legible) y en móvil (375px: la tabla completa se desplaza
 horizontalmente, mismo patrón ya establecido para esta tabla en el resto de la app, no una regresión). El
 archivo de prueba se borró antes de terminar (`git status --porcelain` limpio).
+
+## PERF-005: el texto completo de un pliego se mueve a IndexedDB
+
+Todo un análisis de pliego (`analisis[id]`) vivía en UN SOLO blob JSON bajo `analisis_pliegos`
+(`localStorage`, y sincronizado igual a Supabase con cuenta activa). De ese blob, lo único realmente pesado
+son tres campos de texto completo (`text`, `ocrText`, `estudioPrevioText`) -- el resto (veredicto, gates,
+requisitos de IA) es liviano. Con pocos pliegos largos analizados, ese blob podía agotar el límite compartido
+de ~5-10 MB de `localStorage` (de ahí `liberarTextoMasAntiguo`, el parche que ya existía: liberar el texto
+del pliego más antiguo para poder seguir guardando).
+
+**Cambio**: nuevo helper de IndexedDB (`abrirIdbTextos`/`idbGetTexto`/`idbSetTexto`/`idbDeleteTexto`, junto al
+shim de `window.storage`, base de datos `bitacora_textos_pliego`) que guarda esos tres campos aparte, por
+`id` de proceso. `saveAnalisis()` ahora separa cada entrada con destructuring (`const {text, ocrText,
+estudioPrevioText, ...resto} = e`) -- `resto` (sin los campos pesados) es lo que se serializa y va a
+`window.storage`; los campos pesados van a IndexedDB con `idbSetTexto`. `loadAnalisis()` hidrata esos tres
+campos de vuelta en memoria (`await Promise.all(...)`) ANTES de que `appReady` se resuelva, así que todo el
+resto del código (verificación de citas, extracción con IA, generación de informes) sigue leyendo
+`entry.text`/`.ocrText`/`.estudioPrevioText` en memoria exactamente igual que antes -- el cambio es solo en
+el límite entre memoria y persistencia, no en cómo se consume el texto.
+
+**Degradado con seguridad**: sin IndexedDB (navegador viejo, o modo privado que la bloquea), `abrirIdbTextos`
+resuelve `null` y cada operación falla de forma controlada (`idbSetTexto` devuelve `false`); `saveAnalisis`
+entonces marca esa entrada `textoLiberado = true` (el mismo aviso que ya existía: "vuelve a cargar el PDF
+para reevaluar este análisis"), en vez de perder el resto del guardado o lanzar una excepción sin capturar.
+
+**Tradeoff real, no solo de implementación**: `analisis_pliegos` es una de las `SYNCED_KEYS` que se
+sincronizan a la tabla `app_state` de Supabase con cuenta activa -- antes, el texto completo viajaba con el
+resto y estaba disponible en otro dispositivo sin recargar el PDF. Con este cambio, el texto queda LOCAL al
+navegador donde se analizó (IndexedDB nunca se sincroniza) -- mismo límite que ya existía cuando el
+almacenamiento se llenaba, ahora es la regla general. A cambio, el blob que sí sincroniza (y el respaldo
+`.json` de OPS-008) se vuelve mucho más liviano. Discutido con el usuario antes de implementar, no una
+decisión unilateral.
+
+`liberarTextoMasAntiguo` (y su prueba en `tests/smoke.mjs`) se dejó intacta -- sigue siendo una función pura,
+correcta en aislamiento, aunque `saveAnalisis` ya no la llame (el blob que va a `window.storage` ya no
+contiene texto que liberar; el fallback ahora es la marca `textoLiberado` por fallo de IndexedDB, más directa).
+
+**Verificado**: `node tests/smoke.mjs` (198/198) sin regresiones. En navegador real, con experiencia/personal
+inyectados y un PDF real (3,8 MB, copiado de una sesión anterior) analizado vía el patrón de `fetch` +
+`DataTransfer`: el blob en `localStorage['bitacora_analisis_pliegos']` quedó en 1.363 bytes SIN `text`/
+`ocrText` (antes habría incluido el texto completo); IndexedDB (`bitacora_textos_pliego`, consultado
+directamente con la API nativa del navegador) contenía el texto real, 23.092 caracteres. Tras un
+`navigate()` completo (recarga real, no solo re-render), la tarjeta reconoció el análisis existente ("↻
+Volver a analizar"), mostró sus resultados, y NO apareció el aviso de "se liberó su texto" -- confirma que
+`loadAnalisis()` hidrata correctamente antes de que el resto de la app lo necesite. 0 errores de consola.
+Archivo de PDF de prueba borrado antes de terminar (`git status --porcelain` limpio).
