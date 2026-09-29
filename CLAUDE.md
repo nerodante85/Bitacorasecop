@@ -5207,3 +5207,54 @@ en ~80 s (contra 130-145 s agotando el tiempo, sin resultado, en los intentos qu
 `pagina: 1`, verificada exacta, `modificado_por_adenda: true`). 215.079 tokens de entrada, 11.013 de salida, 0
 errores de consola. Confirma que el recorte de páginas (solo al pliego) y el manejo de adendas (siempre
 completas) conviven bien sin pisarse, incluso en el caso más largo y con más documentos a la vez.
+
+## Auditoría UX/UI: implementados los hallazgos CRÍTICO y ALTO (arquitectura de información)
+
+Tras una auditoría UX/UI completa (skill "Auditor UX/UI", actuando como usuario nuevo sin tocar código en la
+primera fase), el usuario aprobó implementar solo los hallazgos de prioridad CRÍTICA y ALTA -- los de prioridad
+MEDIA/BAJA (Perfil de la empresa con calculadora incrustada, orden del sidebar vs. "Primeros pasos", jerarquía
+visual de botones en la tarjeta) quedaron sin implementar, a la espera de que el usuario los pida.
+
+**CRÍTICO -- documentos de propuesta desconectados del veredicto**: `renderAnalysisHtml` (tarjeta de "Buscar
+procesos") ya mostraba el veredicto completo (`renderCompatibilidadHtml`) apenas se analizaba un pliego, pero
+generar la carta de presentación y el paquete de propuesta solo existía en "Evaluación" -- una pantalla aparte
+donde había que volver a elegir el MISMO proceso para conseguir esos documentos, aunque la tarjeta ya tenía todo
+lo necesario (`evalParaCompat.mejor.perfilId` identifica qué perfil produjo el mejor veredicto). Se factorizó la
+lógica que antes vivía solo inline en el handler de `evalOutEl` (vista "Evaluación") en dos funciones
+compartidas, `descargarCartaDeProceso(id, perfilId)` y `descargarPaqueteDeProceso(id, perfilId)`, junto a
+`slugArchivo()`. Ahora `renderAnalysisHtml` agrega `docsPropuestaHtml` (dos botones
+`.analysis-carta-btn`/`.analysis-paquete-btn`, solo cuando `evalParaCompat.mejor.perfilId` existe) justo antes de
+`kResidualEnTabla`, y el listener delegado de `resultsEl` gana un bloque nuevo (`// 0c-bis0)`) que llama a las
+mismas dos funciones compartidas -- ni "Evaluación" ni la tarjeta duplican el aviso de "estás viendo datos de
+ejemplo", la confirmación de declaraciones (`MENSAJE_CONFIRMAR_DECLARACIONES`) ni el nombre de archivo generado;
+ambos caminos quedan sincronizados por construcción.
+
+**ALTO -- nomenclatura inconsistente**: "Evaluación" (nav, quick-card del Dashboard, `<h1>` y subtítulo de
+`#view-evaluacion`) pasó a **"Evaluación y documentos"**, y su subtítulo ahora explica la conexión con la tarjeta
+de "Buscar procesos" (que el veredicto y sus botones de documentos también aparecen ahí). "RESUMEN DE
+COMPATIBILIDAD" pasó a **"VEREDICTO"**, tanto en `renderCompatibilidadHtml` (HTML) como en `informeAnalisisTexto`
+(el informe `.txt` descargable) -- un único término para el mismo concepto en toda la app.
+
+**ALTO -- "Buscar procesos" sobrecargado antes de los resultados**: los paneles "Alertas guardadas" (`
+#bt-alertas-panel`) y "Plan Anual de Adquisiciones" (`#bt-paa-panel`) obligaban a scrollear de más a quien solo
+quería buscar y ver resultados. Se envolvió el contenido interactivo de cada uno en un `<details><summary>`
+nativo (cerrado por defecto), dejando el `.titleblock-head` (título + descripción) siempre visible fuera del
+`<details>` -- sin JS nuevo: el contenido sigue en el DOM tal cual, `renderAlertasList()` y el resto de la lógica
+de ambos paneles no cambiaron.
+
+**Bug preexistente encontrado de paso (NO parte de la auditoría UX/UI, corregido aparte por otra sesión)**:
+`renderExpEvalReview()` lanzaba `TypeError: Cannot read properties of undefined (reading 'length')` en TODA carga
+de la página (reproducible incluso con `localStorage` vacío), porque `expevalContratos` podía quedar truthy sin
+`.headers`/`.contratos` si el dato guardado (`experiencia_evaluacion`) tenía una forma vieja/parcial. Como
+`renderExpEvalReview()` corre dentro de `appReady.then(...)` sin try/catch individual, el error abortaba el resto
+de esa cadena (Personal, Dashboard, alertas...) sin capturarse. Arreglado en dos capas: `loadExpEval()` ahora
+valida `Array.isArray(c.headers) && Array.isArray(c.contratos)` antes de asignar `expevalContratos` (si no
+cumple, lo descarta -- no hay forma confiable de migrar un dato viejo incompleto), y `renderExpEvalReview()` suma
+su propia comprobación defensiva del mismo tipo, para no depender solo de que el dato haya entrado limpio.
+
+**Verificado**: `node tests/smoke.mjs` (198/198) sin regresiones, y en vivo (navegador, con perfil/personal/
+experiencia de prueba reales y un PDF real analizado) -- los botones aparecieron en la tarjeta con los atributos
+correctos y ambos clics (carta y paquete) ejecutaron sin errores nuevos en consola; los paneles colapsables se
+ven bien tanto en escritorio como en viewport móvil (375×812), colapsados por defecto y expandiendo correctamente
+al hacer clic en el `<summary>`. `localStorage.clear()` + reload confirmó que el fix del `TypeError` no vuelve a
+aparecer.
