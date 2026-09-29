@@ -132,8 +132,9 @@ clave del flujo, cobertura de la política de seguridad (CSP) y que los
 hashes de integridad (SRI) de las librerías de terceros sigan coincidiendo
 con el archivo real de cada CDN.
 
-Este workflow es una alarma temprana, no un gate: GitHub Pages publica el
-cambio igual, sin esperar a que termine.
+Es un gate real: GitHub Pages está configurado como "Source: GitHub Actions"
+([`.github/workflows/pages.yml`](.github/workflows/pages.yml)), así que un
+push a `main` solo se publica si `node tests/smoke.mjs` pasa primero.
 
 ### App Token de Socrata (opcional)
 
