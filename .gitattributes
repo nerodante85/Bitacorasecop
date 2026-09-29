@@ -1,0 +1,4 @@
+# SEG-006: xlsx-0.20.3.full.min.js es un archivo de terceros minificado -- se guarda tal
+# cual se descargó, sin que git le toque los saltos de línea (autocrlf podría alterar bytes
+# de un archivo que se supone es idéntico byte a byte al que se probó en el navegador).
+vendor/*.js -text

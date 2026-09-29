@@ -4037,11 +4037,16 @@
     if (window.__bitacoraXlsxPromise) return window.__bitacoraXlsxPromise;
     window.__bitacoraXlsxPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-      script.integrity = 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw';
-      script.crossOrigin = 'anonymous';
+      // SEG-006: SheetJS dejó de publicar en npm/cdnjs después de 0.18.5 (con vulnerabilidades
+      // conocidas ya corregidas en versiones más nuevas) -- las versiones 0.20.x en adelante
+      // solo se distribuyen desde cdn.sheetjs.com, que no ofrece un hash SRI verificable contra
+      // un tercero como cdnjs/jsdelivr. Se copia el archivo al repositorio (vendor/) en vez de
+      // cargarlo en vivo desde ese CDN externo: lo que se despliega es exactamente el archivo
+      // que se commiteó, mismo origen que el resto de la app -- sin depender de que ese CDN siga
+      // sirviendo bytes idénticos en el futuro. `pages.yml` copia vendor/ al sitio publicado.
+      script.src = 'vendor/xlsx-0.20.3.full.min.js';
       script.onload = () => resolve(window.XLSX);
-      script.onerror = () => { window.__bitacoraXlsxPromise = null; script.remove(); reject(new Error('no se pudo cargar el lector de Excel (revisa tu conexión)')); };
+      script.onerror = () => { window.__bitacoraXlsxPromise = null; script.remove(); reject(new Error('no se pudo cargar el lector de Excel')); };
       document.head.appendChild(script);
     });
     return window.__bitacoraXlsxPromise;

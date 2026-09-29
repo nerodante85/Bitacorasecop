@@ -96,12 +96,16 @@ del usuario y se publica tal cual con **GitHub Pages**.
   (`ai_usage` y bucket `pliegos`), desplegar la función
   (`supabase functions deploy extraer-requisitos`) y el secret
   `ANTHROPIC_API_KEY` (`supabase secrets set`, nunca en el repo).
-- **Librerías de terceros** (cargadas solo cuando se usan, desde CDN, con
+- **Librerías de terceros** (cargadas solo cuando se usan, desde CDN con
   verificación de integridad — ver más abajo): [pdf.js](https://mozilla.github.io/pdf.js/)
   (lectura de PDF), [Tesseract.js](https://tesseract.projectnaptha.com/) (OCR
-  de PDFs escaneados), [SheetJS/xlsx](https://sheetjs.com/) (lectura de
-  Excel), [Supabase](https://supabase.com/) (cuenta y sincronización,
-  opcional, cargada solo si se configura — ver abajo).
+  de PDFs escaneados), [mammoth.js](https://github.com/mwilliamson/mammoth.js)
+  (lectura de Word), [Supabase](https://supabase.com/) (cuenta y sincronización,
+  opcional, cargada solo si se configura — ver abajo). [SheetJS/xlsx](https://sheetjs.com/)
+  (lectura de Excel) es la excepción: se auto-aloja en [`vendor/`](vendor/) en vez
+  de cargarse desde un CDN — las versiones con los parches de seguridad más
+  recientes ya no se publican en un CDN con SRI verificable (ver `CLAUDE.md`,
+  "SEG-006").
 
 El porqué de cada decisión de arquitectura (por qué no hay backend, cómo se
 llegó al diseño actual, bugs reales encontrados y cómo se corrigieron) está

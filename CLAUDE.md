@@ -5522,3 +5522,36 @@ bajo un nombre que contenga las palabras distintivas buscadas (podría no haber 
 o usar un nombre completamente distinto sin relación textual), el índice de respaldo tampoco la encuentra --
 en ese caso la pantalla sigue diciendo "no se pudo identificar a esta entidad en SECOP I", correcto y
 honesto, no un dato inventado.
+
+## SEG-006: SheetJS actualizado, auto-alojado (pdf.js se queda en 3.x, decisión explícita)
+
+Dos actualizaciones de librerías quedaban marcadas "abierto por decisión tuya" (no bloqueadores técnicos).
+Consultado con el usuario antes de tocar nada:
+
+**SheetJS (xlsx): actualizar, auto-alojado.** Estaba en 0.18.5 (última versión publicada en npm/cdnjs --
+confirmado consultando la API de npm y las tags de GitHub del repo de SheetJS: ambas se detienen en 0.18.5).
+Las versiones más nuevas con los parches de seguridad (0.20.x) solo se distribuyen desde `cdn.sheetjs.com`,
+que no ofrece un hash SRI verificable contra un tercero independiente (a diferencia de cdnjs/jsdelivr, donde
+`node tests/smoke.mjs` re-descarga el archivo y compara su hash real contra el `integrity` embebido). En vez
+de cargarlo en vivo desde ese CDN sin esa verificación, se descargó `xlsx-0.20.3.full.min.js` (última versión
+disponible ahí, confirmada probando 0.20.0..0.21.1 contra el CDN -- 0.21.x no existe todavía) y se agregó al
+repositorio en `vendor/`. `loadXlsxLib()` ahora apunta a `vendor/xlsx-0.20.3.full.min.js` (mismo origen que
+el resto de la app, cubierto por `script-src 'self'` de la CSP sin ningún cambio ahí) en vez de la URL de
+cdnjs. `pages.yml` copia `vendor/*.js` al sitio publicado -- sin eso, el archivo existiría en el repo pero
+nunca llegaría a producción, y "Cargar experiencia" fallaría con un 404 silencioso solo en GitHub Pages.
+
+**pdf.js: se queda en 3.11.174, decisión explícita.** Las versiones 4.x ya no traen el formato UMD
+(`<script src="...">` cargando una variable global) que usa la app -- migrar implicaría reescribir cómo se
+carga pdf.js (módulos ES) y probar a fondo OCR/extracción de texto, un cambio de arquitectura real, no una
+actualización de versión. El riesgo conocido de la 3.x ya está mitigado (`isEvalSupported:false` + CSP sin
+`unsafe-eval`). El usuario decidió no migrar por ahora.
+
+**Verificado**: `node tests/smoke.mjs` (210/210, 1 prueba nueva) -- el test de SRI de scripts CDN bajó de 5 a
+4 pares esperados (xlsx ya no es uno de ellos) y se sumó un test dedicado que confirma que el archivo
+referenciado por `loadXlsxLib()` existe de verdad en `vendor/` y que `pages.yml` lo copia al sitio publicado
+-- verificado por mutación (quitar la línea `cp vendor/*.js _site/vendor/` de `pages.yml` hace fallar este
+test específico). Probado también en navegador real: `window.XLSX.version === '0.20.3'`, cargado desde
+`vendor/xlsx-0.20.3.full.min.js` (confirmado por `document.querySelector('script[src*="xlsx"]').src`, no la
+URL vieja de cdnjs), con un Excel real subido por el flujo de "Cargar experiencia" -- "1 contrato(s)
+leído(s)", 0 errores de consola. Archivo de prueba `.xlsx` borrado antes de terminar
+(`git status --porcelain` limpio salvo los cambios reales).

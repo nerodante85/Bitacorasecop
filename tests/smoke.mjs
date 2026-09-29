@@ -16,7 +16,7 @@
 // Uso: node tests/smoke.mjs
 // ============================================================================
 
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -176,18 +176,22 @@ await check('todo host https:// usado en el código aparece en la política CSP'
   assert(missing.length === 0, 'host(s) usados en el código pero ausentes de la CSP: ' + missing.join(', '));
 });
 
-// 5) El SRI de los 5 scripts de terceros sigue coincidiendo con el CDN -----
+// 5) El SRI de los 4 scripts de terceros CDN sigue coincidiendo con el CDN -----
 // Requiere red (GitHub Actions la tiene). Si algún día se sube de versión
-// pdf.js/xlsx/Tesseract.js/supabase-js/mammoth.js sin recalcular el hash,
+// pdf.js/Tesseract.js/supabase-js/mammoth.js sin recalcular el hash,
 // este test lo detecta ANTES de que un usuario real se quede con esa
 // librería sin cargar (la CSP + SRI la bloquean en silencio, ver commit
-// que las agregó).
-await check('el SRI embebido de pdf.js/xlsx/Tesseract.js/supabase-js/mammoth.js coincide con el archivo real del CDN', async () => {
+// que las agregó). xlsx (SheetJS) dejó de ser un script CDN (SEG-006): se
+// copió al repositorio en vendor/ porque las versiones parcheadas solo se
+// distribuyen desde cdn.sheetjs.com, sin un hash SRI verificable de un
+// tercero -- se verifica aparte, más abajo (test 6), que el propio archivo
+// exista y que index.html/pages.yml lo referencien.
+await check('el SRI embebido de pdf.js/Tesseract.js/supabase-js/mammoth.js coincide con el archivo real del CDN', async () => {
   const scriptBody = extractMainScript();
   const pairs = [...scriptBody.matchAll(
     /\.src\s*=\s*'(https:\/\/(?:cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/[^']+)';[\s\S]*?\.integrity\s*=\s*'(sha384-[^']+)';/g
   )].map(m => ({ url: m[1], integrity: m[2] }));
-  assert(pairs.length === 5, 'se esperaban 5 scripts CDN con integrity (pdf.js, xlsx, Tesseract.js, supabase-js, mammoth.js), se encontraron ' + pairs.length);
+  assert(pairs.length === 4, 'se esperaban 4 scripts CDN con integrity (pdf.js, Tesseract.js, supabase-js, mammoth.js), se encontraron ' + pairs.length);
   for (const { url, integrity } of pairs) {
     const res = await fetch(url);
     assert(res.ok, 'HTTP ' + res.status + ' al descargar ' + url);
@@ -199,6 +203,22 @@ await check('el SRI embebido de pdf.js/xlsx/Tesseract.js/supabase-js/mammoth.js 
       ') -- si se subió de versión a propósito, hay que recalcular el hash; si no, algo cambió bajo esa URL pinneada.'
     );
   }
+});
+
+// 5b) SEG-006: xlsx (SheetJS) se auto-aloja en vendor/ -- el archivo que index.html referencia
+// debe existir de verdad en el repo, y el workflow de despliegue debe copiarlo al sitio
+// publicado (si no, la app funcionaría en local pero "Cargar experiencia" fallaría en
+// producción con un 404 silencioso -- el mismo tipo de bug que el test 4/5 ya atrapan para
+// los scripts CDN, pero esos no cubren un archivo propio).
+await check('SEG-006: el xlsx auto-alojado en vendor/ existe, index.html lo referencia por su nombre exacto, y pages.yml lo copia al sitio publicado', () => {
+  const scriptBody = extractMainScript();
+  const m = scriptBody.match(/script\.src\s*=\s*'vendor\/(xlsx-[^']+\.js)'/);
+  assert(m, 'no se encontró la referencia a vendor/xlsx-*.js en loadXlsxLib()');
+  const nombreArchivo = m[1];
+  const rutaVendor = path.join(ROOT, 'vendor', nombreArchivo);
+  assert(existsSync(rutaVendor), 'index.html referencia "' + nombreArchivo + '" pero no existe en vendor/');
+  const pagesYml = readFileSync(path.join(ROOT, '.github', 'workflows', 'pages.yml'), 'utf8');
+  assert(/cp\s+vendor\/\*\.js\s+_site\/vendor\//.test(pagesYml), 'pages.yml debe copiar vendor/*.js al sitio publicado, o el archivo nunca llega a producción');
 });
 
 // 6) Motor de "Evaluación de experiencia": los 8 escenarios obligatorios del
