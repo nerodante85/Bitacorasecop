@@ -1076,9 +1076,9 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/></svg>
           <span class="nav-label">Personal</span>
         </button>
-        <button class="nav-item" type="button" id="bt-nav-evaluacion" data-view="evaluacion" role="tab" aria-selected="false" aria-controls="view-evaluacion" title="Evaluación" aria-label="Evaluación">
+        <button class="nav-item" type="button" id="bt-nav-evaluacion" data-view="evaluacion" role="tab" aria-selected="false" aria-controls="view-evaluacion" title="Evaluación y documentos" aria-label="Evaluación y documentos">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-          <span class="nav-label">Evaluación</span>
+          <span class="nav-label">Evaluación y documentos</span>
         </button>
       </div>
       <div class="sidebar-foot" id="bt-sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>
@@ -1189,8 +1189,8 @@
             </button>
             <button class="quick-card" type="button" data-view="evaluacion">
               <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
-              <div class="quick-card-title">Evaluación</div>
-              <div class="quick-card-desc">Revisa el veredicto detallado de un proceso frente a tus perfiles de empresa.</div>
+              <div class="quick-card-title">Evaluación y documentos</div>
+              <div class="quick-card-desc">Revisa el veredicto detallado de un proceso y genera tu carta de presentación y paquete de propuesta.</div>
             </button>
           </div>
         </section>
@@ -1279,21 +1279,30 @@
                Especialidades/Departamento/Valor para revisar más tarde cuántos
                procesos NUEVOS coinciden -- ver "ALERTAS POR CRITERIOS GUARDADOS"
                en el <script> para el alcance (solo en la app, sin correo). -->
+          <!-- Auditoría UX/UI (arquitectura de información, hallazgo ALTO): "Buscar
+               procesos" apilaba Filtros + este panel + PAA antes de llegar a los
+               resultados -- quien solo quiere buscar tenía que scrollear de más.
+               Colapsado en un <details> nativo (sin JS extra: el contenido sigue
+               presente en el DOM, `renderAlertasList()` no cambia) -- cerrado por
+               defecto para no competir con los filtros/resultados. -->
           <div class="titleblock" id="bt-alertas-panel">
             <div class="titleblock-head">
               <h2>Alertas guardadas</h2>
               <span>Guarda esta búsqueda y revisa cuándo aparecen procesos nuevos que coinciden</span>
             </div>
-            <div class="field">
-              <label>Nombre de la alerta (opcional)</label>
-              <input id="bt-alerta-nombre" type="text" placeholder="ej. Obras civiles Norte de Santander">
-            </div>
-            <div class="actions">
-              <button class="btn-secondary" id="bt-alerta-guardar" type="button">Guardar alerta con los filtros actuales</button>
-              <button type="button" class="link-btn" id="bt-alertas-revisar">↻ Revisar ahora</button>
-              <span class="saved-note" id="bt-alerta-saved"></span>
-            </div>
-            <div class="recent-list" id="bt-alertas-list"></div>
+            <details>
+              <summary style="cursor:pointer;">Mostrar / guardar alertas</summary>
+              <div class="field" style="margin-top:12px;">
+                <label>Nombre de la alerta (opcional)</label>
+                <input id="bt-alerta-nombre" type="text" placeholder="ej. Obras civiles Norte de Santander">
+              </div>
+              <div class="actions">
+                <button class="btn-secondary" id="bt-alerta-guardar" type="button">Guardar alerta con los filtros actuales</button>
+                <button type="button" class="link-btn" id="bt-alertas-revisar">↻ Revisar ahora</button>
+                <span class="saved-note" id="bt-alerta-saved"></span>
+              </div>
+              <div class="recent-list" id="bt-alertas-list"></div>
+            </details>
           </div>
 
           <!-- Plan Anual de Adquisiciones (PAA): lo que las entidades YA
@@ -1310,12 +1319,15 @@
               <h2>Plan Anual de Adquisiciones (PAA)</h2>
               <span>Anticípate a compras que las entidades ya planearon, antes de que publiquen el proceso -- datos abiertos, Colombia Compra Eficiente</span>
             </div>
-            <div class="actions">
-              <button class="btn-secondary" id="bt-paa-buscar" type="button">🔮 Buscar en el PAA (con las especialidades y la cobertura de arriba)</button>
-              <button type="button" class="link-btn" id="bt-paa-borrar">🗑 Borrar resultados</button>
-            </div>
-            <div class="saved-note" id="bt-paa-status" style="margin-top:8px;"></div>
-            <div class="recent-list" id="bt-paa-list"></div>
+            <details>
+              <summary style="cursor:pointer;">Buscar en el PAA</summary>
+              <div class="actions" style="margin-top:12px;">
+                <button class="btn-secondary" id="bt-paa-buscar" type="button">🔮 Buscar en el PAA (con las especialidades y la cobertura de arriba)</button>
+                <button type="button" class="link-btn" id="bt-paa-borrar">🗑 Borrar resultados</button>
+              </div>
+              <div class="saved-note" id="bt-paa-status" style="margin-top:8px;"></div>
+              <div class="recent-list" id="bt-paa-list"></div>
+            </details>
           </div>
 
           <div id="bt-demo-banner" style="display:none" class="demo-banner">Estás viendo datos de ejemplo — no provienen de SECOP II en vivo. Úsalos solo para ver cómo luce la plataforma.</div>
@@ -1585,8 +1597,8 @@
 
         <section class="view" id="view-evaluacion" data-view="evaluacion" role="tabpanel" aria-labelledby="bt-nav-evaluacion" hidden>
           <div class="view-header">
-            <h1>Evaluación</h1>
-            <p>Cruza un proceso puntual con la ficha de tus perfiles de empresa y obtén un veredicto detallado.</p>
+            <h1>Evaluación y documentos</h1>
+            <p>Cruza un proceso puntual con la ficha de tus perfiles de empresa, obtén un veredicto detallado y genera tus documentos de propuesta. Ese mismo veredicto y sus botones de documentos también aparecen directo en la tarjeta de "Buscar procesos" al analizar el pliego -- esta pantalla suma la sugerencia de oferta económica y las adjudicaciones históricas de la entidad.</p>
           </div>
 
           <div class="empty" id="bt-eval-empty">Todavía no hay procesos para evaluar. Ve a "Buscar procesos" y aplica una búsqueda primero.</div>
@@ -3373,7 +3385,18 @@
       const r = await window.storage.get('experiencia_evaluacion', false);
       if (r && r.value){
         const d = JSON.parse(r.value);
-        expevalContratos = d.contratos || null;
+        // ARQ-003: un `contratos` guardado por una versión anterior de la app
+        // (antes de que este objeto incluyera `headers`/`contratos` como
+        // arrays) puede quedar persistido con una forma vieja/parcial -- sin
+        // esta validación, `expevalContratos` quedaba truthy pero sin
+        // `.headers`, y `renderExpEvalReview()` lanzaba
+        // `TypeError: Cannot read properties of undefined (reading 'length')`
+        // en TODA carga de la página (el error abortaba el resto de la
+        // cadena de appReady.then(...), sin capturarse). Se descarta en vez
+        // de intentar migrarlo -- no hay forma confiable de reconstruir
+        // `headers`/`cols` a partir de un dato viejo incompleto.
+        const c = d.contratos;
+        expevalContratos = (c && Array.isArray(c.headers) && Array.isArray(c.contratos)) ? c : null;
         expevalMeta = d.meta || null;
         // d.requisitos/d.resultado (matriz manual, ya eliminada) se ignoran
         // a propósito -- dato viejo de sesiones anteriores, se deja tal
@@ -8333,7 +8356,7 @@
       '<tr><td>' + escapeHtml(g.nombre) + '</td><td><span class="expeval-badge ' + ESTADO_COMPAT_CLASE[g.estado] + '">' + escapeHtml(ESTADO_COMPAT_LABEL[g.estado] || g.estado) + '</span></td><td>' + escapeHtml(g.detalle) + '</td></tr>'
     ).join('');
     const tabla = '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Estado</th><th>Evidencia y observaciones</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
-    return '<div class="analysis-sub">RESUMEN DE COMPATIBILIDAD' + (res.porPerfil.length > 1 ? ' (mejor de ' + res.porPerfil.length + ' perfiles)' : '') + '</div>' +
+    return '<div class="analysis-sub">VEREDICTO' + (res.porPerfil.length > 1 ? ' (mejor de ' + res.porPerfil.length + ' perfiles)' : '') + '</div>' +
       hero + lecturaParcialHtml + lista('FORTALEZAS', resumen.fortalezas) + lista('DEBILIDADES', resumen.debilidades) + lista('RIESGOS Y PENDIENTES', resumen.riesgos) + tabla;
   }
 
@@ -8353,6 +8376,19 @@
     // entry.kResidual -- no aparece en ningún lado. Se restaura como
     // respaldo SOLO quand esa fila no se está mostrando (bug real
     // corregido, ver CLAUDE.md).
+    // Auditoría UX/UI (arquitectura de información, hallazgo CRÍTICO): antes, generar
+    // la carta/el paquete de propuesta solo existía en "Evaluación" -- una pantalla
+    // aparte donde había que volver a elegir este MISMO proceso, aunque la tarjeta ya
+    // mostraba el veredicto completo. Con el perfil que decidió el veredicto
+    // (`evalParaCompat.mejor.perfilId`), los mismos documentos se generan sin salir de
+    // aquí, reusando exactamente la misma lógica de "Evaluación" (ver
+    // descargarCartaDeProceso/descargarPaqueteDeProceso).
+    const docsPropuestaHtml = (evalParaCompat && evalParaCompat.mejor.perfilId)
+      ? '<div style="margin:2px 0 10px;display:flex;gap:12px;flex-wrap:wrap;">' +
+          '<button type="button" class="link-btn analysis-carta-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(evalParaCompat.mejor.perfilId) + '">⬇ Generar carta de presentación (.txt)</button>' +
+          '<button type="button" class="link-btn analysis-paquete-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(evalParaCompat.mejor.perfilId) + '">📦 Generar paquete de propuesta (.txt)</button>' +
+        '</div>'
+      : '';
     const kResidualEnTabla = evalParaCompat && evalParaCompat.mejor.gates.some(g => g.nombre === 'Capacidad K residual');
     const kResidualFallbackHtml = (entry.kResidual && !kResidualEnTabla)
       ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(entry.kResidual) + '</div>'
@@ -8441,6 +8477,7 @@
       bloqueRequisitosIAHtml(entry, evalParaCompat ? evalParaCompat.mejor.gates : null) +
       bloqueExperienciaHtml(entry) +
       compatHtml +
+      docsPropuestaHtml +
       // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí como sección FIJA --
       // la fila "Capacidad K residual" de la tabla de gates (dentro de
       // compatHtml, arriba) normalmente ya cita el mismo valor exigido Y lo
@@ -9463,6 +9500,32 @@
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 45) || 'proceso';
   }
 
+  // Auditoría UX/UI (arquitectura de información): generar la carta/el paquete de
+  // propuesta antes solo existía en "Evaluación" -- alguien que ya vio el veredicto
+  // en la tarjeta de "Buscar procesos" tenía que volver a elegir el MISMO proceso en
+  // otra pantalla para conseguir sus documentos. Se factoriza aquí para que tanto la
+  // tarjeta (.analysis-carta-btn/.analysis-paquete-btn) como "Evaluación"
+  // (.eval-carta-btn/.eval-paquete-btn) compartan exactamente el mismo aviso de "estás
+  // viendo datos de ejemplo", la misma confirmación de declaraciones y el mismo nombre
+  // de archivo -- en vez de dos copias que podrían desincronizarse.
+  function descargarCartaDeProceso(id, perfilId){
+    const s = (lastScored || []).find(x => x.item.id === id);
+    const p = perfiles[perfilId];
+    if (!s || !p) return;
+    if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera la carta de un proceso que no existe. Haz una búsqueda real primero.'); return; }
+    if (!window.confirm(MENSAJE_CONFIRMAR_DECLARACIONES)) return;
+    descargarTexto('carta-presentacion-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarCartaTexto(migrarPerfil(p), s.item) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
+  }
+  function descargarPaqueteDeProceso(id, perfilId){
+    const s = (lastScored || []).find(x => x.item.id === id);
+    const p = perfiles[perfilId];
+    if (!s || !p) return;
+    if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera el paquete de un proceso que no existe. Haz una búsqueda real primero.'); return; }
+    if (!window.confirm(MENSAJE_CONFIRMAR_DECLARACIONES)) return;
+    const entryPaquete = analisis[id];
+    descargarTexto('paquete-propuesta-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarPaqueteTexto(migrarPerfil(p), s.item, entryPaquete) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
+  }
+
   // Informe detallado en texto plano de un análisis: requisitos detectados en el
   // pliego + comparación término por término contra cada empresa (lo que coincide
   // y, sobre todo, lo que NO aparece), más una valoración orientativa.
@@ -9491,7 +9554,7 @@
             : g)
         : res.mejor.gates;
       const resumen = resumenCompatibilidad(gatesParaMostrar);
-      L.push('RESUMEN DE COMPATIBILIDAD');
+      L.push('VEREDICTO');
       L.push('  Resultado: ' + res.mejor.veredicto + (resumen.pct != null ? ' (' + resumen.pct + '% de cumplimiento estimado sobre lo evaluable)' : ' (sin suficiente información para un %)'));
       if (lecturaParcial(entry)) L.push('  ⚠ ADVERTENCIA: este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' por OCR' : '') + ' -- el resto del pliego todavía no se ha analizado.');
       if (resumen.fortalezas.length) L.push('  Fortalezas: ' + resumen.fortalezas.join(', '));
@@ -9747,22 +9810,11 @@
       return;
     }
     if (cartaBtn){
-      const s = (lastScored || []).find(x => x.item.id === cartaBtn.getAttribute('data-eval-id'));
-      const p = perfiles[cartaBtn.getAttribute('data-perfil-id')];
-      if (!s || !p) return;
-      if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera la carta de un proceso que no existe. Haz una búsqueda real primero.'); return; }
-      if (!window.confirm(MENSAJE_CONFIRMAR_DECLARACIONES)) return;
-      descargarTexto('carta-presentacion-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarCartaTexto(migrarPerfil(p), s.item) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
+      descargarCartaDeProceso(cartaBtn.getAttribute('data-eval-id'), cartaBtn.getAttribute('data-perfil-id'));
       return;
     }
     if (paqueteBtn){
-      const s = (lastScored || []).find(x => x.item.id === paqueteBtn.getAttribute('data-eval-id'));
-      const p = perfiles[paqueteBtn.getAttribute('data-perfil-id')];
-      if (!s || !p) return;
-      if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera el paquete de un proceso que no existe. Haz una búsqueda real primero.'); return; }
-      if (!window.confirm(MENSAJE_CONFIRMAR_DECLARACIONES)) return;
-      const entryPaquete = analisis[s.item.id];
-      descargarTexto('paquete-propuesta-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarPaqueteTexto(migrarPerfil(p), s.item, entryPaquete) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
+      descargarPaqueteDeProceso(paqueteBtn.getAttribute('data-eval-id'), paqueteBtn.getAttribute('data-perfil-id'));
       return;
     }
     if (adjBtn){
@@ -9896,7 +9948,10 @@
   // vista solo sigue cargando la Fuente A (experiencia de la empresa).
   function renderExpEvalReview(){
     let html = '';
-    if (expevalContratos){
+    // Defensivo: `expevalContratos` puede ser truthy sin `.headers`/`.contratos`
+    // si algo externo a `loadExpEval()` (ya validado aparte) lo deja en una
+    // forma inesperada -- nunca debe lanzar, solo tratarse como "sin cargar".
+    if (expevalContratos && Array.isArray(expevalContratos.headers) && Array.isArray(expevalContratos.contratos)){
       const sufijoHojas = expevalContratos.nHojas > 1 ? ' de ' + expevalContratos.nHojas + ' hojas' : '';
       const conColumnas = expevalContratos.headers.length > 0;
       // El único rastro de que el archivo se leyó bien era el texto de
@@ -10513,6 +10568,21 @@
     }
 
     if (e.target.closest('[data-abrir-cuenta]')){ openAccountModal(); return; }
+
+    // 0c-bis0) Generar carta/paquete de propuesta directo desde la tarjeta -- antes
+    // solo existía en "Evaluación" (hallazgo CRÍTICO de la auditoría UX/UI). Misma
+    // lógica compartida que usa "Evaluación" (descargarCartaDeProceso/
+    // descargarPaqueteDeProceso), solo cambia dónde vive el botón.
+    const cartaTarjetaBtn = e.target.closest('button.analysis-carta-btn');
+    if (cartaTarjetaBtn){
+      descargarCartaDeProceso(cartaTarjetaBtn.getAttribute('data-eval-id'), cartaTarjetaBtn.getAttribute('data-perfil-id'));
+      return;
+    }
+    const paqueteTarjetaBtn = e.target.closest('button.analysis-paquete-btn');
+    if (paqueteTarjetaBtn){
+      descargarPaqueteDeProceso(paqueteTarjetaBtn.getAttribute('data-eval-id'), paqueteTarjetaBtn.getAttribute('data-perfil-id'));
+      return;
+    }
 
     // 0c-bis) Requisitos con IA: extraer, y confirmar/desconfirmar una fila sin verificar.
     const iaBtn = e.target.closest('button.analysis-ia-btn');
