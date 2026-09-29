@@ -7815,10 +7815,12 @@
       // Auditoría SI-001/SI-002: antes era `$q` + `$limit=400` y el filtro por entidad se hacía
       // DESPUÉS en el cliente (INVIAS: 1 de 987 filas). Ahora se resuelve primero el nombre
       // EXACTO de la entidad en una muestra y se piden sus filas con `$where` (indexable, ~0,6 s),
-      // paginando. Timeout de 30 s con un reintento (la tabla tiene 6,4 M de filas).
+      // paginando. Timeout de 60 s con un reintento (la tabla tiene 6,4 M de filas; subido de 30 a
+      // 60 s para dar cabida al índice de nombres de respaldo de consultarSecopIPorEntidad, que
+      // agrega sobre toda la tabla y puede tardar hasta ~50 s la primera vez, medido en la API real).
       const fetchJson = params => conReintento(async () => {
         const url = 'https://www.datos.gov.co/resource/' + SECOP_I_DATASET + '.json?' + new URLSearchParams(params).toString();
-        const res = await withTimeout(fetch(url, socrataFetchOptions()), 30000, 'La consulta de adjudicaciones (SECOP I)');
+        const res = await withTimeout(fetch(url, socrataFetchOptions()), 60000, 'La consulta de adjudicaciones (SECOP I)');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const d = await res.json();
         if (!Array.isArray(d)) throw new Error('respuesta inesperada');
@@ -8133,6 +8135,26 @@
       const muestra = await fetchJson({ '$q': q, '$limit': '400', '$select': 'nombre_entidad', '$order': 'fecha_de_cargue_en_el_secop DESC' });
       nombres = nombresExactosDeMuestra(muestra, coincide);
       if (nombres.length) break;
+    }
+    // SI-001: si ninguna muestra reciente trae la entidad (pasa con entidades grandes que
+    // reparten sus contratos entre MUCHAS dependencias que comparten las mismas palabras --
+    // ej. "Medellín" trae decenas de institutos/agencias antes que la Alcaldía misma -- su
+    // fila más reciente puede no estar entre las últimas 400 subidas del término buscado),
+    // último recurso: un índice real de nombres por `$group` -- cuenta cuántas filas tiene
+    // cada nombre_entidad que coincide con la búsqueda en TODA la tabla (6,4M filas), no solo
+    // en una muestra ordenada por fecha. Mucho más lento la primera vez (medido en la API
+    // real: hasta ~50 s sin caché; Socrata cachea la consulta y responde en <1 s después) --
+    // por eso solo se intenta cuando el camino rápido de arriba no encontró nada.
+    if (!nombres.length){
+      const q = distintivas[0] || ancla;
+      if (q){
+        try {
+          const agrupado = await fetchJson({ '$q': q, '$select': 'nombre_entidad, count(*) as n', '$group': 'nombre_entidad', '$order': 'n DESC', '$limit': '30' });
+          nombres = (agrupado || []).filter(r => r && r.nombre_entidad && coincide(r.nombre_entidad)).map(r => r.nombre_entidad).slice(0, 3);
+        } catch(e){
+          console.error('No se pudo resolver el nombre de la entidad en SECOP I por el índice de respaldo (' + q + ')', e);
+        }
+      }
     }
     const filas = [];
     for (const nom of nombres){

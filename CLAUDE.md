@@ -5482,3 +5482,43 @@ correspondiente falla -- `gateCapacidadVsValor` sin el chequeo `!kResidual` (el 
 `aplicarRequisitosIAaEntry` ignorando `expevalContratos` nulo (el test "límite" correspondiente falla) --
 las 3 mutaciones se revirtieron después. `node tests/smoke.mjs`: 207/207 (9 pruebas nuevas), 0 regresiones
 en las 198 que ya existían. Solo se tocó `tests/smoke.mjs` -- `index.html` queda exactamente igual.
+
+## SI-001: índice de nombres de respaldo cuando la muestra reciente no resuelve la entidad
+
+**El problema real**: `consultarSecopIPorEntidad` resolvía el nombre EXACTO de una entidad en SECOP I
+pidiendo una MUESTRA de 400 filas (`$q` + `$order=fecha_de_cargue_en_el_secop DESC`) y contando el nombre
+más frecuente que coincidiera. Para una entidad grande con muchas dependencias que comparten las mismas
+palabras de búsqueda (el caso ya documentado: "Alcaldía de Medellín" -- SECOP I tiene decenas de institutos,
+hospitales, agencias, universidades, etc. bajo "ANTIOQUIA - ... - MEDELLÍN"), la fila más reciente de la
+entidad buscada puede simplemente no estar entre las últimas 400 filas subidas que mencionan "medellin" en
+TODA la tabla (6,4M de filas) -- la muestra queda dominada por otras dependencias más activas.
+
+**Verificado contra la API real antes de tocar código** (`curl` directo a `datos.gov.co/resource/f789-7hwg`,
+dataset real de SECOP I): una consulta `$q=medellin` con `$group=nombre_entidad` (cuenta cuántas filas tiene
+cada nombre que coincide, en TODA la tabla, no en una muestra) devuelve nombres reales que la muestra de 400
+filas ordenada por fecha nunca traería primero (Instituto Tecnológico Metropolitano, Colegio Mayor de
+Antioquia, INDER Medellín...) -- confirma que el índice de nombres SÍ encuentra más candidatos reales que el
+camino actual. Tardó **~48 s la primera vez** (agregación sin caché sobre 6,4M de filas sin índice de texto)
+y **<1 s** en una repetición idéntica (caché de consultas de Socrata).
+
+**Cambio**: en `consultarSecopIPorEntidad`, si las 3 variantes de la muestra rápida no encuentran ningún
+nombre, se intenta UNA consulta de respaldo: `$select=nombre_entidad, count(*) as n`, `$group=nombre_entidad`,
+`$order=n DESC`, `$limit=30`, filtrada por `coincide` -- un índice real de nombres sobre toda la tabla, no
+una muestra acotada por fecha. Solo se intenta cuando el camino rápido falla (nunca agrega el costo extra
+cuando la muestra ya resuelve, que es el caso común). El timeout de `deSecopI` subió de 30 s a 60 s para dar
+cabida a este respaldo (las consultas normales por `$where` siguen siendo rápidas, ~0,6 s -- el techo más
+alto solo importa cuando de verdad hace falta).
+
+**Verificado con mutación**: quitar el bloque de respaldo por completo hace fallar el test nuevo específico
+("índice de respaldo por \$group la encuentra en TODA la tabla") -- confirma que el test detecta el bug real,
+no solo que pasa. Un segundo test confirma que el respaldo NUNCA se dispara cuando la muestra rápida ya
+resolvió el nombre (no agrega latencia al caso común). `node tests/smoke.mjs`: 209/209 (2 pruebas nuevas), 0
+regresiones. El mock `fetchSimulado` de los tests de SI-001 se extendió para simular `$group` como una
+agregación real sobre TODA la base (a diferencia de `$q`, que sigue simulando el recorte de una muestra
+reciente con `.slice(0, limit)` antes de filtrar).
+
+**Limitación que queda, documentada, no resuelta aquí**: si la entidad genuinamente no tiene NINGUNA fila
+bajo un nombre que contenga las palabras distintivas buscadas (podría no haber contratado nunca por SECOP I,
+o usar un nombre completamente distinto sin relación textual), el índice de respaldo tampoco la encuentra --
+en ese caso la pantalla sigue diciendo "no se pudo identificar a esta entidad en SECOP I", correcto y
+honesto, no un dato inventado.

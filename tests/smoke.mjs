@@ -2085,6 +2085,20 @@ const coincideInvias = n => /invias/i.test(n.normalize('NFD').replace(/[̀-ͯ]/g
 function fetchSimulado(baseDeDatos, registro) {
   return async (p) => {
     registro.push(p);
+    // SI-001 (índice de respaldo): a diferencia del `$q` de abajo, que simula el límite de una
+    // MUESTRA reciente con `.slice(0, limit)` ANTES de filtrar (así una entidad que solo aparece
+    // más allá de esa ventana queda fuera, como en la vida real), `$group` simula una agregación
+    // real de Socrata: recorre TODA la base, sin ese recorte.
+    if (p['$group']){
+      const q = (p['$q'] || '').toLowerCase();
+      const cuenta = new Map();
+      baseDeDatos.forEach(r => {
+        if (q && !(r.nombre_entidad + ' ' + (r.objeto || '')).toLowerCase().includes(q)) return;
+        cuenta.set(r.nombre_entidad, (cuenta.get(r.nombre_entidad) || 0) + 1);
+      });
+      return Array.from(cuenta.entries()).sort((a, b) => b[1] - a[1]).slice(0, Number(p['$limit']) || 30)
+        .map(([nombre_entidad, n]) => ({ nombre_entidad, n: String(n) }));
+    }
     if (p['$q']) return baseDeDatos.slice(0, Number(p['$limit'])).filter(r => (r.nombre_entidad + ' ' + (r.objeto || '')).toLowerCase().includes(p['$q']));
     const m = /nombre_entidad='(.*)'/.exec(p['$where']);
     const todas = baseDeDatos.filter(r => r.nombre_entidad === m[1].replace(/''/g, "'"));
@@ -2118,6 +2132,29 @@ await check('SI-001: un apóstrofo en el nombre de la entidad se escapa en el $w
   const reg = [];
   const r = await expEngine.consultarSecopIPorEntidad('invias', coincideInvias, fetchSimulado(base, reg));
   assert(r.filas.length === 1 && reg.some(p => (p['$where'] || '').includes("D''ANGELO")), 'no escapó el apóstrofo: ' + JSON.stringify(reg));
+});
+
+await check('SI-001: si la entidad no aparece en la muestra reciente (una entidad grande, con muchas dependencias que comparten palabras, puede no caer en las últimas 400 filas subidas del término buscado -- caso real: Alcaldía de Medellín), el índice de respaldo por $group la encuentra en TODA la tabla', async () => {
+  const coincideMedellin = n => /medellin/i.test(n.normalize('NFD').replace(/[̀-ͯ]/g, ''));
+  const base = [];
+  // 500 filas de OTRAS entidades ocupan toda la "muestra reciente" (los primeros 400 que
+  // simula fetchSimulado con $q) -- ninguna menciona Medellín, así que el camino rápido
+  // no encuentra nada, igual que con la entidad real.
+  for (let i = 0; i < 500; i++) base.push({ uid: 'o' + i, nombre_entidad: 'OTRA ENTIDAD', objeto: 'obra generica' });
+  for (let i = 0; i < 12; i++) base.push({ uid: 'm' + i, nombre_entidad: 'ANTIOQUIA - ALCALDÍA MUNICIPIO DE MEDELLÍN', objeto: 'obra en medellin' });
+  const reg = [];
+  const r = await expEngine.consultarSecopIPorEntidad('medellin', coincideMedellin, fetchSimulado(base, reg));
+  assert(r.nombres.length === 1 && /MEDELL[IÍ]N/.test(r.nombres[0]), 'debe resolver por el índice de respaldo: ' + JSON.stringify(r.nombres));
+  assert(r.filas.length === 12, 'debe traer las 12 filas reales de la entidad, fueron ' + r.filas.length);
+  assert(reg.some(p => p['$group']), 'debe haber intentado la consulta agrupada de respaldo tras fallar la muestra rápida');
+});
+
+await check('SI-001: cuando la muestra reciente ya resuelve el nombre, NO se intenta el índice de respaldo (evita el costo extra de agregar sobre 6,4M de filas)', async () => {
+  const base = [];
+  for (let i = 0; i < 5; i++) base.push({ uid: 'i' + i, nombre_entidad: 'INSTITUTO NACIONAL DE VÍAS (INVIAS)', objeto: 'invias vias' });
+  const reg = [];
+  await expEngine.consultarSecopIPorEntidad('invias', coincideInvias, fetchSimulado(base, reg));
+  assert(!reg.some(p => p['$group']), 'no debería haberse intentado el índice de respaldo: ' + JSON.stringify(reg));
 });
 
 await check('SI-002: un fallo transitorio se reintenta una vez; un fallo persistente se propaga (y TR-003 lo avisa)', async () => {
