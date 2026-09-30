@@ -5555,3 +5555,45 @@ test específico). Probado también en navegador real: `window.XLSX.version === 
 URL vieja de cdnjs), con un Excel real subido por el flujo de "Cargar experiencia" -- "1 contrato(s)
 leído(s)", 0 errores de consola. Archivo de prueba `.xlsx` borrado antes de terminar
 (`git status --porcelain` limpio salvo los cambios reales).
+
+## QA-001 (cierre): lógica de las Edge Functions ejecutada de verdad, no solo pruebas estáticas
+
+Lo último que quedaba de QA-001 (`RELEASE-BLOCKERS.md`): las 3 Edge Functions (`daily-digest`,
+`extraer-requisitos`, `eliminar-cuenta`) solo tenían pruebas ESTÁTICAS -- `tests/smoke.mjs` verificaba con
+regex que su código FUENTE (texto `.ts`) contuviera ciertos patrones (ej. "`limpiarNombre(a.nombre)`" aparece
+en el archivo), nunca que la lógica real, ejecutada, se comportara bien.
+
+**Revisadas las 3 antes de tocar nada**: `eliminar-cuenta` (89 líneas) no tiene ninguna lógica pura --
+todo depende del cliente de Supabase (borrar filas, borrar storage, borrar el usuario de Auth); ya está bien
+cubierta por las pruebas estáticas existentes (orden de las operaciones, validación de confirmación).
+`extraer-requisitos` tampoco tiene lógica pura extraíble sin instalar `pdf-lib` como dependencia de los
+tests -- el proyecto evita dependencias externas en `tests/smoke.mjs` a propósito (sin build step, corre con
+el Node desnudo de CI); no se fuerza esa dependencia solo para esto. **`daily-digest` sí tenía varias
+funciones puras** (`parseNumCO`, `normalizeGeo`, `matchesGeo`, `matchesTerm`, `esEstadoNoVigente`,
+`consultasSecopII`, `limpiarNombre`) -- el propio archivo las documenta como "DUPLICACIÓN DELIBERADA... un
+puerto a Deno de las funciones del mismo nombre en index.html... hay que replicar el cambio aquí a mano" --
+exactamente el tipo de duplicación que puede divergir en silencio.
+
+**Cambio**: nueva `extractDailyDigestEngine()` en `tests/smoke.mjs`, mismo patrón que
+`extractExperienceEngine()` del cliente (anclas de texto + `new Function(...)`), pero con un paso extra: el
+`.ts` real tiene anotaciones de tipo de TypeScript que Node no entiende. Se despojan con reemplazo LITERAL
+exacto de las 9 firmas de función conocidas (nunca un regex genérico sobre todo el bloque, que arriesgaría
+comerse un `:` que en realidad es de un objeto, ej. `consultasSecopII` arma `{ vigentes: '...', recientes:
+'...' }`) -- si alguna firma real cambia, el `assert` de cada reemplazo falla fuerte en vez de producir JS
+roto en silencio.
+
+**Pruebas nuevas**: `limpiarNombre` (comportamiento real: neutraliza URLs, quita caracteres de control,
+acota a 60, nunca la palabra "null"/"undefined" literal); `parseNumCO`/`normalizeGeo`/`matchesGeo`/
+`matchesTerm` (casos ya usados para probar sus pares del cliente); y la más valiosa: **`esEstadoNoVigente` y
+`consultasSecopII` comparadas EXACTAMENTE contra la copia real del cliente** (`expEngine`, que ya las tenía
+exportadas) con los mismos casos -- detecta si las dos copias divergen, el riesgo que el propio comentario
+del archivo advierte.
+
+**Verificado por mutación**: se rompió a propósito la copia del digest de `esEstadoNoVigente` (quitarle
+`seleccionad` del patrón) -- el test de comparación contra el cliente falló correctamente. Se rompió también
+`limpiarNombre` (quitar la neutralización de URLs) -- fallaron tanto el test nuevo de comportamiento como el
+test estático viejo que ya existía (los dos se complementan, no se duplican). Ambas mutaciones se
+revirtieron. `node tests/smoke.mjs`: 214/214 (5 pruebas nuevas), 0 regresiones. Con esto, QA-001 queda
+completo dentro del alcance razonable: lo que tenía lógica pura ejecutable sin nuevas dependencias, ya se
+ejecuta de verdad; lo que no (Edge Functions dominadas por llamadas de red/Supabase/Anthropic) sigue cubierto
+por pruebas estáticas + las pruebas reales con crédito ya documentadas para `extraer-requisitos`.

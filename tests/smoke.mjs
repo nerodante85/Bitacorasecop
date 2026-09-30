@@ -2535,6 +2535,96 @@ await check('aplicarRequisitosIAaEntry: dos filas del mismo indicador con valore
   assert(entry.exigenciasIA.liquidez && entry.exigenciasIA.liquidez.conflicto === true, 'la exigencia de liquidez debe quedar en conflicto, no elegir un valor: ' + JSON.stringify(entry.exigenciasIA.liquidez));
 });
 
+// ---- QA-001: motor puro de la Edge Function daily-digest (no solo pruebas estáticas sobre su
+// texto fuente, sino EJECUTAR de verdad su lógica) ------------------------------------------
+// index.ts mismo lo documenta como "DUPLICACIÓN DELIBERADA": parseNumCO/normalizeGeo/matchesGeo/
+// matchesTerm/esEstadoNoVigente son un puerto a Deno de las funciones del mismo nombre en
+// index.html, comentadas ahí mismo con "hay que replicar el cambio aquí a mano" -- exactamente
+// el tipo de duplicación que puede divergir en silencio si alguien arregla un bug en una copia
+// y se olvida de la otra. Se extraen del .ts real (no de una copia a mano en este archivo de
+// tests) y se ejecutan con los mismos casos que ya prueban las funciones del cliente, para
+// detectar esa divergencia si algún día ocurre.
+function extractDailyDigestEngine(){
+  const raw = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  const iA0 = raw.indexOf('function parseNumCO(s: unknown): number | null {');
+  const iA1 = raw.indexOf('async function fetchSecopDataset', iA0);
+  assert(iA0 !== -1 && iA1 !== -1 && iA1 > iA0, 'no se encontraron las anclas de los helpers puros (parseNumCO..consultasSecopII) en daily-digest/index.ts');
+  const bloqueA = raw.slice(iA0, iA1);
+
+  const iB0 = raw.indexOf('function esEstadoNoVigente(estado: unknown): boolean {');
+  const iB1 = raw.indexOf('async function contarNuevosDeAlerta', iB0);
+  assert(iB0 !== -1 && iB1 !== -1 && iB1 > iB0, 'no se encontraron las anclas de esEstadoNoVigente en daily-digest/index.ts');
+  const bloqueB = raw.slice(iB0, iB1);
+
+  const iC0 = raw.indexOf('function limpiarNombre(t: unknown): string {');
+  const iC1 = raw.indexOf('const MAX_ALERTAS_POR_EMPRESA', iC0);
+  assert(iC0 !== -1 && iC1 !== -1 && iC1 > iC0, 'no se encontraron las anclas de limpiarNombre en daily-digest/index.ts');
+  const bloqueC = raw.slice(iC0, iC1);
+
+  // Los tipos de este archivo son anotaciones simples en firmas de función (nunca genéricos
+  // dentro de un cuerpo, nunca "campo: tipo" en un literal -- los ":" de los objetos que arma
+  // consultasSecopII, ej. "vigentes: '...'"", son propiedades, no anotaciones, y no se tocan).
+  // Se despojan las 9 firmas conocidas por reemplazo LITERAL exacto (no un regex genérico sobre
+  // todo el bloque, para no arriesgar comerse un ":" que en realidad es de un objeto) --
+  // new Function(...) más abajo falla fuerte si algo quedó con sintaxis TS real.
+  const firmas = [
+    ['function parseNumCO(s: unknown): number | null {', 'function parseNumCO(s) {'],
+    ['function normalizeGeo(s: unknown): string {', 'function normalizeGeo(s) {'],
+    ['function matchesGeo(departamento: string, term: string): boolean {', 'function matchesGeo(departamento, term) {'],
+    ['function matchesTerm(searchable: string, term: string): boolean {', 'function matchesTerm(searchable, term) {'],
+    ['function findField(record: Record<string, unknown>, exactCandidates: string[], substrFallback?: string): unknown {', 'function findField(record, exactCandidates, substrFallback) {'],
+    ['function prepararBusquedaPorNombre(nombre: string) {', 'function prepararBusquedaPorNombre(nombre) {'],
+    ['const norm = (s: unknown) => normalizeGeo(s);', 'const norm = (s) => normalizeGeo(s);'],
+    ['const coincide = (candidato: unknown) => {', 'const coincide = (candidato) => {'],
+    ['function pubRawDeSecopII(record: Record<string, unknown>): string | null {', 'function pubRawDeSecopII(record) {'],
+    ['function consultasSecopII(qTerm: string | null, hoyISO: string) {', 'function consultasSecopII(qTerm, hoyISO) {'],
+    ['function esEstadoNoVigente(estado: unknown): boolean {', 'function esEstadoNoVigente(estado) {'],
+    ['function limpiarNombre(t: unknown): string {', 'function limpiarNombre(t) {'],
+  ];
+  let src = bloqueA + '\n' + bloqueB + '\n' + bloqueC;
+  for (const [de, a] of firmas){
+    assert(src.includes(de), 'firma esperada no encontrada (¿cambió la función real?): ' + de);
+    src = src.replace(de, a);
+  }
+  src += '\nreturn { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, pubRawDeSecopII, consultasSecopII, esEstadoNoVigente, limpiarNombre };';
+  return new Function(src)();
+}
+const digestEngine = extractDailyDigestEngine();
+
+await check('QA-001 daily-digest: limpiarNombre neutraliza enlaces (relay de phishing), quita caracteres de control y acota a 60', () => {
+  assert(digestEngine.limpiarNombre('Mi empresa https://malicioso.com/x visita esto') === 'Mi empresa [enlace] visita esto', digestEngine.limpiarNombre('Mi empresa https://malicioso.com/x visita esto'));
+  assert(digestEngine.limpiarNombre('linea1\ncon\tcontrol\x00chars') === 'linea1 con control chars', JSON.stringify(digestEngine.limpiarNombre('linea1\ncon\tcontrol\x00chars')));
+  assert(digestEngine.limpiarNombre('x'.repeat(200)).length === 60, 'debe acotar a 60: ' + digestEngine.limpiarNombre('x'.repeat(200)).length);
+  assert(digestEngine.limpiarNombre(null) === '' && digestEngine.limpiarNombre(undefined) === '', 'sin dato: cadena vacía, no "null"/"undefined" literal');
+});
+
+await check('QA-001 daily-digest: parseNumCO/normalizeGeo/matchesGeo/matchesTerm resuelven bien los casos que ya prueban sus equivalentes en el cliente', () => {
+  assert(digestEngine.parseNumCO('1.500.000.000') === 1500000000, 'miles con punto: ' + digestEngine.parseNumCO('1.500.000.000'));
+  assert(digestEngine.parseNumCO('1,5') === 1.5, 'coma decimal: ' + digestEngine.parseNumCO('1,5'));
+  assert(digestEngine.parseNumCO(null) === null && digestEngine.parseNumCO('sin dígitos') === null, 'sin número reconocible: null');
+  assert(digestEngine.normalizeGeo('Departamento de Norte de Santander') === 'norte de santander', 'quita el prefijo "departamento de" y normaliza: ' + digestEngine.normalizeGeo('Departamento de Norte de Santander'));
+  assert(digestEngine.matchesGeo('Norte de Santander', 'norte de santander') === true, 'coincidencia exacta normalizada');
+  assert(digestEngine.matchesGeo('Norte de Santander', 'Santander') === false, 'NO debe confundir Norte de Santander con Santander (mismo criterio S2-007 que el cliente)');
+  ['pavimentación', 'pavimento'].forEach(t => assert(digestEngine.matchesTerm('obra de pavimentacion urbana', t) === true, 'raíz de 6 letras debe coincidir: ' + t));
+  assert(digestEngine.matchesTerm('obra cualquiera', 'alcantarillado') === false, 'sin relación no debe coincidir');
+});
+
+await check('QA-001 daily-digest: esEstadoNoVigente y consultasSecopII coinciden con la copia real del cliente en los mismos casos (detecta divergencia entre las dos copias -- el propio index.ts advierte que hay que replicar los cambios a mano)', () => {
+  ['Cancelado', 'Seleccionado', 'Adjudicado', 'CELEBRADO', 'Abierto', 'Publicado', '', null].forEach(e => {
+    assert(digestEngine.esEstadoNoVigente(e) === expEngine.esEstadoNoVigente(e), 'esEstadoNoVigente diverge para "' + e + '": digest=' + digestEngine.esEstadoNoVigente(e) + ' cliente=' + expEngine.esEstadoNoVigente(e));
+  });
+  const propio = digestEngine.consultasSecopII('pavimentacion', '2026-01-01');
+  const cliente = expEngine.consultasSecopII('pavimentacion', '2026-01-01');
+  assert(propio.vigentes === cliente.vigentes && propio.recientes === cliente.recientes, 'consultasSecopII debe armar EXACTAMENTE las mismas URLs que el cliente (mismo criterio S2-001): ' + JSON.stringify({ propio, cliente }));
+});
+
+await check('QA-001 daily-digest: consultasSecopII pide vigentes (cierre futuro) y recientes (publicación no nula) por separado -- mismo criterio que S2-001 del cliente', () => {
+  const c = digestEngine.consultasSecopII('pavimentacion', '2026-01-01');
+  assert(/fecha_de_recepcion_de.*%3E%3D.*2026-01-01/.test(c.vigentes) || /fecha_de_recepcion_de/.test(decodeURIComponent(c.vigentes)), 'vigentes debe filtrar por fecha de cierre futura: ' + c.vigentes);
+  assert(/fecha_de_publicacion_del IS NOT NULL/.test(decodeURIComponent(c.recientes)), 'recientes debe excluir publicación nula (el bug real de S2-001): ' + c.recientes);
+  assert(c.vigentes.includes('%24q=pavimentacion') || decodeURIComponent(c.vigentes).includes('$q=pavimentacion'), 'el término va en la consulta');
+});
+
 await check('ESC-002: la caché devuelve lo guardado mientras esté fresco y lo descarta al vencer', () => {
   let t = 0;
   const c = expEngine.crearCacheTtl(1000, () => t);
