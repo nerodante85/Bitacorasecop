@@ -568,6 +568,19 @@
   #bitacora-root .tag-tip::after { content: 'ⓘ'; margin-left: 3px; opacity: .6; font-size: 9px; }
   #bitacora-root .tag-tip-note { margin-top: 6px; }
   #bitacora-root .tag-tip-note[hidden] { display: none; }
+  /* Auditoría UX/UI: varios párrafos de explicación (cómo funciona la IA, la fórmula de
+     viabilidad, qué son los "riesgos ampliados") se mostraban SIEMPRE visibles en cada tarjeta
+     analizada, aunque el usuario ya los hubiera leído muchas veces -- inflaban el texto de la
+     pantalla sin aportar nada nuevo la mayoría de las veces. `.info-tip` (un <details> nativo,
+     sin JS propio -- cada uno abre/cierra solo, sin depender de un listener delegado como
+     .tag-tip) los colapsa detrás de un icono "ⓘ" pequeño, igual de accesible por teclado/lector
+     de pantalla que cualquier <details>, visible al tocar/hacer clic. */
+  #bitacora-root .info-tip { display: inline-block; margin-left: 4px; }
+  #bitacora-root .info-tip summary { display: inline; cursor: pointer; list-style: none; color: var(--text-muted); font-size: 12px; }
+  #bitacora-root .info-tip summary::-webkit-details-marker { display: none; }
+  #bitacora-root .info-tip summary::after { content: 'ⓘ'; opacity: .7; }
+  #bitacora-root .info-tip[open] summary::after { opacity: 1; }
+  #bitacora-root .info-tip p { margin: 4px 0 0; font-size: 12.5px; color: var(--text-muted); max-width: 52ch; }
   #bitacora-root .ia-controles { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
   #bitacora-root .ia-controles label { font-size: 12.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 3px; }
   #bitacora-root .ia-cita { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
@@ -6910,6 +6923,18 @@
     return primeroNoClaro;
   }
 
+  // Formatea el resultado de extraerKResidualUmbral() para mostrarlo -- es un OBJETO
+  // ({valor, unidad, raw, motivo} o la variante "relativo": N veces el presupuesto), nunca un
+  // string. Bug real corregido: dos sitios (renderAnalysisHtml e informeAnalisisTexto) hacían
+  // escapeHtml(entry.kResidual) / '' + entry.kResidual directo sobre el objeto, imprimiendo
+  // literalmente "[object Object]" en pantalla y en el informe .txt descargable.
+  function textoKResidualDetectado(kr){
+    if (!kr) return '';
+    if (kr.valor != null) return (kr.unidad === 'COP' ? '$' : '') + Number(kr.valor).toLocaleString('es-CO') + (kr.unidad === 'COP' ? '' : ' ' + kr.unidad);
+    if (kr.relativo) return kr.relativo.factor + ' veces el presupuesto oficial' + (kr.baseValor ? ' (base ' + fmtMoney(kr.baseValor) + ')' : ' (no se conoce el valor base del proceso)');
+    return kr.motivo || 'Se detectó una mención de capacidad residual, pero sin una cifra clara -- revisa el pliego.';
+  }
+
   // Cifras del texto libre del perfil junto a una etiqueta. Cada aparición se lee SOLO
   // hasta el siguiente indicador / salto de línea / ";" (así "Liquidez N/A; Endeudamiento
   // 0.6" no toma el 0.6 para la liquidez), sin fechas ni años ("Liquidez a 31/12/2024: 0,8"
@@ -8734,8 +8759,9 @@
         '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Categoría</th><th>Requisito</th><th>Exigido</th><th>Estado con tu empresa</th><th>Fuente</th></tr></thead><tbody>' +
         filasHtml + '</tbody></table></div>';
     }
-    return '<div class="analysis-sub">REQUISITOS HABILITANTES (extraídos con IA ' + (entry.esSoloEP ? 'del Estudio Previo' : 'del Pliego y sus Adendas') + ')</div>' +
-      '<div class="saved-note">La IA solo lee el PDF y cita página y texto; el cumplimiento lo decide el motor de reglas contra tus datos. Cada cita se verifica contra el texto real del PDF: una fila sin verificar no se usa para decidir hasta que la confirmes. Al extraer, el PDF se envía a un proveedor de IA (Anthropic) para leerlo y se borra de nuestro almacenamiento al terminar.</div>' +
+    return '<div class="analysis-sub">REQUISITOS HABILITANTES (extraídos con IA ' + (entry.esSoloEP ? 'del Estudio Previo' : 'del Pliego y sus Adendas') + ')' +
+      '<details class="info-tip"><summary aria-label="Cómo funciona esta extracción"></summary>' +
+      '<p>La IA solo lee el PDF y cita página y texto; el cumplimiento lo decide el motor de reglas contra tus datos. Cada cita se verifica contra el texto real del PDF: una fila sin verificar no se usa para decidir hasta que la confirmes. Al extraer, el PDF se envía a un proveedor de IA (Anthropic) para leerlo y se borra de nuestro almacenamiento al terminar.</p></details></div>' +
       controles + estado + tabla;
   }
 
@@ -8760,8 +8786,9 @@
     const riesgos = entry.riesgosIA || [];
     const sevTag = sev => '<span class="tag redflag-' + (sev === 'alta' ? 'alta' : sev === 'media' ? 'media' : 'baja') + '">' + (sev || 'baja').toUpperCase() + '</span>';
     const riesgosHtml = riesgos.length
-      ? '<div class="analysis-sub">RIESGOS Y ALERTAS ADICIONALES (criterio de la IA)</div>' +
-        '<div class="saved-note">Más allá de las 3 reglas legales objetivas de arriba -- esto es la valoración de la IA sobre cláusulas inusuales o de difícil cumplimiento, no una infracción confirmada.</div>' +
+      ? '<div class="analysis-sub">RIESGOS Y ALERTAS ADICIONALES (criterio de la IA)' +
+        '<details class="info-tip"><summary aria-label="Qué significa esto"></summary>' +
+        '<p>Más allá de las 3 reglas legales objetivas de arriba -- esto es la valoración de la IA sobre cláusulas inusuales o de difícil cumplimiento, no una infracción confirmada.</p></details></div>' +
         '<ul class="analysis-list">' +
         riesgos.map(f => '<li>' + sevTag(f.severidad) + ' ' + escapeHtml(f.descripcion || '') + ' <span style="color:var(--text-muted);">(' + fuenteDe(f) + ')</span></li>').join('') +
         '</ul>'
@@ -8818,7 +8845,13 @@
     const sinDato = gates.filter(g => g.estado === 'nd');
     const evaluables = cumplen.length + noCumplen.length + parciales.length;
     const pct = evaluables > 0 ? Math.round((cumplen.length / evaluables) * 100) : null;
-    const riesgos = parciales.map(g => g.nombre + ': ' + g.detalle);
+    // Antes cada gate "revisar" repetía aquí su `detalle` COMPLETO, palabra por palabra idéntico
+    // al que ya muestra su propia fila en la tabla de abajo (mismo `g.detalle`) -- un mensaje real
+    // duplicado dos veces en la misma tarjeta, no solo el nombre mencionado dos veces. Esta lista
+    // es el resumen rápido; el detalle completo vive en la tabla, un scroll más abajo -- mismo
+    // criterio ya usado para "sinDato" (solo nombres, nunca el detalle repetido).
+    const riesgos = [];
+    if (parciales.length) riesgos.push('Requiere verificación: ' + parciales.map(g => g.nombre).join(', ') + ' (ver el detalle de cada una en la tabla de abajo).');
     if (sinDato.length) riesgos.push('Falta información para evaluar: ' + sinDato.map(g => g.nombre).join(', ') + '.');
     return {
       pct: pct, cumplen: cumplen, noCumplen: noCumplen, parciales: parciales, sinDato: sinDato,
@@ -8910,7 +8943,7 @@
       : '';
     const kResidualEnTabla = evalParaCompat && evalParaCompat.mejor.gates.some(g => g.nombre === 'Capacidad K residual');
     const kResidualFallbackHtml = (entry.kResidual && !kResidualEnTabla)
-      ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(entry.kResidual) + '</div>'
+      ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(textoKResidualDetectado(entry.kResidual)) + '</div>'
       : '';
 
     // Requisitos detectados en el TEXTO -- no dependen del perfil, se listan una
@@ -8971,7 +9004,8 @@
       (entry.viabilidad != null
         ? '<div style="margin:6px 0 8px;"><span style="font-size:22px;font-weight:700;color:' +
           (entry.viabilidad >= 80 ? 'var(--success)' : (entry.viabilidad >= 50 ? 'var(--warning)' : 'var(--danger)')) +
-          ';">' + entry.viabilidad + '/100</span> <span style="color:var(--text-muted);font-size:12.5px;">viabilidad orientativa (100 menos una penalización fija por cada alerta — no es una certificación)</span></div>'
+          ';">' + entry.viabilidad + '/100</span> <span style="color:var(--text-muted);font-size:12.5px;">viabilidad orientativa' +
+          '<details class="info-tip"><summary aria-label="Cómo se calcula"></summary><p>100 menos una penalización fija por cada alerta — no es una certificación.</p></details></span></div>'
         : '');
 
     const perfilesHtml = comps.length
@@ -10167,7 +10201,7 @@
     const kResidualEnMatriz = resCompat && resCompat.mejor.gates.some(g => g.nombre === 'Capacidad K residual');
     if (entry.kResidual && !kResidualEnMatriz){
       L.push('CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)');
-      L.push('  ' + entry.kResidual);
+      L.push('  ' + textoKResidualDetectado(entry.kResidual));
       nl();
     }
     // Auditoría (texto de UI): experienciaGateDetalle().detalle dice "Ver

@@ -6076,3 +6076,54 @@ botón de salida).
 **Verificado**: `node tests/smoke.mjs` (222/222, sin tests nuevos -- nota de UI condicional). Probado
 en navegador real con un `entry` sembrado a mano (`viaIA: true`, `pagesRead: 8`, `numPages: 112`, sin
 `requisitosIA`) -- la nota aparece con el texto correcto; 0 errores de consola.
+
+## Auditoría UX/UI de "Buscar procesos": demasiado texto al analizar, y un bug real de paso
+
+El usuario pidió revisar qué tan limpia se ve la tarjeta de un proceso cuando se analiza el pliego --
+"sale demasiado texto y opciones". Probado en navegador real con un análisis completo sembrado a mano
+(red flags, cronograma, riesgos_ia, requisitos habilitantes con IA, experiencia requerida): **una sola
+tarjeta llegó a 4.225 caracteres de texto**. De paso, el mismo sembrado expuso un bug real:
+"CAPACIDAD K RESIDUAL EXIGIDA" mostraba literalmente `[object Object]` en pantalla.
+
+**Bug real -- `entry.kResidual` es un objeto, no un string.** `extraerKResidualUmbral()` devuelve
+`{valor, unidad, raw, motivo}` (o la variante "relativo": N veces el presupuesto) -- dos sitios
+(`renderAnalysisHtml` y `informeAnalisisTexto`) hacían `escapeHtml(entry.kResidual)` / `'' +
+entry.kResidual` directo sobre el objeto, en vez de formatearlo. Nueva `textoKResidualDetectado(kr)`
+(junto a `extraerKResidualUmbral`, nivel de módulo para que ambos sitios la compartan) formatea las 3
+formas reales: cifra clara (`$1.200.000.000` / `500 SMMLV`), relativa (`1.5 veces el presupuesto
+oficial (base $900.000.000)`) o sin cifra clara (usa `motivo`). Probablemente llevaba así desde que se
+agregó esta sección -- invisible en las pruebas anteriores porque ninguna sembró un `entry.kResidual`
+real para ejercitar justo ese camino (el gate normal, con la fila en la tabla de compatibilidad, es el
+que casi siempre se prueba; este es el RESPALDO, solo visible cuando esa fila no se pudo calcular).
+
+**Demasiado texto -- 3 párrafos de explicación SIEMPRE visibles, aunque el usuario ya los haya leído
+muchas veces.** El usuario pidió explícitamente (1) convertirlos en tooltips "ⓘ" y (2) quitar mensajes
+duplicados -- descartó colapsar secciones completas (más agresivo). Implementado:
+
+- **`.info-tip`** (CSS nuevo, junto a `.tag-tip`): un `<details>` NATIVO (sin JS propio -- a
+  diferencia de `.tag-tip`, que depende de un listener delegado por `.row`, cada `.info-tip` abre/
+  cierra solo, sin coordinación con otros). Icono "ⓘ" pequeño junto al título de la sección; al tocar/
+  hacer clic, expande el párrafo completo debajo. Aplicado a 3 explicaciones que antes eran párrafos
+  fijos: cómo funciona "Extraer requisitos con IA" (3 oraciones), qué son los "Riesgos y alertas
+  adicionales" (criterio de la IA vs. las 3 reglas legales objetivas), y la fórmula de "viabilidad
+  orientativa".
+- **Mensaje duplicado en `resumenCompatibilidad()`**: cada gate "revisar" (ej. "Completitud de la
+  lectura") repetía su `detalle` COMPLETO -- palabra por palabra idéntico al que ya trae su propia fila
+  en la tabla de gates, un scroll más abajo. Ahora la lista "RIESGOS Y PENDIENTES" solo nombra los
+  gates ("Requiere verificación: X, Y, Z (ver el detalle de cada una en la tabla de abajo)."), mismo
+  criterio ya usado para "Falta información para evaluar" (sinDato), que nunca repetía el detalle.
+
+**Verificado**: `node tests/smoke.mjs` (223/223, 1 prueba nueva para `textoKResidualDetectado` -- las
+3 formas reales, confirmado por mutación que detecta la regresión a "[object Object]"). Probado en
+navegador real (servidor local, entry sembrado a mano): el bug de K residual confirmado corregido
+("$1.200.000.000" en vez de "[object Object]"); los 3 tooltips nuevos colapsan por defecto y expanden
+al tocar el ⓘ (confirmado con `details.open`); "Completitud de la lectura" ya no se repite palabra por
+palabra en la misma tarjeta. Probado en 375px (mobile): los iconos ⓘ se ven bien, sin overflow. 0
+errores de consola (confirmado en una pestaña nueva, limpia, no solo con `console.clear()` -- el
+historial de `read_console_messages` resultó ser acumulativo entre recargas en este entorno, no
+"solo desde la última recarga" -- lección para la próxima vez que se audite así). Archivo de prueba
+(`.pdf` sintético) borrado antes de terminar (`git status --porcelain` limpio salvo los cambios reales).
+
+**Alcance de esta pasada**: se dejó fuera, a pedido explícito del usuario, colapsar secciones
+completas (Requisitos habilitantes, Riesgos ampliados) bajo "Ver más" -- cambio más agresivo que
+podría revisarse en otra ronda si el texto sigue sintiéndose denso incluso con estos tooltips.
