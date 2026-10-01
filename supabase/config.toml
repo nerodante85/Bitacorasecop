@@ -24,6 +24,11 @@ verify_jwt = true
 [functions.eliminar-cuenta]
 verify_jwt = true
 
+# transcribir-pdf (reemplazo de OCR por IA para pliegos escaneados): la llama el navegador con la
+# sesión activa del usuario, igual que extraer-requisitos.
+[functions.transcribir-pdf]
+verify_jwt = true
+
 # ----------------------------------------------------------------------------
 # SEG-001 -- Autenticación del proyecto REAL (se configura en el panel de Supabase, no aquí).
 # Estado medido el 2026-09-27 con GET /auth/v1/settings: mailer_autoconfirm = true y

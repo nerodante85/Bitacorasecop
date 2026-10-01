@@ -5785,3 +5785,76 @@ hoja. Las otras 3 empresas (Gilli: 175, PCM: 57, Egida: 74) no cambiaron de cont
 es quirúrgico, no afecta archivos que no tienen este problema. El combinado de las 4 empresas pasó de
 (incorrectamente) 433 a (correctamente) 357 contratos. 0 errores de consola. Archivos de prueba
 eliminados antes de terminar (`git status --porcelain` limpio).
+
+## Reemplazo de OCR por IA para pliegos escaneados (transcribir-pdf)
+
+El usuario probó un pliego real de 112 páginas escaneadas y solo se leyeron 15 antes de rendirse --
+OCR (Tesseract, en el navegador) es lento y poco preciso con documentos reales. Preguntó si se podía
+leer con IA antes de usar OCR. Investigando el código: ya existía una vía de lectura con IA
+("Extraer requisitos con IA", Edge Function `extraer-requisitos`) que manda el PDF a Claude como
+IMAGEN, sin pasar por OCR -- pero es una vía DISTINTA (extrae requisitos estructurados, no texto
+plano) del análisis principal del pliego (red flags, K residual exigido, RUP, Personal), que sigue
+dependiendo de `extractPdfText`/`ocrPdfPages` para conseguir texto corrido. Confirmado con el usuario
+antes de construir: reemplazar OCR por IA como fuente de TEXTO para ese análisis principal, no solo
+para la extracción de requisitos.
+
+**Nueva Edge Function `transcribir-pdf`** (mismo patrón de seguridad/costo que `extraer-requisitos`:
+`verify_jwt`, empresa resuelta server-side, `path` validado contra `company_id`, cupo reservado en
+`ai_usage` ANTES de llamar a Claude, respuesta en streaming con latidos cada 15s para no chocar con
+el timeout de inactividad del gateway, PDF borrado de Storage siempre al terminar). Recibe
+`{path, desde, hasta}` -- un RANGO de páginas (máx. 20 por tanda, mismo orden de magnitud que
+`OCR_BATCH_PAGES`), NO el documento completo de una vez: un pliego de 100+ páginas agotaría el
+tiempo/tokens de una sola llamada, mismo límite ya documentado para `extraer-requisitos`. El
+servidor recorta el PDF al rango pedido con `pdf-lib` y se lo manda a Claude como **imagen** (no
+texto plano -- conserva la ventaja real de poder leer tablas/escaneos de baja calidad), pidiendo una
+transcripción LITERAL con salida estructurada (`{paginas: [{pagina, texto}]}`). Límite diario propio
+(`LIMITE_DIARIO = 40`, más alto que las 10 de `extraer-requisitos`) porque cada llamada cubre solo
+una tanda, no el pliego completo -- leerlo entero necesita varias.
+
+**Cliente**: `transcribirPaginasConIA(file, fromPage, toPage)` (junto a `ocrPdfPages`) sube el PDF al
+mismo bucket privado `pliegos`, invoca la función, y devuelve **el mismo shape que `ocrPdfPages`**
+(`{text, numPages, pagesRead, paginaOffsets}`) -- así los llamadores no tienen que distinguir de cuál
+de los dos caminos vino el resultado. Como el servidor borra el PDF de Storage al terminar (es solo
+tránsito), cada tanda nueva vuelve a subir el archivo completo -- más tráfico que reutilizar una
+ruta, pero más simple y consistente con el resto de la app ("no reescritura sin justificarla"); el
+usuario puede reconsiderar esto si el costo real resulta alto.
+
+**Entry con un tercer método de lectura, no solo dos**: `entry.viaIA` (nuevo, junto al ya existente
+`entry.viaOcr`) -- ambos reutilizan el MISMO campo de almacenamiento `entry.ocrText` (no hacía falta
+un cuarto campo: la IA también transcribe texto corrido, igual que OCR). `textoPliegoDe(entry)` pasa
+a leer `ocrText` si `viaOcr` **o** `viaIA`. Nueva `metodoLecturaDe(entry)` ('IA'/'OCR'/null) --
+un solo lugar para decidir qué palabra mostrar en cada aviso de lectura parcial/vía, reemplazando el
+ternario `entry.viaOcr ? ... : ...` que aparecía repetido en ~7 sitios (y que ya se había olvidado
+una vez del camino de texto normal, ver SECOP-010) -- con un tercer método, repetir el ternario en
+cada sitio habría significado 7 oportunidades de olvidar el caso nuevo.
+
+**UI**: el aviso de "este PDF no tiene texto extraíble" ahora ofrece DOS caminos, no uno --
+"intenta leerlo con OCR" (como siempre) y "leerlo con IA" (más rápido y preciso, pero con costo real
+por página) -- el botón de IA solo aparece con sesión activa; sin sesión, dirige a "inicia sesión"
+(reutilizando `[data-abrir-cuenta]`, el mismo delegado que ya abre el modal de cuenta en otros
+avisos) en vez de ocultar la opción sin explicar por qué. "Seguir leyendo más páginas" ahora tiene 3
+variantes (`.analysis-continue-btn`/`.analysis-ocr-continue-btn`/`.analysis-ia-continue-btn`) --
+cada `entry` sigue leyéndose con el MISMO método con el que empezó, nunca cambia a mitad de lectura.
+
+**Alcance recortado a propósito**: solo se tocó el flujo principal "Analizar pliego" (el que el
+usuario probó y reportó) -- los otros 3 lugares que ya ofrecían "Intentar con OCR" (RUP, RUT,
+Experiencia del proponente) NO se tocaron en esta pasada. Son documentos más cortos (RUP ~45 págs,
+RUT ~3-20, Excel de experiencia variable) donde el costo de OCR es mucho menor, y extender el patrón
+ahí es un cambio aparte si el usuario lo pide.
+
+**Verificado**: `node tests/smoke.mjs` (222/222, 1 prueba nueva: el contrato de versión
+`CONTRATO_TRANSCRIPCION`/`CONTRATO_VERSION` entre cliente y función, mismo patrón ya probado para
+`extraer-requisitos` -- verificado por mutación, desincronizar las dos versiones hace fallar el
+test). `tsc --noEmit` sobre `transcribir-pdf/index.ts`: sin errores reales (los únicos reportados son
+los esperables por faltar los tipos de Deno, mismo patrón que `extraer-requisitos`). Probado en
+navegador real (servidor local, sin cuenta -- no se puede probar la llamada real a Claude sin sesión
+ni crédito, mismo límite ya documentado para el resto de funciones de IA de este proyecto): un PDF
+escaneado (imagen sin texto, generado con Pillow) disparó correctamente el aviso con las DOS
+opciones; sin sesión, el botón de IA fue reemplazado por "inicia sesión" y ese enlace sí abrió el
+modal de cuenta real; "intenta leerlo con OCR" (la ruta ya existente) se sigue ofreciendo igual, sin
+regresión. 0 errores de consola. **Pendiente, requiere que el usuario pruebe con su propia cuenta y
+crédito**: la transcripción real contra un pliego escaneado de verdad (duración/tokens/costo por
+tanda de 20 páginas, y si el límite de 110s alcanza de forma consistente -- no verificado todavía).
+`supabase/config.toml` declara `verify_jwt = true` para la función nueva; el despliegue es automático
+vía `.github/workflows/funciones-supabase.yml` (ya activado, dispara con cualquier cambio bajo
+`supabase/functions/**`), no requiere ningún paso manual del usuario.

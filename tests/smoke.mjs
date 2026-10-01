@@ -2808,7 +2808,13 @@ await check('OPS-003/ESC-003/SEG-006: contrato de versión igual en cliente y fu
   assert(/contrato: CONTRATO_VERSION/.test(fn) && /data\.contrato !== CONTRATO_EXTRACCION/.test(html), 'la respuesta lo incluye y el cliente lo valida');
   assert(/LIMITE_GLOBAL_DIARIO/.test(fn) && /AbortSignal\.timeout\(TIMEOUT_ANTHROPIC_MS\)/.test(fn), 'tope global y timeout');
   assert(/err\.name === 'TimeoutError'/.test(fn), 'un timeout no libera el cupo (pudo haber gasto)');
-  ['extraer-requisitos', 'daily-digest', 'eliminar-cuenta'].forEach(f => {
+  // transcribir-pdf (reemplazo de OCR por IA): mismo patrón de contrato de versión cliente/función.
+  const fnTrans = readFileSync(path.join(ROOT, 'supabase/functions/transcribir-pdf/index.ts'), 'utf8');
+  const cliTrans = /const CONTRATO_TRANSCRIPCION = (\d+);/.exec(html), srvTrans = /const CONTRATO_VERSION = (\d+);/.exec(fnTrans);
+  assert(cliTrans && srvTrans && cliTrans[1] === srvTrans[1], 'contrato (transcribir-pdf) cliente ' + (cliTrans && cliTrans[1]) + ' vs servidor ' + (srvTrans && srvTrans[1]));
+  assert(/contrato: CONTRATO_VERSION/.test(fnTrans) && /data\.contrato !== CONTRATO_TRANSCRIPCION/.test(html), 'transcribir-pdf: la respuesta lo incluye y el cliente lo valida');
+  assert(/AbortSignal\.timeout\(TIMEOUT_ANTHROPIC_MS\)/.test(fnTrans) && /err\.name === 'TimeoutError'/.test(fnTrans), 'transcribir-pdf: timeout y manejo de TimeoutError');
+  ['extraer-requisitos', 'daily-digest', 'eliminar-cuenta', 'transcribir-pdf'].forEach(f => {
     const t = readFileSync(path.join(ROOT, 'supabase/functions/' + f + '/index.ts'), 'utf8');
     assert(/supabase-js@2\.\d+\.\d+'/.test(t) && !/supabase-js@2'/.test(t), f + ' debe fijar la versión de supabase-js');
   });

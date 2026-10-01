@@ -4047,6 +4047,50 @@
     return { text: text, numPages: pdf.numPages, pagesRead: to, paginaOffsets: paginaOffsets };
   }
 
+  // ── Transcripción de páginas con IA (Edge Function transcribir-pdf) ─────
+  // Reemplazo de OCR (Tesseract, arriba) para un pliego escaneado: Claude lee la tanda de
+  // páginas como IMAGEN (igual que extraer-requisitos) y transcribe el texto -- más rápido y
+  // más preciso que Tesseract con documentos reales (ver CLAUDE.md). El PDF se sube al MISMO
+  // bucket privado que ya usa extraer-requisitos; la función lo borra de Storage al terminar
+  // (es solo tránsito) -- por eso se vuelve a subir en cada tanda, no se reutiliza una ruta.
+  // Mismo shape de retorno que ocrPdfPages ({text, numPages, pagesRead, paginaOffsets}), para
+  // que los llamadores (los mismos botones "Analizar pliego"/"Seguir leyendo") no tengan que
+  // distinguir de cuál de los dos caminos vino el resultado.
+  const IA_TRANSCRIBE_BATCH_PAGES = 20; // igual al tope MAX_PAGINAS_POR_TANDA del servidor
+  const CONTRATO_TRANSCRIPCION = 1;     // versión del contrato con supabase/functions/transcribir-pdf
+  async function transcribirPaginasConIA(file, fromPage, toPage){
+    if (!SUPABASE_ENABLED || !sbSession || !sbCompanyId){
+      throw new Error('Inicia sesión desde "Tu cuenta" para transcribir con IA.');
+    }
+    if (file.size > 24 * 1024 * 1024) throw new Error('El PDF pesa más de 24 MB -- no se puede transcribir con IA.');
+    const client = await getSupabaseClient();
+    const path = sbCompanyId + '/' + (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2))) + '.pdf';
+    const { error: upErr } = await client.storage.from('pliegos').upload(path, file, { contentType: 'application/pdf', upsert: false });
+    if (upErr) throw new Error('No se pudo subir el PDF: ' + upErr.message);
+    try {
+      const { data, error } = await client.functions.invoke('transcribir-pdf', {
+        body: { company_id: sbCompanyId, path: path, desde: fromPage, hasta: toPage }
+      });
+      if (error){
+        let msg = error.message || 'Error al invocar la función.';
+        try {
+          const ctx = error.context;
+          if (ctx && typeof ctx.json === 'function'){ const b = await ctx.json(); if (b && b.error) msg = b.error; }
+        } catch(_e){ /* se conserva el mensaje genérico */ }
+        throw new Error(msg);
+      }
+      if (data && data.error) throw new Error(data.error);
+      if (data && data.contrato !== CONTRATO_TRANSCRIPCION) throw new Error('La función de transcripción del servidor está desactualizada (contrato ' + (data.contrato == null ? 'antiguo' : data.contrato) + ', se esperaba ' + CONTRATO_TRANSCRIPCION + '): hay que volver a desplegar transcribir-pdf.');
+      if (!data || typeof data.text !== 'string') throw new Error('Respuesta inesperada de la función.');
+      return { text: data.text, numPages: data.numPages, pagesRead: data.pagesRead, paginaOffsets: data.paginaOffsets || [] };
+    } finally {
+      // La función ya borra el PDF de Storage al terminar (éxito o error) -- esto es un
+      // respaldo por si la invocación ni siquiera llegó a ejecutarse (ej. red caída antes de
+      // que el servidor recibiera la petición), para no dejar el archivo huérfano.
+      try { await client.storage.from('pliegos').remove([path]); } catch(_e){ /* best effort */ }
+    }
+  }
+
   // Antes, un PDF protegido con contraseña caía en el mismo mensaje crudo
   // de pdf.js ("PasswordException" o similar) que cualquier otro error --
   // confuso para alguien sin conocimiento técnico. pdf.js SIEMPRE nombra
@@ -5865,7 +5909,18 @@
   // OCR por tandas) -- un solo punto de lectura en vez de que cada llamador
   // tenga que saber cuál de los dos campos revisar.
   function textoPliegoDe(entry){
-    return entry ? (entry.viaOcr ? entry.ocrText : entry.text) : '';
+    return entry ? ((entry.viaOcr || entry.viaIA) ? entry.ocrText : entry.text) : '';
+  }
+
+  // 'IA'/'OCR'/null según qué método leyó el pliego de este `entry` -- un solo lugar para decidir
+  // la palabra que se muestra en cada aviso de lectura parcial/vía, en vez de repetir el ternario
+  // `entry.viaOcr ? ... : ...` (que ya se olvidó una vez del camino de texto normal, ver
+  // "lecturaParcial" / hallazgo SECOP-010) en cada uno de los sitios que lo muestran.
+  function metodoLecturaDe(entry){
+    if (!entry) return null;
+    if (entry.viaIA) return 'IA';
+    if (entry.viaOcr) return 'OCR';
+    return null;
   }
 
   // Un pliego puede quedar con lectura parcial por DOS caminos distintos:
@@ -5877,7 +5932,7 @@
   // en cada uno de los lugares que muestran un veredicto.
   function lecturaParcial(entry){
     if (!entry || entry.pagesRead == null || entry.numPages == null || entry.pagesRead >= entry.numPages) return null;
-    return { pagesRead: entry.pagesRead, numPages: entry.numPages, viaOcr: !!entry.viaOcr };
+    return { pagesRead: entry.pagesRead, numPages: entry.numPages, viaOcr: !!entry.viaOcr, viaIA: !!entry.viaIA, metodo: metodoLecturaDe(entry) };
   }
 
   // ── Requisitos de experiencia extraídos del Pliego/Estudio Previo ───────
@@ -6973,7 +7028,7 @@
   // los requisitos de las páginas sin leer no se evaluaron.
   function gateLecturaParcial(parcial){
     if (!parcial) return null;
-    return { estado: 'revisar', detalle: 'Solo se leyeron ' + parcial.pagesRead + ' de ' + parcial.numPages + ' páginas del pliego' + (parcial.viaOcr ? ' (por OCR)' : '') + ': los requisitos de las páginas sin leer no se evaluaron, así que no se afirma un GO. Pulsa "Seguir leyendo más páginas" en el análisis.' };
+    return { estado: 'revisar', detalle: 'Solo se leyeron ' + parcial.pagesRead + ' de ' + parcial.numPages + ' páginas del pliego' + (parcial.metodo ? ' (por ' + parcial.metodo + ')' : '') + ': los requisitos de las páginas sin leer no se evaluaron, así que no se afirma un GO. Pulsa "Seguir leyendo más páginas" en el análisis.' };
   }
 
   // Regla del veredicto: cualquier fail -> NO-GO; cualquier "revisar" o "nd" (falta
@@ -7472,7 +7527,7 @@
         '<span class="eval-verdict ' + (res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar') + '">' + res.mejor.veredicto + '</span>' +
         (res.porPerfil.length > 1 ? ' <span style="color:var(--text-muted);font-weight:400;">(mejor de ' + res.porPerfil.length + ' perfiles)</span>' : '') + '</div>' +
       (lecturaParcial(entry)
-        ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este veredicto se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (entry.viaOcr ? ' por OCR' : '') + ' -- el resto todavía no se ha analizado y podría cambiar el resultado. Ve a "Buscar procesos" y usa "Seguir leyendo más páginas" antes de decidir.</div>'
+        ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este veredicto se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (metodoLecturaDe(entry) ? ' por ' + metodoLecturaDe(entry) : '') + ' -- el resto todavía no se ha analizado y podría cambiar el resultado. Ve a "Buscar procesos" y usa "Seguir leyendo más páginas" antes de decidir.</div>'
         : '') +
       '<div class="analysis-sub">RECOMENDACIÓN</div><div style="margin-bottom:8px;">' + escapeHtml(resumenEjecutivo(res)) + '</div>' +
       notasHtml +
@@ -7500,7 +7555,7 @@
     if (item.url) L.push('  Enlace:     ' + item.url);
     L.push('');
     L.push('VEREDICTO (mejor de ' + res.porPerfil.length + ' perfil(es)): ' + res.mejor.veredicto);
-    if (lecturaParcial(entry)) L.push('⚠ ADVERTENCIA: calculado con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (entry.viaOcr ? ' por OCR' : '') + ' -- el resto todavía no se ha analizado.');
+    if (lecturaParcial(entry)) L.push('⚠ ADVERTENCIA: calculado con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (metodoLecturaDe(entry) ? ' por ' + metodoLecturaDe(entry) : '') + ' -- el resto todavía no se ha analizado.');
     L.push('RECOMENDACIÓN: ' + resumenEjecutivo(res));
     const notas = notasParticipacion(entry);
     if (notas.length){
@@ -8708,7 +8763,7 @@
     // botón (SECOP-010), truncando en silencio pliegos de más de 40 páginas.
     const lp = lecturaParcial(entry);
     const lecturaParcialHtml = lp
-      ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este resultado se calculó con solo ' + lp.pagesRead + ' de ' + lp.numPages + ' páginas leídas' + (lp.viaOcr ? ' por OCR' : '') + ' -- el resto del pliego todavía no se ha analizado y podría contener requisitos que cambien el veredicto. Usa "Seguir leyendo más páginas" (al final de esta tarjeta) antes de decidir.</div>'
+      ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este resultado se calculó con solo ' + lp.pagesRead + ' de ' + lp.numPages + ' páginas leídas' + (lp.metodo ? ' por ' + lp.metodo : '') + ' -- el resto del pliego todavía no se ha analizado y podría contener requisitos que cambien el veredicto. Usa "Seguir leyendo más páginas" (al final de esta tarjeta) antes de decidir.</div>'
       : '';
     const lista = (titulo, arr) => arr.length ? '<div class="analysis-sub">' + titulo + '</div><ul class="analysis-list">' + arr.map(x => '<li>' + escapeHtml(x) + '</li>').join('') + '</ul>' : '';
     const filas = gatesParaMostrar.map(g =>
@@ -8822,7 +8877,7 @@
       : '<ul class="analysis-list"><li>No hay perfiles marcados para comparar. Marca al menos uno en “Comparar en el análisis de pliegos” y vuelve a analizar.</li></ul>';
 
     return '<div class="analysis-block">' +
-      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' · <span style="color:var(--warning);">vía OCR</span>' : '') + ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
+      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') + ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
       redFlagsHtml +
       // El usuario pidió explícitamente hacer énfasis en esta sección: "es
       // de vital importancia conocer ese análisis comparativo para que la
@@ -8858,19 +8913,24 @@
             '<button class="link-btn analysis-informe-copy-btn" data-informe-id="' + escapeHtml(entry.id || '') + '">Copiar informe</button>' +
           '</div>'
         : '') +
-      (entry.viaOcr
+      (entry.viaIA
+        ? '<div class="analysis-disclaimer">Texto transcrito con IA (Anthropic leyó el PDF como imagen, página por página) — más preciso que OCR, pero igual puede tener errores en sellos, firmas o escaneos de muy baja calidad. No reemplaza revisar el pliego completo antes de decidir.</div>'
+        : entry.viaOcr
         ? '<div class="analysis-disclaimer">Texto leído por OCR (reconocimiento en imagen) — puede tener errores de transcripción, sobre todo en sellos, firmas o escaneos de baja calidad. No reemplaza revisar el pliego completo antes de decidir.</div>'
         : '<div class="analysis-disclaimer">' + (entry.requisitosIA
             ? 'Ayuda de lectura: los requisitos se extrajeron con IA y se verificaron contra el texto del PDF; no reemplaza revisar el pliego completo antes de decidir.'
             : 'Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.') + '</div>') +
+      (entry.viaIA && entry.pagesRead < entry.numPages
+        ? '<div style="margin-top:8px;"><button class="link-btn analysis-ia-continue-btn" data-ia-continue-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo con IA (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
+        : '') +
       (entry.viaOcr && entry.pagesRead < entry.numPages
         ? '<div style="margin-top:8px;"><button class="link-btn analysis-ocr-continue-btn" data-ocr-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
         : '') +
-      // Mismo botón para el camino de texto normal (sin OCR) -- antes un
-      // pliego con texto real de más de TEXT_BATCH_PAGES páginas se
+      // Mismo botón para el camino de texto normal (sin OCR ni IA) -- antes
+      // un pliego con texto real de más de TEXT_BATCH_PAGES páginas se
       // truncaba en silencio, sin aviso ni forma de seguir leyendo
       // (SECOP-010, ver CLAUDE.md).
-      (!entry.viaOcr && entry.pagesRead < entry.numPages
+      (!entry.viaOcr && !entry.viaIA && entry.pagesRead < entry.numPages
         ? '<div style="margin-top:8px;"><button class="link-btn analysis-continue-btn" data-analisis-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
         : '') +
     '</div>';
@@ -9924,7 +9984,7 @@
       const resumen = resumenCompatibilidad(gatesParaMostrar);
       L.push('VEREDICTO');
       L.push('  Resultado: ' + res.mejor.veredicto + (resumen.pct != null ? ' (' + resumen.pct + '% de cumplimiento estimado sobre lo evaluable)' : ' (sin suficiente información para un %)'));
-      if (lecturaParcial(entry)) L.push('  ⚠ ADVERTENCIA: este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas' + (entry.viaOcr ? ' por OCR' : '') + ' -- el resto del pliego todavía no se ha analizado.');
+      if (lecturaParcial(entry)) L.push('  ⚠ ADVERTENCIA: este resultado se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' por ' + metodoLecturaDe(entry) : '') + ' -- el resto del pliego todavía no se ha analizado.');
       if (resumen.fortalezas.length) L.push('  Fortalezas: ' + resumen.fortalezas.join(', '));
       if (resumen.debilidades.length) L.push('  Debilidades: ' + resumen.debilidades.join(', '));
       if (resumen.riesgos.length){ L.push('  Riesgos y pendientes:'); resumen.riesgos.forEach(r => L.push('    - ' + r)); }
@@ -9951,7 +10011,7 @@
 
     L.push('PLIEGO ANALIZADO');
     L.push('  Archivo:        ' + (entry.fileName || '—'));
-    L.push('  Páginas leídas: ' + entry.pagesRead + '/' + entry.numPages + (entry.viaOcr ? '  (leído por OCR)' : ''));
+    L.push('  Páginas leídas: ' + entry.pagesRead + '/' + entry.numPages + (metodoLecturaDe(entry) ? '  (leído por ' + metodoLecturaDe(entry) + ')' : ''));
     L.push('  Fecha análisis: ' + (fmtDate(new Date(entry.ts).toISOString()) || '—'));
     nl();
 
@@ -11117,10 +11177,19 @@
         if (!text || text.trim().length < 200){
           pendingOcrFiles[id] = file;
           const blobUrl = URL.createObjectURL(file);
+          // Dos caminos para leer un PDF escaneado: OCR (Tesseract, en el navegador -- gratis,
+          // sin cuenta, pero lento y poco preciso con documentos reales) o IA (Claude lee las
+          // páginas como imagen -- más rápido y preciso, pero requiere cuenta y tiene costo real
+          // por página). Se ofrecen los dos; IA solo si hay sesión activa (si no, el aviso dirige
+          // a iniciar sesión en vez de ocultar la opción sin explicar por qué).
+          const opcionIA = (SUPABASE_ENABLED && sbSession && sbCompanyId)
+            ? 'o <button class="link-btn analysis-ia-transcribir-btn" data-ia-transcribir-id="' + escapeHtml(id) + '">leerlo con IA</button> (más rápido y preciso que OCR, tiene costo real por página) '
+            : 'o <button class="link-btn" data-abrir-cuenta>inicia sesión</button> para leerlo con IA (más rápido y preciso que OCR) ';
           slot.innerHTML = '<div class="analysis-block analysis-warn">Este PDF no tiene texto extraíble (probablemente está escaneado como imagen). ' +
             '<a href="' + escapeHtml(blobUrl) + '" target="_blank" rel="noopener">Ábrelo aquí para revisarlo manualmente</a>, ' +
             'o <button class="link-btn analysis-ocr-btn" data-ocr-id="' + escapeHtml(id) + '">intenta leerlo con OCR</button> ' +
-            '(reconocimiento de texto en imagen — puede tardar varios minutos y no siempre es exacto).</div>';
+            '(reconocimiento de texto en imagen — puede tardar varios minutos y no siempre es exacto), ' +
+            opcionIA + '.</div>';
           return;
         }
         const { hallazgos, kResidual, exigencias } = analizarTexto(text);
@@ -11186,6 +11255,40 @@
         if (pagesRead >= numPages) delete pendingOcrFiles[id];
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
+      }
+      return;
+    }
+
+    // 2b) "Leer con IA" -- primera tanda de transcripción con IA (alternativa a OCR)
+    const iaTransBtn = e.target.closest('.analysis-ia-transcribir-btn');
+    if (iaTransBtn){
+      const id = iaTransBtn.getAttribute('data-ia-transcribir-id');
+      const file = pendingOcrFiles[id];
+      const slot = iaTransBtn.closest('.analysis-block').parentElement;
+      if (!file){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para intentar de nuevo.</div>';
+        return;
+      }
+      try {
+        await appReady;
+        slot.innerHTML = '<div class="analysis-loading">La IA está leyendo el PDF (puede tardar un par de minutos)… páginas 1-' + IA_TRANSCRIBE_BATCH_PAGES + '</div>';
+        const { text, numPages, pagesRead, paginaOffsets } = await transcribirPaginasConIA(file, 1, IA_TRANSCRIBE_BATCH_PAGES);
+        if (!text || text.trim().length < 50){
+          slot.innerHTML = '<div class="analysis-block analysis-warn">La IA no reconoció texto en estas páginas (puede que estén en blanco). Revísalo manualmente.</div>';
+          return;
+        }
+        const { hallazgos, kResidual, exigencias } = analizarTexto(text);
+        const { comps } = compararConPerfiles(text, hallazgos);
+        const redFlags = detectarRedFlags(text, paginaOffsets);
+        const viabilidad = calcularViabilidad(redFlags);
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaIA: true };
+        conservarCamposAuxiliares(entry, analisis[id]);
+        analisis[id] = entry;
+        saveAnalisis(id);
+        evaluarExperienciaDeProceso(id, slot);
+        if (pagesRead >= numPages) delete pendingOcrFiles[id];
+      } catch(err){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo transcribir con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Puedes intentar de nuevo, usar OCR, o abrir el PDF manualmente.</div>';
       }
       return;
     }
@@ -11287,6 +11390,51 @@
       } catch(err){
         const ctx = itemYScorePara(id);
         slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo.</div>';
+      }
+      return;
+    }
+
+    // 3c) "Seguir leyendo con IA" -- siguiente tanda de transcripción con IA. Mismo mecanismo
+    // que 3) (OCR) y 3b) (texto normal), pero con transcribirPaginasConIA.
+    const iaContBtn = e.target.closest('.analysis-ia-continue-btn');
+    if (iaContBtn){
+      const id = iaContBtn.getAttribute('data-ia-continue-id');
+      const file = pendingOcrFiles[id];
+      const entry = analisis[id];
+      const slot = iaContBtn.closest('.analysis-block').parentElement;
+      if (!file || !entry){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para continuar leyéndolo.</div>';
+        return;
+      }
+      const from = entry.pagesRead + 1;
+      const to = Math.min(entry.numPages, entry.pagesRead + IA_TRANSCRIBE_BATCH_PAGES);
+      try {
+        await appReady;
+        slot.innerHTML = '<div class="analysis-loading">La IA está leyendo el PDF (puede tardar un par de minutos)… páginas ' + from + '-' + to + '</div>';
+        const result = await transcribirPaginasConIA(file, from, to);
+        if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
+        const baseLen = (entry.ocrText || '').length;
+        const fullText = (entry.ocrText || '') + result.text;
+        entry.ocrText = fullText;
+        entry.paginaOffsets = (entry.paginaOffsets || []).concat(
+          (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
+        );
+        entry.pagesRead = result.pagesRead;
+        entry.ts = Date.now();
+        const { hallazgos: nuevosHallazgos, kResidual, exigencias } = analizarTexto(fullText);
+        entry.kResidual = kResidual;
+        entry.exigencias = exigencias;
+        entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
+        entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
+        entry.viabilidad = calcularViabilidad(entry.redFlags);
+        delete entry.comp;
+        analisis[id] = entry;
+        saveAnalisis(id);
+        evaluarExperienciaDeProceso(id, slot);
+        if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
+      } catch(err){
+        const ctx = itemYScorePara(id);
+        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Puedes intentar de nuevo.</div>';
       }
       return;
     }
