@@ -4359,11 +4359,25 @@
   // avisar al usuario): (a) filas de TOTAL/SUBTOTAL, y (b) duplicados exactos
   // (mismo N° de contrato + contratante + valor + fecha fin; sin N° de contrato,
   // mismo objeto + contratante + valor + fechas).
+  // Una fila sin NINGÚN campo con dato real no es un contrato, es ruido de la hoja (celdas de
+  // formato/espaciado entre bloques, o una hoja que en realidad es un resumen de una sola cifra
+  // -- ej. "DORA NAHIR GARAY GUTIERREZ" + un valor suelto -- donde el encabezado detectado por el
+  // heurístico de "primera fila con >=2 celdas" no es una fila de encabezados real, así que
+  // ninguna columna matchea y cada fila de abajo queda vacía). Sin este filtro, un Excel real de
+  // varias hojas podía reportar "127 contrato(s) leído(s)" cuando en realidad solo 47 tenían
+  // algo que comparar -- infla el conteo y, peor, si esa hoja basura resulta ser la primera,
+  // arrastra el panel "Revisar interpretación" a mostrar "nada detectado" aunque otras hojas sí
+  // se hayan leído bien (ver preferirSheetConObjeto en parsearExcelExperiencia).
+  function filaDeContratoVacia(c){
+    return !c.objeto && !c.contratante && c.valor == null && !c.numeroContrato && !c.fechaInicio && !c.fechaFin && c.cantidad == null;
+  }
+
   function depurarContratos(contratos){
     const vistos = new Set();
     const out = [];
-    let duplicados = 0, totales = 0;
+    let duplicados = 0, totales = 0, vacios = 0;
     (contratos || []).forEach(c => {
+      if (filaDeContratoVacia(c)){ vacios++; return; }
       const obj = normHeader(c.objeto || '');
       if (/^(total|subtotal|sumatoria|suma total|gran total)\b/.test(obj)){ totales++; return; }
       const num = normHeader(c.numeroContrato || '');
@@ -4372,7 +4386,7 @@
       vistos.add(clave);
       out.push(c);
     });
-    return { contratos: out, duplicados: duplicados, totales: totales };
+    return { contratos: out, duplicados: duplicados, totales: totales, vacios: vacios };
   }
 
   function parsearExperienciaDeFilas(datos){
@@ -4407,7 +4421,7 @@
       };
     });
     const dep = depurarContratos(contratos);
-    return { headers: headers, cols: cols, contratos: dep.contratos, omitidos: { duplicados: dep.duplicados, totales: dep.totales } };
+    return { headers: headers, cols: cols, contratos: dep.contratos, omitidos: { duplicados: dep.duplicados, totales: dep.totales, vacios: dep.vacios } };
   }
 
   // Combina los contratos de TODAS las hojas del Excel (ver
@@ -4422,18 +4436,27 @@
     if (!hojas.length) return parsearExperienciaDeFilas({ headers: [], rows: [] });
     let contratos = [];
     let primeraConDatos = null;
-    let duplicados = 0, totales = 0;
+    let primeraConObjeto = null; // ver "Revisar interpretación" más abajo
+    let duplicados = 0, totales = 0, vacios = 0;
     hojas.forEach(h => {
       const parsed = parsearExperienciaDeFilas(h);
       if (!primeraConDatos) primeraConDatos = parsed;
-      duplicados += parsed.omitidos.duplicados; totales += parsed.omitidos.totales;
+      // El panel "Revisar interpretación" muestra las columnas de UNA hoja representativa -- si la
+      // primera hoja del libro resultó ser basura (encabezado mal detectado, ningún campo
+      // matcheado -- ver filaDeContratoVacia), mostrar SUS columnas hace parecer que nada se
+      // detectó aunque otras hojas sí se hayan leído bien. Se prefiere la primera hoja donde SÍ se
+      // detectó el campo esencial (objeto); si ninguna lo detectó, se cae al comportamiento de
+      // siempre (primera hoja con datos) -- ahí el aviso de "no se detectó Objeto" es correcto.
+      if (!primeraConObjeto && parsed.cols.objeto != null) primeraConObjeto = parsed;
+      duplicados += parsed.omitidos.duplicados; totales += parsed.omitidos.totales; vacios += parsed.omitidos.vacios || 0;
       parsed.contratos.forEach(c => { contratos.push(Object.assign({}, c, { hoja: h.hojaNombre })); });
     });
+    const representativa = primeraConObjeto || primeraConDatos;
     // El mismo contrato puede aparecer en dos hojas: se depura también entre hojas.
     const dep = depurarContratos(contratos);
-    duplicados += dep.duplicados; totales += dep.totales;
+    duplicados += dep.duplicados; totales += dep.totales; vacios += dep.vacios;
     contratos = dep.contratos.map((c, i) => Object.assign({}, c, { fila: i + 1 }));
-    return { headers: primeraConDatos.headers, cols: primeraConDatos.cols, contratos: contratos, nHojas: hojas.length, omitidos: { duplicados: duplicados, totales: totales } };
+    return { headers: representativa.headers, cols: representativa.cols, contratos: contratos, nHojas: hojas.length, omitidos: { duplicados: duplicados, totales: totales, vacios: vacios } };
   }
 
   const STOPWORDS_ES = new Set(['de','del','la','el','los','las','en','y','o','para','con','por','a','al','un','una','que','se','su','sus','como','entre','sobre','este','esta','estos','estas','sea','ser','mas','no']);
@@ -10348,11 +10371,12 @@
         // sumarlos dos veces en un requisito acumulable; se avisa, no es silencioso.
         (function(){
           const om = (propio.meta && propio.meta.omitidos) || c.omitidos;
-          if (!om || (!om.duplicados && !om.totales)) return '';
+          if (!om || (!om.duplicados && !om.totales && !om.vacios)) return '';
           const partes = [];
           if (om.duplicados) partes.push(om.duplicados + ' contrato(s) repetido(s) (mismo N° de contrato, contratante y valor)');
           if (om.totales) partes.push(om.totales + ' fila(s) de total');
-          return ' Se omitieron ' + partes.join(' y ') + ' para no contarlos dos veces.';
+          if (om.vacios) partes.push(om.vacios + ' fila(s) vacía(s) (sin ningún dato reconocible)');
+          return ' Se omitieron ' + partes.join(', ') + '.';
         })() +
         (conColumnas ? ' Revisa abajo qué columna se usó para cada campo antes de continuar.' : ' Revisa abajo cada contrato detectado antes de continuar.') +
         '</div>';

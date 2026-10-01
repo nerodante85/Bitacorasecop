@@ -5730,3 +5730,58 @@ reales).
 propuesta para varias empresas a la vez -- sigue usando los datos legales de UN solo perfil (NIT,
 representante legal...); combinar esos datos de varias empresas en un documento conjunto es un tema legal
 aparte (quién firma, bajo qué figura) que no se resuelve inventando un formato.
+
+## Probado con 4 Excel reales de experiencia (uno por empresa): bug real de hojas "resumen" sin tabla
+
+El usuario pidió probar "Experiencia por empresa" (sección anterior) con Excel reales, uno por empresa:
+4 archivos reales de 4 constructoras distintas (Constructora Gilli, PCM S.A.S., Dora Garay, Egida
+Construcciones -- 2 en `.xlsx`, 2 en `.xls` viejo). Los 4 se leyeron sin errores (xlsx.js lee `.xls` igual
+que `.xlsx`, sin diferencia) y el combinado sumó sus contratos como se esperaba -- pero inspeccionar el
+Excel de Dora Garay (19 hojas, organizado por especialidad) expuso un bug real preexistente, no introducido
+por la ronda anterior.
+
+**El bug**: reportaba "127 contrato(s) leído(s)", pero solo 47 tenían algún campo con dato real -- los
+otros 80 eran filas completamente vacías (`objeto`/`valor`/`contratante`/fechas, todo `null`). Causa raíz
+en `leerHojaPorNombre`: varias hojas del archivo (ALCANTARILLADO, CANALES, CASAS, ESCUELA,
+POLIDEPORTIVOS, CIC, REDES) no son tablas de contratos -- son un resumen de UNA sola cifra por hoja (ej.
+"DORA NAHIR GARAY GUTIERREZ" + un valor suelto). El heurístico "primera fila con ≥2 celdas no vacías es
+el encabezado" confundía esa fila de título con un encabezado real; como ninguna columna de ese
+"encabezado" matchea `DICC_CONTRATO`, las filas de relleno/espaciado de abajo (con alguna celda suelta no
+vacía -- pasan el filtro `.some(c => no vacía)` de `leerHojaPorNombre`, aunque no tengan ningún dato
+usable) se parseaban igual como "contratos", todos con cada campo en `null`. Efecto colateral peor: como
+ALCANTARILLADO es de las primeras hojas del libro, el panel "Revisar interpretación" (que mostraba las
+columnas de la PRIMERA hoja con datos, sin importar si detectó algo) mostraba "no detectada" en TODOS los
+campos -- dando la falsa impresión de que el archivo completo había fallado, aunque 5 de las 19 hojas
+(ACUEDUCTO, TANQUES, VIAS, PUENTE, RIEGO, INSTL TUBERIA) sí se leían perfectamente bien.
+
+**Arreglo, dos partes**:
+1. `filaDeContratoVacia(c)` (nueva, junto a `depurarContratos`): una fila sin NINGÚN campo con dato real
+   (`objeto`/`contratante`/`valor`/`numeroContrato`/`fechaInicio`/`fechaFin`/`cantidad`, todos vacíos) se
+   descarta igual que ya se descartaban las filas de TOTAL/SUBTOTAL o los duplicados -- se cuenta en
+   `omitidos.vacios` y se avisa al usuario ("Se omitieron N fila(s) vacía(s) (sin ningún dato
+   reconocible)."), nunca en silencio.
+2. `parsearExcelExperiencia`: el panel "Revisar interpretación" ahora muestra las columnas de la PRIMERA
+   hoja donde SÍ se detectó el campo esencial (`objeto`), no ciegamente la primera hoja con cualquier
+   dato -- si ninguna hoja detectó `objeto` (el caso real de "no se reconoce nada"), cae al comportamiento
+   de siempre (primera hoja con datos), así que el aviso de "Objeto no detectado" sigue siendo honesto
+   cuando de verdad aplica.
+
+**Verificado**: `node tests/smoke.mjs` (222/222, 2 pruebas nuevas, reproduciendo la estructura exacta del
+archivo real -- una hoja "ALCANTARILLADO" con fila de título + filas de relleno, junto a una hoja real
+tipo "ACUEDUCTO"/"VIAS"). Verificado por mutación: forzar que `filaDeContratoVacia` siempre devolviera
+`false` hizo fallar el primer test (confirma que SÍ filtra filas vacías reales, no solo en teoría); forzar
+que "Revisar interpretación" usara siempre la primera hoja con datos (ignorando cuál detectó el objeto)
+hizo fallar el segundo. Ambas mutaciones revertidas.
+
+Probado de punta a punta en navegador con el archivo real (`.xls`, copiado temporalmente al directorio
+servido y borrado al terminar): antes del fix, "127 contrato(s) leído(s)" y el panel de interpretación
+mostraba "⚠ No se detectó 'Objeto'" pese a que 5 hojas sí tenían tabla real; después del fix, "51
+contrato(s) leído(s) de 19 hojas" (las hojas basura ya no aportan filas falsas; los 51 restantes incluyen
+algunos contratos reales adicionales de hojas menores no inspeccionadas a mano), el aviso dice
+explícitamente "Se omitieron 76 fila(s) vacía(s)", y el panel de interpretación muestra correctamente
+"OBJETO DEL CONTRATO"/"ENTIDAD CONTRATANTE"/etc. detectados (de la hoja ACUEDUCTO), con la columna de
+valor ajustado por participación (Fase del bug de Clarent, ver arriba) también detectada bien en esta
+hoja. Las otras 3 empresas (Gilli: 175, PCM: 57, Egida: 74) no cambiaron de conteo -- confirma que el fix
+es quirúrgico, no afecta archivos que no tienen este problema. El combinado de las 4 empresas pasó de
+(incorrectamente) 433 a (correctamente) 357 contratos. 0 errores de consola. Archivos de prueba
+eliminados antes de terminar (`git status --porcelain` limpio).

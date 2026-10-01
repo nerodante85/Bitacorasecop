@@ -678,6 +678,51 @@ await check('parsearExcelExperiencia: combina contratos de TODAS las hojas, no s
   assert(parsed.contratos.some(c => c.valor === 5930400645), 'el valor del contrato de COLEGIOS no se leyó bien');
 });
 
+// Regresión de un bug real encontrado con un Excel real de experiencia (constructora Dora Garay):
+// algunas hojas de un libro de varias hojas son en realidad un resumen de una sola cifra ("DORA
+// NAHIR GARAY GUTIERREZ" + un valor suelto, sin tabla real) -- el heurístico de "primera fila con
+// >=2 celdas no vacías" las confunde con un encabezado real, y las filas de abajo (vacías, de
+// espaciado) quedaban contadas como "contratos" con TODO en null. Con el archivo real: 80 de 127
+// "contratos" reportados no tenían ningún dato -- inflaba el conteo sin aportar nada comparable.
+await check('parsearExcelExperiencia: una hoja basura (resumen de una cifra, sin tabla real) no aporta filas vacías como si fueran contratos', () => {
+  const wb = fakeWorkbookMultiHoja([
+    // Hoja "basura": el heurístico la detecta como header por tener 2 celdas no vacías (nombre +
+    // valor), pero las filas de abajo no tienen ningún dato -- mismo patrón que ALCANTARILLADO/
+    // CANALES/CASAS en el archivo real.
+    // La fila "header" detectada por el heurístico es en realidad el título -- las filas de
+    // debajo no son totalmente vacías (la herramienta de origen deja una celda suelta de
+    // formato/espaciado, ej. un separador numérico fuera de cualquier columna reconocida), así
+    // que SÍ pasan el filtro de "alguna celda no vacía" y se parsean como "contrato" -- pero
+    // ninguna columna de ese encabezado-basura matchea nada, así que todos los campos salen null.
+    { nombre: 'ALCANTARILLADO', headers: [],
+      rows: [['', 'DORA NAHIR GARAY GUTIERREZ', '', '', '', '', '', '', '', '', '', '', '1,750,905.00'],
+             ['', '', '', '', '', '', '', '', '', '', '', '', '-'],
+             ['', '', '', '', '', '', '', '', '', '', '', '', '-']] },
+    { nombre: 'ACUEDUCTO', headers: ['N°', 'OBJETO DEL CONTRATO', 'ENTIDAD CONTRATANTE', 'VALOR DEL CONTRATO'],
+      rows: [['1', 'Construcción y optimización de acueducto del casco urbano', 'Municipio de Guaca', '2.409.628.553']] }
+  ]);
+  const parsed = expEngine.parsearExcelExperiencia(wb);
+  assert(parsed.contratos.length === 1, 'la hoja basura no debía aportar ningún contrato (solo la real, ACUEDUCTO): se contaron ' + parsed.contratos.length);
+  assert(parsed.contratos[0].objeto && /acueducto/i.test(parsed.contratos[0].objeto), 'el único contrato debía ser el de ACUEDUCTO: ' + JSON.stringify(parsed.contratos[0]));
+  assert(parsed.omitidos.vacios >= 1, 'las filas vacías de la hoja basura debían contarse en omitidos.vacios, fue ' + parsed.omitidos.vacios);
+});
+
+await check('parsearExcelExperiencia: "Revisar interpretación" muestra las columnas de una hoja que SÍ detectó el objeto, no las de la primera hoja basura', () => {
+  const wb = fakeWorkbookMultiHoja([
+    // Misma hoja basura del test anterior (con filas de relleno que sobreviven al filtro de
+    // leerTodasLasHojasComoFilas) -- esta vez PRIMERA en el libro, antes de una hoja real, para
+    // comprobar que "Revisar interpretación" no se queda con sus columnas (todas sin detectar).
+    { nombre: 'RESUMEN', headers: [],
+      rows: [['', 'EXPERIENCIA PROFESIONAL EN VIVIENDA', '', '', '', '', '', '', '', '', '', '', '1,750,905.00'],
+             ['', '', '', '', '', '', '', '', '', '', '', '', '-']] },
+    { nombre: 'VIAS', headers: ['OBJETO DEL CONTRATO', 'ENTIDAD CONTRATANTE', 'VALOR DEL CONTRATO'],
+      rows: [['Pavimentación de la vía urbana sector centro', 'Alcaldía de Ocaña', '980.000.000']] }
+  ]);
+  const parsed = expEngine.parsearExcelExperiencia(wb);
+  assert(parsed.cols.objeto != null, 'debía mostrar las columnas de VIAS (donde sí se detectó objeto), no las de la hoja RESUMEN sin tabla real: cols=' + JSON.stringify(parsed.cols));
+  assert(parsed.headers.includes('OBJETO DEL CONTRATO'), 'los headers mostrados debían ser los de VIAS: ' + JSON.stringify(parsed.headers));
+});
+
 // Regresión de un segundo bug real, mismo Excel: cuando hay DOS columnas de
 // "valor" (el total del contrato y otra ajustada por % de participación en
 // un consorcio), detectarColumnas() por sí solo prefería la del total
