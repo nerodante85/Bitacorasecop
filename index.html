@@ -1516,7 +1516,21 @@
         <section class="view" id="view-experiencia" data-view="experiencia" role="tabpanel" aria-labelledby="bt-nav-experiencia" hidden>
           <div class="view-header">
             <h1>Experiencia</h1>
-            <p>Carga la experiencia acreditada de tu empresa. Los requisitos que exige cada proceso se extraen automáticamente del Pliego de Condiciones y/o Estudio Previo al analizar ese pliego, en "Buscar procesos" -- ya no hace falta preparar una matriz aparte.</p>
+            <p>Carga la experiencia acreditada de tu empresa. Si vas a participar en consorcio o unión temporal, cada empresa carga su propio archivo aquí -- al evaluar un pliego se suman los contratos de las empresas marcadas para comparar (ver "Perfil de la empresa"). Los requisitos que exige cada proceso se extraen automáticamente del Pliego de Condiciones y/o Estudio Previo al analizar ese pliego, en "Buscar procesos" -- ya no hace falta preparar una matriz aparte.</p>
+          </div>
+
+          <div class="empty" id="bt-exp-sin-perfiles" hidden>Todavía no tienes ninguna empresa guardada. Ve a "Perfil de la empresa" y crea al menos una antes de cargar su experiencia. <button type="button" class="link-btn" data-ir-a="perfil">Ir a Perfil de la empresa</button></div>
+
+          <div class="titleblock" id="bt-exp-perfil-panel">
+            <div class="titleblock-head">
+              <h2>Empresa</h2>
+              <span>La experiencia que cargues abajo queda guardada para ESTA empresa -- cambia de empresa aquí para cargar o revisar la de otra</span>
+            </div>
+            <div class="field">
+              <label>Empresa en edición</label>
+              <select id="bt-exp-perfil-select"></select>
+            </div>
+            <div class="saved-note" id="bt-exp-combinado-resumen" style="margin-top:4px;"></div>
           </div>
 
           <div class="steps" id="bt-expeval-steps">
@@ -2414,6 +2428,7 @@
   const perfilSaveBtn = document.getElementById('bt-perfil-save');
   const perfilSavedEl = document.getElementById('bt-perfil-saved');
   const perfilSelectEl = document.getElementById('bt-perfil-select');
+  const expExpPerfilSelectEl = document.getElementById('bt-exp-perfil-select');
   const perfilNombreEl = document.getElementById('bt-perfil-nombre');
   const perfilNuevoBtn = document.getElementById('bt-perfil-nuevo');
   const perfilEliminarBtn = document.getElementById('bt-perfil-eliminar');
@@ -2606,9 +2621,13 @@
 
   function renderPerfilSelect(){
     const ids = Object.keys(perfiles);
-    perfilSelectEl.innerHTML = ids.length
+    const opciones = ids.length
       ? ids.map(id => '<option value="' + escapeHtml(id) + '"' + (id === perfilActivoId ? ' selected' : '') + '>' + escapeHtml(perfiles[id].nombre || 'Sin nombre') + '</option>').join('')
       : '<option value="">Sin perfiles todavía -- usa "+ Nuevo perfil"</option>';
+    perfilSelectEl.innerHTML = opciones;
+    // "Experiencia" por empresa comparte el MISMO perfilActivoId que "Perfil de la empresa" -- un solo
+    // selector de verdad, reflejado en las dos pantallas (ver expExpPerfilSelectEl más abajo).
+    if (expExpPerfilSelectEl) expExpPerfilSelectEl.innerHTML = opciones;
   }
 
   // Casillas "comparar en el análisis de pliegos" -- una por perfil, varias
@@ -2629,6 +2648,9 @@
         if (cb.checked && i === -1) perfilesActivos.push(id);
         else if (!cb.checked && i !== -1) perfilesActivos.splice(i, 1);
         persistirPerfiles();
+        // Qué perfiles están marcados decide qué experiencia entra al combinado (consorcios/UT).
+        recalcularExpevalActivo();
+        renderExpEvalReview();
       });
     });
   }
@@ -2702,6 +2724,15 @@
     renderPerfilComparar();
     cargarPerfilActivoEnCampos();
     await persistirPerfiles();
+    // Si había un bloque de experiencia "viejo" (de antes de "Experiencia por empresa") esperando a
+    // que existiera algún perfil, este es el primero -- se adjunta ahora (ver loadExpEval/appReady.then).
+    if (expevalLegadoSinMigrar && !expevalPorPerfil[id]){
+      expevalPorPerfil[id] = expevalLegadoSinMigrar;
+      expevalLegadoSinMigrar = null;
+      await saveExpEval();
+    }
+    recalcularExpevalActivo();
+    renderExpEvalReview();
     if (perfilNombreEl){ perfilNombreEl.focus(); perfilNombreEl.select(); }
   }
 
@@ -2756,12 +2787,21 @@
     renderPerfilComparar();
     cargarPerfilActivoEnCampos();
     await persistirPerfiles();
+    // La experiencia de un perfil eliminado no sirve para nada: se borra junto con el perfil, no se
+    // queda huérfana en storage.
+    if (expevalPorPerfil[idEliminado]){
+      delete expevalPorPerfil[idEliminado];
+      await saveExpEval();
+    }
+    recalcularExpevalActivo();
+    renderExpEvalReview();
   }
 
   function cambiarPerfilActivo(){
     perfilActivoId = perfilSelectEl.value;
     cargarPerfilActivoEnCampos();
     persistirPerfiles(); // solo persiste cuál quedó activo, no pisa los datos de los perfiles
+    renderExpEvalReview(); // la pantalla de Experiencia muestra el archivo de ESTE perfil ahora
   }
 
   // ============================================================================
@@ -3561,14 +3601,20 @@
     el.textContent = '⚠ ' + texto;
   }
 
-  // Experiencia acreditada de la empresa (Fuente A) -- global, se sube una
-  // vez y se reutiliza en cualquier proceso. Los requisitos con los que se
-  // compara YA NO se cargan aquí (ver "Experiencia requerida", por proceso,
-  // dentro de renderAnalysisHtml) -- salen del Pliego/Estudio Previo de
-  // cada proceso puntual, así que el resultado tampoco es global: vive en
-  // `analisis[id].experienciaResultado`.
-  let expevalContratos = null;   // { headers, cols, contratos } de parsearExcelExperiencia
-  let expevalMeta = null;        // { expFile, nContratos }
+  // Experiencia acreditada -- AHORA por empresa (consorcios/uniones temporales: cada perfil de
+  // "Perfil de la empresa" sube su propio archivo). `expevalContratos`/`expevalMeta` SIGUEN
+  // existiendo con la MISMA forma de siempre ({headers,cols,contratos,...} / {expFile,nContratos,...})
+  // -- casi todo el motor de evaluación (renderExpEvalReview, evaluarExperienciaDeProceso,
+  // aplicarRequisitosIAaEntry, estadoFlujoPliego, el Dashboard...) las sigue leyendo IGUAL, sin saber
+  // que ahora son un COMBINADO derivado de `expevalPorPerfil`, recalculado por
+  // `recalcularExpevalActivo()` cada vez que cambia qué perfiles están marcados para comparar. Los
+  // requisitos con los que se compara NO se cargan aquí -- ver "Experiencia requerida", por proceso,
+  // dentro de renderAnalysisHtml -- salen del Pliego/Estudio Previo de cada proceso puntual, así que
+  // el resultado tampoco es global: vive en `analisis[id].experienciaResultado`.
+  let expevalPorPerfil = {};     // perfilId -> { contratos: {headers,cols,contratos,...}, meta: {...} }
+  let expevalContratos = null;   // COMBINADO (derivado) -- ver recalcularExpevalActivo()
+  let expevalMeta = null;        // COMBINADO (derivado)
+  let expevalLegadoSinMigrar = null; // bloque global de antes de "Experiencia por empresa", pendiente de adjuntar a un perfil (ver loadExpEval/appReady.then)
 
   async function loadExpEval(){
     try {
@@ -3585,24 +3631,83 @@
         // cadena de appReady.then(...), sin capturarse). Se descarta en vez
         // de intentar migrarlo -- no hay forma confiable de reconstruir
         // `headers`/`cols` a partir de un dato viejo incompleto.
-        const c = d.contratos;
-        expevalContratos = (c && Array.isArray(c.headers) && Array.isArray(c.contratos)) ? c : null;
-        expevalMeta = d.meta || null;
+        const valido = c => c && Array.isArray(c.headers) && Array.isArray(c.contratos);
+        if (d.porPerfil && typeof d.porPerfil === 'object'){
+          // Formato nuevo (por empresa).
+          expevalPorPerfil = {};
+          Object.keys(d.porPerfil).forEach(id => {
+            const entrada = d.porPerfil[id];
+            if (entrada && valido(entrada.contratos)) expevalPorPerfil[id] = entrada;
+          });
+        } else if (valido(d.contratos)){
+          // Migración: formato viejo (un solo bloque global, de antes de "Experiencia por empresa").
+          // loadExpEval() corre en PARALELO con loadPerfiles() (Promise.allSettled) -- `perfiles`
+          // puede estar todavía vacío aquí mismo, así que la migración real (a qué perfil se adjunta)
+          // se hace más tarde, en el appReady.then() de más abajo, donde `perfiles` ya está garantizado.
+          // Mientras tanto se guarda el bloque crudo sin tocar nada en storage -- si recargan antes de
+          // que termine ese .then(), el dato sigue intacto en 'experiencia_evaluacion' (formato viejo).
+          expevalLegadoSinMigrar = { contratos: d.contratos, meta: d.meta || null };
+        }
         // d.requisitos/d.resultado (matriz manual, ya eliminada) se ignoran
         // a propósito -- dato viejo de sesiones anteriores, se deja tal
         // cual en localStorage en vez de borrarlo, no hace falta migrarlo.
       }
     } catch(e){ /* nada guardado aún */ }
+    recalcularExpevalActivo();
   }
 
   async function saveExpEval(){
     try {
       await window.storage.set('experiencia_evaluacion', JSON.stringify({
-        contratos: expevalContratos, meta: expevalMeta
+        porPerfil: expevalPorPerfil
       }), false);
     } catch(e){
       console.error('No se pudo guardar la evaluación de experiencia', e);
     }
+  }
+
+  // Combina la experiencia de cada perfil MARCADO para comparar (perfilesParaComparar -- la misma
+  // lista que ya usa compararConPerfiles para RUP/K) en un solo `expevalContratos`/`expevalMeta`, con
+  // la MISMA forma que tenían cuando la experiencia era un bloque único global -- así el resto del
+  // motor (evaluarExperienciaDeProceso, aplicarRequisitosIAaEntry, renderExpEvalReview...) no necesita
+  // saber que ahora viene de varias empresas. "Sumar contratos" (la regla de consorcio acordada) sale
+  // gratis: evaluarExperienciaCompleta ya cuenta/suma sobre la lista de contratos que se le pase, sin
+  // importar su origen -- basta con concatenar. Cada contrato combinado se etiqueta con
+  // `_perfilId`/`_perfilNombre` para que la revisión pueda mostrar de qué empresa viene.
+  function recalcularExpevalActivo(){
+    const ids = perfilesParaComparar().map(p => p._id).filter(id => expevalPorPerfil[id]);
+    if (!ids.length){
+      expevalContratos = null;
+      expevalMeta = null;
+      return;
+    }
+    let headers = [], cols = {}, fuente = null, nHojas = 0;
+    const contratos = [];
+    let omitDuplicados = 0, omitTotales = 0;
+    ids.forEach(id => {
+      const entrada = expevalPorPerfil[id];
+      const c = entrada.contratos;
+      const nombrePerfil = (perfiles[id] && perfiles[id].nombre) || 'Sin nombre';
+      (c.contratos || []).forEach(ct => contratos.push(Object.assign({}, ct, { _perfilId: id, _perfilNombre: nombrePerfil })));
+      // Encabezados/columnas: se muestran los del PRIMER perfil con columnas reales (informativo nada
+      // más -- cada contrato ya trae sus propios valores) en vez de intentar fusionar esquemas distintos.
+      if (!headers.length && c.headers && c.headers.length){ headers = c.headers; cols = c.cols || {}; fuente = c.fuente; }
+      if (!fuente) fuente = c.fuente;
+      nHojas += c.nHojas || 1;
+      const om = (entrada.meta && entrada.meta.omitidos) || c.omitidos;
+      if (om){ omitDuplicados += om.duplicados || 0; omitTotales += om.totales || 0; }
+    });
+    expevalContratos = {
+      headers: headers, cols: cols, contratos: contratos, nHojas: nHojas || ids.length,
+      fuente: fuente, omitidos: (omitDuplicados || omitTotales) ? { duplicados: omitDuplicados, totales: omitTotales } : null
+    };
+    expevalMeta = {
+      expFile: ids.length > 1
+        ? ids.length + ' empresa(s): ' + ids.map(id => (perfiles[id] && perfiles[id].nombre) || 'Sin nombre').join(', ')
+        : (expevalPorPerfil[ids[0]].meta && expevalPorPerfil[ids[0]].meta.expFile) || null,
+      nContratos: contratos.length,
+      omitidos: expevalContratos.omitidos
+    };
   }
 
   // Perfiles PROFESIONALES (personal/equipo de trabajo) -- distinto de
@@ -10186,14 +10291,44 @@
   // requerida" en renderAnalysisHtml (Buscar procesos), que extrae los
   // requisitos del Pliego/Estudio Previo de cada proceso puntual. Esta
   // vista solo sigue cargando la Fuente A (experiencia de la empresa).
+  //
+  // Experiencia por empresa (consorcios/UT): esta función muestra el archivo
+  // de la empresa EN EDICIÓN (expevalPorPerfil[perfilActivoId]), no el
+  // combinado -- así se puede revisar/borrar la experiencia de una empresa
+  // sin tocar la de las demás. El combinado (expevalContratos, derivado por
+  // recalcularExpevalActivo según qué perfiles estén marcados para
+  // comparar) se resume aparte, en #bt-exp-combinado-resumen.
   function renderExpEvalReview(){
+    const sinPerfilesEl = document.getElementById('bt-exp-sin-perfiles');
+    const panelEl = document.getElementById('bt-exp-perfil-panel');
+    const stepsEl = document.getElementById('bt-expeval-steps');
+    const hayPerfiles = Object.keys(perfiles).length > 0;
+    if (sinPerfilesEl) sinPerfilesEl.hidden = hayPerfiles;
+    if (panelEl) panelEl.style.display = hayPerfiles ? '' : 'none';
+    const expevalPanelEl = document.getElementById('bt-expeval-panel');
+    if (expevalPanelEl) expevalPanelEl.style.display = hayPerfiles ? '' : 'none';
+    if (stepsEl) stepsEl.style.display = hayPerfiles ? '' : 'none';
+    if (!hayPerfiles) return; // nada que mostrar sin ninguna empresa creada
+
+    const resumenEl = document.getElementById('bt-exp-combinado-resumen');
+    if (resumenEl){
+      const activos = perfilesParaComparar();
+      const conExp = activos.filter(p => expevalPorPerfil[p._id]);
+      resumenEl.textContent = (expevalContratos && expevalContratos.contratos.length)
+        ? (conExp.length > 1
+          ? 'Combinado para evaluar pliegos: ' + conExp.length + ' empresa(s) marcadas aportan ' + expevalContratos.contratos.length + ' contrato(s) en total (consorcio/unión temporal).'
+          : expevalContratos.contratos.length + ' contrato(s) listos para evaluar pliegos.')
+        : (activos.length ? 'Ninguna de las empresas marcadas para comparar tiene experiencia cargada todavía.' : 'Marca al menos una empresa en "Perfil de la empresa" para comparar en el análisis de pliegos.');
+    }
+
     let html = '';
-    // Defensivo: `expevalContratos` puede ser truthy sin `.headers`/`.contratos`
-    // si algo externo a `loadExpEval()` (ya validado aparte) lo deja en una
-    // forma inesperada -- nunca debe lanzar, solo tratarse como "sin cargar".
-    if (expevalContratos && Array.isArray(expevalContratos.headers) && Array.isArray(expevalContratos.contratos)){
-      const sufijoHojas = expevalContratos.nHojas > 1 ? ' de ' + expevalContratos.nHojas + ' hojas' : '';
-      const conColumnas = expevalContratos.headers.length > 0;
+    const propio = expevalPorPerfil[perfilActivoId];
+    const c = propio && propio.contratos;
+    // Defensivo: una entrada puede quedar truthy sin `.headers`/`.contratos` si algo externo la deja
+    // en una forma inesperada -- nunca debe lanzar, solo tratarse como "sin cargar".
+    if (c && Array.isArray(c.headers) && Array.isArray(c.contratos)){
+      const sufijoHojas = c.nHojas > 1 ? ' de ' + c.nHojas + ' hojas' : '';
+      const conColumnas = c.headers.length > 0;
       // El único rastro de que el archivo se leyó bien era el texto de
       // #bt-expeval-exp-status -- un .saved-note (12.5px, gris), el mismo
       // estilo que cualquier ayuda menor de la app. Un usuario real subió su
@@ -10204,15 +10339,15 @@
       // el panel técnico "Revisar interpretación" sigue existiendo abajo tal
       // cual, colapsado salvo que falte un campo esencial (ver
       // renderColumnasDetectadas), pero ya no es la ÚNICA señal de éxito.
-      const nombresHojas = expevalContratos.nHojas > 1
-        ? Array.from(new Set(expevalContratos.contratos.map(c => c.hoja).filter(Boolean)))
+      const nombresHojas = c.nHojas > 1
+        ? Array.from(new Set(c.contratos.map(ct => ct.hoja).filter(Boolean)))
         : [];
-      html += '<div class="account-notice" style="margin-bottom:10px;">✓ Se leyeron ' + expevalContratos.contratos.length + ' contrato(s) de tu experiencia' +
+      html += '<div class="account-notice" style="margin-bottom:10px;">✓ Se leyeron ' + c.contratos.length + ' contrato(s) de la experiencia de ' + escapeHtml((perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'esta empresa') +
         (nombresHojas.length ? ' (hojas: ' + nombresHojas.map(escapeHtml).join(', ') + ')' : '') + '.' +
         // RT-002: filas de TOTAL/SUBTOTAL y contratos repetidos se omiten para no
         // sumarlos dos veces en un requisito acumulable; se avisa, no es silencioso.
         (function(){
-          const om = (expevalMeta && expevalMeta.omitidos) || expevalContratos.omitidos;
+          const om = (propio.meta && propio.meta.omitidos) || c.omitidos;
           if (!om || (!om.duplicados && !om.totales)) return '';
           const partes = [];
           if (om.duplicados) partes.push(om.duplicados + ' contrato(s) repetido(s) (mismo N° de contrato, contratante y valor)');
@@ -10222,13 +10357,35 @@
         (conColumnas ? ' Revisa abajo qué columna se usó para cada campo antes de continuar.' : ' Revisa abajo cada contrato detectado antes de continuar.') +
         '</div>';
       html += conColumnas
-        ? renderColumnasDetectadas('Experiencia del proponente' + sufijoHojas, expevalContratos.headers, expevalContratos.cols, ETIQUETAS_CONTRATO, expevalContratos.contratos.length, CAMPOS_ESENCIALES_CONTRATO)
-        : renderContratosDetectadosTexto(expevalContratos.contratos, etiquetaFuenteArchivo(expevalContratos.fuente));
-      expevalExpStatusEl.textContent = (expevalMeta && expevalMeta.expFile ? expevalMeta.expFile + ' · ' : '') + expevalContratos.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';
+        ? renderColumnasDetectadas('Experiencia del proponente' + sufijoHojas, c.headers, c.cols, ETIQUETAS_CONTRATO, c.contratos.length, CAMPOS_ESENCIALES_CONTRATO)
+        : renderContratosDetectadosTexto(c.contratos, etiquetaFuenteArchivo(c.fuente));
+      expevalExpStatusEl.textContent = (propio.meta && propio.meta.expFile ? propio.meta.expFile + ' · ' : '') + c.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';
+    } else {
+      expevalExpStatusEl.textContent = 'Sin cargar.';
     }
     expevalReviewEl.innerHTML = html;
-    expevalClearBtn.style.display = expevalContratos ? '' : 'none';
+    expevalClearBtn.style.display = c ? '' : 'none';
     renderExpEvalSteps();
+  }
+
+  // Guarda un archivo de experiencia YA parseado en la empresa (perfil) actualmente en edición --
+  // único punto de escritura para los 3 caminos de carga (Excel/PDF/Word), así ninguno se olvida de
+  // recalcular el combinado o de guardar. Si no hay ninguna empresa creada todavía (no debería poder
+  // llegar aquí con la UI nueva, pero por si acaso) no se pierde el archivo leído: se avisa en vez de
+  // tirarlo, igual que el resto de la app prefiere "no determinable" a inventar un dato.
+  function guardarExperienciaDelPerfil(parsed, nombreArchivo, extra){
+    if (!perfilActivoId || !perfiles[perfilActivoId]){
+      expevalExpStatusEl.textContent = 'Crea o elige una empresa arriba antes de cargar su experiencia.';
+      return false;
+    }
+    expevalPorPerfil[perfilActivoId] = {
+      contratos: parsed,
+      meta: Object.assign({ expFile: nombreArchivo, nContratos: parsed.contratos.length, omitidos: parsed.omitidos || null }, extra || {})
+    };
+    recalcularExpevalActivo();
+    renderExpEvalReview();
+    saveExpEval();
+    return true;
   }
 
   async function cargarExcelExperiencia(file){
@@ -10242,12 +10399,9 @@
         expevalExpStatusEl.textContent = 'Se leyó el archivo pero no se reconocieron filas de contratos. Revisa que tenga encabezados y al menos una fila de datos.';
         return;
       }
-      expevalContratos = parsed;
-      expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length, omitidos: parsed.omitidos || null });
+      if (!guardarExperienciaDelPerfil(parsed, file.name)) return;
       const sufijoHojas = parsed.nHojas > 1 ? ' de ' + parsed.nHojas + ' hojas' : '';
       expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';
-      renderExpEvalReview();
-      saveExpEval();
     } catch(err){
       expevalExpStatusEl.textContent = 'No se pudo leer el Excel (' + (err && err.message ? err.message : 'error') + ').';
     }
@@ -10295,11 +10449,8 @@
       expevalExpStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' página(s) pero no reconocí ninguna fila de contrato. Prueba con el Excel si lo tienes.';
       return;
     }
-    expevalContratos = parsed;
-    expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
+    if (!guardarExperienciaDelPerfil(parsed, file.name)) return;
     expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) detectado(s) del PDF -- revisa la interpretación abajo.';
-    renderExpEvalReview();
-    saveExpEval();
   }
 
   // Word (.docx) para Experiencia del proponente: primero intenta leer la
@@ -10328,11 +10479,8 @@
         expevalExpStatusEl.textContent = 'Se leyó el Word pero no se reconoció ningún contrato -- revisa que tenga una tabla, o una lista clara con un contrato por línea.';
         return;
       }
-      expevalContratos = parsed;
-      expevalMeta = Object.assign({}, expevalMeta, { expFile: file.name, nContratos: parsed.contratos.length });
+      if (!guardarExperienciaDelPerfil(parsed, file.name)) return;
       expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s) del Word' + (tabla.rows.length ? '.' : ' -- revisa la interpretación abajo.');
-      renderExpEvalReview();
-      saveExpEval();
     } catch(err){
       expevalExpStatusEl.textContent = 'No se pudo leer el Word (' + (err && err.message ? err.message : 'error') + ').';
     }
@@ -10373,10 +10521,17 @@
   }
   if (expevalClearBtn){
     expevalClearBtn.addEventListener('click', () => {
-      expevalContratos = null; expevalMeta = null;
+      if (perfilActivoId) delete expevalPorPerfil[perfilActivoId];
+      recalcularExpevalActivo();
       expevalExpStatusEl.textContent = 'Sin cargar.';
       renderExpEvalReview();
       saveExpEval();
+    });
+  }
+  if (expExpPerfilSelectEl){
+    expExpPerfilSelectEl.addEventListener('change', () => {
+      perfilSelectEl.value = expExpPerfilSelectEl.value;
+      cambiarPerfilActivo();
     });
   }
 
@@ -11533,6 +11688,20 @@
   // una petición de red. Repetir estas llamadas aquí es barato (son funciones
   // de solo-render) incluso si esa vista no es la que está visible.
   appReady.then(() => {
+    // Migración pendiente de la experiencia "vieja" (un solo bloque global, de antes de "Experiencia
+    // por empresa") -- ver loadExpEval(). Aquí `perfiles` ya está garantizado cargado (este .then()
+    // corre después de que TODO appReady resolvió, loadPerfiles incluido).
+    if (expevalLegadoSinMigrar){
+      const idDestino = (perfilActivoId && perfiles[perfilActivoId]) ? perfilActivoId : Object.keys(perfiles)[0];
+      if (idDestino){
+        expevalPorPerfil[idDestino] = expevalLegadoSinMigrar;
+        expevalLegadoSinMigrar = null;
+        saveExpEval(); // persiste ya en el formato nuevo -- no se vuelve a intentar migrar en el próximo reload
+      }
+      // Si todavía no hay NINGÚN perfil creado, queda pendiente (expevalLegadoSinMigrar sigue con el
+      // dato) hasta que el usuario cree uno -- no se pierde, el bloque viejo sigue intacto en storage.
+    }
+    recalcularExpevalActivo();
     renderExpEvalReview();
     renderPersonalSelect();
     renderPersonalList();

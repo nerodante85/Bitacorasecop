@@ -5641,3 +5641,92 @@ fallar el primer test; quitar `+ avisoNumProceso` del camino de snapshot hace fa
 de verdad cubre los DOS caminos, no solo el feliz). Probado también en navegador real: campos vacíos al
 cargar, y el aviso aparece tal cual en pantalla al buscar con "Número de proceso" lleno. 0 errores de
 consola.
+
+## Experiencia por empresa: soporte para consorcios y uniones temporales (2026-10-01)
+
+El usuario pidió explícitamente: "Muchas veces la experiencia no es solo de una empresa, sino de varias
+que van a entrar a una unión temporal o un consorcio para poder participar en la licitación. La idea es
+que pueda cargar diferentes archivos en la sección de experiencia por empresa." Hasta ahora, "Experiencia"
+era una sola bolsa GLOBAL: se subía un Excel/PDF/Word una vez y se comparaba igual contra cualquier perfil
+de empresa marcado -- no había forma de acreditar la experiencia de cada empresa de un consorcio por
+separado. Dos decisiones confirmadas con el usuario antes de construir (`AskUserQuestion`): la experiencia
+se ata a los perfiles de empresa que YA existen en "Perfil de la empresa" (no se inventa un concepto nuevo
+de "consorcio"), y al evaluar un requisito se SUMAN los contratos de todas las empresas marcadas para
+comparar -- igual que Colombia Compra trata la experiencia acreditable de un consorcio en la mayoría de
+pliegos.
+
+**Clave de la implementación -- combinado derivado, no un reemplazo del modelo de datos.**
+`expevalContratos`/`expevalMeta` (las variables globales que YA lee casi todo el motor de evaluación --
+`renderExpEvalReview`, `evaluarExperienciaDeProceso`, `aplicarRequisitosIAaEntry`, `estadoFlujoPliego`, el
+Dashboard...) se quedan con la MISMA forma y los mismos nombres: pasan a ser un valor MERGED derivado,
+recalculado por `recalcularExpevalActivo()` cada vez que cambia qué perfiles están marcados para comparar
+(`perfilesActivos`, el mismo juego de casillas "Comparar en el análisis de pliegos" que ya existía para
+RUP/K). Nuevo mapa `expevalPorPerfil` (`perfilId -> { contratos: {headers,cols,contratos,...}, meta:
+{expFile,nContratos,omitidos} }`) es el nuevo origen de verdad; `recalcularExpevalActivo()` concatena los
+`.contratos` de cada perfil marcado (eso es literalmente "sumar contratos"), etiqueta cada contrato
+combinado con `_perfilId`/`_perfilNombre` (para que la revisión muestre de qué empresa viene cada uno), y
+reconstruye `expevalContratos`/`expevalMeta` con el mismo shape de siempre -- así casi ningún sitio de
+LECTURA del motor tuvo que cambiar, solo los sitios de ESCRITURA (dónde se guarda lo que el usuario sube) y
+la UI de "Experiencia".
+
+**Almacenamiento**: persiste bajo la MISMA clave `experiencia_evaluacion` de siempre (sin tocar
+`SYNCED_KEYS`/Supabase -- ni tabla nueva ni migración de esquema), solo que ahora guarda
+`{porPerfil: expevalPorPerfil}` en vez de `{contratos, meta}` planos. Migración de compatibilidad: si
+`loadExpEval()` encuentra el formato VIEJO (sin ids de perfil), no migra de inmediato -- `loadExpEval()`
+corre en PARALELO con `loadPerfiles()` (mismo `Promise.allSettled` inicial), así que `perfiles` puede estar
+vacío en ese momento. El bloque viejo se guarda en `expevalLegadoSinMigrar` (variable temporal) y la
+migración real (adjuntarlo a `perfilActivoId`, o al primer perfil que exista) se hace en el
+`appReady.then()` de más abajo, donde todos los loaders ya están garantizados resueltos -- y también en
+`nuevoPerfil()`, para el caso límite de que la cuenta arrancara con CERO perfiles (nada a lo que adjuntar el
+dato migrado hasta que el usuario cree uno).
+
+**UI**: nuevo `<select id="bt-exp-perfil-select">` en "Experiencia", poblado igual que
+`renderPerfilSelect()` y sincronizado con el MISMO `perfilActivoId` que ya usa "Perfil de la empresa" --
+cambiar de empresa en una pantalla mueve la otra, una sola fuente de verdad en vez de un segundo estado
+independiente que pudiera desincronizarse. El panel de carga/revisión de "Experiencia" ahora lee/escribe
+`expevalPorPerfil[perfilActivoId]` (la empresa EN EDICIÓN), no el combinado -- mostrar ahí una mezcla de
+varias empresas habría hecho ambiguo "Borrar lo cargado" (¿de cuál empresa?) y confundido al usuario sobre
+qué subió él mismo para la empresa que tiene seleccionada. Nuevo resumen arriba
+(`#bt-exp-combinado-resumen`): "Combinado para evaluar pliegos: N empresa(s) marcadas aportan M contrato(s)
+en total (consorcio/unión temporal)" -- o los mensajes de guía correspondientes si no hay ninguna marcada o
+ninguna con experiencia cargada todavía. Sin ningún perfil creado, el panel dirige primero a "Perfil de la
+empresa" (mismo patrón de huecos de flujo ya existente en la app).
+
+**Sitios de escritura, centralizados en un solo helper**: `guardarExperienciaDelPerfil(parsed, nombreArchivo,
+extra)` (nueva) es el único punto que escribe en `expevalPorPerfil[perfilActivoId]` + llama
+`recalcularExpevalActivo()` + `renderExpEvalReview()` + `saveExpEval()` -- los 3 caminos de carga
+(`cargarExcelExperiencia`/`cargarExperienciaPDF`/`cargarExperienciaDocx`) lo llaman en vez de escribir el
+global suelto directamente, así ninguno se puede olvidar de recalcular o de guardar. Con defensiva: si no
+hay ninguna empresa creada/seleccionada (no debería poder pasar con la UI nueva, el estado vacío ya dirige a
+crear una primero, pero por si acaso) avisa en vez de perder el archivo ya leído. El botón "Borrar lo
+cargado" borra solo `expevalPorPerfil[perfilActivoId]` (no todo el mapa); `eliminarPerfil()` también borra la
+entrada de esa empresa del mapa. El checkbox "Comparar en el análisis de pliegos", `nuevoPerfil()` y
+`cambiarPerfilActivo()` recalculan/re-renderizan después de sus cambios habituales.
+
+**Verificado**: `node tests/smoke.mjs` (220/220, 4 pruebas nuevas para `recalcularExpevalActivo`: dos
+empresas marcadas suman sus contratos y cada uno queda etiquetado con su `_perfilId`; con solo una marcada,
+la desmarcada no cuenta; el formato migrado desde el bloque global viejo se combina igual que cualquier otro,
+sin perderse ni duplicarse; sin ninguna empresa con experiencia cargada, el combinado queda `null` -- nunca
+se inventa un contrato). Verificado por mutación: forzar que solo se tomara la primera empresa marcada
+(`.slice(0,1)`) hizo fallar específicamente el test de "suma los dos", confirmando que la prueba detecta una
+regresión real de la suma, no solo que pasa por casualidad; revertido después.
+
+Probado de punta a punta en navegador real (servidor local, 2 perfiles de prueba reales -- "Constructora
+Alfa" con 2 contratos de "puentes vehiculares", "Constructora Beta" con 1 -- subidos como `.xlsx` reales vía
+`DataTransfer`, mismo patrón ya establecido en esta sesión): con ambas marcadas, el resumen combinado mostró
+"2 empresa(s) marcadas aportan 3 contrato(s) en total (consorcio/unión temporal)"; un pliego de prueba con
+"mínimo 3 contratos" de puentes vehiculares (ninguna empresa sola los tiene: 2 y 1) dio **CUMPLE**, con la
+evidencia citando contratos de AMBAS empresas ("Fila 1"/"Fila 2" de Alfa + "Fila 1" de Beta); al desmarcar
+Beta y volver a evaluar, el mismo requisito bajó a **NO CUMPLE** (solo 2 de los 3 exigidos) -- confirma que
+el combinado se recalcula de verdad al cambiar qué empresas están marcadas, no queda pegado al primer
+cálculo. También confirmado que el selector de empresa en "Experiencia" sincroniza con el de "Perfil de la
+empresa" en ambos sentidos, que cambiar de empresa restaura el estado "Sin cargar." para la que no tiene
+archivo propio, y que "Generar carta de presentación"/"Generar paquete de propuesta" (funcionalidad de una
+sesión anterior) siguieron funcionando sin cambios. 0 errores de consola en todo el flujo. Archivos de
+prueba (`.xlsx`/`.pdf`) borrados antes de terminar (`git status --porcelain` limpio salvo los cambios
+reales).
+
+**Fuera de alcance de esta ronda, avisado al usuario, no construido**: generación de carta/paquete de
+propuesta para varias empresas a la vez -- sigue usando los datos legales de UN solo perfil (NIT,
+representante legal...); combinar esos datos de varias empresas en un documento conjunto es un tema legal
+aparte (quién firma, bajo qué figura) que no se resuelve inventando un formato.

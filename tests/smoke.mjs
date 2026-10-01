@@ -327,9 +327,25 @@ function extractExperienceEngine() {
   assert(iK0 !== -1 && iK1 !== -1 && iK1 > iK0, 'no se encontraron las anclas de aplicarRequisitosIAaEntry');
   const blockK = scriptBody.slice(iK0, iK1);
 
+  // Bloque L: recalcularExpevalActivo -- combina la experiencia de cada perfil marcado para
+  // comparar (consorcios/uniones temporales) en un solo expevalContratos/expevalMeta, "sumando
+  // contratos" (regla de consorcio acordada). Usa perfiles/expevalPorPerfil (estado global,
+  // inyectado por los setters más abajo) y perfilesParaComparar (bloque M).
+  const iL0 = scriptBody.indexOf('function recalcularExpevalActivo(){');
+  const iL1 = scriptBody.indexOf('// Perfiles PROFESIONALES (personal/equipo de trabajo)', iL0);
+  assert(iL0 !== -1 && iL1 !== -1 && iL1 > iL0, 'no se encontraron las anclas de recalcularExpevalActivo');
+  const blockL = scriptBody.slice(iL0, iL1);
+
+  // Bloque M: perfilesParaComparar -- la lista de perfiles marcados para comparar, que
+  // recalcularExpevalActivo (bloque L) usa para decidir qué empresas combinar.
+  const iM0 = scriptBody.indexOf('function perfilesParaComparar(){');
+  const iM1 = scriptBody.indexOf('function compararConPerfiles(text, hallazgos){', iM0);
+  assert(iM0 !== -1 && iM1 !== -1 && iM1 > iM0, 'no se encontraron las anclas de perfilesParaComparar');
+  const blockM = scriptBody.slice(iM0, iM1);
+
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE + '\n' + blockF + '\n' + blockG +
-    '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK +
-    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, experienciaGateDetalle, compsDe, codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, setPerfilesProfesionales: v => { globalThis.perfilesProfesionales = v; }, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setInputsFake: v => { globalThis.getInputs = () => v; } };';
+    '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM +
+    '\nreturn { parsearExcelExperiencia, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, experienciaGateDetalle, compsDe, codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setPerfilesProfesionales: v => { globalThis.perfilesProfesionales = v; }, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setInputsFake: v => { globalThis.getInputs = () => v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -356,6 +372,15 @@ function extractExperienceEngine() {
   globalThis.getInputs = () => ({ keywords: [], geos: [], municipios: [], minV: 0, maxV: 0, numProceso: '' });
   globalThis.perfilesProfesionales = {};
   globalThis.expevalContratos = null;
+  // recalcularExpevalActivo (bloque L) / perfilesParaComparar (bloque M) -- "Experiencia por
+  // empresa". migrarPerfil no se extrae (no hace falta probarla aquí): un passthrough alcanza,
+  // ya que los fixtures de los tests ya traen la forma final que perfilesParaComparar necesita.
+  globalThis.migrarPerfil = p => p;
+  globalThis.perfiles = {};
+  globalThis.perfilesActivos = [];
+  globalThis.perfilActivoId = null;
+  globalThis.expevalPorPerfil = {};
+  globalThis.expevalMeta = null;
   const factory = new Function('window', source);
   return factory(fakeWindow);
 }
@@ -2563,6 +2588,68 @@ await check('aplicarRequisitosIAaEntry: dos filas del mismo indicador con valore
   expEngine.aplicarRequisitosIAaEntry(entry);
   assert(entry.requisitosIA.filas[0].conflictoIA && entry.requisitosIA.filas[1].conflictoIA, 'ambas filas deben quedar con conflictoIA tras aplicar: ' + JSON.stringify(entry.requisitosIA.filas.map(f => f.conflictoIA)));
   assert(entry.exigenciasIA.liquidez && entry.exigenciasIA.liquidez.conflicto === true, 'la exigencia de liquidez debe quedar en conflicto, no elegir un valor: ' + JSON.stringify(entry.exigenciasIA.liquidez));
+});
+
+// ---- "Experiencia por empresa" (consorcios/uniones temporales): cada perfil de empresa sube su
+// propia experiencia, y recalcularExpevalActivo combina la de las empresas MARCADAS para
+// comparar -- "sumar contratos" es la regla de consorcio acordada con el usuario. --------------
+function perfilFixture(id, nombre){ return { [id]: { nombre: nombre } }; }
+function contratoExp(objeto){ return { headers: ['Objeto', 'Valor'], cols: {}, contratos: [{ objeto: objeto, valor: 1 }], nHojas: 1, fuente: 'xlsx' }; }
+
+await check('recalcularExpevalActivo: dos perfiles con contratos propios, ambos marcados -> el combinado suma los dos', () => {
+  expEngine.setPerfiles(Object.assign({}, perfilFixture('a', 'Constructora Alfa'), perfilFixture('b', 'Constructora Beta')));
+  expEngine.setPerfilesActivos(['a', 'b']);
+  expEngine.setPerfilActivoId('a');
+  expEngine.setExpevalPorPerfil({
+    a: { contratos: contratoExp('Puente 1'), meta: { expFile: 'alfa.xlsx' } },
+    b: { contratos: contratoExp('Puente 2'), meta: { expFile: 'beta.xlsx' } },
+  });
+  expEngine.recalcularExpevalActivo();
+  const combinado = expEngine.getExpevalContratos();
+  assert(combinado && combinado.contratos.length === 2, 'el combinado debe traer los 2 contratos (1 de cada empresa): ' + JSON.stringify(combinado));
+  assert(combinado.contratos.some(c => c._perfilId === 'a') && combinado.contratos.some(c => c._perfilId === 'b'), 'cada contrato debe quedar etiquetado con la empresa de la que vino: ' + JSON.stringify(combinado.contratos.map(c => c._perfilId)));
+  const meta = expEngine.getExpevalMeta();
+  assert(meta.nContratos === 2 && /2 empresa/.test(meta.expFile), 'expevalMeta debe reflejar las 2 empresas combinadas: ' + JSON.stringify(meta));
+});
+
+await check('recalcularExpevalActivo: con solo una empresa marcada, el combinado SOLO cuenta la de esa empresa (no la de la desmarcada)', () => {
+  expEngine.setPerfiles(Object.assign({}, perfilFixture('a', 'Constructora Alfa'), perfilFixture('b', 'Constructora Beta')));
+  expEngine.setPerfilesActivos(['a']); // b queda desmarcada -- su experiencia sigue cargada pero no debe contar
+  expEngine.setPerfilActivoId('a');
+  expEngine.setExpevalPorPerfil({
+    a: { contratos: contratoExp('Puente 1'), meta: { expFile: 'alfa.xlsx' } },
+    b: { contratos: contratoExp('Puente 2'), meta: { expFile: 'beta.xlsx' } },
+  });
+  expEngine.recalcularExpevalActivo();
+  const combinado = expEngine.getExpevalContratos();
+  assert(combinado && combinado.contratos.length === 1, 'solo debe contar el contrato de la empresa marcada: ' + JSON.stringify(combinado));
+  assert(combinado.contratos[0]._perfilId === 'a', 'el único contrato debe ser el de la empresa marcada (a), no el de la desmarcada (b)');
+});
+
+await check('recalcularExpevalActivo: migración del formato viejo -- un bloque global atado a un solo perfil se combina igual que cualquier otro (no se pierde ni se duplica)', () => {
+  // Simula el estado tras la migración de appReady.then() (ver loadExpEval): el bloque viejo,
+  // sin ids de perfil, termina adjuntado a UN perfil (el activo al momento de migrar) dentro de
+  // expevalPorPerfil -- desde ahí, recalcularExpevalActivo no distingue si llegó por migración o
+  // por una carga nueva, así que basta con comprobar que se combina igual que cualquier otro.
+  expEngine.setPerfiles(perfilFixture('solo', 'Empresa migrada'));
+  expEngine.setPerfilesActivos(['solo']);
+  expEngine.setPerfilActivoId('solo');
+  const legado = { contratos: contratoExp('Alcantarillado'), meta: { expFile: 'legado.xlsx', nContratos: 1 } };
+  expEngine.setExpevalPorPerfil({ solo: legado });
+  expEngine.recalcularExpevalActivo();
+  const combinado = expEngine.getExpevalContratos();
+  assert(combinado && combinado.contratos.length === 1 && combinado.contratos[0].objeto === 'Alcantarillado', 'el contrato migrado no debe perderse ni alterarse: ' + JSON.stringify(combinado));
+  const meta = expEngine.getExpevalMeta();
+  assert(meta.expFile === 'legado.xlsx', 'con una sola empresa, expevalMeta.expFile debe ser el nombre de archivo original, no "N empresa(s): ..."');
+});
+
+await check('recalcularExpevalActivo: sin ninguna empresa con experiencia marcada, el combinado queda vacío (nunca se inventa un contrato)', () => {
+  expEngine.setPerfiles(perfilFixture('a', 'Constructora Alfa'));
+  expEngine.setPerfilesActivos(['a']);
+  expEngine.setPerfilActivoId('a');
+  expEngine.setExpevalPorPerfil({});
+  expEngine.recalcularExpevalActivo();
+  assert(expEngine.getExpevalContratos() === null && expEngine.getExpevalMeta() === null, 'sin experiencia cargada para ninguna empresa marcada, el combinado debe quedar null');
 });
 
 // ---- QA-001: motor puro de la Edge Function daily-digest (no solo pruebas estáticas sobre su
