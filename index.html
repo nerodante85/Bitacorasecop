@@ -4094,6 +4094,60 @@
     }
   }
 
+  // "Leer todo el documento con IA": encadena tandas de transcribirPaginasConIA una tras otra
+  // hasta terminar el pliego, sin que el usuario tenga que volver a hacer clic por cada tanda
+  // (un pliego de 112 páginas a 8/tanda son ~14 clics manuales). Mismo costo total que hacerlo
+  // tanda por tanda -- solo menos clics --, y se puede cancelar a medio camino (iaAutoLeerCancelado).
+  const iaAutoLeerCancelado = {}; // { id: true } -- el usuario pidió cancelar el auto-leer de ESE proceso
+  async function autoLeerConIA(id, slot){
+    const entry = analisis[id];
+    const file = pendingOcrFiles[id];
+    if (!file || !entry){
+      slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para continuar leyéndolo.</div>';
+      return;
+    }
+    delete iaAutoLeerCancelado[id];
+    while (entry.pagesRead < entry.numPages){
+      if (iaAutoLeerCancelado[id]) break;
+      const from = entry.pagesRead + 1;
+      const to = Math.min(entry.numPages, entry.pagesRead + IA_TRANSCRIBE_BATCH_PAGES);
+      const tandaActual = Math.ceil(from / IA_TRANSCRIBE_BATCH_PAGES);
+      const tandasTotal = Math.ceil(entry.numPages / IA_TRANSCRIBE_BATCH_PAGES);
+      slot.innerHTML = '<div class="analysis-loading">Leyendo con IA… tanda ' + tandaActual + ' de ' + tandasTotal + ' (páginas ' + from + '-' + to + ')</div>' +
+        '<div style="margin-top:8px;"><button class="link-btn analysis-ia-cancelar-btn" data-ia-cancelar-id="' + escapeHtml(id) + '">Cancelar</button></div>';
+      let result;
+      try {
+        result = await transcribirPaginasConIA(file, from, to);
+      } catch(err){
+        const ctx = itemYScorePara(id);
+        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Quedó leído hasta la página ' + entry.pagesRead + '/' + entry.numPages + ' -- puedes intentar de nuevo.</div>';
+        delete iaAutoLeerCancelado[id];
+        return;
+      }
+      if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); delete iaAutoLeerCancelado[id]; return; }
+      const baseLen = (entry.ocrText || '').length;
+      const fullText = (entry.ocrText || '') + result.text;
+      entry.ocrText = fullText;
+      entry.paginaOffsets = (entry.paginaOffsets || []).concat(
+        (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
+      );
+      entry.pagesRead = result.pagesRead;
+      entry.ts = Date.now();
+      const { hallazgos: nuevosHallazgos, kResidual, exigencias } = analizarTexto(fullText);
+      entry.kResidual = kResidual;
+      entry.exigencias = exigencias;
+      entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
+      entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
+      entry.viabilidad = calcularViabilidad(entry.redFlags);
+      delete entry.comp;
+      analisis[id] = entry;
+      saveAnalisis(id);
+    }
+    if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
+    delete iaAutoLeerCancelado[id];
+    evaluarExperienciaDeProceso(id, slot);
+  }
+
   // Antes, un PDF protegido con contraseña caía en el mismo mensaje crudo
   // de pdf.js ("PasswordException" o similar) que cualquier otro error --
   // confuso para alguien sin conocimiento técnico. pdf.js SIEMPRE nombra
@@ -5999,6 +6053,12 @@
     'equipo de trabajo', 'personal minimo', 'personal requerido', 'personal clave',
     'director de obra', 'residente de obra', 'equipo minimo de trabajo', 'personal propuesto',
     'garantia de seriedad', 'garantia de cumplimiento', 'garantia de responsabilidad civil', 'poliza',
+    // Cronograma (nueva lista "cronograma" de extraer-requisitos, ver supabase/functions/extraer-requisitos):
+    // sin estos triggers, el recorte a páginas relevantes podía omitir la sección de cronograma
+    // completa cuando el pliego es largo, dejando esa lista vacía aunque el dato sí estuviera en el PDF.
+    'cronograma', 'cierre del proceso', 'cierre de la presentacion de ofertas', 'traslado del informe de evaluacion',
+    'traslado para subsanar', 'plazo para subsanar', 'subsanacion de requisitos', 'audiencia de adjudicacion',
+    'fecha de adjudicacion',
   ];
   const REGEX_PAGINAS_IA = new RegExp(
     '(?:' + TRIGGERS_PAGINAS_IA.map(patronAncla).join('|') + '|' + REGEX_ANCLAS_EXPERIENCIA.source + ')', 'gi'
@@ -8667,6 +8727,36 @@
       controles + estado + tabla;
   }
 
+  // Cronograma y riesgos ampliados extraídos con IA (ver supabase/functions/extraer-requisitos) --
+  // complementan, no reemplazan: el cronograma es información nueva (SECOP solo trae la fecha de
+  // cierre); los riesgos_ia son criterio abierto de la IA, distinto de las 3 reglas objetivas con
+  // artículo legal citado que ya calcula detectarRedFlags (REGLAS_RED_FLAG) -- por eso llevan su
+  // propio rótulo "criterio de la IA, no una infracción confirmada", para no confundir las dos
+  // fuentes. Sin entry.requisitosIA (nunca se extrajo con IA) no se muestra nada -- igual que el
+  // resto de bloques de IA, nunca aparece vacío sin más.
+  function bloqueCronogramaRiesgosIAHtml(entry){
+    if (!entry.requisitosIA) return '';
+    const fuenteDe = f => escapeHtml(f.documento || 'Pliego') + (f.pagina ? ', p. ' + escapeHtml(String(f.pagina)) : '') +
+      (f.verificada ? ' <span title="La cita se encontró en el texto del PDF">✓</span>' : ' <span class="tag" title="' + escapeHtml(f.motivoVerificacion || '') + '">sin verificar</span>');
+    const cronograma = entry.cronogramaIA || [];
+    const cronogramaHtml = cronograma.length
+      ? '<div class="analysis-sub">CRONOGRAMA CLAVE (extraído con IA)</div>' +
+        '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Evento</th><th>Fecha</th><th>Hora</th><th>Fuente</th></tr></thead><tbody>' +
+        cronograma.map(f => '<tr><td>' + escapeHtml(f.evento || '') + '</td><td>' + escapeHtml(f.fecha || '—') + '</td><td>' + escapeHtml(f.hora || '—') + '</td><td>' + fuenteDe(f) + '</td></tr>').join('') +
+        '</tbody></table></div>'
+      : '';
+    const riesgos = entry.riesgosIA || [];
+    const sevTag = sev => '<span class="tag redflag-' + (sev === 'alta' ? 'alta' : sev === 'media' ? 'media' : 'baja') + '">' + (sev || 'baja').toUpperCase() + '</span>';
+    const riesgosHtml = riesgos.length
+      ? '<div class="analysis-sub">RIESGOS Y ALERTAS ADICIONALES (criterio de la IA)</div>' +
+        '<div class="saved-note">Más allá de las 3 reglas legales objetivas de arriba -- esto es la valoración de la IA sobre cláusulas inusuales o de difícil cumplimiento, no una infracción confirmada.</div>' +
+        '<ul class="analysis-list">' +
+        riesgos.map(f => '<li>' + sevTag(f.severidad) + ' ' + escapeHtml(f.descripcion || '') + ' <span style="color:var(--text-muted);">(' + fuenteDe(f) + ')</span></li>').join('') +
+        '</ul>'
+      : '';
+    return cronogramaHtml + riesgosHtml;
+  }
+
   function bloqueExperienciaHtml(entry){
     const g = experienciaGateDetalle(entry);
     const epHtml = renderEstudioPrevioUploadHtml(entry);
@@ -8882,6 +8972,7 @@
     return '<div class="analysis-block">' +
       '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') + ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
       redFlagsHtml +
+      bloqueCronogramaRiesgosIAHtml(entry) +
       // El usuario pidió explícitamente hacer énfasis en esta sección: "es
       // de vital importancia conocer ese análisis comparativo para que la
       // empresa tenga información suficiente para tomar la decisión de
@@ -8924,7 +9015,10 @@
             ? 'Ayuda de lectura: los requisitos se extrajeron con IA y se verificaron contra el texto del PDF; no reemplaza revisar el pliego completo antes de decidir.'
             : 'Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.') + '</div>') +
       (entry.viaIA && entry.pagesRead < entry.numPages
-        ? '<div style="margin-top:8px;"><button class="link-btn analysis-ia-continue-btn" data-ia-continue-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo con IA (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
+        ? '<div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">' +
+            '<button class="link-btn analysis-ia-continue-btn" data-ia-continue-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo con IA (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button>' +
+            '<button class="link-btn analysis-ia-leer-todo-btn" data-ia-todo-id="' + escapeHtml(entry.id || '') + '">Leer todo el documento con IA (~' + Math.ceil((entry.numPages - entry.pagesRead) / IA_TRANSCRIBE_BATCH_PAGES) + ' tanda(s) más)</button>' +
+          '</div>'
         : '') +
       (entry.viaOcr && entry.pagesRead < entry.numPages
         ? '<div style="margin-top:8px;"><button class="link-btn analysis-ocr-continue-btn" data-ocr-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
@@ -10071,6 +10165,24 @@
         if (f.cita) L.push('     Cita: "' + truncate(f.cita, 300) + '"');
       });
       nl();
+      const cronogramaTxt = entry.cronogramaIA || [];
+      if (cronogramaTxt.length){
+        L.push('CRONOGRAMA CLAVE (extraído con IA)');
+        cronogramaTxt.forEach((f, i) => {
+          L.push('  ' + (i + 1) + '. ' + (f.evento || '') + ': ' + (f.fecha || '—') + (f.hora ? ' ' + f.hora : '') +
+            ' -- ' + (f.documento || 'Pliego') + (f.pagina ? ', p. ' + f.pagina : '') + (f.verificada ? ' (cita verificada)' : ' (cita sin verificar)'));
+        });
+        nl();
+      }
+      const riesgosIATxt = entry.riesgosIA || [];
+      if (riesgosIATxt.length){
+        L.push('RIESGOS Y ALERTAS ADICIONALES (criterio de la IA, no una infracción confirmada)');
+        riesgosIATxt.forEach((f, i) => {
+          L.push('  ' + (i + 1) + '. [' + (f.severidad || 'baja').toUpperCase() + '] ' + (f.descripcion || '') +
+            ' -- ' + (f.documento || 'Pliego') + (f.pagina ? ', p. ' + f.pagina : '') + (f.verificada ? ' (cita verificada)' : ' (cita sin verificar)'));
+        });
+        nl();
+      }
     }
 
     const primero = comps[0] || {};
@@ -10786,7 +10898,7 @@
   const IA_MAX_BYTES = 20 * 1024 * 1024;
   const iaEnCurso = {}; // { id: true } -- evita doble clic y extracciones simultáneas del mismo proceso
   // Versión del contrato con supabase/functions/extraer-requisitos (CONTRATO_VERSION allí). Súbela en ambos lados.
-  const CONTRATO_EXTRACCION = 2;
+  const CONTRATO_EXTRACCION = 3; // v3: cronograma/riesgos_ia
   async function extraerRequisitosConIA(id, slot){
     const entry = analisis[id];
     if (!entry || !slot) return;
@@ -10849,12 +10961,25 @@
       if (data && data.contrato !== CONTRATO_EXTRACCION) throw new Error('La función de extracción del servidor está desactualizada (contrato ' + (data.contrato == null ? 'antiguo' : data.contrato) + ', se esperaba ' + CONTRATO_EXTRACCION + '): hay que volver a desplegar extraer-requisitos.');
       if (!data || !Array.isArray(data.requisitos)) throw new Error('Respuesta inesperada de la función.');
 
-      // Verificación: texto completo de cada PDF (solo para citas; sin costo de IA).
+      // Verificación: texto completo de cada PDF (solo para citas; sin costo de IA). Para el
+      // pliego, si la capa de texto real del PDF (pdf.js) sale vacía o muy corta -- un escaneo,
+      // el mismo caso que obliga a leerlo por OCR/IA -- se usa el texto YA leído de `entry`
+      // (textoPliegoDe: OCR o transcripción con IA) en vez de un texto vacío que habría dejado
+      // CADA cita como "no aparece en el PDF", aunque el pliego sí se haya leído. Las adendas no
+      // tienen este problema resuelto todavía (no pasan por el mismo pipeline de OCR/IA que el
+      // pliego) -- siguen dependiendo solo de su propia capa de texto real.
       estado('Verificando las citas contra el texto del PDF...');
       const textos = {};
       for (const d of docs){
         try {
           const t = await extractPdfText(d.file, 400);
+          if (d.rol === 'pliego' && (!t.text || t.text.trim().length < 200)){
+            const textoLeido = textoPliegoDe(entry);
+            if (textoLeido && textoLeido.trim().length >= 200){
+              textos[d.clave] = { text: textoLeido, offsets: entry.paginaOffsets || [] };
+              continue;
+            }
+          }
           textos[d.clave] = { text: t.text, offsets: t.paginaOffsets };
         } catch(_e){ textos[d.clave] = { text: '', offsets: [] }; }
       }
@@ -10862,11 +10987,27 @@
       const avisosInyeccion = [];
       docs.forEach(d => { const t = textos[d.clave]; if (t) avisosInyeccion.push.apply(avisosInyeccion, detectarInyeccionEnTexto(t.text, t.offsets, d.file.name)); });
       const sospecha = avisosInyeccion.length ? (avisosInyeccion[0].documento + (avisosInyeccion[0].pagina ? ', p. ' + avisosInyeccion[0].pagina : '')) : null;
-      let filas = data.requisitos.map(f => {
+      const textoDeFila = f => {
         const m = normHeader(f.documento || '').match(/adenda\s*(?:no|n)?\s*(\d+)/);
-        const t = textos[m ? 'adenda ' + m[1] : 'pliego'] || textos.pliego || { text: '', offsets: [] };
+        return textos[m ? 'adenda ' + m[1] : 'pliego'] || textos.pliego || { text: '', offsets: [] };
+      };
+      let filas = data.requisitos.map(f => {
+        const t = textoDeFila(f);
         const v = verificarFilasIA([f], t.text, t.offsets)[0];
         return sospecha ? Object.assign(v, { sospechaInyeccion: sospecha }) : v;
+      });
+      // Cronograma y riesgos_ia (ver supabase/functions/extraer-requisitos): mismas citas, mismo
+      // mecanismo de verificación -- verificarFilaIA ignora los campos que no traen (min_contratos,
+      // valor_minimo_numero...) y cae directo a comparar cita_textual contra el PDF, que es
+      // exactamente lo que hace falta para estas dos listas (no deciden ningún CUMPLE/NO CUMPLE,
+      // así que no necesitan el resto de la verificación numérica).
+      const cronograma = (Array.isArray(data.cronograma) ? data.cronograma : []).map(f => {
+        const t = textoDeFila(f);
+        return verificarFilasIA([f], t.text, t.offsets)[0];
+      });
+      const riesgosIA = (Array.isArray(data.riesgos_ia) ? data.riesgos_ia : []).map(f => {
+        const t = textoDeFila(f);
+        return verificarFilasIA([f], t.text, t.offsets)[0];
       });
       let pdfSha256 = null;
       try {
@@ -10882,6 +11023,8 @@
         ts: Date.now(), modelo: data.modelo || null, uso: data.uso || null, pdfSha256: pdfSha256, avisosInyeccion: avisosInyeccion,
         documentos: docs.map(d => ({ nombre: d.file.name, rol: d.rol })), filas: filas
       };
+      actual.cronogramaIA = cronograma;
+      actual.riesgosIA = riesgosIA;
       aplicarRequisitosIAaEntry(actual);
       analisis[id] = actual;
       saveAnalisis(id);
@@ -11439,6 +11582,23 @@
         const ctx = itemYScorePara(id);
         slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Puedes intentar de nuevo.</div>';
       }
+      return;
+    }
+
+    // 3d) "Leer todo el documento con IA" -- encadena tandas automáticamente (autoLeerConIA)
+    const iaTodoBtn = e.target.closest('.analysis-ia-leer-todo-btn');
+    if (iaTodoBtn){
+      const id = iaTodoBtn.getAttribute('data-ia-todo-id');
+      const slot = iaTodoBtn.closest('.analysis-block').parentElement;
+      await appReady;
+      autoLeerConIA(id, slot);
+      return;
+    }
+
+    // "Cancelar" el auto-leer con IA -- autoLeerConIA revisa esta bandera entre tandas.
+    const iaCancelBtn = e.target.closest('.analysis-ia-cancelar-btn');
+    if (iaCancelBtn){
+      iaAutoLeerCancelado[iaCancelBtn.getAttribute('data-ia-cancelar-id')] = true;
       return;
     }
 

@@ -5877,8 +5877,107 @@ falta subir `CONTRATO_VERSION`: la forma de la respuesta no cambió, solo cuánt
 tanda seguro.
 
 **Verificado**: `node tests/smoke.mjs` (222/222, sin regresión -- el test de contrato de versión
-sigue comparando cliente/servidor igual). **Pendiente de una segunda prueba real del usuario**: si 8
-páginas/tanda sí alcanza a terminar dentro de 140s con este mismo pliego escaneado -- si sigue
-fallando, el siguiente paso sería bajar más el número (ej. 4-5) antes de considerar un patrón
-asíncrono (cambio de arquitectura mayor, ya descartado una vez para `extraer-requisitos` por el
-mismo motivo: el plan gratuito de Supabase no da mucho margen de por sí).
+sigue comparando cliente/servidor igual). Confirmado por el usuario: 8 páginas/tanda sí terminó
+dentro de 140s con el mismo pliego escaneado de 112 páginas (la segunda tanda, páginas 1-8, se leyó
+"vía IA" sin timeout).
+
+## Citas de "Extraer requisitos con IA" sin verificar en un pliego escaneado, y "leer todo el documento" encadenado
+
+Con `transcribir-pdf` ya funcionando (8/112 leídas), el usuario probó "Extraer requisitos con IA"
+sobre el mismo pliego escaneado -- los 7 requisitos extraídos salieron TODOS "SIN VERIFICAR", cada
+uno con "la cita no aparece en la página N del PDF". Investigado: `extraerRequisitosConIA` verifica
+cada cita contra `extractPdfText(d.file, 400)` -- la capa de texto REAL del PDF (pdf.js) -- sin
+importar que el pliego se haya leído por OCR o por IA aparte; para un escaneo esa capa está
+literalmente vacía, así que CUALQUIER cita queda "no aparece", aunque la IA la haya citado bien.
+
+**Fix**: para el documento con rol `'pliego'` (no las adendas, que no pasan por el mismo pipeline),
+si la capa de texto real sale vacía o muy corta (<200 caracteres -- mismo umbral que ya usa el resto
+de la app para decidir "esto está escaneado"), se usa `textoPliegoDe(entry)` (el texto YA leído por
+OCR o por IA, el mismo que alimenta el análisis principal) en su lugar. Las citas de páginas ya
+leídas por OCR/IA ahora sí pueden verificarse; las de páginas todavía sin leer siguen "sin verificar"
+correctamente (no hay texto con qué comparar esas todavía).
+
+**"Leer todo el documento con IA"**: con 8 páginas/tanda, un pliego de 112 necesita ~14 clics en
+"Seguir leyendo con IA" -- tedioso. Nuevo botón `autoLeerConIA(id, slot)` que encadena las tandas
+automáticamente (mismo costo total, 14 llamadas, solo sin volver a hacer clic cada vez), con un
+botón "Cancelar" visible durante el proceso (`iaAutoLeerCancelado`, revisado entre tandas -- no
+interrumpe una tanda ya en curso, solo evita que arranque la siguiente). Aparece junto a "Seguir
+leyendo con IA" (tanda por tanda) una vez que `entry.viaIA` existe -- el primer clic sigue siendo
+manual (mismo patrón ya establecido para OCR/texto normal), evitando que alguien dispare sin querer
+13 llamadas pagadas de una sola vez antes de ver si la primera tanda funciona.
+
+**Verificado**: `node tests/smoke.mjs` (222/222, sin tests nuevos -- ambos cambios son lógica de
+UI/estado sobre funciones ya probadas, mismo criterio que otros fixes de esta naturaleza en este
+archivo). Probado en navegador real (servidor local, estado sembrado a mano en `localStorage`
+simulando un `entry` con `viaIA: true`, `pagesRead: 8`, `numPages: 112` -- sin cuenta/crédito real,
+mismo límite ya documentado): el botón "Leer todo el documento con IA (~13 tanda(s) más)" aparece
+junto al de tanda por tanda con el conteo correcto; al hacer clic sin el archivo en memoria (se
+pierde al recargar, limitación ya aceptada y documentada para OCR), muestra el aviso correcto en vez
+de fallar en silencio o lanzar una excepción. 0 errores de consola. **Pendiente de que el usuario
+pruebe el auto-leer de punta a punta con su cuenta real** (incluida la cancelación a medio camino) y
+confirme que las citas de "Extraer requisitos con IA" sí se verifican ahora para las páginas ya
+leídas.
+
+## Cronograma y riesgos ampliados en "Extraer requisitos con IA" (sugerencia externa del usuario)
+
+El usuario compartió un prompt system/user de otra fuente (que ya usaba para licitaciones) pidiendo
+"tenerlo en consideración" para mejorar la lectura del pliego/Estudio Previo. Investigado contra lo
+que YA existe antes de tocar nada: ese prompt pide un JSON plano
+(`objeto_contratacion`/`presupuesto_oficial`/`experiencia_habilitante`/`capacidad_financiera`/
+`personal_clave`/`cronograma_clave`/`riesgos_o_alertas`) -- varios de esos campos ya los cubre el
+esquema estructurado de `extraer-requisitos` (una fila por requisito, pensada para que el motor de
+reglas decida CUMPLE/NO CUMPLE) o ya vienen de SECOP (objeto, presupuesto). Reemplazar el esquema
+actual por uno plano habría roto todo el motor que depende de esa forma por fila
+(`filaIAaRequisito`/`verificarFilaIA`/el panel de confirmación...) sin necesidad real. Confirmado con
+el usuario qué sí era genuinamente nuevo antes de construir (`AskUserQuestion`): cronograma (fechas
+más allá del cierre que ya trae SECOP) y riesgos ampliados (criterio abierto de la IA, no solo las 3
+reglas objetivas por regex que ya existían) -- ambos elegidos.
+
+**Servidor** (`extraer-requisitos`, `REQUISITOS_SCHEMA`): dos listas nuevas, hermanas de
+`requisitos`, con el MISMO patrón `documento`/`pagina`/`cita_textual` (así el remapeo de páginas por
+recorte -- `recortarPdfAPaginas`/`mapaPorTitulo` -- y la verificación de citas en el cliente
+funcionan igual sin duplicar lógica):
+- `cronograma`: `evento`/`fecha`/`hora` tal cual los escribe el pliego (la instrucción es explícita:
+  nunca normalizar el formato ni inventar/completar un año que no esté escrito).
+- `riesgos_ia`: `descripcion`/`severidad` (criterio propio de la IA sobre cláusulas inusuales, multas
+  severas, condiciones de difícil cumplimiento) -- la instrucción deja explícito que complementa, no
+  reemplaza, las 3 reglas objetivas con artículo legal citado de `REGLAS_RED_FLAG`/`detectarRedFlags`
+  (ya existentes, basadas en regex, nunca tocadas por este cambio).
+`remapPaginas()` (nueva, generaliza el remapeo que antes era exclusivo de `requisitos`) aplica el
+mismo ajuste a las 3 listas. `CONTRATO_VERSION` subió de 2 a 3 (cambio de forma de la respuesta).
+
+**`TRIGGERS_PAGINAS_IA`** (cliente, filtro de páginas relevantes antes de mandarle el PDF a la IA en
+un pliego largo): se agregaron triggers de cronograma ("cronograma", "cierre del proceso", "traslado
+del informe de evaluación", "subsanación"...) -- sin esto, el recorte a páginas relevantes (pensado
+originalmente solo para experiencia/financiera/personal/garantías) podía excluir la sección de
+cronograma completa de un pliego largo, dejando esa lista vacía aunque el dato sí estuviera en el PDF.
+
+**Cliente**: `verificarFilaIA` (ya existente) se reutiliza TAL CUAL para cronograma/riesgos_ia -- sin
+`min_contratos`/`valor_minimo_numero`/etc. (campos que esas dos listas no tienen), la función cae
+directo a comparar `cita_textual` contra el texto del PDF, que es exactamente la verificación que
+hacen falta aquí (ninguna de las dos decide un CUMPLE/NO CUMPLE, así que no necesitan el resto de la
+verificación numérica). Guardados en `entry.cronogramaIA`/`entry.riesgosIA` (arrays simples, a
+diferencia de `entry.requisitosIA` que es un objeto con metadatos -- estas dos listas no necesitan
+checkbox de confirmación del usuario, porque no gatean ninguna decisión de cumplimiento, solo
+informan). `CONTRATO_EXTRACCION` subió a 3 en el mismo commit que el servidor.
+
+**UI**: nueva `bloqueCronogramaRiesgosIAHtml(entry)`, renderizada justo después de "ALERTAS DEL
+PLIEGO" (las 3 reglas objetivas) -- tabla de cronograma (Evento/Fecha/Hora/Fuente con ✓ o "sin
+verificar") y lista de riesgos con badge de severidad (reutiliza `.tag.redflag-alta/-media/-baja`, ya
+existente, ningún color nuevo) y una nota explícita de que es "criterio de la IA, no una infracción
+confirmada" -- para no confundirlo visualmente con las alertas legales objetivas de arriba. Sin
+`entry.requisitosIA` (nunca se extrajo con IA) no se muestra nada. Mismo contenido agregado al
+informe `.txt` descargable (`informeAnalisisTexto`).
+
+**Verificado**: `node tests/smoke.mjs` (222/222, sin regresión -- el test de contrato de versión ya
+genérico, comparando `CONTRATO_EXTRACCION`/`CONTRATO_VERSION` por regex, siguió pasando con ambos en
+3). `tsc --noEmit` sobre `extraer-requisitos/index.ts`: sin errores reales (solo los esperables por
+Deno, mismo patrón ya documentado). Probado en navegador real con un `entry` sembrado a mano en
+`localStorage` (un evento de cronograma verificado + uno sin verificar, un riesgo de severidad alta
+verificado) -- las dos tablas nuevas renderizan con los badges y el texto correctos, 0 errores de
+consola; el `.txt` no se pudo probar en esta pasada (el botón de descarga solo aparece con al menos
+un perfil comparado con coincidencias, `comps.length > 0`, que el fixture sembrado a mano no traía) --
+revisado por lectura de código en su lugar, mismo patrón de concatenación simple ya usado en el resto
+de `informeAnalisisTexto`. **Pendiente de que el usuario pruebe la extracción real**: si la IA de
+verdad encuentra cronograma/riesgos en un pliego real y si los triggers de página nuevos son
+suficientes para no perder la sección de cronograma en un documento largo.
