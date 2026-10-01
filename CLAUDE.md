@@ -5981,3 +5981,72 @@ revisado por lectura de código en su lugar, mismo patrón de concatenación sim
 de `informeAnalisisTexto`. **Pendiente de que el usuario pruebe la extracción real**: si la IA de
 verdad encuentra cronograma/riesgos en un pliego real y si los triggers de página nuevos son
 suficientes para no perder la sección de cronograma en un documento largo.
+
+## "Analizar Estudio Previo": el Estudio Previo como documento PRINCIPAL (sin Pliego publicado)
+
+El usuario pidió un botón para "Analizar Estudio Previo". Investigado antes de construir: ya existía
+una carga de Estudio Previo (`renderEstudioPrevioUploadHtml`/`cargarEstudioPrevioArchivo`), pero
+SIEMPRE como soporte SECUNDARIO -- solo visible dentro de un análisis que ya existía, es decir, exigía
+tener un Pliego ya analizado primero. Peor: "Extraer requisitos con IA" ni siquiera leía ese Estudio
+Previo secundario -- solo Pliego + Adendas. Se le preguntó al usuario qué necesitaba el botón nuevo
+(`AskUserQuestion`, con dos opciones sobre si la IA debía o no incluir el Estudio Previo) y su
+respuesta reveló el problema real, distinto del que se estaba resolviendo: "algunas veces no está el
+Pliego de condiciones sino el estudio previo" -- en procesos en etapa temprana, el Estudio Previo es
+el ÚNICO documento disponible, y hoy la app no tenía forma de analizar NADA sin un Pliego primero.
+
+**Diseño**: nuevo botón "📋 Analizar Estudio Previo" en cada tarjeta de "Buscar procesos", junto a
+"📄 Analizar pliego (PDF)" -- visible SOLO antes de que exista un análisis (una vez hay uno, de
+cualquiera de los dos orígenes, "↻ Volver a analizar" lo reemplaza, igual que ya pasaba). Mismo gate
+de siempre (`estadoFlujoPliego().listo`). Alcance recortado a propósito: solo PDF (igual que el botón
+de Pliego ya existente), no `.docx` -- el Estudio Previo SECUNDARIO sí admite `.docx` desde antes, eso
+no cambió; agregar `.docx` a la vía PRINCIPAL queda para otra ronda si hace falta.
+
+**Clave de la implementación -- reutilizar el pipeline del Pliego, no duplicarlo**: el archivo del
+Estudio Previo se guarda en `pendingPliegoFiles[id]` (el MISMO store que ya usa el Pliego real) y el
+botón de confirmación reutiliza la clase `.analysis-confirmar-btn` existente -- así TODO lo que ya
+funcionaba para el Pliego (lectura de texto, oferta de OCR/IA si sale escaneado, continuación por
+tandas, "Leer todo el documento con IA") sigue funcionando igual, sin un solo camino de código nuevo
+para eso. Lo único nuevo es una bandera, `esSoloEPPendiente[id]` (mientras el archivo está "cargado
+pero sin confirmar") que se traduce a `entry.esSoloEP = true` en el `entry` resultante, en los 3
+sitios donde se construye un `entry` desde cero (`.analysis-confirmar-btn`, `.analysis-ocr-btn`,
+`.analysis-ia-transcribir-btn`) -- los handlers de "seguir leyendo" (OCR/IA/texto) NUNCA reconstruyen
+el `entry`, solo mutan el existente, así que no necesitaron tocarse.
+
+**Qué SÍ cambia con `entry.esSoloEP`** (todo lo demás -- red flags, K residual, RUP, Personal,
+viabilidad -- ya funcionaba igual, porque opera sobre `textoPliegoDe(entry)` sin que le importe de
+dónde salió el texto):
+- La etiqueta de fuente en la extracción de requisitos de experiencia por regex
+  (`extraerRequisitosDePliego(texto, ..., entry.esSoloEP ? 'Estudio Previo' : 'Pliego de
+  Condiciones')`) y en las tablas no leídas -- antes decía "Pliego de Condiciones" sin importar la
+  fuente real.
+- `renderEstudioPrevioUploadHtml`: con `esSoloEP`, NO ofrece un segundo slot de "Estudio Previo"
+  (sería un documento duplicado/confuso) -- en su lugar explica que, cuando se publique el Pliego
+  real, hay que volver y usar "Analizar pliego (PDF)" para un análisis nuevo con el documento oficial.
+- La cabecera del análisis muestra un tag "Estudio Previo" junto a las páginas leídas.
+- `extraerRequisitosConIA`: el documento principal se manda con `rol: 'estudio_previo_principal'` y
+  `nombre: 'Estudio Previo'` en vez de `rol: 'pliego'`/`'Pliego de Condiciones'` -- la `clave` interna
+  se queda en `'pliego'` a propósito (es solo la llave que usa `textoDeFila`/`verificarFilasIA` para
+  encontrar el texto de ESE documento, no algo que el servidor vea).
+- Varios textos de UI/informe (.txt) con "del Pliego y sus Adendas" pasan a "del Estudio Previo".
+
+**Servidor (`extraer-requisitos`)**: nuevo rol `'estudio_previo_principal'`, aceptado como alternativa
+a `'pliego'` en la validación de "exactamente 1 documento principal" (antes exigía exactamente 1 con
+`rol === 'pliego'`); título del documento mandado a Claude pasa a ser "Estudio Previo" para ese rol.
+Instrucciones actualizadas para que la IA sepa que el documento puede ser el Estudio Previo haciendo
+de principal, y que debe tratarlo con el mismo rigor. `CONTRATO_VERSION` subió de 3 a 4 (cambia qué
+input acepta la función, aunque la forma de la respuesta no cambió) -- con el servidor viejo
+desplegado, un cliente nuevo que mande `estudio_previo_principal` recibiría un 400 claro ("Debe haber
+exactamente 1 documento con rol..."), no un fallo silencioso.
+
+**Verificado**: `node tests/smoke.mjs` (222/222, sin tests nuevos -- cambio de orquestación de UI/
+estado sobre funciones ya probadas, mismo criterio que otros fixes de esta naturaleza). `tsc --noEmit`
+sobre `extraer-requisitos/index.ts` sin errores reales. Probado de punta a punta en navegador real:
+un PDF sintético de Estudio Previo (sin que exista ningún Pliego para ese proceso) inyectado vía
+`DataTransfer` -- apareció el botón "📋 Analizar Estudio Previo" junto al de Pliego; el flujo de carga
++ confirmación mostró "✓ Estudio Previo cargado... Como documento principal (el Pliego de Condiciones
+aún no está publicado)"; tras confirmar, el análisis corrió completo (red flags, viabilidad,
+"EXPERIENCIA REQUERIDA" con el requisito real extraído del texto) con el tag "Estudio Previo" en la
+cabecera y la nota de "Documentos del proceso: Estudio Previo ✓ (como documento principal...)". 0
+errores de consola. **Pendiente de que el usuario pruebe "Extraer requisitos con IA" sobre un Estudio
+Previo real como documento principal** (con cuenta y crédito real) -- confirmar que el servidor
+redesplegado acepta el nuevo rol y que la IA sí lo trata con el mismo rigor que un Pliego.

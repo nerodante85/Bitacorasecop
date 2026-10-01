@@ -5654,7 +5654,9 @@
     L.push('Generado: ' + new Date().toLocaleString('es-CO'));
     if (meta){
       L.push('Experiencia del proponente: ' + (meta.expFile || '—') + ' (' + (meta.nContratos || 0) + ' contratos leídos)');
-      L.push('Pliego de Condiciones: ' + (meta.pliegoFile || '—') + (meta.estudioPrevioFile ? ' · Estudio Previo: ' + meta.estudioPrevioFile : ' (sin Estudio Previo cargado)'));
+      L.push(meta.esSoloEP
+        ? 'Estudio Previo (documento principal -- sin Pliego de Condiciones publicado): ' + (meta.pliegoFile || '—')
+        : 'Pliego de Condiciones: ' + (meta.pliegoFile || '—') + (meta.estudioPrevioFile ? ' · Estudio Previo: ' + meta.estudioPrevioFile : ' (sin Estudio Previo cargado)'));
     }
     L.push('');
     const rc = ev.resumenContratos || {};
@@ -8539,6 +8541,16 @@
   // resultsEl (data-ep-upload-id / data-ep-id), igual que el resto de los
   // controles dinámicos dentro de .analysis-slot.
   function renderEstudioPrevioUploadHtml(entry){
+    // Cuando el documento PRINCIPAL ya es el Estudio Previo (no hay Pliego publicado todavía --
+    // ver "📋 Analizar Estudio Previo"), no tiene sentido ofrecer un segundo slot de "Estudio
+    // Previo" aparte -- sería un documento duplicado/confuso. Se avisa en su lugar que, en cuanto
+    // se publique el Pliego real, hay que analizarlo con el botón normal de la tarjeta (eso crea
+    // un análisis nuevo, más completo, con el documento oficial).
+    if (entry.esSoloEP){
+      return '<div style="margin-bottom:8px;">' +
+        '<strong>Documentos del proceso:</strong> Estudio Previo ✓ (como documento principal -- el Pliego de Condiciones todavía no está publicado).</div>' +
+        '<div class="saved-note" style="margin-bottom:8px;">Cuando se publique el Pliego de Condiciones, vuelve a esta tarjeta y usa "Analizar pliego (PDF)" para completar el análisis con el documento oficial.</div>';
+    }
     const cargado = !!entry.estudioPrevioText;
     const estado = cargado
       ? '✓ ' + escapeHtml(entry.estudioPrevioFileName || 'Estudio Previo') + (entry.estudioPrevioViaOcr ? ' (vía OCR)' : '')
@@ -8675,7 +8687,7 @@
       ? '<div class="saved-note">Para extraer los requisitos con IA necesitas iniciar sesión. Sin IA, el análisis por palabras clave de más abajo sigue funcionando igual.' +
           (SUPABASE_ENABLED ? ' <button class="link-btn" data-abrir-cuenta>Iniciar sesión</button>' : '') + '</div>'
       : '<div class="ia-controles">' +
-          (pendiente ? '' : '<label>PDF del pliego<input type="file" accept="application/pdf,.pdf" data-ia-pliego-id="' + id + '"></label>') +
+          (pendiente ? '' : '<label>PDF del ' + (entry.esSoloEP ? 'Estudio Previo' : 'pliego') + '<input type="file" accept="application/pdf,.pdf" data-ia-pliego-id="' + id + '"></label>') +
           '<label>Adendas (opcional)<input type="file" accept="application/pdf,.pdf" multiple data-ia-adendas-id="' + id + '"></label>' +
           '<button class="btn-primary analysis-ia-btn" data-ia-id="' + id + '">' + (ia ? '↻ Volver a extraer con IA' : '🤖 Extraer requisitos con IA') + '</button>' +
         '</div>';
@@ -8722,7 +8734,7 @@
         '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Categoría</th><th>Requisito</th><th>Exigido</th><th>Estado con tu empresa</th><th>Fuente</th></tr></thead><tbody>' +
         filasHtml + '</tbody></table></div>';
     }
-    return '<div class="analysis-sub">REQUISITOS HABILITANTES (extraídos con IA del Pliego y sus Adendas)</div>' +
+    return '<div class="analysis-sub">REQUISITOS HABILITANTES (extraídos con IA ' + (entry.esSoloEP ? 'del Estudio Previo' : 'del Pliego y sus Adendas') + ')</div>' +
       '<div class="saved-note">La IA solo lee el PDF y cita página y texto; el cumplimiento lo decide el motor de reglas contra tus datos. Cada cita se verifica contra el texto real del PDF: una fila sin verificar no se usa para decidir hasta que la confirmes. Al extraer, el PDF se envía a un proveedor de IA (Anthropic) para leerlo y se borra de nuestro almacenamiento al terminar.</div>' +
       controles + estado + tabla;
   }
@@ -8970,7 +8982,9 @@
       : '<ul class="analysis-list"><li>No hay perfiles marcados para comparar. Marca al menos uno en “Comparar en el análisis de pliegos” y vuelve a analizar.</li></ul>';
 
     return '<div class="analysis-block">' +
-      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') + ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
+      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') +
+        (entry.esSoloEP ? ' · <span class="tag" title="Sin Pliego de Condiciones publicado todavía">Estudio Previo</span>' : '') +
+        ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
       redFlagsHtml +
       bloqueCronogramaRiesgosIAHtml(entry) +
       // El usuario pidió explícitamente hacer énfasis en esta sección: "es
@@ -9491,11 +9505,21 @@
         ? '<div class="expire-alert">⚠ VISTO Y VENCE ' + (s.daysLeft === 0 ? 'HOY' : ('EN ' + s.daysLeft + (s.daysLeft === 1 ? ' DÍA' : ' DÍAS'))) + '</div>'
         : '';
 
+      // "Analizar Estudio Previo" -- algunos procesos (sobre todo en etapa temprana) todavía no
+      // tienen Pliego de Condiciones publicado, solo Estudio Previo. Solo se ofrece ANTES de que
+      // exista un análisis (una vez hay uno -- de cualquiera de los dos orígenes -- "↻ Volver a
+      // analizar" lo reemplaza; el Estudio Previo sigue disponible como SOPORTE del análisis ya
+      // hecho, dentro de la tarjeta, ver renderEstudioPrevioUploadHtml).
+      const epBtnHtml = (flujoListoParaPliego && !analysisEntry)
+        ? '<button class="btn-mini analizar-ep" data-action="analizar-ep" data-id="' + escapeHtml(it.id) + '">📋 Analizar Estudio Previo</button>' +
+          '<input type="file" accept=".pdf,.docx" data-analyze-ep-id="' + escapeHtml(it.id) + '" style="display:none">'
+        : '';
       const actionsHtml =
         '<div class="row-actions">' +
           '<button class="btn-mini' + (isVisto ? ' active-visto' : '') + '" data-action="visto" data-id="' + escapeHtml(it.id) + '">' + (isVisto ? '✓ Visto' : 'Marcar visto') + '</button>' +
           '<button class="btn-mini' + (isDescartado ? ' active-descartado' : '') + '" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : '✕ Descartar') + '</button>' +
           '<button class="btn-mini analizar" data-action="analizar" data-id="' + escapeHtml(it.id) + '">' + analizarLabel + '</button>' +
+          epBtnHtml +
         '</div>' +
         '<input type="file" accept="application/pdf" data-analyze-id="' + escapeHtml(it.id) + '" style="display:none">' +
         '<div class="analysis-slot">' + analysisHtml + '</div>';
@@ -10064,6 +10088,7 @@
 
     L.push('INFORME DE ANÁLISIS DE PLIEGO — Bitácora SECOP');
     L.push('Generado: ' + new Date().toLocaleString('es-CO'));
+    if (entry.esSoloEP) L.push('⚠ Basado en el Estudio Previo (el Pliego de Condiciones todavía no estaba publicado al analizar este proceso).');
     nl();
 
     const resCompat = (it && s) ? evaluarMejor(it, s, entry) : null;
@@ -10156,7 +10181,7 @@
     if (entry.requisitosIA){
       const evIA = (it && s) ? evaluarMejor(it, s, entry) : null;
       const filasIA = filasRequisitosHabilitantes(entry, evIA ? evIA.mejor.gates : null);
-      L.push('REQUISITOS HABILITANTES (extraídos con IA del Pliego y sus Adendas)');
+      L.push('REQUISITOS HABILITANTES (extraídos con IA ' + (entry.esSoloEP ? 'del Estudio Previo' : 'del Pliego y sus Adendas') + ')');
       L.push('  La IA solo lee el PDF; el estado lo decide el motor de reglas. Las filas SIN VERIFICAR no se usan para decidir.');
       filasIA.forEach((f, i) => {
         L.push('  ' + (i + 1) + '. [' + f.categoriaLabel + '] ' + (f.descripcion || '') + ' -- exigido: ' + f.exigido);
@@ -10862,7 +10887,7 @@
     }
     if (expevalContratos){
       const texto = textoPliegoDe(entry);
-      const pliegoEx = extraerRequisitosDePliego(texto, entry.paginaOffsets, 'Pliego de Condiciones');
+      const pliegoEx = extraerRequisitosDePliego(texto, entry.paginaOffsets, entry.esSoloEP ? 'Estudio Previo' : 'Pliego de Condiciones');
       let reqsEP = [], tablasEP = [];
       if (entry.estudioPrevioText){
         const epEx = extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo');
@@ -10877,7 +10902,7 @@
       // REGEX_MENCION_TABLA_EXPERIENCIA) -- deduplicadas por fuente+página,
       // varias anclas cercanas de la misma tabla real no deberían mostrarse
       // como avisos repetidos.
-      const tablas = pliegoEx.posiblesTablasNoLeidas.map(t => Object.assign({ fuente: 'Pliego de Condiciones' }, t)).concat(tablasEP);
+      const tablas = pliegoEx.posiblesTablasNoLeidas.map(t => Object.assign({ fuente: entry.esSoloEP ? 'Estudio Previo' : 'Pliego de Condiciones' }, t)).concat(tablasEP);
       const vistas = new Set();
       entry.posiblesTablasExperiencia = tablas.filter(t => {
         const k = t.fuente + '|' + t.pagina;
@@ -10898,7 +10923,7 @@
   const IA_MAX_BYTES = 20 * 1024 * 1024;
   const iaEnCurso = {}; // { id: true } -- evita doble clic y extracciones simultáneas del mismo proceso
   // Versión del contrato con supabase/functions/extraer-requisitos (CONTRATO_VERSION allí). Súbela en ambos lados.
-  const CONTRATO_EXTRACCION = 3; // v3: cronograma/riesgos_ia
+  const CONTRATO_EXTRACCION = 4; // v4: admite rol 'estudio_previo_principal'
   async function extraerRequisitosConIA(id, slot){
     const entry = analisis[id];
     if (!entry || !slot) return;
@@ -10908,10 +10933,15 @@
     if (!SUPABASE_ENABLED || !sbSession || !sbCompanyId){ estado('Inicia sesión desde "Tu cuenta" para usar la IA.'); return; }
     const inputPliego = slot.querySelector('input[data-ia-pliego-id]');
     const pliegoFile = pendingPliegoFiles[id] || (inputPliego && inputPliego.files[0]) || null;
-    if (!pliegoFile){ estado('Selecciona el PDF del pliego (se perdió al recargar la página).'); return; }
+    if (!pliegoFile){ estado('Selecciona el PDF del ' + (entry.esSoloEP ? 'Estudio Previo' : 'pliego') + ' (se perdió al recargar la página).'); return; }
     const inputAdendas = slot.querySelector('input[data-ia-adendas-id]');
     const adendas = inputAdendas ? Array.from(inputAdendas.files) : [];
-    const docs = [{ clave: 'pliego', file: pliegoFile, rol: 'pliego', nombre: 'Pliego de Condiciones' }]
+    // esSoloEP: no hay Pliego de Condiciones publicado todavía -- el Estudio Previo se manda como
+    // documento PRINCIPAL (rol 'estudio_previo_principal'), no como adenda ni como soporte de un
+    // pliego inexistente. `clave` se queda en 'pliego' a propósito (es solo la llave interna que
+    // usa textoDeFila/verificarFilasIA para encontrar el texto de ESTE documento -- independiente
+    // de qué rol/nombre real se le manda al servidor).
+    const docs = [{ clave: 'pliego', file: pliegoFile, rol: entry.esSoloEP ? 'estudio_previo_principal' : 'pliego', nombre: entry.esSoloEP ? 'Estudio Previo' : 'Pliego de Condiciones' }]
       .concat(adendas.map((f, i) => ({ clave: 'adenda ' + (i + 1), file: f, rol: 'adenda', nombre: 'Adenda ' + (i + 1) })));
     if (docs.length > 6){ estado('Máximo 1 pliego y 5 adendas.'); return; }
     const noPdf = docs.find(d => !esTipoDeArchivoAceptado(d.file) || !/\.pdf$/i.test(d.file.name || ''));
@@ -10942,7 +10972,7 @@
           company_id: sbCompanyId,
           documentos: docs.map(d => Object.assign(
             { path: d.path, rol: d.rol, nombre: d.nombre },
-            (d.rol === 'pliego' && paginasRelevantes) ? { paginas: paginasRelevantes } : {}
+            ((d.rol === 'pliego' || d.rol === 'estudio_previo_principal') && paginasRelevantes) ? { paginas: paginasRelevantes } : {}
           )),
         }
       });
@@ -11123,6 +11153,13 @@
   // pendingOcrFiles: input.value se limpia tras leerlo, y el botón
   // "Intentar con OCR" del aviso se clica más tarde, ya sin el File a mano.
   const pendingEstudioPrevioFiles = {};
+  // { id: true } -- el archivo en pendingPliegoFiles[id]/pendingOcrFiles[id] es en realidad un
+  // Estudio Previo usado como documento PRINCIPAL (no hay Pliego de Condiciones publicado
+  // todavía), subido vía "📋 Analizar Estudio Previo". Reutiliza EXACTAMENTE el mismo flujo de
+  // lectura/OCR/IA que el Pliego (mismos stores, mismos botones) -- esta bandera es lo único que
+  // distingue el origen, para que el `entry` resultante quede marcado `esSoloEP: true` sin
+  // duplicar la lógica de extracción/OCR/IA.
+  const esSoloEPPendiente = {};
 
   function itemYScorePara(id){
     const s = (lastScored || []).find(x => x.item && x.item.id === id);
@@ -11276,7 +11313,7 @@
       if (!entry || !entry.experienciaResultado) return;
       const meta = {
         expFile: expevalMeta && expevalMeta.expFile, nContratos: expevalContratos && expevalContratos.contratos.length,
-        pliegoFile: entry.fileName, estudioPrevioFile: entry.estudioPrevioFileName
+        pliegoFile: entry.fileName, estudioPrevioFile: entry.estudioPrevioFileName, esSoloEP: entry.esSoloEP
       };
       const texto = informeExperienciaTexto(entry.experienciaResultado, meta);
       descargarTexto('informe-experiencia-' + slugArchivo(entry.fileName || 'pliego') + '-' + new Date().toISOString().slice(0, 10) + '.txt', texto);
@@ -11300,6 +11337,17 @@
           return;
         }
         const input = actionBtn.closest('.row').querySelector('input[type=file][data-analyze-id]');
+        if (input) input.click();
+      } else if (action === 'analizar-ep'){
+        const flujo = estadoFlujoPliego();
+        if (!flujo.listo){
+          const slot = actionBtn.closest('.row').querySelector('.analysis-slot');
+          slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) +
+            ' <button class="link-btn" data-ir-a="' + (!flujo.experienciaCargada ? 'experiencia' : 'personal') + '">Ir a ' +
+            (!flujo.experienciaCargada ? 'Experiencia' : 'Personal') + '</button></div>';
+          return;
+        }
+        const input = actionBtn.closest('.row').querySelector('input[type=file][data-analyze-ep-id]');
         if (input) input.click();
       }
       return;
@@ -11346,7 +11394,7 @@
         // sobrevivían en el camino OCR, ver ocrText/entry.paginaOffsets más
         // abajo) -- hacen falta para extraer los requisitos de experiencia
         // del pliego más tarde, incluso después de recargar la página.
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, text: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad };
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, text: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, esSoloEP: !!esSoloEPPendiente[id] };
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
@@ -11354,7 +11402,7 @@
         // si quedan páginas pendientes, "Seguir leyendo más páginas" (ver
         // .analysis-continue-btn más abajo) lo necesita para continuar. Mismo
         // criterio ya usado en el camino OCR (pendingOcrFiles).
-        if (pagesRead >= numPages) delete pendingPliegoFiles[id];
+        if (pagesRead >= numPages){ delete pendingPliegoFiles[id]; delete esSoloEPPendiente[id]; }
         // Identifica y evalúa la experiencia requerida automáticamente, sin
         // esperar un segundo clic en "Evaluar cumplimiento de experiencia".
         evaluarExperienciaDeProceso(id, slot);
@@ -11389,7 +11437,7 @@
         const { comps } = compararConPerfiles(text, hallazgos);
         const redFlags = detectarRedFlags(text, paginaOffsets);
         const viabilidad = calcularViabilidad(redFlags);
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaOcr: true };
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaOcr: true, esSoloEP: !!esSoloEPPendiente[id] };
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
@@ -11398,7 +11446,7 @@
         evaluarExperienciaDeProceso(id, slot);
         // Solo se descarta el archivo en memoria si ya se leyó completo -- si quedan
         // páginas pendientes, "Seguir leyendo" lo necesita para continuar.
-        if (pagesRead >= numPages) delete pendingOcrFiles[id];
+        if (pagesRead >= numPages){ delete pendingOcrFiles[id]; delete esSoloEPPendiente[id]; }
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
       }
@@ -11427,12 +11475,12 @@
         const { comps } = compararConPerfiles(text, hallazgos);
         const redFlags = detectarRedFlags(text, paginaOffsets);
         const viabilidad = calcularViabilidad(redFlags);
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaIA: true };
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaIA: true, esSoloEP: !!esSoloEPPendiente[id] };
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
         evaluarExperienciaDeProceso(id, slot);
-        if (pagesRead >= numPages) delete pendingOcrFiles[id];
+        if (pagesRead >= numPages){ delete pendingOcrFiles[id]; delete esSoloEPPendiente[id]; }
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo transcribir con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Puedes intentar de nuevo, usar OCR, o abrir el PDF manualmente.</div>';
       }
@@ -11662,6 +11710,33 @@
       '<div class="analysis-head">✓ Pliego cargado</div>' +
       '<div style="margin-bottom:10px;">' + escapeHtml(file.name) + ' (' + kb + ' KB). Revisa que sea el documento correcto y pulsa el botón para analizarlo.</div>' +
       '<button class="btn-primary analysis-confirmar-btn" data-confirmar-id="' + escapeHtml(id) + '">Analizar pliego</button>' +
+    '</div>';
+  });
+
+  // "Analizar Estudio Previo" como documento PRINCIPAL -- cuando el Pliego de Condiciones
+  // todavía no está publicado. Mismo patrón de dos pasos (cargar, luego confirmar) y MISMO
+  // store (pendingPliegoFiles) que el pliego real -- así reutiliza sin duplicar toda la lectura/
+  // OCR/IA ya construida para ese flujo; solo esSoloEPPendiente[id] distingue el origen.
+  resultsEl.addEventListener('change', async function(e){
+    const input = e.target.closest('input[type=file][data-analyze-ep-id]');
+    if (!input) return;
+    const id = input.getAttribute('data-analyze-ep-id');
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    const slot = input.closest('.row').querySelector('.analysis-slot');
+    const flujo = estadoFlujoPliego();
+    if (!flujo.listo){
+      slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) + '</div>';
+      return;
+    }
+    pendingPliegoFiles[id] = file;
+    esSoloEPPendiente[id] = true;
+    const kb = Math.round(file.size / 1024);
+    slot.innerHTML = '<div class="analysis-block">' +
+      '<div class="analysis-head">✓ Estudio Previo cargado</div>' +
+      '<div style="margin-bottom:10px;">' + escapeHtml(file.name) + ' (' + kb + ' KB). Como documento principal (el Pliego de Condiciones aún no está publicado). Revisa que sea el documento correcto y pulsa el botón para analizarlo.</div>' +
+      '<button class="btn-primary analysis-confirmar-btn" data-confirmar-id="' + escapeHtml(id) + '">Analizar Estudio Previo</button>' +
     '</div>';
   });
 

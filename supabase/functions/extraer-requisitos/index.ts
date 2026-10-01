@@ -38,7 +38,7 @@ const TIMEOUT_ANTHROPIC_MS = 145_000;
 // Auditoría OPS-003: versión del "contrato" entre esta función y el navegador. Si el navegador espera
 // otra, muestra "función desactualizada" en vez de fallar de forma rara. Súbela en AMBOS lados al cambiar
 // la forma de la respuesta (index.html: CONTRATO_EXTRACCION).
-const CONTRATO_VERSION = 3; // v3: suma cronograma/riesgos_ia a la respuesta (ver index.html: CONTRATO_EXTRACCION)
+const CONTRATO_VERSION = 4; // v4: admite rol 'estudio_previo_principal' (ver index.html: CONTRATO_EXTRACCION)
 const FUNCTION_NAME = 'extraer-requisitos';
 
 const CORS_HEADERS = {
@@ -49,7 +49,11 @@ const CORS_HEADERS = {
 
 interface DocumentoEntrada {
   path: string;
-  rol: 'pliego' | 'adenda';
+  // 'estudio_previo_principal': algunos procesos (sobre todo en etapa temprana) todavía no tienen
+  // Pliego de Condiciones publicado -- el navegador manda el Estudio Previo como documento
+  // PRINCIPAL en ese caso, en vez de como soporte de un Pliego que no existe. Exactamente uno de
+  // ('pliego', 'estudio_previo_principal') debe estar presente (ver la validación más abajo).
+  rol: 'pliego' | 'adenda' | 'estudio_previo_principal';
   nombre?: string;
   // Páginas (1-indexadas, del PDF real) que el navegador ya detectó como relevantes por
   // anclas de texto (ver paginasRelevantesParaIA en index.html) -- si viene, la función
@@ -193,7 +197,7 @@ const REQUISITOS_SCHEMA = {
 
 const INSTRUCCIONES = `Eres un asesor experto en contratación pública colombiana (obra pública, Ley 80/1150, Decreto 1082 de 2015, Documentos Tipo de Colombia Compra Eficiente).
 
-Los documentos adjuntos son el PLIEGO DE CONDICIONES de un proceso de contratación y, si los hay, sus ADENDAS (que modifican el pliego). Extrae TODOS los REQUISITOS HABILITANTES para participar, en una fila por requisito:
+Los documentos adjuntos son el PLIEGO DE CONDICIONES de un proceso de contratación (o, si ese documento todavía no se ha publicado, el ESTUDIO PREVIO hace las veces de documento principal -- trátalo con el mismo rigor) y, si los hay, sus ADENDAS (que modifican el pliego). Extrae TODOS los REQUISITOS HABILITANTES para participar, en una fila por requisito:
 - juridico (capacidad jurídica, inhabilidades, certificados de existencia, RUP vigente, etc.)
 - experiencia_general y experiencia_especifica (una fila por cada requisito o por cada fila de las tablas/matrices de experiencia)
 - capacidad_financiera (liquidez, endeudamiento, cobertura de intereses, patrimonio, capital de trabajo)
@@ -210,7 +214,7 @@ Reglas estrictas:
 3. Si el pliego expresa el valor de experiencia como porcentaje del presupuesto oficial (ej. "100% del presupuesto oficial"), pon ese porcentaje en valor_minimo_pct_presupuesto y deja valor_minimo_numero en null.
 4. "pagina" es el número de página del PDF de ese documento, contando desde 1 (posición dentro del archivo, no el número impreso en la hoja).
 5. "cita_textual" es una copia LITERAL del texto del documento (máximo 300 caracteres) que contiene la cifra o la condición. No parafrasees ni corrijas ortografía. Si la fuente es una tabla, copia el texto de la fila tal como se lee.
-6. "documento" es "Pliego de Condiciones" o "Adenda N" (usa el título del archivo). Si una adenda modifica un requisito, reporta SOLO el valor final vigente, pon modificado_por_adenda en true y cita la adenda.
+6. "documento" es "Pliego de Condiciones", "Estudio Previo" o "Adenda N" (usa el título del archivo, exactamente como aparece). Si una adenda modifica un requisito, reporta SOLO el valor final vigente, pon modificado_por_adenda en true y cita la adenda.
 7. Si un dato no aparece de forma explícita, déjalo en null. Si dudas de algo, pon confianza "baja" y explica en notas. NUNCA inventes un requisito ni una cifra.
 8. descripcion es una frase breve y clara del requisito (para experiencia: el objeto/tipo de obra exigido, sin la cifra).
 9. Para varias opciones equivalentes (basta acreditar una), usa obligatoriedad "alternativo" y el mismo grupo_alternativo en todas.
@@ -266,8 +270,8 @@ Deno.serve(async (req: Request) => {
     if (!documentos || documentos.length === 0 || documentos.length > MAX_DOCUMENTOS) {
       return json({ error: `Se requiere body.documentos (1 a ${MAX_DOCUMENTOS} PDFs)` }, 400);
     }
-    if (documentos.filter((d) => d && d.rol === 'pliego').length !== 1) {
-      return json({ error: 'Debe haber exactamente 1 documento con rol "pliego"' }, 400);
+    if (documentos.filter((d) => d && (d.rol === 'pliego' || d.rol === 'estudio_previo_principal')).length !== 1) {
+      return json({ error: 'Debe haber exactamente 1 documento con rol "pliego" o "estudio_previo_principal"' }, 400);
     }
 
     // 2. Usuario y empresa (SERVER-SIDE). Si el cliente manda company_id, se VALIDA contra
@@ -352,7 +356,7 @@ Deno.serve(async (req: Request) => {
       let bytesPdf = new Uint8Array(await blob.arrayBuffer());
       // `nombre` viene del cliente y va al título del documento: se sanea y se acorta.
       const nombreSeguro = String(d.nombre ?? '').replace(/[^\p{L}\p{N} ._-]/gu, '').slice(0, 60);
-      const titulo = d.rol === 'pliego' ? 'Pliego de Condiciones' : (nombreSeguro || 'Adenda');
+      const titulo = d.rol === 'pliego' ? 'Pliego de Condiciones' : d.rol === 'estudio_previo_principal' ? 'Estudio Previo' : (nombreSeguro || 'Adenda');
       if (Array.isArray(d.paginas) && d.paginas.length) {
         const recorte = await recortarPdfAPaginas(bytesPdf, d.paginas);
         if (recorte) {
