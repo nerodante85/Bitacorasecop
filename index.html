@@ -1227,13 +1227,19 @@
                 <label>Número de proceso o referencia (búsqueda directa, opcional)</label>
                 <input id="bt-proceso" type="text" placeholder="ej. LP-005-2026, SAMC-05-2026, CO1.REQ.10526881">
               </div>
+              <!-- Bug real reportado por el usuario (2026-10-01): estos dos campos traían un `value`
+                   fijo desde una versión muy temprana del prototipo (nunca documentado ni tocado en
+                   ninguna ronda de auditoría) -- toda búsqueda nueva, sin que el usuario escribiera
+                   nada, quedaba restringida a esas 4 especialidades y a Norte de Santander. Ahora
+                   empiezan vacíos; el texto de ejemplo queda solo como `placeholder` (gris, no se
+                   envía como filtro real). -->
               <div class="field full">
                 <label>Especialidades (separadas por coma)</label>
-                <input id="bt-kw" type="text" placeholder="pavimentación, alcantarillado, obra civil, vías terciarias" value="pavimentación, obra civil, alcantarillado, edificación">
+                <input id="bt-kw" type="text" placeholder="pavimentación, alcantarillado, obra civil, vías terciarias">
               </div>
               <div class="field full">
                 <label>Cobertura geográfica (departamentos, separados por coma)</label>
-                <input id="bt-geo" type="text" placeholder="Norte de Santander, Santander" value="Norte de Santander">
+                <input id="bt-geo" type="text" placeholder="Norte de Santander, Santander">
               </div>
               <div class="field full">
                 <label>Municipio (opcional, separados por coma -- aproximado: "Cúcuta" también encuentra "San José de Cúcuta")</label>
@@ -9586,6 +9592,14 @@
 
     showLoading();
     searchBtn.disabled = true;
+    // Bug real reportado por el usuario (2026-10-01): con "Número de proceso" lleno, render()
+    // YA ignora especialidades/departamento/casillas (buscandoProceso, ver más abajo) -- pero
+    // no había NINGÚN aviso en pantalla de que eso estaba pasando. El usuario filtró por
+    // departamento, también tenía un número de proceso puesto, y vio resultados de todo el
+    // país sin entender por qué -- el departamento se estaba ignorando en silencio.
+    const avisoNumProceso = (numProceso && numProceso.trim())
+      ? ' 🔎 Buscando por número de proceso: se ignoran especialidades, departamento, municipio, valor y las demás casillas de filtro -- quedan todos los procesos que coincidan con ese número/referencia, de cualquier departamento y estado. Vacía ese campo para volver a filtrar.'
+      : '';
     // appReady es allSettled: nunca rechaza. Se espera antes del fetch para que
     // historial/perfil/análisis ya estén cargados cuando render() los use.
     await appReady;
@@ -9597,7 +9611,8 @@
       dataFreshnessEl.textContent = 'Datos en vivo (' + live.length + ' procesos) — consultados justo ahora en datos.gov.co.' +
         (live.truncadoVigentes
           ? ' ⚠ Alguna de tus palabras clave trajo el máximo de procesos con cierre próximo -- puede haber más procesos abiertos de los que se muestran; prueba con una palabra más específica o un departamento.'
-          : (live.truncado ? ' Se muestran todos los procesos con cierre de ofertas próximo y los 300 publicados más recientes por palabra clave; los publicados hace más tiempo pueden no aparecer.' : ''));
+          : (live.truncado ? ' Se muestran todos los procesos con cierre de ofertas próximo y los 300 publicados más recientes por palabra clave; los publicados hace más tiempo pueden no aparecer.' : '')) +
+        avisoNumProceso;
     } catch(err){
       // Sin conexión en vivo (p.ej. corriendo dentro de un artifact de Claude.ai):
       // usa el snapshot de respaldo (snapshot.json) sin dejar la pantalla vacía.
@@ -9607,7 +9622,7 @@
         lastRecords = snapshot;
         render(lastRecords, keywords, geos, municipios, minV, maxV, numProceso);
         const freshDate = fmtDate(DATA_SNAPSHOT_DATE + 'T00:00:00.000');
-        dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (' + (err.message || 'error de red') + '). Mostrando snapshot de respaldo: ' + snapshot.length + ' procesos, actualizado el ' + freshDate + '. Los filtros de "vencido" y "≤30 días" se miden contra esa fecha.';
+        dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (' + (err.message || 'error de red') + '). Mostrando snapshot de respaldo: ' + snapshot.length + ' procesos, actualizado el ' + freshDate + '. Los filtros de "vencido" y "≤30 días" se miden contra esa fecha.' + avisoNumProceso;
       } catch(err2){
         // Ni en vivo ni el respaldo: al menos mostrar el error en vez de quedar en blanco.
         showError((err && err.message ? err.message : 'error de red') + '.');

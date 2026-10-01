@@ -2230,6 +2230,36 @@ await check('UX-001/002/005: la lista pide "mostrar más", el vacío explica qu�
   assert(/if \(isDemo\)\{ alert\('Estás viendo datos de ejemplo/.test(src), 'TR-008: carta/paquete bloqueados en demo');
 });
 
+// ---- Bug real reportado por el usuario (2026-10-01): campos de búsqueda con un `value` fijo
+// de fábrica, y el override de "Número de proceso" sin avisar en pantalla --------------------
+await check('Buscar procesos: "Especialidades" y "Cobertura geográfica" empiezan vacíos (antes traían "pavimentación, obra civil, alcantarillado, edificación" y "Norte de Santander" como value fijo -- toda búsqueda nueva quedaba restringida a eso sin que el usuario escribiera nada)', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  const iKw = src.indexOf('id="bt-kw"');
+  const iGeo = src.indexOf('id="bt-geo"');
+  assert(iKw !== -1 && iGeo !== -1, 'no se encontraron los campos bt-kw/bt-geo');
+  const tagKw = src.slice(iKw - 10, src.indexOf('>', iKw) + 1);
+  const tagGeo = src.slice(iGeo - 10, src.indexOf('>', iGeo) + 1);
+  assert(!/\svalue="/.test(tagKw), 'bt-kw no debe traer un value fijo: ' + tagKw);
+  assert(!/\svalue="/.test(tagGeo), 'bt-geo no debe traer un value fijo: ' + tagGeo);
+  assert(/placeholder="pavimentación, alcantarillado/.test(tagKw) && /placeholder="Norte de Santander/.test(tagGeo), 'el texto de ejemplo debe seguir como placeholder (gris, no se envía): ' + tagKw + ' / ' + tagGeo);
+});
+
+await check('Buscar procesos: con "Número de proceso" lleno, la pantalla avisa que ignora especialidades/departamento/casillas (antes el usuario filtraba por departamento, el número de proceso pisaba ese filtro en silencio y veía resultados de todo el país sin explicación)', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  const i = src.indexOf("const avisoNumProceso = (numProceso && numProceso.trim())");
+  assert(i !== -1, 'no se encontró avisoNumProceso en runSearch()');
+  const bloque = src.slice(i, i + 2800);
+  assert(/Buscando por número de proceso: se ignoran especialidades, departamento/.test(bloque), 'el texto del aviso debe explicar qué se ignora');
+  // El aviso debe sumarse en AMBOS caminos que fijan dataFreshnessEl (datos en vivo Y snapshot
+  // de respaldo) -- si solo se agrega en uno, el aviso desaparece en silencio cuando falla la
+  // consulta en vivo y se cae al snapshot.
+  const iVivo = bloque.indexOf("dataFreshnessEl.textContent = 'Datos en vivo");
+  const iSnapshot = bloque.indexOf("dataFreshnessEl.textContent = '⚠ No se pudo consultar en vivo (");
+  assert(iVivo !== -1 && iSnapshot !== -1, 'no se encontraron los dos caminos que fijan dataFreshnessEl');
+  assert(/avisoNumProceso;/.test(bloque.slice(iVivo, iSnapshot)), 'el camino de datos en vivo debe sumar avisoNumProceso');
+  assert(/\+ avisoNumProceso;/.test(bloque.slice(iSnapshot, iSnapshot + 700)), 'el camino de snapshot de respaldo también debe sumar avisoNumProceso');
+});
+
 // ---- Auditoría DG-001..DG-003: documentos que se firman --------------------------
 const PERFIL_DOC_VACIO = { nombre: '', nit: '', representanteLegal: '', representanteCedula: '', ciudad: '', direccion: '', telefono: '', correo: '' };
 const ITEM_DOC = { entidad: 'Alcaldía X', objeto: 'Obra Y', modalidad: 'Licitación pública', referencia: 'LP-001-2026' };

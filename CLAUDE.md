@@ -5597,3 +5597,47 @@ revirtieron. `node tests/smoke.mjs`: 214/214 (5 pruebas nuevas), 0 regresiones. 
 completo dentro del alcance razonable: lo que tenía lógica pura ejecutable sin nuevas dependencias, ya se
 ejecuta de verdad; lo que no (Edge Functions dominadas por llamadas de red/Supabase/Anthropic) sigue cubierto
 por pruebas estáticas + las pruebas reales con crédito ya documentadas para `extraer-requisitos`.
+
+## Bug real reportado por el usuario: "Buscar procesos" con filtros de fábrica sin avisar (2026-10-01)
+
+El usuario buscaba un proceso real de SECOP II (LP-002-2026, Alcaldía de Cumaral, Meta -- construcción de un
+Centro Vida de Adulto Mayor, abierto, cierra 22 de oct de 2026) y no le aparecía. Investigado contra la API
+real de `datos.gov.co` (confirmó que el proceso existe y está vigente) y reproducido en la app real, dos
+causas reales, ninguna de datos faltantes:
+
+**1) "Especialidades" y "Cobertura geográfica" traían un `value` FIJO desde el HTML** (no solo el
+`placeholder` gris de ejemplo): `id="bt-kw" ... value="pavimentación, obra civil, alcantarillado,
+edificación"` y `id="bt-geo" ... value="Norte de Santander"`. Revisado el historial (`git log -S`) y
+`CLAUDE.md`: ninguna ronda de auditoría previa (de las muchas que tocaron "Buscar procesos") los mencionó ni
+los tocó -- todo indica que quedaron de una versión muy temprana del prototipo (son justo el caso de uso
+original del proyecto) y nunca se limpiaron a placeholder. Resultado real: CUALQUIER búsqueda nueva, sin que
+el usuario escribiera nada, quedaba restringida a esas 4 especialidades y a Norte de Santander -- un proceso
+real y vigente de otra especialidad/departamento simplemente no aparecía, sin ningún aviso de que había un
+filtro activo que el usuario no puso ahí.
+
+**Arreglo**: se quitó el `value=` de ambos inputs (`index.html`, cerca de línea 1230) -- quedan solo con su
+`placeholder` (gris, nunca se envía como filtro real). `getInputs()`/`runSearch()` no se tocaron: ya leían el
+valor actual del campo, el problema era puramente el estado inicial del HTML.
+
+**2) "Número de proceso o referencia" pisa el departamento EN SILENCIO.** Por diseño (ya documentado en el
+propio texto de ayuda de la pantalla), si ese campo tiene algo escrito, `render()` ignora especialidades,
+departamento, municipio y todas las casillas (`buscandoProceso`, para no ocultar por accidente el proceso
+puntual que se busca por su número exacto) -- comportamiento correcto, pero sin NINGÚN aviso visible. El
+usuario tenía "LP-002-2026" en ese campo Y "Meta" en Cobertura geográfica, y vio resultados de Cundinamarca,
+Bogotá D.C., Antioquia... sin entender por qué "Meta" no filtraba -- confirmado reproduciendo la misma
+combinación (234 resultados de todo el país al buscar "LP-002-2026" como número de proceso, sin importar el
+departamento puesto).
+
+**Arreglo**: nueva variable `avisoNumProceso` en `runSearch()` (`index.html`, justo antes del `await
+appReady`) que se agrega a `dataFreshnessEl.textContent` en los DOS caminos que lo fijan (datos en vivo Y el
+snapshot de respaldo -- si solo se agregaba en uno, el aviso desaparecía en silencio cuando fallaba la
+consulta en vivo): "🔎 Buscando por número de proceso: se ignoran especialidades, departamento, municipio,
+valor y las demás casillas de filtro... Vacía ese campo para volver a filtrar."
+
+**Verificado**: `node tests/smoke.mjs` (216/216, 2 pruebas nuevas) -- una confirma que `bt-kw`/`bt-geo` no
+tienen `value` fijo y conservan su `placeholder`; la otra confirma que `avisoNumProceso` se suma en AMBOS
+caminos de `dataFreshnessEl`. Verificado por mutación: reintroducir el `value` fijo en Especialidades hace
+fallar el primer test; quitar `+ avisoNumProceso` del camino de snapshot hace fallar el segundo (confirma que
+de verdad cubre los DOS caminos, no solo el feliz). Probado también en navegador real: campos vacíos al
+cargar, y el aviso aparece tal cual en pantalla al buscar con "Número de proceso" lleno. 0 errores de
+consola.
