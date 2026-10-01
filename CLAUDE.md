@@ -5852,9 +5852,33 @@ ni crédito, mismo límite ya documentado para el resto de funciones de IA de es
 escaneado (imagen sin texto, generado con Pillow) disparó correctamente el aviso con las DOS
 opciones; sin sesión, el botón de IA fue reemplazado por "inicia sesión" y ese enlace sí abrió el
 modal de cuenta real; "intenta leerlo con OCR" (la ruta ya existente) se sigue ofreciendo igual, sin
-regresión. 0 errores de consola. **Pendiente, requiere que el usuario pruebe con su propia cuenta y
-crédito**: la transcripción real contra un pliego escaneado de verdad (duración/tokens/costo por
-tanda de 20 páginas, y si el límite de 110s alcanza de forma consistente -- no verificado todavía).
+regresión. 0 errores de consola.
 `supabase/config.toml` declara `verify_jwt = true` para la función nueva; el despliegue es automático
 vía `.github/workflows/funciones-supabase.yml` (ya activado, dispara con cualquier cambio bajo
 `supabase/functions/**`), no requiere ningún paso manual del usuario.
+
+## Primera prueba real de transcribir-pdf: timeout con 20 páginas/tanda, bajado a 8
+
+El usuario probó `transcribir-pdf` por primera vez con crédito real, contra el mismo pliego
+escaneado de 112 páginas que motivó la función -- la primera tanda (páginas 1-20) agotó el timeout
+de 110s: "No se pudo transcribir con IA (La IA tardó demasiado en leer esta tanda (más de 110 s)...)".
+
+**Causa**: a diferencia de `extraer-requisitos` (que solo extrae unas pocas filas estructuradas de
+un pliego largo), `transcribir-pdf` pide una transcripción COMPLETA de cada página -- muchos más
+tokens de salida por página, así que el mismo número de páginas tarda bastante más. 20 páginas
+(elegido por analogía con `OCR_BATCH_PAGES = 15` del lado de Tesseract, sin dato real que lo
+respaldara) resultó demasiado para el presupuesto de tiempo.
+
+**Fix, sin cambiar el contrato ni el flujo**: `MAX_PAGINAS_POR_TANDA` (servidor) e
+`IA_TRANSCRIBE_BATCH_PAGES` (cliente) bajaron de 20 a 8; `TIMEOUT_ANTHROPIC_MS` subió de 110s a 140s
+(mismo techo que ya usa `extraer-requisitos`, todavía por debajo del límite de ~150s del gateway de
+Supabase en el plan gratuito -- mismo margen ya documentado y aceptado para esa función). No hizo
+falta subir `CONTRATO_VERSION`: la forma de la respuesta no cambió, solo cuántas páginas caben en una
+tanda seguro.
+
+**Verificado**: `node tests/smoke.mjs` (222/222, sin regresión -- el test de contrato de versión
+sigue comparando cliente/servidor igual). **Pendiente de una segunda prueba real del usuario**: si 8
+páginas/tanda sí alcanza a terminar dentro de 140s con este mismo pliego escaneado -- si sigue
+fallando, el siguiente paso sería bajar más el número (ej. 4-5) antes de considerar un patrón
+asíncrono (cambio de arquitectura mayor, ya descartado una vez para `extraer-requisitos` por el
+mismo motivo: el plan gratuito de Supabase no da mucho margen de por sí).

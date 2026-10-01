@@ -35,12 +35,18 @@ import { PDFDocument } from 'npm:pdf-lib@1.17.1';
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-5';
 const BUCKET = 'pliegos';
-const MAX_PAGINAS_POR_TANDA = 20;         // igual de orden de magnitud que OCR_BATCH_PAGES (15) del cliente
+// Auditoría real (usuario, pliego escaneado de 112 págs): una tanda de 20 páginas agotó el timeout
+// de 110s sin terminar -- transcribir TODAS las páginas (no solo extraer unas filas, como
+// extraer-requisitos) genera más tokens de salida por página. Bajado a 8 páginas/tanda y el
+// timeout subido a 140s (mismo techo que extraer-requisitos, todavía bajo el límite de ~150s del
+// gateway de Supabase en el plan gratuito) -- si una tanda de 8 sigue fallando, hace falta bajar
+// más este número (o pasar a un patrón asíncrono, fuera de alcance de este ajuste puntual).
+const MAX_PAGINAS_POR_TANDA = 8;
 const MAX_BYTES = 24 * 1024 * 1024;       // mismo tope que extraer-requisitos
 const LIMITE_DIARIO = 40;                 // por empresa en 24h -- más alto que extraer-requisitos (10):
                                            // cada llamada cubre solo una tanda de páginas, no el pliego completo
 const LIMITE_GLOBAL_DEFECTO = 300;
-const TIMEOUT_ANTHROPIC_MS = 110_000;     // una tanda de <=20 páginas es más liviana que extraer-requisitos
+const TIMEOUT_ANTHROPIC_MS = 140_000;
 const CONTRATO_VERSION = 1;
 const FUNCTION_NAME = 'transcribir-pdf';
 

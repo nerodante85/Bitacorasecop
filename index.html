@@ -4056,7 +4056,10 @@
   // Mismo shape de retorno que ocrPdfPages ({text, numPages, pagesRead, paginaOffsets}), para
   // que los llamadores (los mismos botones "Analizar pliego"/"Seguir leyendo") no tengan que
   // distinguir de cuál de los dos caminos vino el resultado.
-  const IA_TRANSCRIBE_BATCH_PAGES = 20; // igual al tope MAX_PAGINAS_POR_TANDA del servidor
+  // Bajado de 20 a 8 (ver supabase/functions/transcribir-pdf/index.ts): una tanda de 20 páginas
+  // agotó el timeout real de la función con un pliego escaneado de 112 págs -- transcribir texto
+  // completo genera más tokens de salida por página que extraer solo unas filas de requisitos.
+  const IA_TRANSCRIBE_BATCH_PAGES = 8; // igual al tope MAX_PAGINAS_POR_TANDA del servidor
   const CONTRATO_TRANSCRIPCION = 1;     // versión del contrato con supabase/functions/transcribir-pdf
   async function transcribirPaginasConIA(file, fromPage, toPage){
     if (!SUPABASE_ENABLED || !sbSession || !sbCompanyId){
