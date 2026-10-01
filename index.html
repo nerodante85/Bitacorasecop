@@ -9028,6 +9028,14 @@
         : '<div class="analysis-disclaimer">' + (entry.requisitosIA
             ? 'Ayuda de lectura: los requisitos se extrajeron con IA y se verificaron contra el texto del PDF; no reemplaza revisar el pliego completo antes de decidir.'
             : 'Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.') + '</div>') +
+      // Un documento largo (OCR o IA) solo necesita la PRIMERA tanda para que este análisis
+      // exista -- "Extraer requisitos con IA", más abajo, lee el PDF COMPLETO de una sola vez
+      // (sin pasar por esta transcripción tanda por tanda) y es la vía más rápida para la tabla
+      // de requisitos habilitantes. Sin esta nota, era fácil asumir que había que terminar de
+      // leer todo el documento aquí antes de poder usar esa tabla -- no es necesario.
+      ((entry.viaIA || entry.viaOcr) && entry.pagesRead < entry.numPages && !entry.requisitosIA
+        ? '<div class="saved-note" style="margin-top:8px;">💡 Si solo necesitas la tabla de requisitos habilitantes, no hace falta seguir leyendo aquí -- usa "Extraer requisitos con IA" (arriba, en "Requisitos habilitantes"), que lee el documento completo de una sola vez.</div>'
+        : '') +
       (entry.viaIA && entry.pagesRead < entry.numPages
         ? '<div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">' +
             '<button class="link-btn analysis-ia-continue-btn" data-ia-continue-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo con IA (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button>' +

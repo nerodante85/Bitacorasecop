@@ -6050,3 +6050,29 @@ cabecera y la nota de "Documentos del proceso: Estudio Previo ✓ (como document
 errores de consola. **Pendiente de que el usuario pruebe "Extraer requisitos con IA" sobre un Estudio
 Previo real como documento principal** (con cuenta y crédito real) -- confirmar que el servidor
 redesplegado acepta el nuevo rol y que la IA sí lo trata con el mismo rigor que un Pliego.
+
+## "Se queda extrayendo mucho tiempo": confusión real entre dos caminos distintos, no un bug
+
+El usuario reportó que "Leer con IA"/"Leer todo el documento con IA" tomaba demasiado tiempo -- al
+investigar junto con él (preguntas de diagnóstico) resultó NO ser un cuelgue real: estaba usando el
+camino más lento (transcribir el documento entero, tanda por tanda, ~14 llamadas para un pliego de
+112 páginas) cuando lo que de verdad quería (tabla de requisitos habilitantes) lo da "Extraer
+requisitos con IA" en UNA sola llamada, sobre el PDF completo, sin pasar por esa transcripción.
+
+**La confusión real**: "Extraer requisitos con IA" (`bloqueRequisitosIAHtml`) ya está disponible desde
+que existe un `entry` -- es decir, apenas se lee la PRIMERA tanda (de OCR o de IA), ni falta ni
+sobra leer el resto del documento para usarla, porque esa función sube el archivo ORIGINAL completo
+a Storage y el servidor lo lee entero (o recortado a páginas relevantes) de una sola vez,
+independiente de cuánto texto ya se haya transcrito tanda por tanda. Nada en la interfaz dejaba esto
+claro -- "Seguir leyendo con IA"/"Leer todo el documento con IA" aparecían como el único camino visible
+hacia adelante, sin ningún cruce hacia el botón que de verdad resolvía lo que el usuario pedía.
+
+**Fix**: una nota (`💡 Si solo necesitas la tabla de requisitos habilitantes...`) entre el disclaimer
+de método de lectura y los botones "Seguir leyendo"/"Leer todo el documento" -- visible solo mientras
+quedan páginas sin leer Y todavía no se ha extraído con IA (`!entry.requisitosIA`, para no repetir el
+aviso una vez que ya se usó). Aparece tanto en el camino IA como en el OCR (mismo problema, mismo
+botón de salida).
+
+**Verificado**: `node tests/smoke.mjs` (222/222, sin tests nuevos -- nota de UI condicional). Probado
+en navegador real con un `entry` sembrado a mano (`viaIA: true`, `pagesRead: 8`, `numPages: 112`, sin
+`requisitosIA`) -- la nota aparece con el texto correcto; 0 errores de consola.
