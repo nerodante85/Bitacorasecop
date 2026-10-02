@@ -6127,3 +6127,39 @@ historial de `read_console_messages` resultó ser acumulativo entre recargas en 
 **Alcance de esta pasada**: se dejó fuera, a pedido explícito del usuario, colapsar secciones
 completas (Requisitos habilitantes, Riesgos ampliados) bajo "Ver más" -- cambio más agresivo que
 podría revisarse en otra ronda si el texto sigue sintiéndose denso incluso con estos tooltips.
+
+## OCR: la rotación del escaneo se detectaba de nuevo en CADA tanda, no solo en la primera
+
+El usuario preguntó si el OCR podía ser "rápido y efectivo" -- investigando `ocrPdfPages()` (ya
+documentado: prueba las 4 rotaciones -- 0°/90°/180°/270° -- en la primera página para detectar la
+orientación real del escaneo) se encontró un desperdicio real: esa detección de 4 rotaciones corría
+en la primera página de **cada llamada**, incluida cada tanda de "Seguir leyendo más páginas" --
+aunque la orientación de un documento escaneado es la misma en todas sus páginas (ya sabido y
+documentado), cada tanda nueva volvía a pagar el costo de 4 pasadas de OCR solo para redescubrir una
+rotación ya conocida. Para un pliego largo leído en varias tandas, esto significaba varios minutos
+de OCR completamente desperdiciados.
+
+**Fix**: `ocrPdfPages(file, fromPage, toPage, onProgress, rotacionConocida)` gana un quinto parámetro
+opcional -- si se pasa, se salta la detección de 4 rotaciones por completo y usa esa rotación para
+TODAS las páginas de la tanda (incluida la primera), en vez de solo las páginas 2 en adelante. La
+función ahora también devuelve `rotacion` en su resultado. El primer click en "Intentar con OCR"
+(`.analysis-ocr-btn`) guarda la rotación detectada en `entry.ocrRotacion`; "Seguir leyendo más
+páginas" (`.analysis-ocr-continue-btn`) se la pasa de vuelta, así que cada tanda nueva hace 1 pasada
+de OCR por página en vez de 4 en la primera. Los demás llamadores de `ocrPdfPages` (RUP, RUT,
+Experiencia, Estudio Previo) son de una sola tanda -- no tenían este desperdicio y no cambiaron.
+
+**Bug real evitado antes de probar**: la variable `rotacion` estaba declarada con `let` DENTRO del
+bloque `try{}`, pero el nuevo `return` (que ahora necesita devolverla) vive DESPUÉS del `try/finally`
+-- habría sido un `ReferenceError` en cuanto se ejecutara. Se movió la declaración fuera del `try`,
+capturado por lectura de código antes de llegar a probarlo en el navegador.
+
+**Verificado**: `node tests/smoke.mjs` (223/223, sin regresión -- `ocrPdfPages` no tiene tests propios,
+mismo límite ya documentado: depende de pdf.js/Tesseract.js reales, no mockeables sin complejidad
+desproporcionada). Probado en navegador real: la app carga sin errores con el cambio desplegado. **No
+se pudo cronometrar la mejora real en este entorno** -- el sandbox donde corre esta sesión resultó
+tener un WASM/Tesseract.js muchísimo más lento de lo normal (una sola página, imagen simple de texto,
+sin terminar su primera pasada de OCR después de más de 2 minutos), así que una comparación de tiempo
+"antes vs. después" no es representativa aquí. La lógica se revisó línea por línea (incluido el bug de
+scoping ya corregido) y el camino "con rotación conocida" es simple y determinista -- pendiente de que
+el usuario confirme la mejora real de velocidad en su propio uso, con un pliego largo leído en varias
+tandas.

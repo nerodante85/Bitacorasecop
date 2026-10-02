@@ -4005,7 +4005,16 @@
   // elegir cuál de verdad se lee bien, no solo "la que se ve derecha" a ojo.
   // Un documento escaneado casi siempre tiene la misma orientación en todas
   // sus páginas, así que esa rotación se reutiliza para el resto del rango.
-  async function ocrPdfPages(file, fromPage, toPage, onProgress){
+  // rotacionConocida (opcional): si ya se detectó la rotación del documento en una tanda anterior
+  // (ver "Seguir leyendo más páginas" -- .analysis-ocr-continue-btn), se la pasa aquí para NO
+  // repetir la prueba de las 4 rotaciones en la primera página de CADA tanda nueva. Antes, un
+  // documento leído en N tandas pagaba el costo de la detección (4 pasadas de OCR en vez de 1,
+  // solo para decidir la rotación) N veces -- un documento real largo repetía ese desperdicio en
+  // cada clic de "Seguir leyendo", aunque la orientación del escaneo es la misma en todo el
+  // documento (ya documentado: "un documento escaneado casi siempre tiene la misma orientación en
+  // todas sus páginas"). Con la rotación ya conocida, cada tanda nueva hace 1 pasada por página,
+  // no 4 en la primera -- auditoría real pedida por el usuario ("que el OCR sea rápido y efectivo").
+  async function ocrPdfPages(file, fromPage, toPage, onProgress, rotacionConocida){
     const [pdfjsLib, Tesseract] = await Promise.all([loadPdfJs(), loadTesseractJs()]);
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
@@ -4030,24 +4039,30 @@
 
     let text = '';
     const paginaOffsets = []; // relativos a ESTE llamado (empieza en 0) -- ver ocrBtn/contBtn, que lo desplazan al acumular
+    let rotacion = 0; // declarada fuera del try: el return de más abajo la necesita
     try {
-      let rotacion = 0;
-      if (onProgress) onProgress(0, from, to);
-      let mejorConfianza = -1;
-      let textoPrimeraPagina = '';
-      for (const rot of [0, 90, 180, 270]){
-        const canvas = await renderPagina(from, rot);
-        const { data } = await worker.recognize(canvas);
-        if ((data.confidence || 0) > mejorConfianza){
-          mejorConfianza = data.confidence || 0;
-          rotacion = rot;
-          textoPrimeraPagina = data.text || '';
+      let primeraPaginaPendiente = from;
+      if (rotacionConocida != null){
+        rotacion = rotacionConocida;
+      } else {
+        if (onProgress) onProgress(0, from, to);
+        let mejorConfianza = -1;
+        let textoPrimeraPagina = '';
+        for (const rot of [0, 90, 180, 270]){
+          const canvas = await renderPagina(from, rot);
+          const { data } = await worker.recognize(canvas);
+          if ((data.confidence || 0) > mejorConfianza){
+            mejorConfianza = data.confidence || 0;
+            rotacion = rot;
+            textoPrimeraPagina = data.text || '';
+          }
         }
+        text += textoPrimeraPagina + '\n';
+        paginaOffsets.push({ pagina: from, hasta: text.length });
+        primeraPaginaPendiente = from + 1;
       }
-      text += textoPrimeraPagina + '\n';
-      paginaOffsets.push({ pagina: from, hasta: text.length });
 
-      for (let i = from + 1; i <= to; i++){
+      for (let i = primeraPaginaPendiente; i <= to; i++){
         if (onProgress) onProgress(0, i, to);
         const canvas = await renderPagina(i, rotacion);
         const { data } = await worker.recognize(canvas);
@@ -4057,7 +4072,7 @@
     } finally {
       await worker.terminate();
     }
-    return { text: text, numPages: pdf.numPages, pagesRead: to, paginaOffsets: paginaOffsets };
+    return { text: text, numPages: pdf.numPages, pagesRead: to, paginaOffsets: paginaOffsets, rotacion: rotacion };
   }
 
   // ── Transcripción de páginas con IA (Edge Function transcribir-pdf) ─────
@@ -11468,7 +11483,7 @@
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página 1</div>';
-        const { text, numPages, pagesRead, paginaOffsets } = await ocrPdfPages(file, 1, OCR_BATCH_PAGES, (pct, page, total) => {
+        const { text, numPages, pagesRead, paginaOffsets, rotacion } = await ocrPdfPages(file, 1, OCR_BATCH_PAGES, (pct, page, total) => {
           slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
         });
         if (!text || text.trim().length < 50){
@@ -11479,7 +11494,9 @@
         const { comps } = compararConPerfiles(text, hallazgos);
         const redFlags = detectarRedFlags(text, paginaOffsets);
         const viabilidad = calcularViabilidad(redFlags);
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaOcr: true, esSoloEP: !!esSoloEPPendiente[id] };
+        // ocrRotacion: la orientación del escaneo ya detectada -- "Seguir leyendo más páginas"
+        // (.analysis-ocr-continue-btn) la reutiliza para no repetir la prueba de 4 rotaciones.
+        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaOcr: true, ocrRotacion: rotacion, esSoloEP: !!esSoloEPPendiente[id] };
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
@@ -11546,9 +11563,12 @@
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página ' + from + '</div>';
+        // entry.ocrRotacion: ya se detectó en la primera tanda -- se reutiliza aquí para no volver
+        // a probar las 4 rotaciones en la primera página de ESTA tanda (la orientación del escaneo
+        // es la misma en todo el documento). Ahorra ~3 pasadas de OCR por cada "Seguir leyendo".
         const result = await ocrPdfPages(file, from, to, (pct, page, total) => {
           slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
-        });
+        }, entry.ocrRotacion);
         if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
         const baseLen = (entry.ocrText || '').length;
         const fullText = (entry.ocrText || '') + result.text;
