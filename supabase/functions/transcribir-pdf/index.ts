@@ -1,6 +1,8 @@
 // transcribir-pdf — Supabase Edge Function
 // Recibe: { path, nombre, desde, hasta }  (un PDF ya subido al bucket privado `pliegos`, bajo
 //          `<company_id>/...`, más un rango de páginas 1-indexado dentro de ESE archivo)
+//      o: { path, paginas: [14, 37, ...] }  (hasta 8 páginas SUELTAS: lo usa "verificar citas leyendo solo
+//          las páginas citadas", para no transcribir un pliego entero solo por verificar unas filas)
 // Devuelve: { contrato, text, paginaOffsets: [{pagina, hasta}], pagesRead, uso, modelo }
 //
 // Reemplazo de OCR (Tesseract.js, en el navegador) por IA cuando un pliego escaneado no tiene
@@ -47,7 +49,7 @@ const LIMITE_DIARIO = 40;                 // por empresa en 24h -- más alto que
                                            // cada llamada cubre solo una tanda de páginas, no el pliego completo
 const LIMITE_GLOBAL_DEFECTO = 300;
 const TIMEOUT_ANTHROPIC_MS = 140_000;
-const CONTRATO_VERSION = 1;
+const CONTRATO_VERSION = 2; // 2: acepta además una lista de páginas sueltas (`paginas`)
 const FUNCTION_NAME = 'transcribir-pdf';
 
 const CORS_HEADERS = {
@@ -118,13 +120,27 @@ Deno.serve(async (req: Request) => {
     // 1. Parsear body
     const body = await req.json().catch(() => null);
     const path = body && typeof body.path === 'string' ? body.path : null;
-    const desde = body && Number.isInteger(body.desde) ? body.desde : null;
-    const hasta = body && Number.isInteger(body.hasta) ? body.hasta : null;
-    if (!path || !desde || !hasta || desde < 1 || hasta < desde) {
-      return json({ error: 'Se requiere body.path y un rango body.desde/body.hasta válido (páginas 1-indexadas)' }, 400);
+    // Dos formas de pedir páginas: un rango (desde/hasta, lectura por tandas) o una lista de páginas
+    // sueltas (`paginas`, para verificar citas). Ambas terminan en `solicitadas` = páginas REALES (1-indexadas).
+    let solicitadas: number[] = [];
+    if (body && Array.isArray(body.paginas)) {
+      solicitadas = Array.from(new Set((body.paginas as unknown[]).filter((p): p is number => Number.isInteger(p) && (p as number) >= 1))).sort((a, b) => a - b);
+      if (!path || !solicitadas.length) {
+        return json({ error: 'Se requiere body.path y body.paginas con al menos una página válida (1-indexada)' }, 400);
+      }
+    } else {
+      const d0 = body && Number.isInteger(body.desde) ? body.desde : null;
+      const h0 = body && Number.isInteger(body.hasta) ? body.hasta : null;
+      if (!path || !d0 || !h0 || d0 < 1 || h0 < d0) {
+        return json({ error: 'Se requiere body.path y un rango body.desde/body.hasta válido (páginas 1-indexadas)' }, 400);
+      }
+      if (h0 - d0 + 1 > MAX_PAGINAS_POR_TANDA) {
+        return json({ error: `El rango pedido supera el máximo de ${MAX_PAGINAS_POR_TANDA} páginas por tanda` }, 400);
+      }
+      for (let p = d0; p <= h0; p++) solicitadas.push(p);
     }
-    if (hasta - desde + 1 > MAX_PAGINAS_POR_TANDA) {
-      return json({ error: `El rango pedido supera el máximo de ${MAX_PAGINAS_POR_TANDA} páginas por tanda` }, 400);
+    if (solicitadas.length > MAX_PAGINAS_POR_TANDA) {
+      return json({ error: `Se pidieron ${solicitadas.length} páginas: el máximo es ${MAX_PAGINAS_POR_TANDA} por tanda` }, 400);
     }
 
     // 2. Usuario y empresa (SERVER-SIDE) -- mismo patrón que extraer-requisitos.
@@ -201,18 +217,17 @@ Deno.serve(async (req: Request) => {
     const bytesOriginal = new Uint8Array(await blob.arrayBuffer());
     let bytesRecorte: Uint8Array;
     let numPaginasTotal: number;
-    let hastaReal: number;
+    let mapa: number[]; // mapa[i] = página REAL de la posición i+1 del recorte
     try {
       const src = await PDFDocument.load(bytesOriginal);
       numPaginasTotal = src.getPageCount();
-      hastaReal = Math.min(hasta, numPaginasTotal);
-      if (desde > numPaginasTotal){
+      mapa = solicitadas.filter((p) => p <= numPaginasTotal);
+      if (!mapa.length){
         await liberarReserva();
-        return json({ error: `El documento solo tiene ${numPaginasTotal} página(s) -- el rango pedido (${desde}-${hasta}) está fuera de rango.` }, 400);
+        return json({ error: `El documento solo tiene ${numPaginasTotal} página(s) -- las páginas pedidas (${solicitadas.join(', ')}) están fuera de rango.` }, 400);
       }
       const dst = await PDFDocument.create();
-      const indices: number[] = [];
-      for (let p = desde; p <= hastaReal; p++) indices.push(p - 1);
+      const indices = mapa.map((p) => p - 1);
       // deno-lint-ignore no-explicit-any
       const copiadas = await dst.copyPages(src, indices);
       copiadas.forEach((p: any) => dst.addPage(p));
@@ -220,10 +235,12 @@ Deno.serve(async (req: Request) => {
     } catch (err) {
       await liberarReserva();
       const msg = err instanceof Error ? err.message : String(err);
-      return json({ error: 'No se pudo recortar el PDF al rango pedido (¿está cifrado o corrupto?): ' + msg }, 422);
+      return json({ error: 'No se pudo recortar el PDF a las páginas pedidas (¿está cifrado o corrupto?): ' + msg }, 422);
     }
     const b64 = encodeBase64(bytesRecorte);
-    if (debug) log.push({ step: 'recorte', desde, hasta: hastaReal, numPaginasTotal, bytes: bytesRecorte.length });
+    const hastaReal = mapa[mapa.length - 1];
+    const tituloDoc = 'Páginas ' + (mapa.length > 3 ? mapa[0] + ' a ' + hastaReal + ' (' + mapa.length + ' páginas)' : mapa.join(', '));
+    if (debug) log.push({ step: 'recorte', paginas: mapa, numPaginasTotal, bytes: bytesRecorte.length });
 
     // 6. Llamada a Claude, igual patrón de streaming con latidos que extraer-requisitos.
     const llamarAnthropic = async (): Promise<Record<string, unknown>> => {
@@ -246,7 +263,7 @@ Deno.serve(async (req: Request) => {
           messages: [{
             role: 'user',
             content: [
-              { type: 'document', title: 'Páginas ' + desde + '-' + hastaReal, source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+              { type: 'document', title: tituloDoc, source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
               { type: 'text', text: INSTRUCCIONES },
             ],
           }],
@@ -287,13 +304,14 @@ Deno.serve(async (req: Request) => {
         return { error: 'Respuesta inesperada de la IA (JSON inválido)', ...(debug ? { log, raw: data } : {}) };
       }
       // "pagina" que devuelve la IA es la posición DENTRO del recorte (1..N) -- se traduce a la
-      // página REAL del documento original (desde + pagina - 1) antes de devolver, y se arma
+      // página REAL del documento original (mapa[pagina - 1]) antes de devolver, y se arma
       // paginaOffsets con la MISMA forma que ya produce extractPdfText/ocrPdfPages en el cliente.
       paginas.sort((a, b) => (a.pagina ?? 0) - (b.pagina ?? 0));
       let acumulado = 0;
       const paginaOffsets: { pagina: number; hasta: number }[] = [];
       const texto = paginas.map((p) => {
-        const real = desde + (p.pagina ?? 1) - 1;
+        const pos = Number.isInteger(p.pagina) ? (p.pagina as number) : 1;
+        const real = mapa[pos - 1] ?? mapa[mapa.length - 1];
         const t = String(p.texto ?? '');
         acumulado += t.length + 1; // +1 por el '\n' que separa páginas al concatenar
         paginaOffsets.push({ pagina: real, hasta: acumulado });

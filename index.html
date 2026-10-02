@@ -4408,8 +4408,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // agotó el timeout real de la función con un pliego escaneado de 112 págs -- transcribir texto
   // completo genera más tokens de salida por página que extraer solo unas filas de requisitos.
   const IA_TRANSCRIBE_BATCH_PAGES = 8; // igual al tope MAX_PAGINAS_POR_TANDA del servidor
-  const CONTRATO_TRANSCRIPCION = 1;     // versión del contrato con supabase/functions/transcribir-pdf
-  async function transcribirPaginasConIA(file, fromPage, toPage){
+  const CONTRATO_TRANSCRIPCION = 2;     // versión del contrato con supabase/functions/transcribir-pdf
+  // `paginas` (opcional): lista de páginas SUELTAS en vez del rango fromPage..toPage (lo usa la verificación
+  // de citas, que lee solo las páginas citadas).
+  async function transcribirPaginasConIA(file, fromPage, toPage, paginas){
     if (!SUPABASE_ENABLED || !sbSession || !sbCompanyId){
       throw new Error('Inicia sesión desde "Tu cuenta" para transcribir con IA.');
     }
@@ -4421,7 +4423,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (upErr) throw new Error('No se pudo subir el PDF: ' + upErr.message);
     try {
       const { data, error } = await client.functions.invoke('transcribir-pdf', {
-        body: { company_id: sbCompanyId, path: path, desde: fromPage, hasta: toPage }
+        body: Array.isArray(paginas) ? { company_id: sbCompanyId, path: path, paginas: paginas } : { company_id: sbCompanyId, path: path, desde: fromPage, hasta: toPage }
       });
       if (error){
         let msg = error.message || 'Error al invocar la función.';
@@ -6822,6 +6824,70 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
   }
 
+  // ---- Verificar citas leyendo SOLO las páginas citadas ----------------------------------------
+  // Con un pliego leído en parte (8 de 112), la mayoría de las filas de "Extraer requisitos con IA"
+  // quedan "sin verificar" porque su página nunca se transcribió. Leer todo el documento para verificar
+  // unas filas es caro; esto pide a la IA transcribir únicamente esas páginas, en tandas de <= 8, y las
+  // guarda aparte (entry.paginasCitadas) SIN tocar el avance de la lectura normal (pagesRead).
+  const TANDA_PAGINAS_CITADAS = 8;
+
+  function paginasLeidasDe(entry){
+    const s = new Set();
+    ((entry && entry.paginaOffsets) || []).forEach(o => s.add(o.pagina));
+    ((entry && entry.paginasCitadas && entry.paginasCitadas.paginaOffsets) || []).forEach(o => s.add(o.pagina));
+    return s;
+  }
+  // Páginas citadas por filas SIN verificar (ni confirmar a mano) de las 3 listas de la IA que todavía
+  // no tienen texto; una cita en una página ya leída que no aparece NO se vuelve a leer (no se hallaría).
+  function paginasCitadasSinVerificar(entry){
+    const ia = entry && entry.requisitosIA;
+    if (!ia) return [];
+    const leidas = paginasLeidasDe(entry);
+    const total = Number(entry.numPages) || Infinity;
+    const out = new Set();
+    [].concat(ia.filas || [], entry.cronogramaIA || [], entry.riesgosIA || []).forEach(f => {
+      if (!f || f.verificada || f.confirmadaPorUsuario) return;
+      if (/adenda/i.test(String(f.documento || ''))) return; // las adendas no se leen aquí
+      const p = Number(f.pagina);
+      if (Number.isInteger(p) && p >= 1 && p <= total && !leidas.has(p)) out.add(p);
+    });
+    return Array.from(out).sort((a, b) => a - b);
+  }
+  function agruparEnTandas(paginas, max){
+    const tandas = [];
+    for (let i = 0; i < paginas.length; i += max) tandas.push(paginas.slice(i, i + max));
+    return tandas;
+  }
+  // Verifica una fila contra el texto principal y, si no basta, contra el de las páginas citadas.
+  function verificarFilaConTextos(f, principal, extra){
+    let v = verificarFilaIA(f, principal.text, principal.offsets);
+    if (!v.verificada && extra && extra.text){
+      const v2 = verificarFilaIA(f, extra.text, extra.paginaOffsets);
+      if (v2.verificada || /no está en el texto leído|No hay texto/.test(v.motivo || '')) v = v2;
+    }
+    return v;
+  }
+  // Re-verifica las 3 listas de la IA del entry con el texto principal + las páginas citadas ya leídas.
+  // Conserva todo lo demás de cada fila (confirmaciones, sospecha de inyección...); las filas de adendas
+  // no se tocan (su texto no se lee aquí).
+  function reverificarRequisitosIA(entry){
+    const ia = entry && entry.requisitosIA;
+    if (!ia) return;
+    const principal = { text: textoPliegoDe(entry), offsets: entry.paginaOffsets || [] };
+    const extra = entry.paginasCitadas || null;
+    const rev = f => {
+      if (!f || /adenda/i.test(String(f.documento || ''))) return f;
+      const v = verificarFilaConTextos(f, principal, extra);
+      return Object.assign({}, f, {
+        verificada: v.verificada, tipoVerificacion: v.tipo || null, motivoVerificacion: v.motivo || null,
+        paginaCorregida: (v.verificada && v.paginaEncontrada != null) ? v.paginaEncontrada : (f.paginaCorregida || null)
+      });
+    };
+    ia.filas = (ia.filas || []).map(rev);
+    entry.cronogramaIA = (entry.cronogramaIA || []).map(rev);
+    entry.riesgosIA = (entry.riesgosIA || []).map(rev);
+  }
+
   // ---- Auditoría de IA (IA-003, IA-004, IA-005): más cosas que la IA decide y el motor
   // no comprobaba. Toda duda deja la fila en "sin verificar" hasta que el usuario la confirme.
 
@@ -8756,6 +8822,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const ia = entry.requisitosIA;
     const conCuenta = SUPABASE_ENABLED && !!sbSession;
     const pendiente = !!pendingPliegoFiles[entry.id];
+    // Filas sin verificar cuya página nunca se transcribió: se pueden verificar leyendo SOLO esas páginas.
+    const citadasPend = ia ? paginasCitadasSinVerificar(entry) : [];
+    const botonCitas = citadasPend.length
+      ? '<button class="btn-secondary analysis-ia-citas-btn" data-ia-id="' + id + '" title="La IA transcribe únicamente las páginas que citan las filas sin verificar (no el documento completo) y se comparan las citas contra ese texto.">📖 Verificar citas leyendo solo ' +
+        citadasPend.length + ' página(s) citada(s) (~' + Math.ceil(citadasPend.length / TANDA_PAGINAS_CITADAS) + ' tanda(s))</button>'
+      : '';
     const controles = !conCuenta
       ? '<div class="saved-note">Para extraer los requisitos con IA necesitas iniciar sesión. Sin IA, el análisis por palabras clave de más abajo sigue funcionando igual.' +
           (SUPABASE_ENABLED ? ' <button class="link-btn" data-abrir-cuenta>Iniciar sesión</button>' : '') + '</div>'
@@ -8763,6 +8835,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           (pendiente ? '' : '<label>PDF del ' + (entry.esSoloEP ? 'Estudio Previo' : 'pliego') + '<input type="file" accept="application/pdf,.pdf" data-ia-pliego-id="' + id + '"></label>') +
           '<label>Adendas (opcional)<input type="file" accept="application/pdf,.pdf" multiple data-ia-adendas-id="' + id + '"></label>' +
           '<button class="btn-primary analysis-ia-btn" data-ia-id="' + id + '">' + (ia ? '↻ Volver a extraer con IA' : '🤖 Extraer requisitos con IA') + '</button>' +
+          botonCitas +
         '</div>';
     const estado = '<div class="saved-note" data-ia-status role="status" aria-live="polite"></div>';
     let tabla = '';
@@ -10913,7 +10986,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Estudio Previo), para no perderlos en silencio.
   function conservarCamposAuxiliares(entryNuevo, entryPrevio){
     if (!entryPrevio) return;
-    ['requisitosIA', 'estudioPrevioFileName', 'estudioPrevioText', 'estudioPrevioPaginaOffsets', 'estudioPrevioViaOcr', 'estudioPrevioTs'].forEach(k => {
+    ['requisitosIA', 'cronogramaIA', 'riesgosIA', 'paginasCitadas', 'estudioPrevioFileName', 'estudioPrevioText', 'estudioPrevioPaginaOffsets', 'estudioPrevioViaOcr', 'estudioPrevioTs'].forEach(k => {
       if (entryPrevio[k] !== undefined) entryNuevo[k] = entryPrevio[k];
     });
   }
@@ -11121,6 +11194,68 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     } finally {
       delete iaEnCurso[id];
       if (btn) btn.disabled = false;
+    }
+  }
+
+  // "Verificar citas leyendo solo las páginas citadas": pide a la IA transcribir únicamente las páginas
+  // que citan filas sin verificar (en tandas de <= TANDA_PAGINAS_CITADAS), las guarda en
+  // entry.paginasCitadas y re-verifica las 3 listas. No mueve pagesRead ni la lectura normal.
+  async function verificarCitasLeyendoPaginas(id, slot){
+    const entry = analisis[id];
+    if (!entry || !slot || !entry.requisitosIA) return;
+    const estado = msg => { const el = slot.querySelector('[data-ia-status]'); if (el) el.textContent = msg; };
+    if (iaEnCurso[id]){ estado('Ya hay una operación con IA en curso para este proceso; espera a que termine.'); return; }
+    if (!SUPABASE_ENABLED || !sbSession || !sbCompanyId){ estado('Inicia sesión desde "Tu cuenta" para usar la IA.'); return; }
+    const inputPliego = slot.querySelector('input[data-ia-pliego-id]');
+    const file = pendingPliegoFiles[id] || (inputPliego && inputPliego.files[0]) || null;
+    if (!file){ estado('Selecciona el PDF del ' + (entry.esSoloEP ? 'Estudio Previo' : 'pliego') + ' (se perdió al recargar la página).'); return; }
+    if (!esTipoDeArchivoAceptado(file) || !/\.pdf$/i.test(file.name || '')){ estado('"' + file.name + '" no es un PDF.'); return; }
+    const paginas = paginasCitadasSinVerificar(entry);
+    if (!paginas.length){ estado('No hay citas pendientes en páginas sin leer.'); return; }
+    const tandas = agruparEnTandas(paginas, TANDA_PAGINAS_CITADAS);
+    iaEnCurso[id] = true;
+    const btn = slot.querySelector('button.analysis-ia-citas-btn');
+    if (btn) btn.disabled = true;
+    const extra = Object.assign({ text: '', paginaOffsets: [], ts: 0 }, entry.paginasCitadas || {});
+    extra.paginaOffsets = (extra.paginaOffsets || []).slice();
+    let leidas = 0, falla = null;
+    const usos = [];
+    try {
+      for (let i = 0; i < tandas.length; i++){
+        estado('Leyendo las páginas citadas ' + tandas[i].join(', ') + ' (tanda ' + (i + 1) + ' de ' + tandas.length + ')... puede tardar ~1 minuto por tanda.');
+        const r = await transcribirPaginasConIA(file, null, null, tandas[i]);
+        // Se encadena con el mismo esquema de offsets que el texto normal (separador '\n' entre tandas).
+        const base = extra.text ? extra.text.length + 1 : 0;
+        extra.text = extra.text ? extra.text + '\n' + r.text : r.text;
+        (r.paginaOffsets || []).forEach(o => extra.paginaOffsets.push({ pagina: o.pagina, hasta: o.hasta + base }));
+        usos.push(r);
+        leidas += tandas[i].length;
+      }
+    } catch(e){
+      falla = e;
+    } finally {
+      delete iaEnCurso[id];
+      if (btn) btn.disabled = false;
+    }
+    // Lo leído hasta aquí sirve aunque una tanda posterior haya fallado.
+    if (leidas > 0){
+      const actual = analisis[id] || entry; // el usuario pudo re-analizar mientras tanto
+      const antes = (actual.requisitosIA.filas || []).filter(f => f.verificada).length;
+      extra.ts = Date.now();
+      actual.paginasCitadas = extra;
+      usos.forEach(r => Lectura.acumularUso(actual, r));
+      reverificarRequisitosIA(actual);
+      aplicarRequisitosIAaEntry(actual);
+      analisis[id] = actual;
+      saveAnalisis(id);
+      const ctx = itemYScorePara(id);
+      slot.innerHTML = renderAnalysisHtml(actual, ctx.item, ctx.s);
+      const filas = actual.requisitosIA.filas || [];
+      const ahora = filas.filter(f => f.verificada).length;
+      estado('Se leyeron ' + leidas + ' página(s) citada(s): ' + (ahora - antes) + ' fila(s) más quedaron verificadas (' + ahora + ' de ' + filas.length + '); ' + (filas.length - ahora) + ' siguen sin verificar.' +
+        (falla ? ' ⚠ Se interrumpió: ' + (falla.message || falla) : ''));
+    } else if (falla){
+      estado('⚠ ' + (falla.message || 'No se pudo leer las páginas citadas.'));
     }
   }
 
@@ -11344,6 +11479,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
 
     // 0c-bis) Requisitos con IA: extraer, y confirmar/desconfirmar una fila sin verificar.
+    const citasBtn = e.target.closest('button.analysis-ia-citas-btn');
+    if (citasBtn){
+      const slotC = citasBtn.closest('.row').querySelector('.analysis-slot');
+      verificarCitasLeyendoPaginas(citasBtn.getAttribute('data-ia-id'), slotC);
+      return;
+    }
     const iaBtn = e.target.closest('button.analysis-ia-btn');
     if (iaBtn){
       const slot = iaBtn.closest('.row').querySelector('.analysis-slot');

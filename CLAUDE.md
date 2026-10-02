@@ -6432,3 +6432,30 @@ Prueba hecha por el usuario en el sitio publicado (capturas), con un pliego esca
 Aclaración sobre las 7 filas "sin verificar" de la captura: eran de una extracción vieja (1-oct 16:46 UTC, 25.723
 tokens, solo ~14 páginas, hecha con el texto de OCR parcial) -- la guarda "lectura parcial => no recortar" (PDF-0x)
 ya existía. Sus citas en páginas 13-14 no se podían verificar porque esas páginas no estaban leídas.
+
+## Verificar citas leyendo SOLO las páginas citadas
+
+Tras la prueba con el escaneo de 112 páginas, 20 de 25 filas de "Extraer requisitos con IA" quedaban "sin
+verificar" porque su página nunca se transcribió (solo 8/112 leídas), y la única forma de verificarlas era "Leer
+todo el documento con IA" (~13 tandas, ~14 min, ~280 mil tokens). Ahora hay un botón en el bloque de
+requisitos: **"📖 Verificar citas leyendo solo N página(s) citada(s) (~K tanda(s))"**.
+- **Servidor** (`transcribir-pdf`, contrato 1 -> 2): además del rango `desde/hasta` acepta `paginas: [14, 37...]`
+  (páginas sueltas, <= 8 por tanda). Ambas formas se reducen a `mapa[i] = página real`; el recorte con `pdf-lib`
+  y la traducción de `pagina` a la real usan ese mapa. Mismo tope diario por tanda que la lectura normal.
+- **Cliente**: `paginasCitadasSinVerificar(entry)` (páginas citadas por filas de las 3 listas de la IA que no
+  están verificadas ni confirmadas a mano, no son de adendas, caen dentro del documento y no se han leído),
+  `agruparEnTandas`, `verificarFilaConTextos` (texto principal primero, luego el de las páginas citadas),
+  `reverificarRequisitosIA(entry)` y el orquestador `verificarCitasLeyendoPaginas(id, slot)`.
+- **No toca la lectura normal**: el texto de esas páginas vive aparte en `entry.paginasCitadas` ({text,
+  paginaOffsets}); `pagesRead` y "Seguir leyendo" no se mueven. Se conserva al re-analizar
+  (`conservarCamposAuxiliares` ahora también guarda `cronogramaIA` y `riesgosIA`, que se perdían).
+- Si una tanda falla, lo ya leído se guarda y se re-verifica. El mensaje final dice cuántas filas más quedaron
+  verificadas. Una cita cuya página ya se leyó y no aparece NO se vuelve a leer (no se hallaría).
+- Limitación: se lee solo la página citada (la verificación también mira p-1 y p+1 si tienen texto, pero esas
+  no se piden); una cita que cae al otro lado de un salto de página puede seguir "sin verificar".
+**Pruebas**: 4 nuevas (helpers, re-verificación, cableado servidor/cliente), mutación comprobada en 2; el contrato
+1 -> 2 lo atrapó la prueba de versión cliente/función. **Verificado en navegador** con el servidor de
+transcripción simulado (copia de prueba con sesión simulada): el botón dice "2 página(s)", una sola llamada con
+`[14, 37]`, la fila de la p. 14 queda verificada, la otra no, `pagesRead` sigue en 8 y el botón desaparece.
+**NO verificado**: la llamada real a la API de Claude con una lista de páginas sueltas ni el servidor en Deno
+(solo `tsc` y la lógica de recorte de `pdf-lib` ya probada en rondas anteriores).

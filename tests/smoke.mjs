@@ -367,7 +367,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { parsearExcelExperiencia, validarAnosExperiencia, avisoRangoValor, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -3176,6 +3176,55 @@ await check('Lectura parcial: la viabilidad y "sin alertas" dicen cuántas pági
   assert(/const parcialRF = lecturaParcial\(entry\);/.test(html) && /solo con las ' \+ parcialRF\.pagesRead/.test(html), 'la viabilidad debe aclarar que es solo con lo leído');
   assert(/lecturaParcial\(entry\);\s*\n?\s*L\.push\('  No se detectaron|parcialTxt/.test(html), 'el informe de texto también debe aclararlo');
   assert(/nombre: 'Completitud de la lectura', estado: 'nd'/.test(html), 'Completitud de la lectura debe ser nd');
+});
+
+// ---- Verificar citas leyendo solo las páginas citadas ----
+const CITA_P14 = 'Que el Proponente no acredite la presentación de la información para renovar el Registro Único de Proponentes';
+function entryCitas(extra) {
+  return Object.assign({
+    numPages: 112, ocrText: 'pagina uno dos tres cuatro cinco seis siete ocho', viaIA: true,
+    paginaOffsets: Array.from({ length: 8 }, (_, i) => ({ pagina: i + 1, hasta: (i + 1) * 6 })),
+    requisitosIA: { filas: [
+      filaIA({ categoria: 'juridico', pagina: 14, cita_textual: CITA_P14, min_contratos: null, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null }),
+      filaIA({ categoria: 'juridico', pagina: 5, cita_textual: CITA_P14, min_contratos: null, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null }),
+      filaIA({ pagina: 37, verificada: true }),
+      filaIA({ pagina: 60, confirmadaPorUsuario: true }),
+      filaIA({ pagina: 200 }),
+      filaIA({ pagina: 3, documento: 'Adenda 1' })
+    ] },
+    cronogramaIA: [{ evento: 'Cierre', fecha: '22 de octubre', hora: '', documento: 'Pliego de Condiciones', pagina: 20, cita_textual: 'Cierre del proceso 22 de octubre de 2026' }],
+    riesgosIA: [{ descripcion: 'x', severidad: 'alta', documento: 'Pliego de Condiciones', pagina: 67, cita_textual: 'Rechazo de la oferta si no se incluyó información' }]
+  }, extra || {});
+}
+await check('paginasCitadasSinVerificar: solo páginas sin leer citadas por filas pendientes (no verificadas, no confirmadas, no adendas, dentro del documento)', () => {
+  const p = expEngine.paginasCitadasSinVerificar(entryCitas());
+  assert(JSON.stringify(p) === '[14,20,67]', 'esperaba [14,20,67] (la 5 ya está leída, la 37 verificada, la 60 confirmada, la 200 fuera, la adenda excluida): ' + JSON.stringify(p));
+  const ya = expEngine.paginasCitadasSinVerificar(entryCitas({ paginasCitadas: { text: 'x', paginaOffsets: [{ pagina: 14, hasta: 2 }] } }));
+  assert(JSON.stringify(ya) === '[20,67]', 'una página ya leída como cita no se vuelve a leer: ' + JSON.stringify(ya));
+  assert(expEngine.paginasCitadasSinVerificar({ numPages: 10 }).length === 0 && expEngine.paginasCitadasSinVerificar(null).length === 0, 'sin extracción con IA no hay nada que leer');
+});
+await check('agruparEnTandas: tandas de a lo sumo N páginas, en orden', () => {
+  const t = expEngine.agruparEnTandas(Array.from({ length: 20 }, (_, i) => i + 1), 8);
+  assert(t.length === 3 && t[0].length === 8 && t[1].length === 8 && t[2].length === 4 && t[2][3] === 20, JSON.stringify(t));
+  assert(expEngine.agruparEnTandas([], 8).length === 0, 'vacío');
+});
+await check('reverificarRequisitosIA: una cita en una página recién leída pasa a verificada; una que no aparece sigue sin verificar con su motivo', () => {
+  const entry = entryCitas({ paginasCitadas: { text: CITA_P14 + ' y la renovación se hace cada año.', paginaOffsets: [{ pagina: 14, hasta: 200 }] } });
+  expEngine.reverificarRequisitosIA(entry);
+  const f14 = entry.requisitosIA.filas[0];
+  assert(f14.verificada === true, 'la cita de la p. 14 está en el texto leído de esa página: ' + JSON.stringify(f14.motivoVerificacion));
+  const f5 = entry.requisitosIA.filas[1];
+  assert(f5.verificada === false && /no aparece en la página 5/.test(f5.motivoVerificacion), 'p. 5 ya leída y la cita no está: ' + f5.motivoVerificacion);
+  assert(entry.requisitosIA.filas[5].documento === 'Adenda 1' && entry.requisitosIA.filas[5].verificada === undefined, 'las adendas no se tocan');
+  assert(entry.riesgosIA[0].verificada === false, 'una página sin leer sigue sin verificar: ' + entry.riesgosIA[0].motivoVerificacion);
+  assert(filaIA().confirmadaPorUsuario === undefined && entry.requisitosIA.filas[3].confirmadaPorUsuario === true, 'conserva las confirmaciones del usuario');
+});
+await check('Citas por páginas: el servidor acepta una lista de páginas, el contrato sube a 2 en cliente y función, y el cliente tiene el botón y el manejador', () => {
+  const srv = readFileSync(path.join(ROOT, 'supabase/functions/transcribir-pdf/index.ts'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/Array\.isArray\(body\.paginas\)/.test(srv) && /MAX_PAGINAS_POR_TANDA/.test(srv) && /const CONTRATO_VERSION = 2;/.test(srv), 'la función debe aceptar `paginas` con tope por tanda y contrato 2');
+  assert(/const CONTRATO_TRANSCRIPCION = 2;/.test(html), 'el cliente debe esperar el contrato 2');
+  assert(/button\.analysis-ia-citas-btn/.test(html) && /verificarCitasLeyendoPaginas\(citasBtn/.test(html) && /'paginasCitadas'/.test(html), 'botón, manejador y conservación al re-analizar');
 });
 
 await check('Evaluacion (módulo): index.html lo carga antes del script principal, lo usa para el motor y pages.yml lo publica', () => {
