@@ -8752,7 +8752,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const especifica = req.filter(r => r.tipo === 'especifica').length;
     const conteoHtml = '<div class="saved-note" style="margin-bottom:8px;">Requisitos identificados: ' + req.length +
       ' (' + general + ' de experiencia general, ' + especifica + ' de experiencia específica)' +
-      (entry.estudioPrevioText ? '.' : ' -- basado solo en el Pliego de Condiciones (sin Estudio Previo cargado).') + '</div>';
+      (entry.esSoloEP ? ' -- basado solo en el Estudio Previo (el Pliego de Condiciones aún no está publicado).' : (entry.estudioPrevioText ? '.' : ' -- basado solo en el Pliego de Condiciones (sin Estudio Previo cargado).')) + '</div>';
     return conteoHtml + renderPosiblesTablasHtml(entry.posiblesTablasExperiencia) +
       renderInconsistenciasPliegoEPHtml(entry.inconsistenciasPliegoEP) + renderResultadoExperiencia(ev);
   }
