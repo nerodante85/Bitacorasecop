@@ -6375,5 +6375,10 @@ Pendientes de la auditoría de cumplimiento (UX/accesibilidad):
   tiene `label for`, label envolvente o `aria-label`, si queda un `<label>` huérfano, o si un `.tag-tip` nace sin
   `aria-expanded`. Mutación comprobada (quitar un `for` la hace fallar). Verificado en navegador: clic en la
   etiqueta enfoca el campo y `aria-expanded` pasa false -> true -> false.
-- Alcance: solo el HTML estático. Los controles que genera JS dentro de strings (filas de contratos en
-  ejecución, selector múltiple de consorcio del Pipeline...) no se auditaron en esta pasada.
+- **Controles generados por JS** (segunda pasada): las 3 filas de cada contrato en ejecución llevan `id` único
+  por contrato (`contrato-<id>-entidad|saldo|fechaFin`) y su `<label for>`; el selector múltiple de consorcio
+  del Pipeline también (`pipeline-consorcio-<id>`); el selector "Mover a" del Pipeline y los 3 inputs de
+  archivo ocultos (Estudio Previo x2 y pliego) llevan `aria-label`. Los checkbox y los inputs de archivo
+  dentro de un `<label>` ya estaban asociados. Prueba estática propia ("controles generados por JS"): escanea
+  los strings del script y falla si un control no tiene `aria-label`, `<label for>` con su id o label
+  envolvente (mutación comprobada). Verificado en navegador: pulsar la etiqueta de una fila enfoca su campo.

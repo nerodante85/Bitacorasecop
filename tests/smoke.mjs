@@ -3089,6 +3089,21 @@ await check('Accesibilidad: todo control de formulario tiene su etiqueta (label 
   assert(/setAttribute\('aria-expanded'/.test(html), 'el manejador debe actualizar aria-expanded al abrir/cerrar la nota');
 });
 
+await check('Accesibilidad (controles generados por JS): cada <input>/<select>/<textarea> de un string tiene aria-label, <label for> con su id, o va dentro de un <label>', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const js = html.slice(html.indexOf('<script src="lectura.js">'));
+  const sinEtiqueta = [];
+  for (const m of js.matchAll(/<(input|select|textarea)\b([^>]*)>/g)) {
+    const antes = js.slice(Math.max(0, m.index - 260), m.index);
+    if (/^\s*\/\//.test(js.slice(js.lastIndexOf('\n', m.index) + 1, m.index))) continue; // comentario
+    const envuelto = antes.lastIndexOf('<label') > antes.lastIndexOf('</label>');
+    const conFor = /\bid="/.test(m[2]) && /<label for="/.test(antes);
+    if (/aria-label=/.test(m[2]) || envuelto || conFor) continue;
+    sinEtiqueta.push(m[0].slice(0, 70));
+  }
+  assert(sinEtiqueta.length === 0, 'controles generados sin etiqueta: ' + sinEtiqueta.join(' | '));
+});
+
 await check('Evaluacion (módulo): index.html lo carga antes del script principal, lo usa para el motor y pages.yml lo publica', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert(/<script src="evaluacion\.js"><\/script>/.test(html), 'index.html debe cargar evaluacion.js antes del script principal');

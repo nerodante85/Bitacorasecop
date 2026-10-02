@@ -2694,7 +2694,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const opcionesMover = ETAPAS_PIPELINE.filter(e => e.id !== h.etapa)
       .map(e => '<option value="' + e.id + '"' + (e.id === siguiente ? ' selected' : '') + '>' + escapeHtml(e.label) + '</option>').join('');
     const consorcioHtml = h.etapa === 'consorcio'
-      ? '<div class="pipeline-consorcio"><label>Empresas participantes</label><select multiple data-pipeline-consorcio-id="' + escapeHtml(id) + '" size="' + Math.min(4, Math.max(2, Object.keys(perfiles).length)) + '">' +
+      ? '<div class="pipeline-consorcio"><label for="pipeline-consorcio-' + escapeHtml(id) + '">Empresas participantes</label><select multiple id="pipeline-consorcio-' + escapeHtml(id) + '" data-pipeline-consorcio-id="' + escapeHtml(id) + '" size="' + Math.min(4, Math.max(2, Object.keys(perfiles).length)) + '">' +
           Object.keys(perfiles).map(pid => '<option value="' + escapeHtml(pid) + '"' + ((h.consorcio || []).indexOf(pid) !== -1 ? ' selected' : '') + '>' + escapeHtml(perfiles[pid].nombre || 'Sin nombre') + '</option>').join('') +
           '</select></div>'
       : (h.etapa === 'resultado' || (h.consorcio && h.consorcio.length))
@@ -2715,7 +2715,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       consorcioHtml + resultadoHtml +
       '<div class="pipeline-card-acciones">' +
         (anterior ? '<button type="button" class="link-btn" data-pipeline-mover-id="' + escapeHtml(id) + '" data-etapa="' + anterior + '" title="Mover a la etapa anterior">◂</button>' : '') +
-        '<select data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opcionesMover + '</select>' +
+        '<select aria-label="Mover este proceso a otra etapa" data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opcionesMover + '</select>' +
         '<button type="button" class="link-btn" data-pipeline-quitar-id="' + escapeHtml(id) + '">✕ Quitar</button>' +
       '</div>' +
     '</div>';
@@ -3175,12 +3175,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const contratos = (perfil && perfil.contratosEnEjecucion) || [];
     contratosListEl.innerHTML = contratos.length ? contratos.map(c =>
       '<div class="contrato-row" data-contrato-id="' + escapeHtml(c.id) + '">' +
-        '<div class="field"><label>Entidad / objeto (opcional)</label>' +
-          '<input type="text" data-contrato-campo="entidad" value="' + escapeHtml(c.entidad || '') + '" placeholder="ej. Alcaldía de Cúcuta — pavimentación vía..."></div>' +
-        '<div class="field"><label>Saldo pendiente por ejecutar</label>' +
-          '<input type="text" inputmode="decimal" data-contrato-campo="saldo" value="' + escapeHtml(c.saldo || '') + '" placeholder="ej. 850.000.000"></div>' +
-        '<div class="field"><label>Fecha de terminación</label>' +
-          '<input type="date" data-contrato-campo="fechaFin" value="' + escapeHtml(c.fechaFin || '') + '"></div>' +
+        '<div class="field"><label for="contrato-' + escapeHtml(c.id) + '-entidad">Entidad / objeto (opcional)</label>' +
+          '<input type="text" id="contrato-' + escapeHtml(c.id) + '-entidad" data-contrato-campo="entidad" value="' + escapeHtml(c.entidad || '') + '" placeholder="ej. Alcaldía de Cúcuta — pavimentación vía..."></div>' +
+        '<div class="field"><label for="contrato-' + escapeHtml(c.id) + '-saldo">Saldo pendiente por ejecutar</label>' +
+          '<input type="text" inputmode="decimal" id="contrato-' + escapeHtml(c.id) + '-saldo" data-contrato-campo="saldo" value="' + escapeHtml(c.saldo || '') + '" placeholder="ej. 850.000.000"></div>' +
+        '<div class="field"><label for="contrato-' + escapeHtml(c.id) + '-fechaFin">Fecha de terminación</label>' +
+          '<input type="date" id="contrato-' + escapeHtml(c.id) + '-fechaFin" data-contrato-campo="fechaFin" value="' + escapeHtml(c.fechaFin || '') + '"></div>' +
         '<button type="button" class="link-btn contrato-row-del" data-contrato-eliminar="' + escapeHtml(c.id) + '">Eliminar</button>' +
       '</div>'
     ).join('') : '<div class="empty-inline">Sin contratos en ejecución registrados — si no agregas ninguno, tu capacidad disponible es tu K residual declarado tal cual.</div>';
@@ -8551,7 +8551,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       : 'No cargado (opcional -- si lo tienes, mejora la trazabilidad y permite detectar inconsistencias con el Pliego).';
     return '<div style="margin-bottom:8px;">' +
       '<strong>Documentos del proceso:</strong> Pliego de Condiciones ✓ · Estudio Previo: ' + estado + ' ' +
-      '<input type="file" accept=".pdf,.docx" data-ep-id="' + escapeHtml(entry.id || '') + '" style="display:none">' +
+      '<input type="file" aria-label="Seleccionar el archivo del Estudio Previo (PDF o Word)" accept=".pdf,.docx" data-ep-id="' + escapeHtml(entry.id || '') + '" style="display:none">' +
       '<button class="link-btn" data-ep-upload-id="' + escapeHtml(entry.id || '') + '">' + (cargado ? '↻ Reemplazar' : '⬆ Cargar Estudio Previo') + '</button>' +
       '</div>';
   }
@@ -9471,7 +9471,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // hecho, dentro de la tarjeta, ver renderEstudioPrevioUploadHtml).
       const epBtnHtml = (flujoListoParaPliego && !analysisEntry)
         ? '<button class="btn-mini analizar-ep" data-action="analizar-ep" data-id="' + escapeHtml(it.id) + '">📋 Analizar Estudio Previo</button>' +
-          '<input type="file" accept=".pdf,.docx" data-analyze-ep-id="' + escapeHtml(it.id) + '" style="display:none">'
+          '<input type="file" aria-label="Seleccionar el PDF o Word del Estudio Previo para analizarlo" accept=".pdf,.docx" data-analyze-ep-id="' + escapeHtml(it.id) + '" style="display:none">'
         : '';
       // Pipeline comercial (CRM Kanban): link chico "+ Pipeline" si el proceso no está en el
       // pipeline todavía (mismo peso visual que "Marcar visto", no un botón grande -- evitar
@@ -9488,7 +9488,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           epBtnHtml +
           pipelineBtnHtml +
         '</div>' +
-        '<input type="file" accept="application/pdf" data-analyze-id="' + escapeHtml(it.id) + '" style="display:none">' +
+        '<input type="file" aria-label="Seleccionar el PDF del pliego para analizarlo" accept="application/pdf" data-analyze-id="' + escapeHtml(it.id) + '" style="display:none">' +
         '<div class="analysis-slot">' + analysisHtml + '</div>';
 
       return '<div class="row ' + s.tier + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
