@@ -6459,3 +6459,14 @@ transcripción simulado (copia de prueba con sesión simulada): el botón dice "
 `[14, 37]`, la fila de la p. 14 queda verificada, la otra no, `pagesRead` sigue en 8 y el botón desaparece.
 **NO verificado**: la llamada real a la API de Claude con una lista de páginas sueltas ni el servidor en Deno
 (solo `tsc` y la lógica de recorte de `pdf-lib` ya probada en rondas anteriores).
+
+## Encabezado de la tarjeta se refresca al terminar de leer/extraer (hallazgo de la prueba real de 112 páginas)
+
+Con las 112 páginas leídas por IA, el encabezado de la tarjeta seguía diciendo "Leído: 8/112 págs (parcial)" y
+"Falta información: Lectura del pliego...", porque esos chips se calculan al dibujar la lista (`render()`) y las
+operaciones posteriores solo redibujaban el bloque del análisis. `refrescarTarjeta(id)` (junto a `rerender`)
+redibuja la lista conservando el mensaje de estado `[data-ia-status]` de la tarjeta, y se llama al terminar
+"Leer todo con IA", cada "Seguir leyendo" (texto/OCR/IA), "Extraer requisitos con IA", "Verificar citas" y
+"Evaluar experiencia". No se llama al marcar la casilla de confirmar una fila (cerraría los `<details>` abiertos).
+Verificado: tests 260 ok (+1 fallo SRI de red del sandbox) y la página carga sin errores de JS; la actualización
+del encabezado tras una lectura real queda por confirmar en producción.

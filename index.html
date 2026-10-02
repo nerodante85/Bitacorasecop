@@ -4189,6 +4189,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return Promise.allSettled([loadHistorial(), loadPerfiles(), loadAnalisis(), loadExpEval(), loadPerfilesProfesionales(), loadAlertas()]);
   });
 
+  // El encabezado de cada tarjeta (chips "Falta información", "Leído: N/M págs") se calcula al
+  // dibujar la lista y no se entera de que el análisis cambió después (seguir leyendo, extraer con
+  // IA, verificar citas). Redibuja la lista y conserva el mensaje de estado que la tarjeta mostraba.
+  function refrescarTarjeta(id){
+    const sel = '.row[data-id="' + String(id).replace(/"/g, '\\"') + '"]';
+    const antes = resultsEl.querySelector(sel + ' [data-ia-status]');
+    const txt = antes ? antes.textContent : '';
+    rerender();
+    if (txt){
+      const nuevo = resultsEl.querySelector(sel + ' [data-ia-status]');
+      if (nuevo) nuevo.textContent = txt;
+    }
+  }
+
   function rerender(){
     if (lastRecords){
       const { keywords, geos, municipios, minV, maxV, numProceso } = getInputs();
@@ -4509,6 +4523,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
     delete iaAutoLeerCancelado[id];
     evaluarExperienciaDeProceso(id, slot);
+        refrescarTarjeta(id);
   }
 
   // Antes, un PDF protegido con contraseña caía en el mismo mensaje crudo
@@ -11188,6 +11203,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       saveAnalisis(id);
       const ctx = itemYScorePara(id);
       slot.innerHTML = renderAnalysisHtml(actual, ctx.item, ctx.s);
+      refrescarTarjeta(id);
     } catch(e){
       estado('⚠ ' + (e && e.message ? e.message : 'No se pudo extraer con IA.'));
       if (subidos.length){ try { await client.storage.from('pliegos').remove(subidos); } catch(_e){ /* best effort */ } }
@@ -11254,6 +11270,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const ahora = filas.filter(f => f.verificada).length;
       estado('Se leyeron ' + leidas + ' página(s) citada(s): ' + (ahora - antes) + ' fila(s) más quedaron verificadas (' + ahora + ' de ' + filas.length + '); ' + (filas.length - ahora) + ' siguen sin verificar.' +
         (falla ? ' ⚠ Se interrumpió: ' + (falla.message || falla) : ''));
+      refrescarTarjeta(id);
     } else if (falla){
       estado('⚠ ' + (falla.message || 'No se pudo leer las páginas citadas.'));
     }
@@ -11519,6 +11536,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const id = experienciaBtn.getAttribute('data-experiencia-id');
       const slot = experienciaBtn.closest('.row').querySelector('.analysis-slot');
       evaluarExperienciaDeProceso(id, slot);
+        refrescarTarjeta(id);
       return;
     }
 
@@ -11615,6 +11633,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         if (r.terminado){ delete pendingPliegoFiles[id]; delete esSoloEPPendiente[id]; }
         // Identifica y evalúa la experiencia requerida automáticamente.
         evaluarExperienciaDeProceso(id, slot);
+        refrescarTarjeta(id);
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(mensajeErrorPdf(err)) + ').</div>';
       }
@@ -11651,6 +11670,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         analisis[id] = entry;
         saveAnalisis(id);
         evaluarExperienciaDeProceso(id, slot);
+        refrescarTarjeta(id);
         if (r.terminado){ delete pendingOcrFiles[id]; delete esSoloEPPendiente[id]; }
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
@@ -11682,6 +11702,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         analisis[id] = entry;
         saveAnalisis(id);
         evaluarExperienciaDeProceso(id, slot);
+        refrescarTarjeta(id);
         if (r.terminado){ delete pendingOcrFiles[id]; delete esSoloEPPendiente[id]; }
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo transcribir con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Puedes intentar de nuevo, usar OCR, o abrir el PDF manualmente.</div>';
@@ -11717,6 +11738,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         saveAnalisis(id);
         // Cada tanda nueva puede traer requisitos de experiencia que las páginas anteriores no tenían.
         evaluarExperienciaDeProceso(id, slot);
+        refrescarTarjeta(id);
         if (r.terminado) delete pendingOcrFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
@@ -11750,6 +11772,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         analisis[id] = entry;
         saveAnalisis(id);
         evaluarExperienciaDeProceso(id, slot);
+        refrescarTarjeta(id);
         if (r.terminado) delete pendingPliegoFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
@@ -11781,6 +11804,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         analisis[id] = entry;
         saveAnalisis(id);
         evaluarExperienciaDeProceso(id, slot);
+        refrescarTarjeta(id);
         if (r.terminado) delete pendingOcrFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
