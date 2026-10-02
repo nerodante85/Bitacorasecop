@@ -1824,6 +1824,7 @@
   </div>
 </div>
 
+<script src="lectura.js"></script>
 <script>
 (function(){
   // Shim de almacenamiento: si corre como artifact de Claude, usa window.storage
@@ -4362,29 +4363,30 @@
   // tanda por tanda -- solo menos clics --, y se puede cancelar a medio camino (iaAutoLeerCancelado).
   const iaAutoLeerCancelado = {}; // { id: true } -- el usuario pidió cancelar el auto-leer de ESE proceso
 
-  // PDF-02/PDF-04: suma tokens y duración de cada tanda de transcripción en el entry, para mostrar
-  // cuánto costó/tardó la lectura con IA (antes se descartaba lo que el servidor ya devolvía).
-  function acumularUsoTranscripcion(entry, result){
-    const u = entry.transcripcionUso || { input_tokens: 0, output_tokens: 0, ms: 0, tandas: 0 };
-    u.input_tokens += Number((result.uso && result.uso.input_tokens) || 0);
-    u.output_tokens += Number((result.uso && result.uso.output_tokens) || 0);
-    u.ms += Number(result.ms || 0);
-    u.tandas += 1;
-    entry.transcripcionUso = u;
-  }
+  // Lectores (adaptadores) del módulo Lectura (lectura.js): la misma operación "avanzar la
+  // lectura" funciona con la capa de texto, OCR o IA; solo cambia cómo se lee una tanda.
+  const LECTOR_TEXTO = { metodo: 'texto', campoTexto: 'text', tanda: TEXT_BATCH_PAGES,
+    leer: (file, desde, hasta) => extractPdfText(file, hasta - desde + 1, desde) };
+  // entry.ocrRotacion: ya se detectó en la primera tanda; se reutiliza para no repetir las 4 rotaciones.
+  const LECTOR_OCR = { metodo: 'ocr', campoTexto: 'ocrText', tanda: OCR_BATCH_PAGES,
+    leer: (file, desde, hasta, onProgress, entry) => ocrPdfPages(file, desde, hasta, onProgress, entry.ocrRotacion) };
+  const LECTOR_IA = { metodo: 'ia', campoTexto: 'ocrText', tanda: IA_TRANSCRIBE_BATCH_PAGES,
+    leer: (file, desde, hasta) => transcribirPaginasConIA(file, desde, hasta) };
 
-  // PDF-07: el reanálisis por reglas sobre el texto acumulado se hace una vez, no en cada tanda.
+  // PDF-07: el reanálisis por reglas sobre el texto acumulado se hace una vez por operación.
   function reanalizarTextoAcumulado(entry){
-    const fullText = entry.ocrText || '';
+    const fullText = textoPliegoDe(entry);
     const { hallazgos, kResidual, exigencias } = analizarTexto(fullText);
     entry.kResidual = kResidual;
     entry.exigencias = exigencias;
     entry.comps = compararConPerfiles(fullText, hallazgos).comps;
     entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
     entry.viabilidad = calcularViabilidad(entry.redFlags);
-    delete entry.comp;
+    delete entry.comp; // por si venía del esquema viejo de un solo perfil
   }
 
+  // "Leer todo el documento con IA": encadena tandas hasta terminar el pliego (un pliego de 112
+  // páginas a 8/tanda son ~14 clics manuales). Se puede cancelar a medio camino (iaAutoLeerCancelado).
   async function autoLeerConIA(id, slot){
     const entry = analisis[id];
     const file = pendingOcrFiles[id];
@@ -4392,50 +4394,28 @@
       slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para continuar leyéndolo.</div>';
       return;
     }
-    // PDF-03: una sola operación de IA por proceso a la vez (compartida con extraerRequisitosConIA).
-    if (iaEnCurso[id]){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
-    iaEnCurso[id] = true;
-    try {
-      await autoLeerConIABucle(id, slot, entry, file);
-    } finally {
-      delete iaEnCurso[id];
-    }
-  }
-  async function autoLeerConIABucle(id, slot, entry, file){
     delete iaAutoLeerCancelado[id];
-    while (entry.pagesRead < entry.numPages){
-      if (iaAutoLeerCancelado[id]) break;
-      const from = entry.pagesRead + 1;
-      const to = Math.min(entry.numPages, entry.pagesRead + IA_TRANSCRIBE_BATCH_PAGES);
-      const tandaActual = Math.ceil(from / IA_TRANSCRIBE_BATCH_PAGES);
-      const tandasTotal = Math.ceil(entry.numPages / IA_TRANSCRIBE_BATCH_PAGES);
-      slot.innerHTML = '<div class="analysis-loading">Leyendo con IA… tanda ' + tandaActual + ' de ' + tandasTotal + ' (páginas ' + from + '-' + to + ')</div>' +
-        '<div style="margin-top:8px;"><button class="link-btn analysis-ia-cancelar-btn" data-ia-cancelar-id="' + escapeHtml(id) + '">Cancelar</button></div>';
-      let result;
-      try {
-        result = await transcribirPaginasConIA(file, from, to);
-      } catch(err){
-        const ctx = itemYScorePara(id);
-        reanalizarTextoAcumulado(entry);
-        analisis[id] = entry;
-        saveAnalisis(id);
-        slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Quedó leído hasta la página ' + entry.pagesRead + '/' + entry.numPages + ' -- puedes intentar de nuevo.</div>';
-        delete iaAutoLeerCancelado[id];
-        return;
-      }
-      if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); delete iaAutoLeerCancelado[id]; return; }
-      const baseLen = (entry.ocrText || '').length;
-      entry.ocrText = (entry.ocrText || '') + result.text;
-      entry.paginaOffsets = (entry.paginaOffsets || []).concat(
-        (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
-      );
-      entry.pagesRead = result.pagesRead;
-      entry.ts = Date.now();
-      acumularUsoTranscripcion(entry, result);
+    let r;
+    try {
+      r = await Lectura.leerTodo(entry, file, LECTOR_IA, {
+        cancelado: () => !!iaAutoLeerCancelado[id],
+        reanalizar: reanalizarTextoAcumulado,
+        onTanda: (desde, hasta, tandaActual, tandasTotal) => {
+          slot.innerHTML = '<div class="analysis-loading">Leyendo con IA… tanda ' + tandaActual + ' de ' + tandasTotal + ' (páginas ' + desde + '-' + hasta + ')</div>' +
+            '<div style="margin-top:8px;"><button class="link-btn analysis-ia-cancelar-btn" data-ia-cancelar-id="' + escapeHtml(id) + '">Cancelar</button></div>';
+        },
+        onProgreso: () => { analisis[id] = entry; saveAnalisis(id); }
+      });
+    } catch(err){
+      const ctx = itemYScorePara(id);
       analisis[id] = entry;
       saveAnalisis(id);
+      slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Quedó leído hasta la página ' + entry.pagesRead + '/' + entry.numPages + ' -- puedes intentar de nuevo.</div>';
+      delete iaAutoLeerCancelado[id];
+      return;
     }
-    reanalizarTextoAcumulado(entry);
+    if (r.enCurso){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
+    if (r.liberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); delete iaAutoLeerCancelado[id]; return; }
     analisis[id] = entry;
     saveAnalisis(id);
     if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
@@ -11256,7 +11236,7 @@
   // sube el/los PDF a un bucket privado, invoca la función, verifica cada cita contra
   // el texto real del PDF (pdf.js, en el navegador) y guarda todo en el entry.
   const IA_MAX_BYTES = 20 * 1024 * 1024;
-  const iaEnCurso = {}; // { id: true } -- evita doble clic y extracciones simultáneas del mismo proceso
+  const iaEnCurso = Lectura.enCurso; // { id: true } -- evita doble clic y extracciones simultáneas del mismo proceso
   // Versión del contrato con supabase/functions/extraer-requisitos (CONTRATO_VERSION allí). Súbela en ambos lados.
   const CONTRATO_EXTRACCION = 4; // v4: admite rol 'estudio_previo_principal'
   async function extraerRequisitosConIA(id, slot){
@@ -11846,7 +11826,7 @@
         const redFlags = detectarRedFlags(text, paginaOffsets);
         const viabilidad = calcularViabilidad(redFlags);
         const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaIA: true, esSoloEP: !!esSoloEPPendiente[id] };
-        acumularUsoTranscripcion(entry, resultado1);
+        Lectura.acumularUso(entry, resultado1);
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
@@ -11871,39 +11851,22 @@
         return;
       }
       const from = entry.pagesRead + 1;
-      const to = Math.min(entry.numPages, entry.pagesRead + OCR_BATCH_PAGES);
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página ' + from + '</div>';
-        // entry.ocrRotacion: ya se detectó en la primera tanda -- se reutiliza aquí para no volver
-        // a probar las 4 rotaciones en la primera página de ESTA tanda (la orientación del escaneo
-        // es la misma en todo el documento). Ahorra ~3 pasadas de OCR por cada "Seguir leyendo".
-        const result = await ocrPdfPages(file, from, to, (pct, page, total) => {
-          slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
-        }, entry.ocrRotacion);
-        if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
-        const baseLen = (entry.ocrText || '').length;
-        const fullText = (entry.ocrText || '') + result.text;
-        entry.ocrText = fullText;
-        entry.paginaOffsets = (entry.paginaOffsets || []).concat(
-          (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
-        );
-        entry.pagesRead = result.pagesRead;
-        entry.ts = Date.now();
-        const { hallazgos: nuevosHallazgos, kResidual, exigencias } = analizarTexto(fullText);
-        entry.kResidual = kResidual;
-        entry.exigencias = exigencias;
-        entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
-        entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
-        entry.viabilidad = calcularViabilidad(entry.redFlags);
-        delete entry.comp; // por si venía del esquema viejo de un solo perfil
+        const r = await Lectura.avanzar(entry, file, LECTOR_OCR, {
+          reanalizar: reanalizarTextoAcumulado,
+          onProgress: (pct, page, total) => {
+            slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
+          }
+        });
+        if (r.enCurso){ alert('Ya hay una operación de lectura en curso para este proceso; espera a que termine.'); return; }
+        if (r.liberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
         analisis[id] = entry;
         saveAnalisis(id);
-        // Cada tanda nueva puede traer requisitos de experiencia que las
-        // páginas anteriores no tenían -- se re-evalúa con el texto
-        // acumulado, igual que en las otras 2 rutas de lectura del pliego.
+        // Cada tanda nueva puede traer requisitos de experiencia que las páginas anteriores no tenían.
         evaluarExperienciaDeProceso(id, slot);
-        if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
+        if (r.terminado) delete pendingOcrFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
         slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo.</div>';
@@ -11927,34 +11890,16 @@
         slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para continuar leyéndolo.</div>';
         return;
       }
-      const from = entry.pagesRead + 1;
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">Leyendo el resto del PDF…</div>';
-        const result = await extractPdfText(file, TEXT_BATCH_PAGES, from);
-        if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
-        const baseLen = (entry.text || '').length;
-        const fullText = (entry.text || '') + result.text;
-        entry.text = fullText;
-        entry.paginaOffsets = (entry.paginaOffsets || []).concat(
-          (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
-        );
-        entry.pagesRead = result.pagesRead;
-        entry.ts = Date.now();
-        const { hallazgos: nuevosHallazgos, kResidual, exigencias } = analizarTexto(fullText);
-        entry.kResidual = kResidual;
-        entry.exigencias = exigencias;
-        entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
-        entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
-        entry.viabilidad = calcularViabilidad(entry.redFlags);
-        delete entry.comp; // por si venía del esquema viejo de un solo perfil
+        const r = await Lectura.avanzar(entry, file, LECTOR_TEXTO, { reanalizar: reanalizarTextoAcumulado });
+        if (r.enCurso){ alert('Ya hay una operación de lectura en curso para este proceso; espera a que termine.'); return; }
+        if (r.liberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
         analisis[id] = entry;
         saveAnalisis(id);
-        // Cada tanda nueva puede traer requisitos de experiencia que las
-        // páginas anteriores no tenían -- se re-evalúa con el texto
-        // acumulado, igual que en las otras 2 rutas de lectura del pliego.
         evaluarExperienciaDeProceso(id, slot);
-        if (entry.pagesRead >= entry.numPages) delete pendingPliegoFiles[id];
+        if (r.terminado) delete pendingPliegoFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
         slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo.</div>';
@@ -11979,31 +11924,13 @@
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">La IA está leyendo el PDF (puede tardar un par de minutos)… páginas ' + from + '-' + to + '</div>';
-        if (iaEnCurso[id]){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
-        iaEnCurso[id] = true;
-        let result;
-        try { result = await transcribirPaginasConIA(file, from, to); } finally { delete iaEnCurso[id]; }
-        if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
-        acumularUsoTranscripcion(entry, result);
-        const baseLen = (entry.ocrText || '').length;
-        const fullText = (entry.ocrText || '') + result.text;
-        entry.ocrText = fullText;
-        entry.paginaOffsets = (entry.paginaOffsets || []).concat(
-          (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
-        );
-        entry.pagesRead = result.pagesRead;
-        entry.ts = Date.now();
-        const { hallazgos: nuevosHallazgos, kResidual, exigencias } = analizarTexto(fullText);
-        entry.kResidual = kResidual;
-        entry.exigencias = exigencias;
-        entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
-        entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
-        entry.viabilidad = calcularViabilidad(entry.redFlags);
-        delete entry.comp;
+        const r = await Lectura.avanzar(entry, file, LECTOR_IA, { reanalizar: reanalizarTextoAcumulado });
+        if (r.enCurso){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
+        if (r.liberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
         analisis[id] = entry;
         saveAnalisis(id);
         evaluarExperienciaDeProceso(id, slot);
-        if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
+        if (r.terminado) delete pendingOcrFiles[id];
       } catch(err){
         const ctx = itemYScorePara(id);
         slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Puedes intentar de nuevo.</div>';

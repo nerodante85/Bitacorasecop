@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -2875,14 +2875,75 @@ await check('PDF-01: con lectura parcial, "Extraer requisitos con IA" no recorta
   assert(!/lee el documento completo de una sola vez/.test(html), 'la nota ya no debe prometer lectura completa');
 });
 
-await check('PDF-02/03/04/07: la lectura con IA acumula tokens y duración, bloquea operaciones simultáneas y reanaliza una sola vez', () => {
+const Lectura = (await import(pathToFileURL(path.join(ROOT, 'lectura.js')).href)).default;
+const nuevoEntry = (id, numPages) => ({ id, numPages, pagesRead: 0, text: '', ocrText: '', paginaOffsets: [] });
+// Lector falso: cada página aporta "p<n> " (ver lectura.js: el lector solo debe devolver la tanda pedida).
+const lectorFalso = (metodo, campoTexto, tanda, extra) => ({
+  metodo, campoTexto, tanda,
+  leer: async (file, desde, hasta) => {
+    let text = ''; const paginaOffsets = [];
+    for (let p = desde; p <= hasta; p++) { text += 'p' + p + ' '; paginaOffsets.push({ pagina: p, hasta: text.length }); }
+    return Object.assign({ text, pagesRead: hasta, paginaOffsets }, extra || {});
+  }
+});
+
+await check('Lectura (módulo): avanzar acumula texto y corre los offsets de página sin pisar lo ya leído', async () => {
+  const e = nuevoEntry('a1', 10);
+  const lector = lectorFalso('texto', 'text', 4);
+  const r1 = await Lectura.avanzar(e, {}, lector);
+  assert(r1.terminado === false && e.pagesRead === 4 && e.text === 'p1 p2 p3 p4 ', 'primera tanda');
+  await Lectura.avanzar(e, {}, lector);
+  assert(e.pagesRead === 8 && e.text === 'p1 p2 p3 p4 p5 p6 p7 p8 ', 'segunda tanda concatena');
+  const o5 = e.paginaOffsets.find(o => o.pagina === 5);
+  assert(e.text.slice(0, o5.hasta).endsWith('p5 '), 'el offset de la página 5 apunta al final de su texto, ya corrido');
+  const r3 = await Lectura.avanzar(e, {}, lector);
+  assert(r3.terminado === true && e.pagesRead === 10, 'la última tanda es más corta y marca terminado');
+});
+
+await check('Lectura (módulo): una sola operación por proceso a la vez; la bandera se libera aunque falle el lector', async () => {
+  const e = nuevoEntry('a2', 10);
+  let liberar; const espera = new Promise(r => { liberar = r; });
+  const lento = { metodo: 'texto', campoTexto: 'text', tanda: 5, leer: async () => { await espera; return { text: 'x', pagesRead: 5, paginaOffsets: [{ pagina: 1, hasta: 1 }] }; } };
+  const primera = Lectura.avanzar(e, {}, lento);
+  const segunda = await Lectura.avanzar(e, {}, lectorFalso('texto', 'text', 5));
+  assert(segunda.enCurso === true, 'la segunda se rechaza mientras la primera corre');
+  const todo = await Lectura.leerTodo(e, {}, lectorFalso('ia', 'ocrText', 5));
+  assert(todo.enCurso === true, 'leerTodo también se rechaza');
+  liberar(); await primera;
+  const fallido = { metodo: 'texto', campoTexto: 'text', tanda: 5, leer: async () => { throw new Error('boom'); } };
+  let msg = null; try { await Lectura.avanzar(e, {}, fallido); } catch (err) { msg = err.message; }
+  assert(msg === 'boom' && !Lectura.enCurso['a2'], 'el error se propaga y no deja la bandera pegada');
+});
+
+await check('Lectura (módulo): leerTodo reanaliza UNA vez (o al fallar a medias), acumula tokens de IA y respeta cancelar', async () => {
+  const e = nuevoEntry('a3', 24);
+  let reanalisis = 0;
+  const lector = lectorFalso('ia', 'ocrText', 8, { uso: { input_tokens: 100, output_tokens: 10 }, ms: 1000 });
+  const r = await Lectura.leerTodo(e, {}, lector, { reanalizar: () => { reanalisis++; } });
+  assert(r.terminado === true && reanalisis === 1, 'una sola vez para 3 tandas, no una por tanda (PDF-07)');
+  assert(e.transcripcionUso.tandas === 3 && e.transcripcionUso.input_tokens === 300 && e.transcripcionUso.ms === 3000, 'acumula uso por tanda (PDF-02/04)');
+  const e2 = nuevoEntry('a4', 24); let n = 0; let rean2 = 0;
+  const fallaALaSegunda = { metodo: 'ia', campoTexto: 'ocrText', tanda: 8, leer: async (f, d, h) => { if (++n === 2) throw new Error('timeout'); return lectorFalso('ia', 'ocrText', 8).leer(f, d, h); } };
+  let msg = null; try { await Lectura.leerTodo(e2, {}, fallaALaSegunda, { reanalizar: () => { rean2++; } }); } catch (err) { msg = err.message; }
+  assert(msg === 'timeout' && e2.pagesRead === 8 && rean2 === 1, 'al fallar a medias queda lo leído y se reanaliza');
+  const e3 = nuevoEntry('a5', 24); let cancelar = false;
+  const rc = await Lectura.leerTodo(e3, {}, lectorFalso('ia', 'ocrText', 8), { cancelado: () => cancelar, onProgreso: () => { cancelar = true; } });
+  assert(rc.terminado === false && e3.pagesRead === 8, 'cancelar detiene antes de la siguiente tanda');
+});
+
+await check('Lectura (módulo): si el texto se liberó por falta de espacio no se sigue acumulando', async () => {
+  const e = nuevoEntry('a6', 10);
+  const lector = { metodo: 'texto', campoTexto: 'text', tanda: 5, leer: async () => { e.textoLiberado = true; return { text: 'zzz', pagesRead: 5, paginaOffsets: [] }; } };
+  const r = await Lectura.avanzar(e, {}, lector);
+  assert(r.liberado === true && e.text === '' && e.pagesRead === 0, 'no se mezcla texto nuevo con un entry sin texto');
+});
+
+await check('Lectura (módulo): index.html carga lectura.js, los 3 lectores comparten el módulo y pages.yml lo publica', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert(/uso: data\.uso \|\| null, ms: Date\.now\(\) - t0/.test(html), 'transcribirPaginasConIA debe devolver uso y duración');
-  assert((html.match(/acumularUsoTranscripcion\(entry/g) || []).length >= 3, 'las 3 rutas de transcripción acumulan el uso');
-  assert((html.match(/if \(iaEnCurso\[id\]\)/g) || []).length >= 4, 'todas las operaciones de IA comparten la bandera iaEnCurso');
-  const bucle = html.slice(html.indexOf('async function autoLeerConIABucle'), html.indexOf('async function autoLeerConIABucle') + 2500);
-  const dentroWhile = bucle.slice(bucle.indexOf('while ('), bucle.indexOf('reanalizarTextoAcumulado(entry);\n    analisis[id] = entry;\n    saveAnalisis(id);\n    if (entry.pagesRead'));
-  assert(!/analizarTexto\(|detectarRedFlags\(/.test(dentroWhile.replace(/reanalizarTextoAcumulado\(entry\);\n\s*analisis/, '')), 'el bucle no debe reanalizar el texto en cada tanda');
+  assert(/<script src="lectura\.js"><\/script>/.test(html), 'index.html debe cargar lectura.js antes del script principal');
+  assert(/const iaEnCurso = Lectura\.enCurso/.test(html), 'la extracción de requisitos comparte la bandera del módulo');
+  assert((html.match(/Lectura\.(avanzar|leerTodo)\(/g) || []).length === 4, 'los 4 caminos de seguir leyendo usan el módulo');
+  assert(/cp index\.html lectura\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar lectura.js al sitio');
 });
 
 await check('PDF-05: un PDF con poco texto en las primeras páginas lee una tanda más antes de declararlo escaneado', () => {

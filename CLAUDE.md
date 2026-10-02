@@ -6242,3 +6242,25 @@ pipeline pero conserva `status: "visto"` si lo había. Probado en 375px: `docume
 clientWidth = -16` (el inset de 8px por lado ya documentado, sin overflow real) y el tablero del
 pipeline sí desborda horizontalmente dentro de su propio contenedor (scroll interno, no de la página) --
 el comportamiento esperado. 0 errores de consola (confirmado en una pestaña nueva).
+
+## Módulo `lectura.js` (revisión de arquitectura, candidato 1)
+
+Salió de una revisión de arquitectura (informe HTML temporal, no versionado): cuatro manejadores de
+"seguir leyendo" (OCR, texto, IA tanda a tanda, "leer todo con IA") repetían la misma lógica de
+acumular texto + correr offsets de página + reanalizar + guardar, y los arreglos PDF-01..07 tuvieron
+que tocarse en varios sitios. Decisiones acordadas con el usuario: alcance solo "seguir leyendo" (la
+primera lectura -- confirmar pliego, OCR inicial, IA inicial, Estudio Previo -- sigue en el despachador
+de clics), archivo aparte `lectura.js` (script plano cargado con `<script src>`, sin build; `pages.yml`
+lo copia al sitio) y módulo SIN DOM (progreso por callback; la UI dibuja).
+
+Interfaz (`window.Lectura`, o `import` en Node para las pruebas): `avanzar(entry, file, lector, opts)`,
+`leerTodo(entry, file, lector, opts)`, `enCurso` (una operación por proceso, compartida con
+`extraerRequisitosConIA` vía `const iaEnCurso = Lectura.enCurso`) y `acumularUso`. Un **lector** es un
+adaptador `{metodo, campoTexto, tanda, leer(file, desde, hasta, onProgress, entry)}`; hay tres en
+`index.html` (`LECTOR_TEXTO`, `LECTOR_OCR`, `LECTOR_IA`). El reanálisis por reglas
+(`reanalizarTextoAcumulado`) entra como callback y se ejecuta una vez por operación. Las pruebas
+(`tests/smoke.mjs`, "Lectura (módulo)") usan lectores falsos y verifican acumulación, offsets, bandera
+de operación en curso, reanálisis único, cancelación y texto liberado; mutación comprobada.
+
+No se probó con un PDF real en el navegador (solo que la página carga y `Lectura` existe, 0 errores
+de consola): conviene que el usuario pruebe un "Seguir leyendo" real con cada método.
