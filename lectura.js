@@ -21,13 +21,9 @@
     entry.transcripcionUso = u;
   }
 
-  // Lee UNA tanda y la suma al entry. Devuelve { liberado: true } si el texto se liberó por
-  // falta de espacio (no se puede seguir leyendo sobre un texto que ya no está).
-  async function paso(entry, file, lector, onProgress) {
-    const desde = entry.pagesRead + 1;
-    const hasta = Math.min(entry.numPages, entry.pagesRead + lector.tanda);
-    const result = await lector.leer(file, desde, hasta, onProgress, entry);
-    if (entry.textoLiberado) return { liberado: true };
+  // Suma el resultado de una tanda al entry (texto, offsets de página ya corridos, páginas leídas,
+  // tokens de IA, rotación detectada por OCR).
+  function aplicarResultado(entry, lector, result) {
     const base = (entry[lector.campoTexto] || '').length;
     entry[lector.campoTexto] = (entry[lector.campoTexto] || '') + result.text;
     entry.paginaOffsets = (entry.paginaOffsets || []).concat(
@@ -37,7 +33,48 @@
     entry.ts = Date.now();
     if (lector.metodo === 'ia') acumularUso(entry, result);
     if (lector.metodo === 'ocr' && result.rotacion != null && entry.ocrRotacion == null) entry.ocrRotacion = result.rotacion;
+  }
+
+  // Lee UNA tanda y la suma al entry. Devuelve { liberado: true } si el texto se liberó por
+  // falta de espacio (no se puede seguir leyendo sobre un texto que ya no está).
+  async function paso(entry, file, lector, onProgress) {
+    const desde = entry.pagesRead + 1;
+    const hasta = Math.min(entry.numPages, entry.pagesRead + lector.tanda);
+    const result = await lector.leer(file, desde, hasta, onProgress, entry);
+    if (entry.textoLiberado) return { liberado: true };
+    aplicarResultado(entry, lector, result);
     return { liberado: false };
+  }
+
+  // PRIMERA lectura de un documento: crea el entry con la primera tanda. opts: { id, fileName,
+  // esSoloEP, minTexto, extenderSiEscaso, onProgress, reanalizar(entry) }.
+  //  - minTexto: si el texto leído queda por debajo, devuelve { vacio: true } (documento sin texto
+  //    útil: escaneado, o imagen que el OCR/IA no reconoció) y NO crea entry utilizable.
+  //  - extenderSiEscaso: con poco texto en la primera tanda y páginas pendientes, lee UNA tanda más
+  //    antes de rendirse (portada/índice/anexos de poca densidad no significan "escaneado").
+  // lector.marca ({viaOcr:true} / {viaIA:true}) se copia al entry para saber con qué se leyó.
+  async function iniciar(file, lector, opts) {
+    opts = opts || {};
+    if (enCurso[opts.id]) return { enCurso: true };
+    enCurso[opts.id] = true;
+    try {
+      const entry = Object.assign({ id: opts.id, ts: Date.now(), fileName: opts.fileName, numPages: 0, pagesRead: 0, paginaOffsets: [] }, lector.marca || {});
+      entry[lector.campoTexto] = '';
+      entry.esSoloEP = !!opts.esSoloEP;
+      const result = await lector.leer(file, 1, lector.tanda, opts.onProgress, entry);
+      entry.numPages = result.numPages;
+      aplicarResultado(entry, lector, result);
+      const minTexto = opts.minTexto || 0;
+      const corto = () => (entry[lector.campoTexto] || '').trim().length < minTexto;
+      if (opts.extenderSiEscaso && corto() && entry.pagesRead < entry.numPages) {
+        await paso(entry, file, lector, opts.onProgress);
+      }
+      if (corto()) return { vacio: true };
+      if (opts.reanalizar) opts.reanalizar(entry);
+      return { entry: entry, terminado: entry.pagesRead >= entry.numPages };
+    } finally {
+      delete enCurso[opts.id];
+    }
   }
 
   // opts: { onProgress, reanalizar(entry) }
@@ -85,7 +122,7 @@
     }
   }
 
-  const Lectura = { enCurso: enCurso, avanzar: avanzar, leerTodo: leerTodo, acumularUso: acumularUso };
+  const Lectura = { enCurso: enCurso, iniciar: iniciar, avanzar: avanzar, leerTodo: leerTodo, acumularUso: acumularUso };
   if (typeof module !== 'undefined' && module.exports) module.exports = Lectura;
   else root.Lectura = Lectura;
 })(typeof window !== 'undefined' ? window : globalThis);

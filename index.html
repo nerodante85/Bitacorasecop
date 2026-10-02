@@ -4368,9 +4368,9 @@
   const LECTOR_TEXTO = { metodo: 'texto', campoTexto: 'text', tanda: TEXT_BATCH_PAGES,
     leer: (file, desde, hasta) => extractPdfText(file, hasta - desde + 1, desde) };
   // entry.ocrRotacion: ya se detectó en la primera tanda; se reutiliza para no repetir las 4 rotaciones.
-  const LECTOR_OCR = { metodo: 'ocr', campoTexto: 'ocrText', tanda: OCR_BATCH_PAGES,
+  const LECTOR_OCR = { metodo: 'ocr', marca: { viaOcr: true }, campoTexto: 'ocrText', tanda: OCR_BATCH_PAGES,
     leer: (file, desde, hasta, onProgress, entry) => ocrPdfPages(file, desde, hasta, onProgress, entry.ocrRotacion) };
-  const LECTOR_IA = { metodo: 'ia', campoTexto: 'ocrText', tanda: IA_TRANSCRIBE_BATCH_PAGES,
+  const LECTOR_IA = { metodo: 'ia', marca: { viaIA: true }, campoTexto: 'ocrText', tanda: IA_TRANSCRIBE_BATCH_PAGES,
     leer: (file, desde, hasta) => transcribirPaginasConIA(file, desde, hasta) };
 
   // PDF-07: el reanálisis por reglas sobre el texto acumulado se hace una vez por operación.
@@ -11702,17 +11702,11 @@
       slot.innerHTML = '<div class="analysis-loading">Leyendo PDF…</div>';
       try {
         await appReady;
-        let { text, numPages, pagesRead, paginaOffsets } = await extractPdfText(file, TEXT_BATCH_PAGES);
-        // PDF-05: portada/índice/anexos de poca densidad en las primeras páginas no significan
-        // "escaneado". Antes de ofrecer OCR/IA (más lento y de pago) se lee UNA tanda más adelante.
-        if ((!text || text.trim().length < 200) && pagesRead < numPages){
-          const mas = await extractPdfText(file, TEXT_BATCH_PAGES, pagesRead + 1);
-          const base = (text || '').length;
-          text = (text || '') + mas.text;
-          paginaOffsets = paginaOffsets.concat(mas.paginaOffsets.map(o => ({ pagina: o.pagina, hasta: o.hasta + base })));
-          pagesRead = mas.pagesRead;
-        }
-        if (!text || text.trim().length < 200){
+        // PDF-05 vive en Lectura.iniciar (extenderSiEscaso): con poco texto en las primeras páginas
+        // se lee una tanda más antes de declarar el PDF "escaneado".
+        const r = await Lectura.iniciar(file, LECTOR_TEXTO, { id: id, fileName: file.name, esSoloEP: esSoloEPPendiente[id], minTexto: 200, extenderSiEscaso: true, reanalizar: reanalizarTextoAcumulado });
+        if (r.enCurso){ alert('Ya hay una operación de lectura en curso para este proceso; espera a que termine.'); return; }
+        if (r.vacio){
           pendingOcrFiles[id] = file;
           const blobUrl = URL.createObjectURL(file);
           // Dos caminos para leer un PDF escaneado: OCR (Tesseract, en el navegador -- gratis,
@@ -11730,25 +11724,14 @@
             opcionIA + '.</div>';
           return;
         }
-        const { hallazgos, kResidual, exigencias } = analizarTexto(text);
-        const { comps } = compararConPerfiles(text, hallazgos);
-        const redFlags = detectarRedFlags(text, paginaOffsets);
-        const viabilidad = calcularViabilidad(redFlags);
-        // text/paginaOffsets se guardan también en este camino (antes solo
-        // sobrevivían en el camino OCR, ver ocrText/entry.paginaOffsets más
-        // abajo) -- hacen falta para extraer los requisitos de experiencia
-        // del pliego más tarde, incluso después de recargar la página.
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, text: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, esSoloEP: !!esSoloEPPendiente[id] };
+        const entry = r.entry;
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
-        // El archivo solo se descarta de memoria si ya se leyó completo --
-        // si quedan páginas pendientes, "Seguir leyendo más páginas" (ver
-        // .analysis-continue-btn más abajo) lo necesita para continuar. Mismo
-        // criterio ya usado en el camino OCR (pendingOcrFiles).
-        if (pagesRead >= numPages){ delete pendingPliegoFiles[id]; delete esSoloEPPendiente[id]; }
-        // Identifica y evalúa la experiencia requerida automáticamente, sin
-        // esperar un segundo clic en "Evaluar cumplimiento de experiencia".
+        // El archivo solo se descarta de memoria si ya se leyó completo -- si quedan páginas
+        // pendientes, "Seguir leyendo más páginas" lo necesita para continuar.
+        if (r.terminado){ delete pendingPliegoFiles[id]; delete esSoloEPPendiente[id]; }
+        // Identifica y evalúa la experiencia requerida automáticamente.
         evaluarExperienciaDeProceso(id, slot);
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo leer el PDF (' + escapeHtml(mensajeErrorPdf(err)) + ').</div>';
@@ -11770,29 +11753,23 @@
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… preparando página 1</div>';
-        const { text, numPages, pagesRead, paginaOffsets, rotacion } = await ocrPdfPages(file, 1, OCR_BATCH_PAGES, (pct, page, total) => {
-          slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
+        const r = await Lectura.iniciar(file, LECTOR_OCR, {
+          id: id, fileName: file.name, esSoloEP: esSoloEPPendiente[id], minTexto: 50, reanalizar: reanalizarTextoAcumulado,
+          onProgress: (pct, page, total) => {
+            slot.innerHTML = '<div class="analysis-loading">Ejecutando OCR (esto puede tardar varios minutos)… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '') + '</div>';
+          }
         });
-        if (!text || text.trim().length < 50){
+        if (r.enCurso){ alert('Ya hay una operación de lectura en curso para este proceso; espera a que termine.'); return; }
+        if (r.vacio){
           slot.innerHTML = '<div class="analysis-block analysis-warn">El OCR no logró reconocer texto en este PDF (calidad de escaneo muy baja, o el documento no tiene contenido en las páginas leídas). Revísalo manualmente.</div>';
           return;
         }
-        const { hallazgos, kResidual, exigencias } = analizarTexto(text);
-        const { comps } = compararConPerfiles(text, hallazgos);
-        const redFlags = detectarRedFlags(text, paginaOffsets);
-        const viabilidad = calcularViabilidad(redFlags);
-        // ocrRotacion: la orientación del escaneo ya detectada -- "Seguir leyendo más páginas"
-        // (.analysis-ocr-continue-btn) la reutiliza para no repetir la prueba de 4 rotaciones.
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaOcr: true, ocrRotacion: rotacion, esSoloEP: !!esSoloEPPendiente[id] };
+        const entry = r.entry;
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
-        // Identifica y evalúa la experiencia requerida automáticamente, sin
-        // esperar un segundo clic en "Evaluar cumplimiento de experiencia".
         evaluarExperienciaDeProceso(id, slot);
-        // Solo se descarta el archivo en memoria si ya se leyó completo -- si quedan
-        // páginas pendientes, "Seguir leyendo" lo necesita para continuar.
-        if (pagesRead >= numPages){ delete pendingOcrFiles[id]; delete esSoloEPPendiente[id]; }
+        if (r.terminado){ delete pendingOcrFiles[id]; delete esSoloEPPendiente[id]; }
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo completar el OCR (' + escapeHtml(mensajeErrorPdf(err)) + '). Puedes intentar de nuevo o abrir el PDF manualmente.</div>';
       }
@@ -11812,26 +11789,18 @@
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">La IA está leyendo el PDF (puede tardar un par de minutos)… páginas 1-' + IA_TRANSCRIBE_BATCH_PAGES + '</div>';
-        if (iaEnCurso[id]){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
-        iaEnCurso[id] = true;
-        let resultado1;
-        try { resultado1 = await transcribirPaginasConIA(file, 1, IA_TRANSCRIBE_BATCH_PAGES); } finally { delete iaEnCurso[id]; }
-        const { text, numPages, pagesRead, paginaOffsets } = resultado1;
-        if (!text || text.trim().length < 50){
+        const r = await Lectura.iniciar(file, LECTOR_IA, { id: id, fileName: file.name, esSoloEP: esSoloEPPendiente[id], minTexto: 50, reanalizar: reanalizarTextoAcumulado });
+        if (r.enCurso){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
+        if (r.vacio){
           slot.innerHTML = '<div class="analysis-block analysis-warn">La IA no reconoció texto en estas páginas (puede que estén en blanco). Revísalo manualmente.</div>';
           return;
         }
-        const { hallazgos, kResidual, exigencias } = analizarTexto(text);
-        const { comps } = compararConPerfiles(text, hallazgos);
-        const redFlags = detectarRedFlags(text, paginaOffsets);
-        const viabilidad = calcularViabilidad(redFlags);
-        const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaIA: true, esSoloEP: !!esSoloEPPendiente[id] };
-        Lectura.acumularUso(entry, resultado1);
+        const entry = r.entry;
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
         evaluarExperienciaDeProceso(id, slot);
-        if (pagesRead >= numPages){ delete pendingOcrFiles[id]; delete esSoloEPPendiente[id]; }
+        if (r.terminado){ delete pendingOcrFiles[id]; delete esSoloEPPendiente[id]; }
       } catch(err){
         slot.innerHTML = '<div class="analysis-block analysis-warn">No se pudo transcribir con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Puedes intentar de nuevo, usar OCR, o abrir el PDF manualmente.</div>';
       }

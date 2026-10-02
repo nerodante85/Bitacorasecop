@@ -2938,17 +2938,43 @@ await check('Lectura (módulo): si el texto se liberó por falta de espacio no s
   assert(r.liberado === true && e.text === '' && e.pagesRead === 0, 'no se mezcla texto nuevo con un entry sin texto');
 });
 
+await check('Lectura (módulo): iniciar crea el entry con la primera tanda, marca el método y devuelve vacío si no hay texto útil', async () => {
+  const lector = Object.assign(lectorFalso('ocr', 'ocrText', 3, { numPages: 7, rotacion: 90 }), { marca: { viaOcr: true } });
+  const r = await Lectura.iniciar({}, lector, { id: 'b1', fileName: 'x.pdf', esSoloEP: true, minTexto: 5 });
+  const e = r.entry;
+  assert(e.numPages === 7 && e.pagesRead === 3 && e.ocrText === 'p1 p2 p3 ' && e.viaOcr === true && e.ocrRotacion === 90 && e.esSoloEP === true && r.terminado === false, 'entry de la primera tanda');
+  assert(!('text' in e) || e.text === undefined, 'un entry de OCR no trae el campo text');
+  const vacio = await Lectura.iniciar({}, { metodo: 'texto', campoTexto: 'text', tanda: 3, leer: async () => ({ text: '  ', pagesRead: 3, numPages: 3, paginaOffsets: [] }) }, { id: 'b2', minTexto: 200 });
+  assert(vacio.vacio === true && !Lectura.enCurso['b2'], 'sin texto útil: vacío y bandera liberada');
+});
+
+await check('Lectura (módulo): iniciar con extenderSiEscaso lee una tanda más antes de declarar vacío (PDF-05), y solo una', async () => {
+  const lecturas = [];
+  const mk = (textoPorTanda) => ({ metodo: 'texto', campoTexto: 'text', tanda: 40, leer: async (f, d, h) => {
+    lecturas.push([d, h]);
+    const t = textoPorTanda(d); return { text: t, pagesRead: h, numPages: 200, paginaOffsets: [{ pagina: d, hasta: t.length }] };
+  } });
+  const r = await Lectura.iniciar({}, mk(d => (d === 1 ? 'portada ' : 'x'.repeat(300))), { id: 'b3', minTexto: 200, extenderSiEscaso: true });
+  assert(r.entry && lecturas.length === 2 && lecturas[1][0] === 41 && r.entry.pagesRead === 80, 'lee 1-40 y 41-80, y el texto de la segunda tanda cuenta');
+  lecturas.length = 0;
+  const v = await Lectura.iniciar({}, mk(() => 'poco'), { id: 'b4', minTexto: 200, extenderSiEscaso: true });
+  assert(v.vacio === true && lecturas.length === 2, 'si sigue escaso tras una tanda más, se declara vacío sin seguir leyendo todo el documento');
+  lecturas.length = 0;
+  await Lectura.iniciar({}, mk(() => 'poco'), { id: 'b5', minTexto: 200 });
+  assert(lecturas.length === 1, 'sin extenderSiEscaso no lee de más');
+});
+
 await check('Lectura (módulo): index.html carga lectura.js, los 3 lectores comparten el módulo y pages.yml lo publica', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert(/<script src="lectura\.js"><\/script>/.test(html), 'index.html debe cargar lectura.js antes del script principal');
   assert(/const iaEnCurso = Lectura\.enCurso/.test(html), 'la extracción de requisitos comparte la bandera del módulo');
-  assert((html.match(/Lectura\.(avanzar|leerTodo)\(/g) || []).length === 4, 'los 4 caminos de seguir leyendo usan el módulo');
+  assert((html.match(/Lectura\.(avanzar|leerTodo)\(/g) || []).length === 4 && (html.match(/Lectura\.iniciar\(/g) || []).length === 3, 'los 4 caminos de seguir leyendo y las 3 primeras lecturas usan el módulo');
   assert(/cp index\.html lectura\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar lectura.js al sitio');
 });
 
-await check('PDF-05: un PDF con poco texto en las primeras páginas lee una tanda más antes de declararlo escaneado', () => {
+await check('PDF-05: la primera lectura de texto usa extenderSiEscaso (la lógica se prueba en el módulo Lectura)', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert(/extractPdfText\(file, TEXT_BATCH_PAGES, pagesRead \+ 1\)/.test(html), 'debe leer una tanda más adelante antes de ofrecer OCR/IA');
+  assert(/Lectura\.iniciar\(file, LECTOR_TEXTO, \{[^}]*minTexto: 200, extenderSiEscaso: true/.test(html), 'debe usar extenderSiEscaso con minTexto 200');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
