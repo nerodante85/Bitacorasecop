@@ -6361,3 +6361,19 @@ cambio de código. Hasta entonces, el resumen diario solo es útil para el corre
 y `curl.exe -sS -X POST "https://mfqdeqxuwnczexonhlxu.supabase.co/functions/v1/daily-digest?debug=1" -H "x-cron-secret: SECRETO"`
 (en PowerShell se usa `curl.exe`: `curl` es un alias de otro comando). Esa corrida puede enviar correos
 reales. No pulsar "Ver nuevos" antes: marca la alerta como revisada y reinicia el conteo a 0.
+
+## Accesibilidad: etiquetas de formulario y `aria-expanded` en los sellos de ayuda
+
+Pendientes de la auditoría de cumplimiento (UX/accesibilidad):
+- **`<label for>`**: 31 etiquetas (`<label>` suelto seguido de su control) ahora llevan `for="<id>"`, más 2 de los
+  dropzones de RUP/RUT (apuntan a su `<input type=file>` oculto: pulsar la etiqueta abre el selector) y un
+  `aria-label` en el input oculto de experiencia (`bt-expeval-exp-file`). Los checkbox que ya van dentro de su
+  `<label class="toggle">` no cambian (asociación implícita).
+- **`aria-expanded`**: los sellos `.tag-tip` (ALTA/MEDIA/BAJA y GO/REVISAR/NO-GO) nacen con
+  `aria-expanded="false"` y el manejador de clic de `resultsEl` lo sincroniza al abrir/cerrar la nota.
+- **Prueba** (`tests/smoke.mjs`, "Accesibilidad"): falla si algún control de formulario del HTML estático no
+  tiene `label for`, label envolvente o `aria-label`, si queda un `<label>` huérfano, o si un `.tag-tip` nace sin
+  `aria-expanded`. Mutación comprobada (quitar un `for` la hace fallar). Verificado en navegador: clic en la
+  etiqueta enfoca el campo y `aria-expanded` pasa false -> true -> false.
+- Alcance: solo el HTML estático. Los controles que genera JS dentro de strings (filas de contratos en
+  ejecución, selector múltiple de consorcio del Pipeline...) no se auditaron en esta pasada.

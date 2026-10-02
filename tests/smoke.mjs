@@ -3064,6 +3064,31 @@ await check('Lectura (módulo): index.html carga lectura.js, los 3 lectores comp
   assert(/cp index\.html lectura\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar lectura.js al sitio');
 });
 
+await check('Accesibilidad: todo control de formulario tiene su etiqueta (label for / label envolvente / aria-label) y los sellos de ayuda anuncian aria-expanded', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const body = html.slice(0, html.indexOf('<script src="lectura.js">'));
+  const conFor = new Set([...body.matchAll(/<label[^>]*\bfor="([^"]+)"/g)].map(m => m[1]));
+  const envueltos = new Set();
+  for (const m of body.matchAll(/<label\b[^>]*>((?:(?!<\/label>)[\s\S])*)<\/label>/g)) {
+    const c = /<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"/.exec(m[1]);
+    if (c) envueltos.add(c[1]);
+  }
+  const sinEtiqueta = [];
+  for (const m of body.matchAll(/<(input|select|textarea)\b([^>]*)>/g)) {
+    const a = m[2];
+    if (/type="hidden"/.test(a)) continue;
+    const id = (/\bid="([^"]+)"/.exec(a) || [])[1];
+    if (/aria-label(?:ledby)?=/.test(a) || (id && (conFor.has(id) || envueltos.has(id)))) continue;
+    sinEtiqueta.push(id || m[0].slice(0, 40));
+  }
+  assert(sinEtiqueta.length === 0, 'controles sin etiqueta: ' + sinEtiqueta.join(', '));
+  const huerfanas = [...body.matchAll(/<label>(?:(?!<\/label>)[\s\S])*<\/label>/g)].filter(m => !/<(?:input|select|textarea)\b/.test(m[0]));
+  assert(huerfanas.length === 0, 'labels sin for ni control dentro: ' + huerfanas.map(m => m[0].slice(0, 50)).join(' | '));
+  const tips = [...html.matchAll(/tag-tip" tabindex="0" role="button"([^>]{0,40})/g)];
+  assert(tips.length >= 2 && tips.every(m => /aria-expanded="false"/.test(m[1])), 'cada sello .tag-tip debe nacer con aria-expanded="false"');
+  assert(/setAttribute\('aria-expanded'/.test(html), 'el manejador debe actualizar aria-expanded al abrir/cerrar la nota');
+});
+
 await check('Evaluacion (módulo): index.html lo carga antes del script principal, lo usa para el motor y pages.yml lo publica', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert(/<script src="evaluacion\.js"><\/script>/.test(html), 'index.html debe cargar evaluacion.js antes del script principal');
