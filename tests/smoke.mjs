@@ -2869,5 +2869,26 @@ await check('Pipeline: siguienteEtapa/etapaAnterior recorren ETAPAS_PIPELINE en 
   assert(expEngine.etapaAnterior('etapa-inexistente') === null);
 });
 
+await check('PDF-01: con lectura parcial, "Extraer requisitos con IA" no recorta el PDF por páginas (el filtro solo ve el texto ya leído)', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/lecturaParcial\(entry\) \? null : paginasRelevantesParaIA\(entry\)/.test(html), 'debe mandar el PDF completo si la lectura es parcial');
+  assert(!/lee el documento completo de una sola vez/.test(html), 'la nota ya no debe prometer lectura completa');
+});
+
+await check('PDF-02/03/04/07: la lectura con IA acumula tokens y duración, bloquea operaciones simultáneas y reanaliza una sola vez', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/uso: data\.uso \|\| null, ms: Date\.now\(\) - t0/.test(html), 'transcribirPaginasConIA debe devolver uso y duración');
+  assert((html.match(/acumularUsoTranscripcion\(entry/g) || []).length >= 3, 'las 3 rutas de transcripción acumulan el uso');
+  assert((html.match(/if \(iaEnCurso\[id\]\)/g) || []).length >= 4, 'todas las operaciones de IA comparten la bandera iaEnCurso');
+  const bucle = html.slice(html.indexOf('async function autoLeerConIABucle'), html.indexOf('async function autoLeerConIABucle') + 2500);
+  const dentroWhile = bucle.slice(bucle.indexOf('while ('), bucle.indexOf('reanalizarTextoAcumulado(entry);\n    analisis[id] = entry;\n    saveAnalisis(id);\n    if (entry.pagesRead'));
+  assert(!/analizarTexto\(|detectarRedFlags\(/.test(dentroWhile.replace(/reanalizarTextoAcumulado\(entry\);\n\s*analisis/, '')), 'el bucle no debe reanalizar el texto en cada tanda');
+});
+
+await check('PDF-05: un PDF con poco texto en las primeras páginas lee una tanda más antes de declararlo escaneado', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/extractPdfText\(file, TEXT_BATCH_PAGES, pagesRead \+ 1\)/.test(html), 'debe leer una tanda más adelante antes de ofrecer OCR/IA');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

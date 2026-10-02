@@ -4327,6 +4327,7 @@
       throw new Error('Inicia sesión desde "Tu cuenta" para transcribir con IA.');
     }
     if (file.size > 24 * 1024 * 1024) throw new Error('El PDF pesa más de 24 MB -- no se puede transcribir con IA.');
+    const t0 = Date.now();
     const client = await getSupabaseClient();
     const path = sbCompanyId + '/' + (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2))) + '.pdf';
     const { error: upErr } = await client.storage.from('pliegos').upload(path, file, { contentType: 'application/pdf', upsert: false });
@@ -4346,7 +4347,7 @@
       if (data && data.error) throw new Error(data.error);
       if (data && data.contrato !== CONTRATO_TRANSCRIPCION) throw new Error('La función de transcripción del servidor está desactualizada (contrato ' + (data.contrato == null ? 'antiguo' : data.contrato) + ', se esperaba ' + CONTRATO_TRANSCRIPCION + '): hay que volver a desplegar transcribir-pdf.');
       if (!data || typeof data.text !== 'string') throw new Error('Respuesta inesperada de la función.');
-      return { text: data.text, numPages: data.numPages, pagesRead: data.pagesRead, paginaOffsets: data.paginaOffsets || [] };
+      return { text: data.text, numPages: data.numPages, pagesRead: data.pagesRead, paginaOffsets: data.paginaOffsets || [], uso: data.uso || null, ms: Date.now() - t0 };
     } finally {
       // La función ya borra el PDF de Storage al terminar (éxito o error) -- esto es un
       // respaldo por si la invocación ni siquiera llegó a ejecutarse (ej. red caída antes de
@@ -4360,6 +4361,30 @@
   // (un pliego de 112 páginas a 8/tanda son ~14 clics manuales). Mismo costo total que hacerlo
   // tanda por tanda -- solo menos clics --, y se puede cancelar a medio camino (iaAutoLeerCancelado).
   const iaAutoLeerCancelado = {}; // { id: true } -- el usuario pidió cancelar el auto-leer de ESE proceso
+
+  // PDF-02/PDF-04: suma tokens y duración de cada tanda de transcripción en el entry, para mostrar
+  // cuánto costó/tardó la lectura con IA (antes se descartaba lo que el servidor ya devolvía).
+  function acumularUsoTranscripcion(entry, result){
+    const u = entry.transcripcionUso || { input_tokens: 0, output_tokens: 0, ms: 0, tandas: 0 };
+    u.input_tokens += Number((result.uso && result.uso.input_tokens) || 0);
+    u.output_tokens += Number((result.uso && result.uso.output_tokens) || 0);
+    u.ms += Number(result.ms || 0);
+    u.tandas += 1;
+    entry.transcripcionUso = u;
+  }
+
+  // PDF-07: el reanálisis por reglas sobre el texto acumulado se hace una vez, no en cada tanda.
+  function reanalizarTextoAcumulado(entry){
+    const fullText = entry.ocrText || '';
+    const { hallazgos, kResidual, exigencias } = analizarTexto(fullText);
+    entry.kResidual = kResidual;
+    entry.exigencias = exigencias;
+    entry.comps = compararConPerfiles(fullText, hallazgos).comps;
+    entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
+    entry.viabilidad = calcularViabilidad(entry.redFlags);
+    delete entry.comp;
+  }
+
   async function autoLeerConIA(id, slot){
     const entry = analisis[id];
     const file = pendingOcrFiles[id];
@@ -4367,6 +4392,16 @@
       slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a subir el PDF para continuar leyéndolo.</div>';
       return;
     }
+    // PDF-03: una sola operación de IA por proceso a la vez (compartida con extraerRequisitosConIA).
+    if (iaEnCurso[id]){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
+    iaEnCurso[id] = true;
+    try {
+      await autoLeerConIABucle(id, slot, entry, file);
+    } finally {
+      delete iaEnCurso[id];
+    }
+  }
+  async function autoLeerConIABucle(id, slot, entry, file){
     delete iaAutoLeerCancelado[id];
     while (entry.pagesRead < entry.numPages){
       if (iaAutoLeerCancelado[id]) break;
@@ -4381,29 +4416,28 @@
         result = await transcribirPaginasConIA(file, from, to);
       } catch(err){
         const ctx = itemYScorePara(id);
+        reanalizarTextoAcumulado(entry);
+        analisis[id] = entry;
+        saveAnalisis(id);
         slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s) + '<div class="analysis-block analysis-warn">No se pudo seguir leyendo con IA (' + escapeHtml(err && err.message ? err.message : String(err)) + '). Quedó leído hasta la página ' + entry.pagesRead + '/' + entry.numPages + ' -- puedes intentar de nuevo.</div>';
         delete iaAutoLeerCancelado[id];
         return;
       }
       if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); delete iaAutoLeerCancelado[id]; return; }
       const baseLen = (entry.ocrText || '').length;
-      const fullText = (entry.ocrText || '') + result.text;
-      entry.ocrText = fullText;
+      entry.ocrText = (entry.ocrText || '') + result.text;
       entry.paginaOffsets = (entry.paginaOffsets || []).concat(
         (result.paginaOffsets || []).map(p => ({ pagina: p.pagina, hasta: p.hasta + baseLen }))
       );
       entry.pagesRead = result.pagesRead;
       entry.ts = Date.now();
-      const { hallazgos: nuevosHallazgos, kResidual, exigencias } = analizarTexto(fullText);
-      entry.kResidual = kResidual;
-      entry.exigencias = exigencias;
-      entry.comps = compararConPerfiles(fullText, nuevosHallazgos).comps;
-      entry.redFlags = detectarRedFlags(fullText, entry.paginaOffsets);
-      entry.viabilidad = calcularViabilidad(entry.redFlags);
-      delete entry.comp;
+      acumularUsoTranscripcion(entry, result);
       analisis[id] = entry;
       saveAnalisis(id);
     }
+    reanalizarTextoAcumulado(entry);
+    analisis[id] = entry;
+    saveAnalisis(id);
     if (entry.pagesRead >= entry.numPages) delete pendingOcrFiles[id];
     delete iaAutoLeerCancelado[id];
     evaluarExperienciaDeProceso(id, slot);
@@ -9267,6 +9301,9 @@
       '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') +
         (entry.esSoloEP ? ' · <span class="tag" title="Sin Pliego de Condiciones publicado todavía">Estudio Previo</span>' : '') +
         ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
+      (entry.transcripcionUso
+        ? '<div class="saved-note">Lectura con IA: ' + entry.transcripcionUso.tandas + ' tanda(s) · ' + Number(entry.transcripcionUso.input_tokens).toLocaleString('es-CO') + ' tokens de entrada / ' + Number(entry.transcripcionUso.output_tokens).toLocaleString('es-CO') + ' de salida · ' + Math.round(entry.transcripcionUso.ms / 1000) + ' s en total</div>'
+        : '') +
       redFlagsHtml +
       bloqueCronogramaRiesgosIAHtml(entry) +
       // El usuario pidió explícitamente hacer énfasis en esta sección: "es
@@ -9316,7 +9353,7 @@
       // de requisitos habilitantes. Sin esta nota, era fácil asumir que había que terminar de
       // leer todo el documento aquí antes de poder usar esa tabla -- no es necesario.
       ((entry.viaIA || entry.viaOcr) && entry.pagesRead < entry.numPages && !entry.requisitosIA
-        ? '<div class="saved-note" style="margin-top:8px;">💡 Si solo necesitas la tabla de requisitos habilitantes, no hace falta seguir leyendo aquí -- usa "Extraer requisitos con IA" (arriba, en "Requisitos habilitantes"), que lee el documento completo de una sola vez.</div>'
+        ? '<div class="saved-note" style="margin-top:8px;">💡 Si solo necesitas la tabla de requisitos habilitantes, no hace falta seguir leyendo aquí -- usa "Extraer requisitos con IA" (arriba, en "Requisitos habilitantes"): como aún no se leyó todo el documento, manda el PDF completo a la IA (puede tardar más que con un pliego ya leído).</div>'
         : '') +
       (entry.viaIA && entry.pagesRead < entry.numPages
         ? '<div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">' +
@@ -11264,7 +11301,10 @@
       // motor de reglas ya detecta como relevantes (ver "Páginas relevantes..." arriba)
       // -- reduce cuánto tiene que leer/generar la IA, sin perder la ventaja de leer
       // el PDF como imagen (tablas/matrices). Las adendas se mandan siempre completas.
-      const paginasRelevantes = paginasRelevantesParaIA(entry);
+      // PDF-01: el filtro busca anclas SOLO en el texto ya leído; con lectura parcial no puede ver
+      // las páginas aún sin leer y recortaría en silencio secciones reales. Con lectura parcial se
+      // manda siempre el PDF completo (más lento, pero "lee el documento completo" es cierto).
+      const paginasRelevantes = lecturaParcial(entry) ? null : paginasRelevantesParaIA(entry);
       const { data, error } = await client.functions.invoke('extraer-requisitos', {
         body: {
           company_id: sbCompanyId,
@@ -11682,7 +11722,16 @@
       slot.innerHTML = '<div class="analysis-loading">Leyendo PDF…</div>';
       try {
         await appReady;
-        const { text, numPages, pagesRead, paginaOffsets } = await extractPdfText(file, TEXT_BATCH_PAGES);
+        let { text, numPages, pagesRead, paginaOffsets } = await extractPdfText(file, TEXT_BATCH_PAGES);
+        // PDF-05: portada/índice/anexos de poca densidad en las primeras páginas no significan
+        // "escaneado". Antes de ofrecer OCR/IA (más lento y de pago) se lee UNA tanda más adelante.
+        if ((!text || text.trim().length < 200) && pagesRead < numPages){
+          const mas = await extractPdfText(file, TEXT_BATCH_PAGES, pagesRead + 1);
+          const base = (text || '').length;
+          text = (text || '') + mas.text;
+          paginaOffsets = paginaOffsets.concat(mas.paginaOffsets.map(o => ({ pagina: o.pagina, hasta: o.hasta + base })));
+          pagesRead = mas.pagesRead;
+        }
         if (!text || text.trim().length < 200){
           pendingOcrFiles[id] = file;
           const blobUrl = URL.createObjectURL(file);
@@ -11783,7 +11832,11 @@
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">La IA está leyendo el PDF (puede tardar un par de minutos)… páginas 1-' + IA_TRANSCRIBE_BATCH_PAGES + '</div>';
-        const { text, numPages, pagesRead, paginaOffsets } = await transcribirPaginasConIA(file, 1, IA_TRANSCRIBE_BATCH_PAGES);
+        if (iaEnCurso[id]){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
+        iaEnCurso[id] = true;
+        let resultado1;
+        try { resultado1 = await transcribirPaginasConIA(file, 1, IA_TRANSCRIBE_BATCH_PAGES); } finally { delete iaEnCurso[id]; }
+        const { text, numPages, pagesRead, paginaOffsets } = resultado1;
         if (!text || text.trim().length < 50){
           slot.innerHTML = '<div class="analysis-block analysis-warn">La IA no reconoció texto en estas páginas (puede que estén en blanco). Revísalo manualmente.</div>';
           return;
@@ -11793,6 +11846,7 @@
         const redFlags = detectarRedFlags(text, paginaOffsets);
         const viabilidad = calcularViabilidad(redFlags);
         const entry = { id: id, ts: Date.now(), fileName: file.name, numPages: numPages, pagesRead: pagesRead, ocrText: text, paginaOffsets: paginaOffsets, kResidual: kResidual, exigencias: exigencias, comps: comps, redFlags: redFlags, viabilidad: viabilidad, viaIA: true, esSoloEP: !!esSoloEPPendiente[id] };
+        acumularUsoTranscripcion(entry, resultado1);
         conservarCamposAuxiliares(entry, analisis[id]);
         analisis[id] = entry;
         saveAnalisis(id);
@@ -11925,8 +11979,12 @@
       try {
         await appReady;
         slot.innerHTML = '<div class="analysis-loading">La IA está leyendo el PDF (puede tardar un par de minutos)… páginas ' + from + '-' + to + '</div>';
-        const result = await transcribirPaginasConIA(file, from, to);
+        if (iaEnCurso[id]){ alert('Ya hay una operación de IA en curso para este proceso; espera a que termine.'); return; }
+        iaEnCurso[id] = true;
+        let result;
+        try { result = await transcribirPaginasConIA(file, from, to); } finally { delete iaEnCurso[id]; }
         if (entry.textoLiberado){ alert('Se liberó el texto de este pliego para ahorrar espacio: vuelve a analizarlo desde cero (cargando el PDF) en lugar de seguir leyendo.'); return; }
+        acumularUsoTranscripcion(entry, result);
         const baseLen = (entry.ocrText || '').length;
         const fullText = (entry.ocrText || '') + result.text;
         entry.ocrText = fullText;
