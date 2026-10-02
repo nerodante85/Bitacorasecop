@@ -822,6 +822,18 @@
   #bitacora-root .pipeline-resultado { display: flex; gap: 6px; }
   #bitacora-root .pipeline-card-acciones { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
   #bitacora-root .pipeline-card-acciones select { flex: 1; min-width: 0; }
+  /* Mismo aspecto que los demás selectores de la app (antes salían con el estilo nativo del navegador y
+     recortaban "Análisis de riesgos / RU…"), en tamaño compacto para la tarjeta. */
+  #bitacora-root .pipeline-card select {
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface);
+    color: var(--text); font-family: inherit; font-size: 12.5px; padding: 6px 8px; text-overflow: ellipsis;
+  }
+  #bitacora-root .pipeline-card select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  #bitacora-root .pipeline-consorcio select { width: 100%; }
+  #bitacora-root .pipeline-consorcio label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 6px 0 4px; }
+  /* El selector "Mover a" ocupa su propio renglón (en una tarjeta angosta compartía fila con los botones y
+     se cortaba el nombre de la etapa); "◂" y "✕ Quitar" quedan debajo. */
+  #bitacora-root .pipeline-card-acciones select { order: -1; flex: 1 1 100%; }
   @media (max-width: 560px) {
     #bitacora-root .pipeline-col { flex: 0 0 220px; }
   }
@@ -906,7 +918,7 @@
   /* ============================================================
      DASHBOARD
      ============================================================ */
-  #bitacora-root .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  #bitacora-root .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
   #bitacora-root .stat-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm); padding: 18px 20px;
