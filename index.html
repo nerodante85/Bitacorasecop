@@ -7518,7 +7518,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function resumenEjecutivo(res){
     const m = res.mejor;
     const fails = m.gates.filter(g => g.estado === 'fail').map(g => g.nombre);
-    const revisar = m.gates.filter(g => g.estado === 'revisar').map(g => g.nombre);
+    // Un gate "nd" (falta información) también bloquea el GO (ver decidirVeredicto), así que también se
+    // nombra aquí: antes solo salían los "revisar" y, con la Experiencia en "Requiere verificación", el
+    // resumen decía "los puntos marcados como revisar" sin nombrar ninguno.
+    const revisar = m.gates.filter(g => g.estado === 'revisar' || g.estado === 'nd').map(g => g.nombre);
     const quien = res.porPerfil.length > 1 ? ' con ' + m.perfil : '';
     if (m.veredicto === 'GO') return 'No se detectó ningún incumplimiento en los puntos evaluados' + quien + '. Es orientativo (no es asesoría): confirma con el pliego oficial antes de decidir.';
     if (m.veredicto === 'NO-GO') return 'NO se recomienda participar' + quien + (fails.length ? ' — no cumple: ' + fails.join(', ') + '.' : '.');
