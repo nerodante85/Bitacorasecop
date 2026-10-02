@@ -1576,6 +1576,29 @@ function evaluarReqTexto(textoReq, expHeaders, expRows, hoy) {
 const H_BASICO = ['Objeto', 'Contratante', 'Valor'];
 const PUENTE = 'Construcción de puentes vehiculares';
 
+// ---- MC-019: un contrato EN EJECUCIÓN (terminación futura) no acredita experiencia ----
+const H_FECHA = ['Objeto', 'Contratante', 'Valor', 'Fecha de terminación'];
+await check('MC-019: sin ventana ni cifras, el único contrato relevante está en ejecución -> NO DETERMINABLE (antes CUMPLE)', () => {
+  const { r } = evaluarReqTexto('Experiencia en construcción de puentes vehiculares', H_FECHA, [[PUENTE, 'Alcaldía X', '900000000', '2027-03-01']]);
+  assert(r.resultado === 'NO DETERMINABLE', 'un contrato en ejecución no acredita: ' + r.resultado + ' -- ' + r.justificacion);
+  assert(/ejecuci/i.test(r.justificacion + ' ' + r.evidencia.join(' ') + ' ' + r.faltantes.join(' ')), 'debe explicar que el contrato está en ejecución');
+});
+await check('MC-019 (control): el mismo contrato ya terminado SÍ cumple', () => {
+  const { r } = evaluarReqTexto('Experiencia en construcción de puentes vehiculares', H_FECHA, [[PUENTE, 'Alcaldía X', '900000000', '2024-03-01']]);
+  assert(r.resultado === 'CUMPLE', 'contrato terminado: ' + r.resultado + ' -- ' + r.justificacion);
+});
+await check('MC-019: el valor de un contrato en ejecución no cuenta para el mínimo; con uno terminado además, cumple', () => {
+  const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000';
+  const solo = evaluarReqTexto(txt, H_FECHA, [[PUENTE, 'Alcaldía X', '900000000', '2027-03-01']]).r;
+  assert(solo.resultado === 'NO DETERMINABLE', 'solo en ejecución: ' + solo.resultado + ' -- ' + solo.justificacion);
+  const ambos = evaluarReqTexto(txt, H_FECHA, [[PUENTE, 'Alcaldía X', '900000000', '2027-03-01'], [PUENTE, 'Alcaldía Y', '900000000', '2024-03-01']]).r;
+  assert(ambos.resultado === 'CUMPLE', 'con uno terminado: ' + ambos.resultado + ' -- ' + ambos.justificacion);
+});
+await check('MC-019: un contrato en ejecución no se cuenta, pero un "no alcanza" no es concluyente -> NO DETERMINABLE, no NO CUMPLE', () => {
+  const { r } = evaluarReqTexto('Mínimo 2 contratos de construcción de puentes vehiculares', H_FECHA, [[PUENTE, 'Alcaldía X', '900000000', '2024-03-01'], [PUENTE, 'Alcaldía Y', '900000000', '2027-03-01']]);
+  assert(r.resultado === 'NO DETERMINABLE', '1 terminado + 1 en ejecución de 2 exigidos: ' + r.resultado + ' -- ' + r.justificacion);
+});
+
 await check('MC-001: valor mínimo en PESOS en texto libre ya no se ignora: contrato de $1.000.000 vs "$500.000.000" -> NO CUMPLE (antes CUMPLE)', () => {
   for (const txt of [
     'Mínimo 1 contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000',

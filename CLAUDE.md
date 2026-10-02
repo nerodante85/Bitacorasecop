@@ -6397,3 +6397,15 @@ HTML sale escapado en todas partes. Dos observaciones menores, ya corregidas:
   `input` en ambos campos) cuando el mínimo supera al máximo.
 Pruebas: 3 nuevas en `tests/smoke.mjs` (mutación comprobada); verificado en navegador que el aviso nace oculto
 (`display:none`), aparece con el rango imposible y desaparece al corregirlo.
+
+## MC-019: un contrato en ejecución ya no acredita experiencia (requisitos sin ventana temporal)
+
+`evaluarRequisito` contaba como experiencia un contrato con fecha de terminación FUTURA (en ejecución) cuando el
+requisito no traía ventana ("últimos N años"; con ventana ya iba a "sin fecha confiable"). Ahora
+`contratoEnEjecucion(c, hoy)` (junto a `estadoTemporalDeContrato`) los saca de `evalSet`: no cuentan para el
+mínimo de contratos, valor ni cantidad; si el único relevante está en ejecución y el requisito no trae cifras,
+el resultado es NO DETERMINABLE (antes CUMPLE) y la justificación lo dice; si por no contarlos el criterio
+numérico daría NO CUMPLE, queda NO DETERMINABLE (al terminar podrían contar), igual que un contrato sin fecha
+confiable. La evidencia nombra cuántos se excluyeron. 4 pruebas nuevas ("MC-019") con control positivo
+(el mismo contrato ya terminado sí cumple) y mutación comprobada. Limitación: fechas en formatos que el lector
+no normaliza a ISO no se detectan como futuras (siguen la ruta de siempre).

@@ -5241,6 +5241,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return d.getTime() >= limite.getTime() ? 'dentro' : 'vencido';
   }
 
+  // MC-019: un contrato cuya fecha de terminación es FUTURA está en ejecución: todavía no acredita
+  // experiencia (el trabajo no se ha completado). Con ventana temporal ya lo trata como "sin fecha
+  // confiable" estadoTemporalDeContrato; esta función cubre los requisitos SIN ventana.
+  function contratoEnEjecucion(c, hoy){
+    if (!c || !c.fechaFin) return false;
+    const d = new Date(c.fechaFin + 'T00:00:00');
+    return !isNaN(d.getTime()) && d.getFullYear() >= 1990 && d.getTime() > hoy.getTime();
+  }
+
   function evaluarCondicionTemporal(req, relevantes, hoy){
     if (!req.condicionTemporal) return null;
     const limite = ventanaTemporalLimite(req, hoy);
@@ -5613,6 +5622,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       evalSet = relevantes.filter((c, i) => estT[i] === 'dentro');
       sinFechaTemporal = estT.filter(e => e === 'sin-fecha').length;
     }
+    // MC-019 (requisitos sin ventana): los contratos en ejecución no cuentan como experiencia acreditada
+    // para el mínimo de contratos/valor/cantidad; si por eso el resultado sería NO CUMPLE, queda NO
+    // DETERMINABLE (al terminarlos podrían contar) -- mismo manejo que un contrato sin fecha confiable.
+    let enEjecucionSinVentana = 0;
+    if (!req.condicionTemporal){
+      const enEj = relevantes.filter(c => contratoEnEjecucion(c, hoy));
+      if (enEj.length){
+        evalSet = relevantes.filter(c => enEj.indexOf(c) === -1);
+        sinFechaTemporal = enEj.length;
+        enEjecucionSinVentana = enEj.length;
+      }
+    }
     const exclusionTemporal = !!req.condicionTemporal && relevantes.length > 0 && evalSet.length === 0;
 
     const evidencia = [];
@@ -5686,6 +5707,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
     }
 
+    if (enEjecucionSinVentana){
+      evidencia.push(enEjecucionSinVentana + ' contrato(s) relevante(s) en ejecución (fecha de terminación posterior a hoy) no se cuentan como experiencia acreditada.');
+    }
     if (exclusionTemporal){
       evidencia.push('Ninguno de los ' + relevantes.length + ' contrato(s) relevante(s) por objeto tiene fecha de terminación confirmada dentro de la ventana exigida ("' + req.condicionTemporal.texto + '").');
       if (req.minContratos != null || req.minValor != null || req.minCantidad != null) numericoOk = sinFechaTemporal > 0 ? null : false;
@@ -5724,7 +5748,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
     } else if (sinCriteriosNumericos){
       const gateTemporal = evaluarCondicionTemporal(req, relevantes, hoy);
-      if (req.condicionNoVerificable){
+      if (enEjecucionSinVentana && evalSet.length === 0){
+        resultado = 'NO DETERMINABLE';
+        justificacion = 'Hay ' + relevantes.length + ' contrato(s) con coincidencia TOTAL de palabras distintivas, pero ' + (relevantes.length === 1 ? 'está' : 'todos están') +
+          ' en ejecución (fecha de terminación posterior a hoy): un contrato sin terminar todavía no acredita experiencia. Confirma a mano si el pliego acepta experiencia en ejecución.';
+        faltantes.push('Confirmar si el pliego acepta contratos en ejecución como experiencia, o esperar a que terminen.');
+      } else if (req.condicionNoVerificable){
         resultado = 'NO DETERMINABLE';
         justificacion = 'Hay ' + relevantes.length + ' contrato(s) con coincidencia TOTAL de las palabras distintivas del requisito, pero el requisito exige además una condición cuantitativa ("' + req.condicionNoVerificable + '") que el sistema no puede verificar automáticamente contra el Excel/PDF/Word de experiencia (no hay un campo estructurado equivalente). Revisa manualmente el objeto completo del contrato antes de confirmar CUMPLE.';
         faltantes.push('Confirmar a mano si el contrato satisface la condición "' + req.condicionNoVerificable + '".');
