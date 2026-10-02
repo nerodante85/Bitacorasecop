@@ -1189,6 +1189,11 @@
               <div class="stat-card-value" id="bt-dash-alta">0</div>
               <div class="stat-card-note" id="bt-dash-alta-note">Busca procesos para ver tu shortlist</div>
             </div>
+            <div class="stat-card">
+              <div class="stat-card-label">Pipeline comercial</div>
+              <div class="stat-card-value" id="bt-dash-pipeline">0</div>
+              <div class="stat-card-note" id="bt-dash-pipeline-note">Agrega procesos con "+ Pipeline" para seguirlos</div>
+            </div>
           </div>
 
           <div class="titleblock" id="bt-dash-respaldo-panel">
@@ -2583,6 +2588,34 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function etapaAnterior(etapaActual){
     const i = ETAPAS_PIPELINE.findIndex(e => e.id === etapaActual);
     return (i <= 0) ? null : ETAPAS_PIPELINE[i - 1].id;
+  }
+
+  // KPIs del pipeline (puro: recibe `historial`). Solo cuentan los procesos con `etapa`. "Radicados" =
+  // los que ya llegaron a "Radicado en SECOP" o a "Adjudicado / Perdido"; la tasa de éxito se calcula
+  // SOLO sobre los que el usuario ya marcó adjudicado o perdido (un resultado pendiente no cuenta ni a
+  // favor ni en contra) y es null sin ninguno -- nunca se inventa un 0%.
+  function resumenPipeline(hist){
+    const porEtapa = {};
+    ETAPAS_PIPELINE.forEach(e => { porEtapa[e.id] = 0; });
+    let total = 0, adjudicados = 0, perdidos = 0, valorAdjudicado = 0;
+    Object.keys(hist || {}).forEach(id => {
+      const h = hist[id];
+      if (!h || !h.etapa || !(h.etapa in porEtapa)) return;
+      total++;
+      porEtapa[h.etapa]++;
+      if (h.etapa === 'resultado' && h.resultado === 'adjudicado'){
+        adjudicados++;
+        const v = Number(h.snapshot && h.snapshot.valor);
+        if (isFinite(v) && v > 0) valorAdjudicado += v;
+      } else if (h.etapa === 'resultado' && h.resultado === 'perdido') perdidos++;
+    });
+    const radicados = porEtapa.radicado + porEtapa.resultado;
+    const decididos = adjudicados + perdidos;
+    return {
+      total: total, porEtapa: porEtapa, radicados: radicados, adjudicados: adjudicados, perdidos: perdidos,
+      pendientes: porEtapa.resultado - decididos, valorAdjudicado: valorAdjudicado,
+      tasaExito: decididos > 0 ? Math.round((adjudicados / decididos) * 100) : null
+    };
   }
 
   // `item` es el proceso normalizado ya en memoria (de `scored`/`lastScored`) -- se captura un
@@ -12194,6 +12227,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (altaNoteEl) altaNoteEl.textContent = (lastScored && lastScored.length)
         ? 'De ' + lastScored.length + ' proceso(s) en tu última búsqueda'
         : 'Busca procesos para ver tu shortlist';
+    }
+
+    const pipeEl = document.getElementById('bt-dash-pipeline');
+    const pipeNoteEl = document.getElementById('bt-dash-pipeline-note');
+    if (pipeEl){
+      const r = resumenPipeline(historial);
+      pipeEl.textContent = r.total;
+      if (pipeNoteEl){
+        if (!r.total) pipeNoteEl.textContent = 'Agrega procesos con "+ Pipeline" para seguirlos';
+        else {
+          const partes = [r.radicados + ' radicado(s)'];
+          if (r.tasaExito !== null) partes.push(r.adjudicados + ' adjudicado(s) de ' + (r.adjudicados + r.perdidos) + ' resueltos (' + r.tasaExito + '%)');
+          else if (r.pendientes > 0) partes.push(r.pendientes + ' resultado(s) por marcar');
+          pipeNoteEl.textContent = partes.join(' · ');
+        }
+      }
     }
 
     const recEl = document.getElementById('bt-dash-recientes');
