@@ -6264,3 +6264,21 @@ de operación en curso, reanálisis único, cancelación y texto liberado; mutac
 
 No se probó con un PDF real en el navegador (solo que la página carga y `Lectura` existe, 0 errores
 de consola): conviene que el usuario pruebe un "Seguir leyendo" real con cada método.
+
+## Motor de evaluación con contexto explícito (revisión de arquitectura, candidato 2)
+
+`evaluarProceso` (el veredicto GO/REVISAR/NO-GO) leía el rango de valor del DOM (`getInputs()`) y el
+personal de una variable global (`perfilesProfesionales`, vía `gatePersonalRequerido`), así que sus
+pruebas tenían que simular esos globales. Decisiones acordadas con el usuario: solo quitar globales y
+DOM (el código se queda en `index.html`, NO se movió a un archivo aparte -- queda para otra ronda si
+se quiere eliminar del todo la extracción por anclas del arnés de pruebas) y mantener
+`evaluarMejor(item, s, entry)` para los 6 llamadores de la interfaz.
+
+Ahora: `evaluarProceso(item, s, matriz, entry, ctx)` y `gatePersonalRequerido(hallazgos, personal)`
+reciben todo por argumento, con `ctx = { minV, maxV, perfilesProfesionales, perfiles }`;
+`evaluarContraPerfiles(item, s, entry, ctx)` evalúa cada perfil y elige el mejor;
+`contextoEvaluacion()` arma el contexto desde la pantalla y el estado global; y `evaluarMejor` es un
+envoltorio de dos líneas sobre ambos. Las pruebas ya no usan `setInputsFake`/`setPerfilesProfesionales`
+(se eliminaron) y pasan `CTX_EVAL`; hay tres pruebas nuevas (rango de valor por ctx, personal por ctx,
+mejor de varios perfiles), con mutación comprobada en dos. Verificado en el navegador: la lista y la
+vista "Evaluación y documentos" siguen evaluando y la consola queda limpia.

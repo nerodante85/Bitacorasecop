@@ -352,7 +352,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN +
-    '\nreturn { parsearExcelExperiencia, siguienteEtapa, etapaAnterior, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, experienciaGateDetalle, compsDe, codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setPerfilesProfesionales: v => { globalThis.perfilesProfesionales = v; }, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setInputsFake: v => { globalThis.getInputs = () => v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, siguienteEtapa, etapaAnterior, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, experienciaGateDetalle, compsDe, codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, evaluarContraPerfiles, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -372,13 +372,8 @@ function extractExperienceEngine() {
       return { querySelector: (sel) => (sel === 'table' && tableHtml) ? { querySelectorAll: () => trs } : null };
     }
   };
-  // evaluarProceso (bloque I) lee getInputs() (inputs del DOM en la app real, aquí un valor
-  // fijo por defecto) y perfilesProfesionales (estado global mutable); aplicarRequisitosIAaEntry
-  // (bloque K) lee expevalContratos -- los tests ajustan estos tres con
-  // setInputsFake/setPerfilesProfesionales/setExpevalContratos antes de cada caso.
-  globalThis.getInputs = () => ({ keywords: [], geos: [], municipios: [], minV: 0, maxV: 0, numProceso: '' });
-  globalThis.perfilesProfesionales = {};
-  globalThis.expevalContratos = null;
+  // evaluarProceso (bloque I) ya no lee DOM ni globales: recibe su contexto (CTX_EVAL, más abajo).
+  // aplicarRequisitosIAaEntry (bloque K) lee expevalContratos -- los tests lo ajustan con setExpevalContratos.
   // recalcularExpevalActivo (bloque L) / perfilesParaComparar (bloque M) -- "Experiencia por
   // empresa". migrarPerfil no se extrae (no hace falta probarla aquí): un passthrough alcanza,
   // ya que los fixtures de los tests ya traen la forma final que perfilesParaComparar necesita.
@@ -2576,6 +2571,8 @@ await check('parsearRUT: sin ningún item reconocible, todo queda null/0 -- no s
 });
 
 // ---- QA-001: evaluarProceso completo (el veredicto GO/NO-GO/REVISAR real, no solo sus gates aislados) ----
+// Contexto explícito del motor: sin DOM ni globales (antes se simulaban con setInputsFake/setPerfilesProfesionales).
+const CTX_EVAL = { minV: 0, maxV: 0, perfilesProfesionales: {}, perfiles: [] };
 function itemProceso(extra) { return Object.assign({ id: 'p1', entidad: 'Alcaldía X', valor: 500000000, estado: 'Abierta' }, extra || {}); }
 function matrizFeliz(extra) {
   return Object.assign({
@@ -2591,26 +2588,48 @@ function entryFeliz(extra) {
 }
 
 await check('evaluarProceso: caso feliz -- todo en verde (plazo, valor, capacidad, índices, experiencia) da GO', () => {
-  expEngine.setInputsFake({ minV: 0, maxV: 0 });
-  const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entryFeliz());
+  const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entryFeliz(), CTX_EVAL);
   assert(res.veredicto === 'GO', 'se esperaba GO, fue ' + res.veredicto + ' -- gates: ' + JSON.stringify(res.gates));
   assert(res.conPliego === true, 'con entry, conPliego debe ser true');
   assert(!res.gates.some(g => g.estado === 'fail' || g.estado === 'nd' || g.estado === 'revisar'), 'ningún gate debería quedar pendiente: ' + JSON.stringify(res.gates));
 });
 
 await check('evaluarProceso: límite -- sin K residual en el perfil, todo lo demás en verde, el veredicto NUNCA es GO (RT-004, probado de punta a punta)', () => {
-  expEngine.setInputsFake({ minV: 0, maxV: 0 });
-  const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz({ kResidual: null }), entryFeliz());
+  const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz({ kResidual: null }), entryFeliz(), CTX_EVAL);
   assert(res.veredicto === 'REVISAR', 'sin K residual el veredicto máximo es REVISAR, fue ' + res.veredicto);
   const gCap = res.gates.find(g => g.nombre === 'Capacidad vs valor');
   assert(gCap && gCap.estado === 'nd', 'el gate de capacidad debe existir y quedar "requiere verificación": ' + JSON.stringify(gCap));
 });
 
 await check('evaluarProceso: inválido -- un proceso ya adjudicado da NO-GO aunque todo lo demás esté en verde', () => {
-  expEngine.setInputsFake({ minV: 0, maxV: 0 });
-  const res = expEngine.evaluarProceso(itemProceso({ estado: 'Adjudicado' }), { daysLeft: 10 }, matrizFeliz(), entryFeliz());
+  const res = expEngine.evaluarProceso(itemProceso({ estado: 'Adjudicado' }), { daysLeft: 10 }, matrizFeliz(), entryFeliz(), CTX_EVAL);
   assert(res.veredicto === 'NO-GO', 'un proceso adjudicado debe dar NO-GO, fue ' + res.veredicto);
   assert(res.gates.some(g => g.nombre === 'Estado del proceso' && g.estado === 'fail'), 'debe existir el gate de estado en fail: ' + JSON.stringify(res.gates));
+});
+
+await check('evaluarProceso con contexto explícito: el rango de valor llega por ctx (sin DOM) y un valor fuera de rango nunca da GO', () => {
+  const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entryFeliz(), Object.assign({}, CTX_EVAL, { minV: 900000000 }));
+  const g = res.gates.find(x => x.nombre === 'Valor de la obra');
+  assert(g && g.estado === 'revisar' && res.veredicto === 'REVISAR', 'por debajo del mínimo del perfil de obra: ' + JSON.stringify(g) + ' / ' + res.veredicto);
+});
+
+await check('evaluarProceso con contexto explícito: el personal registrado llega por ctx y decide el gate de Personal', () => {
+  const entry = entryFeliz({ comps: [{ hallazgosAnotados: [{ categoria: 'Personal / Equipo de trabajo', snippet: 'Director de obra ingeniero civil con diez años de experiencia' }] }] });
+  const con = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entry, Object.assign({}, CTX_EVAL, { perfilesProfesionales: { a: { nombre: 'Ing. Pérez', cargo: 'Director de obra', formacion: 'Ingeniero civil' } } }));
+  const sin = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entry, CTX_EVAL);
+  const gc = con.gates.find(x => x.nombre === 'Personal / equipo de trabajo'), gs = sin.gates.find(x => x.nombre === 'Personal / equipo de trabajo');
+  assert(gc && gc.estado === 'ok' && /Ing\. Pérez/.test(gc.detalle), 'con personal registrado: ' + JSON.stringify(gc));
+  assert(gs && gs.estado === 'nd' && sin.veredicto !== 'GO', 'sin personal registrado queda por verificar y no es GO: ' + JSON.stringify(gs));
+});
+
+await check('evaluarContraPerfiles: evalúa cada perfil con el mismo contexto y devuelve el mejor (GO > REVISAR > NO-GO)', () => {
+  const perfil = (id, kResidual) => ({ _id: id, nombre: 'Empresa ' + id, rup: '', k: 'Índice de liquidez: 1.5\nNivel de endeudamiento: 0.4', kResidual: kResidual });
+  const ctx = Object.assign({}, CTX_EVAL, { perfiles: [perfil('chica', '$100.000.000'), perfil('grande', '$900.000.000')] });
+  const r = expEngine.evaluarContraPerfiles(itemProceso(), { daysLeft: 10 }, entryFeliz(), ctx);
+  assert(r.porPerfil.length === 2, 'un resultado por perfil');
+  assert(r.mejor.perfil === 'Empresa grande' && r.mejor.veredicto === 'GO', 'el mejor es la empresa con capacidad suficiente: ' + r.mejor.perfil + ' ' + r.mejor.veredicto);
+  assert(r.porPerfil.find(x => x.perfil === 'Empresa chica').veredicto !== 'GO', 'la empresa sin capacidad no llega a GO');
+  assert(expEngine.evaluarContraPerfiles(itemProceso(), { daysLeft: 10 }, entryFeliz(), Object.assign({}, CTX_EVAL, { perfiles: [] })) === null, 'sin perfiles no hay evaluación');
 });
 
 // ---- QA-001: aplicarRequisitosIAaEntry (cablea conflictos + exigencias + experiencia al entry) ----

@@ -7587,16 +7587,16 @@
   // duplicar lógica. Nunca afirma "no cumple" solo porque no hay coincidencia
   // de palabras -- eso solo dice "revísalo a mano" (nd), consistente con el
   // resto de la app.
-  function gatePersonalRequerido(hallazgos){
-    const total = Object.keys(perfilesProfesionales).length;
+  function gatePersonalRequerido(hallazgos, personal){
+    const total = Object.keys(personal).length;
     if (!total){
       return { estado: 'nd', detalle: 'El pliego menciona personal/equipo de trabajo, pero todavía no has registrado ningún perfil profesional en "Personal".' };
     }
     const coincidencias = [];
     hallazgos.forEach(h => {
       const distintivas = palabrasClaveDe(h.snippet).filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !esTokenNumerico(p));
-      Object.keys(perfilesProfesionales).forEach(pid => {
-        const pp = perfilesProfesionales[pid];
+      Object.keys(personal).forEach(pid => {
+        const pp = personal[pid];
         const texto = normHeader([pp.cargo, pp.formacion, pp.especializaciones, pp.experiencia, pp.competencias].filter(Boolean).join(' '));
         const nombre = pp.nombre || 'Sin nombre';
         if (distintivas.some(p => texto.indexOf(p) !== -1) && coincidencias.indexOf(nombre) === -1) coincidencias.push(nombre);
@@ -7612,7 +7612,9 @@
   // Evalúa un proceso contra UNA matriz de capacidad.
   //   entry (análisis del pliego) opcional -> con él se evalúan indicadores
   //   financieros y experiencia exigidos; sin él, evaluación "ligera".
-  function evaluarProceso(item, s, matriz, entry){
+  //   ctx: { minV, maxV, perfilesProfesionales } -- todo lo que antes se leía de la pantalla
+  //   (getInputs) y de variables globales entra aquí por argumento, así el motor se prueba sin DOM.
+  function evaluarProceso(item, s, matriz, entry, ctx){
     const gates = [];
     const g = (nombre, estado, detalle) => gates.push({ nombre: nombre, estado: estado, detalle: detalle });
     // No `Number(item.valor) || null`: un proceso con valor base EXACTAMENTE
@@ -7623,7 +7625,7 @@
     // impreciso ("no reporta valor base" en vez de "$0").
     const valorNum = Number(item.valor);
     const valor = (item.valor != null && !isNaN(valorNum)) ? valorNum : null;
-    const { minV, maxV } = getInputs();
+    const { minV, maxV } = ctx;
     const daysLeft = s ? s.daysLeft : null;
 
     // Estado del proceso
@@ -7734,7 +7736,7 @@
       // Personal / equipo de trabajo (solo si el pliego menciona algo de esto).
       const hallazgosPersonal = ((compsDe(entry)[0] || {}).hallazgosAnotados || []).filter(h => h.categoria === 'Personal / Equipo de trabajo').concat(entry.hallazgosPersonalIA || []);
       if (hallazgosPersonal.length){
-        const gPersonal = gatePersonalRequerido(hallazgosPersonal);
+        const gPersonal = gatePersonalRequerido(hallazgosPersonal, ctx.perfilesProfesionales);
         g('Personal / equipo de trabajo', gPersonal.estado, gPersonal.detalle);
       }
     } else {
@@ -7750,13 +7752,23 @@
 
   // Evalúa contra TODOS los perfiles marcados (o el que se edita si no hay marcados)
   // y devuelve el resultado por perfil + el "mejor" (GO > REVISAR > NO-GO).
-  function evaluarMejor(item, s, entry){
-    const perfiles = perfilesParaComparar();
+  // ctx.perfiles: la lista de perfiles de empresa a comparar (ver perfilesParaComparar).
+  function evaluarContraPerfiles(item, s, entry, ctx){
     const rank = { 'GO': 0, 'REVISAR': 1, 'NO-GO': 2 };
-    const porPerfil = perfiles.map(p => evaluarProceso(item, s, matrizCapacidad(p), entry));
+    const porPerfil = ctx.perfiles.map(p => evaluarProceso(item, s, matrizCapacidad(p), entry, ctx));
     if (!porPerfil.length) return null;
     const mejor = porPerfil.slice().sort((a, b) => rank[a.veredicto] - rank[b.veredicto])[0];
     return { mejor: mejor, porPerfil: porPerfil };
+  }
+
+  // Envoltorio para la interfaz: arma el contexto desde la pantalla y el estado global y llama al
+  // motor. Es lo único que los llamadores de la interfaz necesitan conocer.
+  function contextoEvaluacion(){
+    const { minV, maxV } = getInputs();
+    return { minV: minV, maxV: maxV, perfilesProfesionales: perfilesProfesionales, perfiles: perfilesParaComparar() };
+  }
+  function evaluarMejor(item, s, entry){
+    return evaluarContraPerfiles(item, s, entry, contextoEvaluacion());
   }
 
   function evalChipHtml(res){
