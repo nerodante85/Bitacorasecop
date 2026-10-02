@@ -6409,3 +6409,26 @@ numérico daría NO CUMPLE, queda NO DETERMINABLE (al terminar podrían contar),
 confiable. La evidencia nombra cuántos se excluyeron. 4 pruebas nuevas ("MC-019") con control positivo
 (el mismo contrato ya terminado sí cumple) y mutación comprobada. Limitación: fechas en formatos que el lector
 no normaliza a ISO no se detectan como futuras (siguen la ruta de siempre).
+
+## Primera prueba real con un escaneo de 112 páginas ("Documento Base Meta.pdf"): 4 hallazgos, corregidos
+
+Prueba hecha por el usuario en el sitio publicado (capturas), con un pliego escaneado de 112 páginas leído por IA
+(8/112, 65 s, 13.243/8.476 tokens) y su Excel real de experiencia (306 contratos, 4 empresas):
+1. **BUG mío: "Volver a extraer con IA" fallaba con HTTP 400 de Anthropic** ("Schemas contains too many
+   parameters with union types (18 ... )"). El API de structured outputs rechaza más de 16 parámetros con unión de
+   tipos; `REQUISITOS_SCHEMA` tenía 16 `nullable(...)` y el cronograma (`fecha`/`hora`, agregado el 1-oct sin
+   probarlo contra el API real) sumó 2. Ahora `fecha`/`hora` son `string` planos ("" = no consta; el cliente ya
+   trataba "" como ausente). Prueba estática nueva: el esquema no puede pasar de 16 uniones (mutación comprobada).
+   **Lección: un cambio al esquema de la función exige correr una extracción real antes de darlo por bueno.**
+2. **Un PDF de más de 100 páginas no cabe en una petición** (límite del API, y el tiempo): `limitarPaginasPdf` en
+   la función manda solo las primeras 100 cuando no hay recorte por páginas relevantes y devuelve `avisos`; el
+   cliente los guarda en `requisitosIA.avisos` y los muestra en un aviso visible. Probado con `pdf-lib` real
+   (112 -> 100 páginas; 100, 30 y un PDF corrupto no se tocan). No se pudo probar contra el API de Claude.
+3. **"Cumple parcialmente" en gates de lectura**: "Lectura del pliego" y "Completitud de la lectura" pasan de
+   `revisar` a `nd` ("Requiere verificación"); leer 8 de 112 páginas no es un cumplimiento parcial. El veredicto
+   no cambia (ambos bloquean el GO); el % de cumplimiento ya no los cuenta como parciales.
+4. **"100/100 viabilidad" con 8/112 páginas leídas**: ahora dice "solo con las 8 de 112 páginas leídas", y "sin
+   alertas" aclara que las demás no se revisaron (en pantalla y en el informe .txt).
+Aclaración sobre las 7 filas "sin verificar" de la captura: eran de una extracción vieja (1-oct 16:46 UTC, 25.723
+tokens, solo ~14 páginas, hecha con el texto de OCR parcial) -- la guarda "lectura parcial => no recortar" (PDF-0x)
+ya existía. Sus citas en páginas 13-14 no se podían verificar porque esas páginas no estaban leídas.

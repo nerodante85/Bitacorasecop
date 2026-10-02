@@ -6981,7 +6981,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const ESPERADAS = [['experiencia_especifica', 'experiencia específica'], ['capacidad_financiera', 'capacidad financiera'], ['k_residual', 'capacidad residual (K)'], ['garantias', 'garantías']];
     const faltan = ESPERADAS.filter(e => !hab.some(f => f.categoria === e[0])).map(e => e[1]);
     if (faltan.length){
-      out.push({ nombre: 'Completitud de la lectura', estado: 'revisar',
+      out.push({ nombre: 'Completitud de la lectura', estado: 'nd', // falta información, no "cumple parcialmente"
         detalle: 'La IA no encontró requisitos de: ' + faltan.join(', ') + '. Confirma en el pliego que realmente no se exigen; una omisión de la lectura no significa que no existan.' });
     }
     return out;
@@ -7579,7 +7579,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const v = res.mejor.veredicto;
     const cls = v === 'GO' ? 'eval-go' : v === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
     const primeraRazon = (res.mejor.gates.filter(g => g.estado === 'fail')[0] ||
-                          res.mejor.gates.filter(g => g.estado === 'revisar')[0] || {}).detalle || '';
+                          res.mejor.gates.filter(g => g.estado === 'revisar')[0] ||
+                          res.mejor.gates.filter(g => g.estado === 'nd')[0] || {}).detalle || '';
     // Bug real corregido de paso (encontrado revisando esta misma línea
     // para el fix de "tag-tip" en móvil): `res.mejor.perfil` se escapaba
     // aquí Y otra vez con el resto de `t` más abajo -- un nombre de
@@ -8798,9 +8799,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           '<td>' + badgeEstadoIA(f.estado) + '<div class="ia-cita">' + escapeHtml(truncate(f.detalle, 260)) + '</div></td>' +
           '<td>' + fuente + cita + confirmar + '</td></tr>' + filaComparar;
       }).join('');
+      const avisoServidor = (ia.avisos && ia.avisos.length)
+        ? '<div class="analysis-block analysis-warn" role="alert">⚠ ' + ia.avisos.map(escapeHtml).join(' ') + ' Los requisitos de esas páginas no aparecen aquí.</div>' : '';
       const avisoInyeccion = (ia.avisosInyeccion && ia.avisosInyeccion.length)
         ? '<div class="analysis-block analysis-warn" role="alert">⚠ Este PDF contiene texto dirigido a una IA (' + ia.avisosInyeccion.map(h => escapeHtml(h.documento + (h.pagina ? ', p. ' + h.pagina : ''))).join('; ') + '). Puede ser un intento de manipular la lectura: ninguna fila se da por buena hasta que la confirmes a mano.</div>' : '';
-      tabla = avisoInyeccion + '<div class="saved-note" style="margin:6px 0;">' + filas.length + ' requisito(s) extraído(s) por IA' +
+      tabla = avisoServidor + avisoInyeccion + '<div class="saved-note" style="margin:6px 0;">' + filas.length + ' requisito(s) extraído(s) por IA' +
         (ia.uso ? ' · ' + Number(ia.uso.input_tokens || 0).toLocaleString('es-CO') + ' tokens de entrada / ' + Number(ia.uso.output_tokens || 0).toLocaleString('es-CO') + ' de salida' : '') +
         (nSin ? ' · <b>' + nSin + ' sin verificar</b> (no se usan para decidir hasta que las confirmes)' : '') + '.</div>' +
         '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Categoría</th><th>Requisito</th><th>Exigido</th><th>Estado con tu empresa</th><th>Fuente</th></tr></thead><tbody>' +
@@ -9038,6 +9041,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // análisis guardados ANTES de esta funcionalidad -- se omite el bloque
     // entero en vez de mostrar "undefined/100".
     const tieneRedFlags = Array.isArray(entry.redFlags);
+    // Con el pliego leído en parte, "100/100" y "sin alertas" solo hablan de lo leído: se dice explícito.
+    const parcialRF = lecturaParcial(entry);
     const redFlagsHtml = !tieneRedFlags ? '' :
       '<div class="analysis-sub">ALERTAS DEL PLIEGO' + (entry.redFlags.length ? ' (' + entry.redFlags.length + ')' : '') + '</div>' +
       (entry.redFlags.length
@@ -9047,11 +9052,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
             (f.pagina ? ' <span style="color:var(--text-muted);">— pliego, p. ' + f.pagina + '</span>' : '') +
             ' <span class="tag fuente" title="' + escapeHtml(f.snippet) + '">' + escapeHtml(f.articulo) + '</span></li>'
           ).join('') + '</ul>'
-        : '<ul class="analysis-list"><li>No se detectaron garantías por debajo del mínimo legal en el texto leído.</li></ul>') +
+        : '<ul class="analysis-list"><li>No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialRF ? ' (solo ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas): las demás no se revisaron' : '') + '.</li></ul>') +
       (entry.viabilidad != null
         ? '<div style="margin:6px 0 8px;"><span style="font-size:22px;font-weight:700;color:' +
           (entry.viabilidad >= 80 ? 'var(--success)' : (entry.viabilidad >= 50 ? 'var(--warning)' : 'var(--danger)')) +
           ';">' + entry.viabilidad + '/100</span> <span style="color:var(--text-muted);font-size:12.5px;">viabilidad orientativa' +
+          (parcialRF ? ' <strong>— solo con las ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas leídas</strong>' : '') +
           '<details class="info-tip"><summary aria-label="Cómo se calcula"></summary><p>100 menos una penalización fija por cada alerta — no es una certificación.</p></details></span></div>'
         : '');
 
@@ -10185,7 +10191,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (Array.isArray(entry.redFlags)){
       L.push('ALERTAS DEL PLIEGO' + (entry.viabilidad != null ? ' (viabilidad orientativa: ' + entry.viabilidad + '/100)' : ''));
       if (!entry.redFlags.length){
-        L.push('  No se detectaron garantías por debajo del mínimo legal en el texto leído.');
+        const parcialTxt = lecturaParcial(entry);
+        L.push('  No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialTxt ? ' (solo ' + parcialTxt.pagesRead + ' de ' + parcialTxt.numPages + ' páginas): las demás no se revisaron' : '') + '.');
       } else {
         entry.redFlags.forEach(f => {
           L.push('  [' + f.severidad.toUpperCase() + '] ' + f.mensaje);
@@ -11098,7 +11105,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // IA-006: las confirmaciones previas solo sobreviven si la cita y los valores son idénticos.
       filas = heredarConfirmaciones(filas, actual.requisitosIA && actual.requisitosIA.filas);
       actual.requisitosIA = {
-        ts: Date.now(), modelo: data.modelo || null, uso: data.uso || null, pdfSha256: pdfSha256, avisosInyeccion: avisosInyeccion,
+        ts: Date.now(), modelo: data.modelo || null, uso: data.uso || null, pdfSha256: pdfSha256, avisosInyeccion: avisosInyeccion, avisos: Array.isArray(data.avisos) ? data.avisos.map(a => String(a).slice(0, 300)) : [],
         documentos: docs.map(d => ({ nombre: d.file.name, rol: d.rol })), filas: filas
       };
       actual.cronogramaIA = cronograma;

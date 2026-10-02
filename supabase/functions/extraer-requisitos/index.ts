@@ -29,6 +29,7 @@ const MODEL = 'claude-sonnet-5';
 const BUCKET = 'pliegos';
 const MAX_DOCUMENTOS = 6;                 // 1 pliego + hasta 5 adendas
 const MAX_BYTES_TOTAL = 24 * 1024 * 1024; // 24 MB de PDF (base64 infla ~33%; el API acepta 32 MB por petición)
+const MAX_PAGINAS_PDF = 100;              // el API de Claude acepta como máximo 100 páginas de PDF por petición (y más tardaría demasiado)
 const LIMITE_DIARIO = 10;                 // extracciones por empresa en 24 h
 // Auditoría ESC-003: tope GLOBAL (todas las empresas) de extracciones en 24 h: acota el gasto aunque se
 // creen muchas cuentas. Se puede cambiar con el secret LIMITE_GLOBAL_DIARIO sin volver a desplegar.
@@ -88,6 +89,24 @@ async function recortarPdfAPaginas(bytes: Uint8Array, paginas: number[]): Promis
     return { bytes: bytesRecortados, mapa: validas }; // mapa[i] = página real de la posición i+1 del recorte
   } catch {
     return null; // cualquier fallo del PDF (cifrado, corrupto, etc.) -> se manda completo, no se bloquea la extracción
+  }
+}
+
+// Un PDF de más de MAX_PAGINAS_PDF páginas (p. ej. un pliego escaneado de 112) no cabe en una petición:
+// se manda solo el comienzo y se devuelve cuántas páginas quedaron fuera, para avisarlo al usuario. Nunca
+// lanza: si algo falla devuelve null y el llamador manda el PDF completo (como antes).
+async function limitarPaginasPdf(bytes: Uint8Array, max: number): Promise<{ bytes: Uint8Array; total: number } | null> {
+  try {
+    const src = await PDFDocument.load(bytes);
+    const total = src.getPageCount();
+    if (total <= max) return null;
+    const dst = await PDFDocument.create();
+    // deno-lint-ignore no-explicit-any -- tipos reales de pdf-lib no resolubles fuera de Deno; ver nota de arriba.
+    const copiadas = await dst.copyPages(src, Array.from({ length: max }, (_, i) => i));
+    copiadas.forEach((p: any) => dst.addPage(p));
+    return { bytes: await dst.save(), total };
+  } catch {
+    return null;
   }
 }
 
@@ -161,8 +180,11 @@ const REQUISITOS_SCHEMA = {
         type: 'object',
         properties: {
           evento: { type: 'string' },
-          fecha: nullable({ type: 'string' }), // tal cual la escribe el pliego -- NUNCA normalizar ni inventar el año
-          hora: nullable({ type: 'string' }),
+          // Texto plano ("" si el documento no la trae) y NO nullable: el API de structured outputs rechaza
+          // más de 16 parámetros con unión de tipos (18 con estos dos daban HTTP 400 en producción). El
+          // cliente ya trata "" como ausente (f.fecha || '—'). Mantener este conteo en <= 16 (ver prueba).
+          fecha: { type: 'string' }, // tal cual la escribe el pliego -- NUNCA normalizar ni inventar el año
+          hora: { type: 'string' },
           documento: { type: 'string' },
           pagina: { type: 'integer' },
           cita_textual: { type: 'string' },
@@ -226,7 +248,7 @@ Reglas estrictas:
 
 Además de "requisitos", devuelve estas dos listas (vacías si el documento no trae nada real -- nunca inventes un evento o un riesgo para no dejarlas vacías):
 
-CRONOGRAMA: todas las fechas/horas clave del proceso que encuentres en el texto -- cierre de presentación de ofertas, traslado del informe de evaluación, plazo para subsanar, audiencias, fecha de adjudicación, etc. "fecha" y "hora" van EXACTAMENTE como las escribe el documento (nunca normalices el formato ni inventes o completes un año que no esté escrito). Si una adenda modifica una fecha, reporta solo la vigente y cítala desde la adenda.
+CRONOGRAMA: todas las fechas/horas clave del proceso que encuentres en el texto -- cierre de presentación de ofertas, traslado del informe de evaluación, plazo para subsanar, audiencias, fecha de adjudicación, etc. "fecha" y "hora" van EXACTAMENTE como las escribe el documento (nunca normalices el formato ni inventes o completes un año que no esté escrito); si el documento no trae la hora (o la fecha), déjala como cadena vacía "". Si una adenda modifica una fecha, reporta solo la vigente y cítala desde la adenda.
 
 RIESGOS_IA: cláusulas inusuales, multas o sanciones especialmente severas, o requisitos de cumplimiento inusualmente difícil que notes en el texto -- tu propio criterio experto, MÁS ALLÁ de las cifras legales objetivas (esas ya las detecta otro mecanismo). "severidad" es tu valoración ("alta" para algo que podría descalificar a un proponente razonable o representar un riesgo financiero/legal grave; "media"/"baja" para algo a tener en cuenta pero menos crítico). Sé selectivo: solo cláusulas genuinamente fuera de lo común, no una lista exhaustiva de todo el pliego.
 
@@ -346,6 +368,7 @@ Deno.serve(async (req: Request) => {
     const contenido: unknown[] = [];
     let bytesTotal = 0;
     const mapaPorTitulo: Record<string, number[]> = {};
+    const avisos: string[] = [];
     for (const d of documentos) {
       const { data: blob, error: dlErr } = await supabase.storage.from(BUCKET).download(d.path);
       if (dlErr || !blob) return json({ error: 'No se pudo leer uno de los documentos de Storage' }, 404);
@@ -365,6 +388,15 @@ Deno.serve(async (req: Request) => {
           if (debug) log.push({ step: 'recorte', titulo, paginasPedidas: d.paginas.length, paginasUsadas: recorte.mapa.length });
         } else if (debug) {
           log.push({ step: 'recorte_omitido', titulo, paginasPedidas: d.paginas.length });
+        }
+      }
+      // Sin recorte por páginas relevantes: si el PDF pasa de MAX_PAGINAS_PDF páginas, solo las primeras entran.
+      if (!mapaPorTitulo[titulo]) {
+        const tope = await limitarPaginasPdf(bytesPdf, MAX_PAGINAS_PDF);
+        if (tope) {
+          bytesPdf = tope.bytes;
+          avisos.push('"' + titulo + '" tiene ' + tope.total + ' páginas: solo se enviaron las primeras ' + MAX_PAGINAS_PDF + ' a la IA (las ' + (tope.total - MAX_PAGINAS_PDF) + ' últimas no se leyeron).');
+          if (debug) log.push({ step: 'tope_paginas', titulo, total: tope.total, enviadas: MAX_PAGINAS_PDF });
         }
       }
       const b64 = encodeBase64(bytesPdf);
@@ -472,6 +504,7 @@ Deno.serve(async (req: Request) => {
         riesgos_ia: riesgosIA,
         uso: { input_tokens: inputTokens, output_tokens: outputTokens },
         modelo: MODEL,
+        ...(avisos.length ? { avisos } : {}),
         ...(debug ? { log } : {}),
       };
     };

@@ -52,7 +52,9 @@
   // los requisitos de las páginas sin leer no se evaluaron.
   function gateLecturaParcial(parcial){
     if (!parcial) return null;
-    return { estado: 'revisar', detalle: 'Solo se leyeron ' + parcial.pagesRead + ' de ' + parcial.numPages + ' páginas del pliego' + (parcial.metodo ? ' (por ' + parcial.metodo + ')' : '') + ': los requisitos de las páginas sin leer no se evaluaron, así que no se afirma un GO. Pulsa "Seguir leyendo más páginas" en el análisis.' };
+    // 'nd' (Requiere verificación), no 'revisar' ("Cumple parcialmente"): leer 8 de 112 páginas no es un
+    // cumplimiento parcial de nada, es información que falta. El veredicto no cambia (ambos bloquean el GO).
+    return { estado: 'nd', detalle: 'Solo se leyeron ' + parcial.pagesRead + ' de ' + parcial.numPages + ' páginas del pliego' + (parcial.metodo ? ' (por ' + parcial.metodo + ')' : '') + ': los requisitos de las páginas sin leer no se evaluaron, así que no se afirma un GO. Pulsa "Seguir leyendo más páginas" en el análisis.' };
   }
 
   // Regla del veredicto: cualquier fail -> NO-GO; cualquier "revisar" o "nd" (falta

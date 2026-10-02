@@ -2062,7 +2062,7 @@ await check('RT-004: valor de obra en 0 o ausente no genera un gate de capacidad
 
 await check('RT-007: un pliego leído en parte (15 de 76 páginas) nunca da GO aunque todo lo evaluado esté en verde', () => {
   const g = expEngine.gateLecturaParcial({ pagesRead: 15, numPages: 76, viaOcr: true });
-  assert(g && g.estado === 'revisar' && /15 de 76/.test(g.detalle), 'gate de lectura parcial: ' + JSON.stringify(g));
+  assert(g && g.estado === 'nd' && /15 de 76/.test(g.detalle), 'gate de lectura parcial: ' + JSON.stringify(g));
   const gates = TODO_OK.concat([Object.assign({ nombre: 'Lectura del pliego' }, g)]);
   assert(expEngine.decidirVeredicto(gates, true) === 'REVISAR', 'con lectura parcial el veredicto no puede ser GO');
   assert(expEngine.gateLecturaParcial(null) === null, 'lectura completa: sin gate');
@@ -2166,7 +2166,7 @@ await check('IA-008: requisitos jurídicos/garantías/otros y categorías ausent
   const manual = gs.find(x => x.nombre === 'Requisitos por verificar a mano');
   const compl = gs.find(x => x.nombre === 'Completitud de la lectura');
   assert(manual && manual.estado === 'nd' && /garantías, jurídico/.test(manual.detalle), 'gate manual: ' + JSON.stringify(manual));
-  assert(compl && compl.estado === 'revisar' && /capacidad financiera/.test(compl.detalle) && /capacidad residual/.test(compl.detalle), 'faltantes: ' + JSON.stringify(compl));
+  assert(compl && compl.estado === 'nd' && /capacidad financiera/.test(compl.detalle) && /capacidad residual/.test(compl.detalle), 'faltantes: ' + JSON.stringify(compl));
   assert(expEngine.decidirVeredicto(TODO_OK.concat(gs), true) === 'REVISAR', 'con estos gates nunca hay GO');
   const completo = ['experiencia_especifica', 'capacidad_financiera', 'k_residual', 'garantias'].map(c => filaIA({ categoria: c, naturaleza: 'habilitante' }));
   const gc = expEngine.gatesCompletitudIA(completo);
@@ -3151,6 +3151,31 @@ await check('Accesibilidad (controles generados por JS): cada <input>/<select>/<
     sinEtiqueta.push(m[0].slice(0, 70));
   }
   assert(sinEtiqueta.length === 0, 'controles generados sin etiqueta: ' + sinEtiqueta.join(' | '));
+});
+
+await check('extraer-requisitos: el esquema enviado a Anthropic no pasa de 16 parámetros con unión de tipos (con 18 el API responde HTTP 400)', () => {
+  const src = readFileSync(path.join(ROOT, 'supabase/functions/extraer-requisitos/index.ts'), 'utf8');
+  const i = src.indexOf('const REQUISITOS_SCHEMA');
+  const j = src.indexOf('\n};', i);
+  assert(i !== -1 && j > i, 'no se encontró REQUISITOS_SCHEMA');
+  const esquema = src.slice(i, j);
+  const uniones = (esquema.match(/nullable\(/g) || []).length + (esquema.match(/anyOf|oneOf/g) || []).length + (esquema.match(/type:\s*\[/g) || []).length;
+  assert(uniones <= 16, 'el esquema tiene ' + uniones + ' parámetros con unión de tipos; el API de structured outputs rechaza más de 16');
+  assert(!/hora:\s*nullable|fecha:\s*nullable/.test(esquema), 'fecha/hora del cronograma no deben volver a ser nullable (fueron las que pasaron de 16 a 18)');
+});
+await check('extraer-requisitos: un PDF de más de 100 páginas se recorta a las primeras 100 y el aviso llega al cliente', () => {
+  const src = readFileSync(path.join(ROOT, 'supabase/functions/extraer-requisitos/index.ts'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/const MAX_PAGINAS_PDF = 100;/.test(src) && /limitarPaginasPdf\(bytesPdf, MAX_PAGINAS_PDF\)/.test(src), 'la función debe limitar las páginas por documento');
+  assert(/\.\.\.\(avisos\.length \? \{ avisos \} : \{\}\)/.test(src), 'la respuesta debe llevar los avisos');
+  assert(/avisos: Array\.isArray\(data\.avisos\)/.test(html) && /ia\.avisos && ia\.avisos\.length/.test(html), 'el cliente debe guardar y mostrar los avisos del servidor');
+});
+
+await check('Lectura parcial: la viabilidad y "sin alertas" dicen cuántas páginas se leyeron, y los gates de lectura son "nd" (no "cumple parcialmente")', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/const parcialRF = lecturaParcial\(entry\);/.test(html) && /solo con las ' \+ parcialRF\.pagesRead/.test(html), 'la viabilidad debe aclarar que es solo con lo leído');
+  assert(/lecturaParcial\(entry\);\s*\n?\s*L\.push\('  No se detectaron|parcialTxt/.test(html), 'el informe de texto también debe aclararlo');
+  assert(/nombre: 'Completitud de la lectura', estado: 'nd'/.test(html), 'Completitud de la lectura debe ser nd');
 });
 
 await check('Evaluacion (módulo): index.html lo carga antes del script principal, lo usa para el motor y pages.yml lo publica', () => {
