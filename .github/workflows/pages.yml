@@ -47,7 +47,7 @@ jobs:
       - name: Preparar el sitio
         run: |
           mkdir -p _site/vendor
-          cp index.html lectura.js coincidencia.js 404.html privacidad.html snapshot.json sitemap.xml _site/
+          cp index.html lectura.js evaluacion.js coincidencia.js 404.html privacidad.html snapshot.json sitemap.xml _site/
           cp vendor/*.js _site/vendor/
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

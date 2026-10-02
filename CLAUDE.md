@@ -6313,3 +6313,27 @@ impresión: la próxima lectura real del usuario queda medida en su propio anál
 
 Ambos cambios se hicieron escribiendo la prueba primero (fallaba) y luego implementando, a pedido del
 usuario; mutación comprobada (copia del digest distinta, `parseNumCO` sin MC-015).
+
+## Módulo `evaluacion.js` (revisión de arquitectura, candidato 4)
+
+El motor del veredicto GO / REVISAR / NO-GO salió de `index.html` a `evaluacion.js` (script plano, sin
+build, mismo patrón que `lectura.js`/`coincidencia.js`; `pages.yml` lo copia al sitio). Contiene
+`evaluarProceso`, `evaluarContraPerfiles`, `decidirVeredicto`, los gates auxiliares
+(`gateCapacidadVsValor`, `gateLecturaParcial`, `ajustarGatesPorContratosIncompletos`,
+`gatePersonalRequerido`), `codigosExigidosEnPliego` y `compsDe`. Interfaz:
+`Evaluacion.crear(deps)` devuelve esas funciones; `deps` son las piezas que siguen viviendo en la página
+(`fmtMoney`, `truncate`, `palabrasClaveDe`, `PALABRAS_GENERICAS_OBRA`, `esTokenNumerico`, `normHeader`,
+`compararIndiceConUmbral`, `gatesCompletitudIA`, `lecturaParcial`, `experienciaGateDetalle`,
+`matrizCapacidad`) y el `ctx` de cada evaluación sigue siendo `{ minV, maxV, perfilesProfesionales,
+perfiles }`. El código se movió TAL CUAL (sin cambios de lógica); `matrizCapacidad`,
+`experienciaGateDetalle`, `contextoEvaluacion` y `evaluarMejor` se quedan en `index.html` porque dependen
+del DOM o de estado de la página.
+
+`tests/smoke.mjs` ya no extrae ese bloque por anclas: `extractExperienceEngine()` crea el motor con
+`Evaluacion.crear` usando las piezas extraídas de `index.html` y lo mezcla en `expEngine`, así que las
+pruebas existentes (RT-004, regla del veredicto, personal por ctx...) siguen igual. Una prueba nueva
+verifica que `index.html` carga el módulo, no redefine sus funciones y que `pages.yml` lo publica.
+Mutación comprobada: quitar `nd` de `decidirVeredicto` rompe 4 pruebas.
+
+Verificado en navegador (servidor local, perfil sembrado, datos de ejemplo): las 6 tarjetas muestran su
+veredicto y no hay errores de JavaScript (solo los de red por los CDN bloqueados en el sandbox).

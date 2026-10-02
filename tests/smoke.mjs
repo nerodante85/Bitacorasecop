@@ -25,6 +25,7 @@ import path from 'node:path';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 // Reglas compartidas (coincidencia.js): el mismo archivo que carga el navegador y copia daily-digest.
 const Coincidencia = (await import(pathToFileURL(path.join(ROOT, 'coincidencia.js')).href)).default;
+const Evaluacion = (await import(pathToFileURL(path.join(ROOT, 'evaluacion.js')).href)).default;
 const HTML_PATH = path.join(ROOT, 'index.html');
 const html = readFileSync(HTML_PATH, 'utf8');
 
@@ -132,7 +133,9 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     // Requisitos habilitantes con IA (ver CLAUDE.md).
     'verificarFilaIA', 'filaIAaRequisito', 'exigenciasDesdeIA', 'valorContratoEnSmmlv',
   ];
-  const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
+  // Las funciones del motor del veredicto viven en evaluacion.js (no en index.html).
+  const fuenteFunciones = html + '\n' + readFileSync(path.join(ROOT, 'evaluacion.js'), 'utf8');
+  const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(fuenteFunciones));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
 });
 
@@ -305,9 +308,11 @@ function extractExperienceEngine() {
   // getInputs() (lee inputs del DOM en la app real) y perfilesProfesionales (estado global
   // mutable) -- ambos se inyectan como globales mínimos más abajo, mismo patrón que el resto
   // de shims de esta función.
-  const iI0 = scriptBody.indexOf('function compsDe(entry){');
-  const iI1 = scriptBody.indexOf('function evaluarMejor(item, s, entry){', iI0);
-  assert(iI0 !== -1 && iI1 !== -1 && iI1 > iI0, 'no se encontraron las anclas del bloque compsDe..evaluarProceso');
+  // El motor del veredicto (evaluarProceso, los gates, decidirVeredicto...) vive en evaluacion.js
+  // y se crea más abajo con las piezas extraídas de index.html; aquí solo se extrae matrizCapacidad.
+  const iI0 = scriptBody.indexOf('function matrizCapacidad(p){');
+  const iI1 = scriptBody.indexOf('// El motor del veredicto GO/NO-GO vive en evaluacion.js', iI0);
+  assert(iI0 !== -1 && iI1 !== -1 && iI1 > iI0, 'no se encontraron las anclas de matrizCapacidad');
   const blockI = scriptBody.slice(iI0, iI1);
 
   // Bloque J: lectura del RUT por posición (x,y) de los items de pdf.js -- QA-001. Mismo
@@ -350,7 +355,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN +
-    '\nreturn { parsearExcelExperiencia, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, experienciaGateDetalle, compsDe, codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, evaluarContraPerfiles, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -382,7 +387,15 @@ function extractExperienceEngine() {
   globalThis.expevalPorPerfil = {};
   globalThis.expevalMeta = null;
   const factory = new Function('window', source);
-  return factory(fakeWindow);
+  const eng = factory(fakeWindow);
+  // El motor del veredicto sale de evaluacion.js, con las mismas piezas que le inyecta index.html.
+  Object.assign(eng, Evaluacion.crear({
+    fmtMoney: globalThis.fmtMoney, truncate: globalThis.truncate, palabrasClaveDe: eng.palabrasClaveDe,
+    PALABRAS_GENERICAS_OBRA: eng.PALABRAS_GENERICAS_OBRA, esTokenNumerico: eng.esTokenNumerico, normHeader: eng.normHeader,
+    compararIndiceConUmbral: eng.compararIndiceConUmbral, gatesCompletitudIA: eng.gatesCompletitudIA,
+    lecturaParcial: eng.lecturaParcial, experienciaGateDetalle: eng.experienciaGateDetalle, matrizCapacidad: eng.matrizCapacidad
+  }));
+  return eng;
 }
 
 // headers + filas -> "workbook" falso con la misma forma que espera
@@ -2828,7 +2841,7 @@ await check('Coincidencia (módulo): index.html lo carga antes del script princi
   assert(iMod !== -1 && iMod < html.search(/^<script>$/m), 'coincidencia.js se carga antes del <script> principal');
   ['parseNumCO', 'normalizeGeo', 'matchesGeo', 'matchesTerm', 'findField', 'prepararBusquedaPorNombre', 'esEstadoNoVigente', 'consultasSecopII'].forEach(n =>
     assert(!new RegExp('^\\s+function ' + n + '\\(', 'm').test(html), 'index.html no debe redefinir ' + n));
-  assert(/cp index\.html lectura\.js coincidencia\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia coincidencia.js');
+  assert(/cp index\.html lectura\.js evaluacion\.js coincidencia\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia coincidencia.js');
 });
 
 await check('ESC-002: la caché devuelve lo guardado mientras esté fresco y lo descarta al vencer', () => {
@@ -3034,6 +3047,15 @@ await check('Lectura (módulo): index.html carga lectura.js, los 3 lectores comp
   assert(/const iaEnCurso = Lectura\.enCurso/.test(html), 'la extracción de requisitos comparte la bandera del módulo');
   assert((html.match(/Lectura\.(avanzar|leerTodo)\(/g) || []).length === 4 && (html.match(/Lectura\.iniciar\(/g) || []).length === 3, 'los 4 caminos de seguir leyendo y las 3 primeras lecturas usan el módulo');
   assert(/cp index\.html lectura\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar lectura.js al sitio');
+});
+
+await check('Evaluacion (módulo): index.html lo carga antes del script principal, lo usa para el motor y pages.yml lo publica', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/<script src="evaluacion\.js"><\/script>/.test(html), 'index.html debe cargar evaluacion.js antes del script principal');
+  assert(/Evaluacion\.crear\(\{/.test(html), 'index.html debe crear el motor con Evaluacion.crear');
+  ['evaluarProceso', 'decidirVeredicto', 'gatePersonalRequerido', 'compsDe'].forEach(n =>
+    assert(!new RegExp('^\\s+function ' + n + '\\(', 'm').test(html), 'index.html no debe redefinir ' + n));
+  assert(/cp index\.html lectura\.js evaluacion\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar evaluacion.js al sitio');
 });
 
 await check('PDF-05: la primera lectura de texto usa extenderSiEscaso (la lógica se prueba en el módulo Lectura)', () => {
