@@ -352,6 +352,12 @@ function extractExperienceEngine() {
   assert(iO0 !== -1 && iO1 !== -1 && iO1 > iO0, 'no se encontraron las anclas de resumenEjecutivo');
   const blockO = scriptBody.slice(iO0, iO1);
 
+  // Bloque P: validaciones de entrada puras (años de experiencia, rango de valor).
+  const iP0 = scriptBody.indexOf('function validarAnosExperiencia(txt){');
+  const iP1 = scriptBody.indexOf('async function savePersonal(){', iP0);
+  assert(iP0 !== -1 && iP1 !== -1 && iP1 > iP0, 'no se encontraron las anclas de validarAnosExperiencia/avisoRangoValor');
+  const blockP = scriptBody.slice(iP0, iP1);
+
   // Bloque N: pipeline comercial (tablero Kanban) -- siguienteEtapa/etapaAnterior son puras y
   // fáciles de probar en aislamiento; ETAPAS_PIPELINE es la fuente única del orden de columnas.
   const iN0 = scriptBody.indexOf('const ETAPAS_PIPELINE = [');
@@ -360,8 +366,8 @@ function extractExperienceEngine() {
   const blockN = scriptBody.slice(iN0, iN1);
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
-    '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO +
-    '\nreturn { parsearExcelExperiencia, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
+    '\nreturn { parsearExcelExperiencia, validarAnosExperiencia, avisoRangoValor, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2591,6 +2597,26 @@ await check('parsearRUT: sin ningún item reconocible, todo queda null/0 -- no s
 function entryConConteo(conteo, resultadoGlobal) {
   return { experienciaResultado: { resultadoGlobal, conteo, totalObligatorios: 2, resultados: [{}, {}] } };
 }
+await check('validarAnosExperiencia: rechaza negativos y absurdos, acepta texto libre y cifras normales', () => {
+  const v = expEngine.validarAnosExperiencia;
+  assert(v('-5') && /negativos/.test(v('-5')), 'negativo debe rechazarse');
+  assert(v('- 3 años') !== null, 'negativo con espacio y texto');
+  assert(v('150') && /demasiado/.test(v('150')), 'absurdo (>70) debe rechazarse');
+  assert(v('8') === null && v('8 años') === null && v('12,5') === null && v('0') === null && v('70') === null, 'cifras normales aceptadas');
+  assert(v('varios años') === null && v('') === null && v(null) === null, 'sin número no se valida nada');
+});
+await check('avisoRangoValor: avisa solo cuando el mínimo supera al máximo y ambos están definidos', () => {
+  const a = expEngine.avisoRangoValor;
+  assert(a(900, 100) !== null, 'min > max avisa');
+  assert(a(100, 900) === null && a(500, 500) === null, 'rango válido no avisa');
+  assert(a(0, 100) === null && a(900, 0) === null && a(0, 0) === null, 'sin un extremo definido no avisa');
+});
+await check('Entradas: el campo de años no se guarda si es inválido y el rango muestra su aviso (cableado en index.html)', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/const errAnos = validarAnosExperiencia\(getCampo\(personalAnosEl\)\);\s*if \(errAnos\)\{[\s\S]{0,200}return;/.test(html), 'savePersonal debe salir antes de guardar con años inválidos');
+  assert(/id="bt-rango-aviso"/.test(html) && /minInput\.addEventListener\('input', actualizarAvisoRango\)/.test(html) && /maxInput\.addEventListener\('input', actualizarAvisoRango\)/.test(html), 'el aviso de rango debe estar cableado a mínimo y máximo');
+});
+
 await check('resumenEjecutivo: con el veredicto REVISAR nombra los gates "revisar" Y los "nd" (falta información)', () => {
   const res = { porPerfil: [{}], mejor: { veredicto: 'REVISAR', conPliego: true, perfil: 'X', gates: [
     { nombre: 'Experiencia', estado: 'nd' }, { nombre: 'Índice de liquidez', estado: 'revisar' }, { nombre: 'Estado del proceso', estado: 'ok' }

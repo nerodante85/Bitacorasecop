@@ -6382,3 +6382,18 @@ Pendientes de la auditoría de cumplimiento (UX/accesibilidad):
   dentro de un `<label>` ya estaban asociados. Prueba estática propia ("controles generados por JS"): escanea
   los strings del script y falla si un control no tiene `aria-label`, `<label for>` con su id o label
   envolvente (mutación comprobada). Verificado en navegador: pulsar la etiqueta de una fila enfoca su campo.
+
+## Testeo exploratorio (2026-10-02): dos entradas sin validar, corregidas
+
+Un recorrido exploratorio en Chromium sin ventana (7 vistas x 3 anchos, entradas hostiles, respaldo inválido,
+teclado, menú móvil, ciclo completo del Pipeline) no dio errores de JS ni de consola; el nombre de empresa con
+HTML sale escapado en todas partes. Dos observaciones menores, ya corregidas:
+- **Años de experiencia (Personal)** aceptaba y guardaba "-5". `validarAnosExperiencia(txt)` (pura, junto a
+  `savePersonal`) rechaza un número negativo o > 70 y `savePersonal` sale ANTES de guardar mostrando
+  "⚠ No se guardó: ..."; sin número ("varios años") no valida nada (el campo es texto libre).
+- **Valor mínimo/máximo (Buscar procesos)** no filtra la lista (solo resta 2 de prioridad y alimenta el gate
+  "Valor de la obra"), y con mínimo > máximo no avisaba. Ahora hay una línea de ayuda ("orienta la prioridad y el
+  veredicto; no oculta procesos") y `avisoRangoValor(minV, maxV)` muestra `#bt-rango-aviso` en vivo (listeners
+  `input` en ambos campos) cuando el mínimo supera al máximo.
+Pruebas: 3 nuevas en `tests/smoke.mjs` (mutación comprobada); verificado en navegador que el aviso nace oculto
+(`display:none`), aparece con el rango imposible y desaparece al corregirlo.
