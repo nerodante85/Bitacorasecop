@@ -6337,3 +6337,27 @@ Mutación comprobada: quitar `nd` de `decidirVeredicto` rompe 4 pruebas.
 
 Verificado en navegador (servidor local, perfil sembrado, datos de ejemplo): las 6 tarjetas muestran su
 veredicto y no hay errores de JavaScript (solo los de red por los CDN bloqueados en el sandbox).
+
+## `daily-digest` verificado en producción (2026-10-02): lógica OK, envío limitado al dueño de Resend
+
+Tras mover las reglas de coincidencia a `coincidencia.js` (copia idéntica en la carpeta de la función),
+se invocó la función desplegada (v28) con `?debug=1` y el `CRON_SECRET` real:
+- Sin secreto: 401 desde el manejador (la función arranca y el `import './coincidencia.js'` funciona).
+- Con secreto y sin alertas activas: 200, `errores: 0`, `debug` vacío (8 empresas revisadas, ninguna con el
+  resumen activado y alertas guardadas -- la lógica de conteo NO se ejercitó en esa corrida).
+- Con una alerta real ("Obras civiles Meta", solo departamento, sin palabras clave) y el resumen activado:
+  `nuevos: 1`, empresa/miembro/correo resueltos. La lógica de conteo con el módulo compartido funciona.
+
+**Limitación abierta: el correo solo le llega al dueño de la cuenta de Resend.** Resend respondió 403
+("You can only send testing emails to your own email address") porque la función envía desde
+`onboarding@resend.dev` (remitente de pruebas). Cualquier otro usuario que active el resumen falla, y cada
+fallo hace que la función responda 500 (OPS-007, comportamiento intencional: avisar, no ocultar). Para
+quitar la limitación: verificar un dominio propio en resend.com/domains (requiere acceso al DNS, solo lo
+puede hacer el dueño de la cuenta) y fijar el secret `DIGEST_FROM_EMAIL="Bitácora SECOP <avisos@dominio>"`
+(`supabase secrets set ... --project-ref mfqdeqxuwnczexonhlxu`). La función ya lee ese secret: no hay
+cambio de código. Hasta entonces, el resumen diario solo es útil para el correo del dueño de Resend.
+
+**Cómo volver a probarlo sin esperar al cron**: guardar una alerta, activar "Recibir un resumen diario",
+y `curl.exe -sS -X POST "https://mfqdeqxuwnczexonhlxu.supabase.co/functions/v1/daily-digest?debug=1" -H "x-cron-secret: SECRETO"`
+(en PowerShell se usa `curl.exe`: `curl` es un alias de otro comando). Esa corrida puede enviar correos
+reales. No pulsar "Ver nuevos" antes: marca la alerta como revisada y reinicia el conteo a 0.
