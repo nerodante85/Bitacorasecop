@@ -6163,3 +6163,82 @@ sin terminar su primera pasada de OCR después de más de 2 minutos), así que u
 scoping ya corregido) y el camino "con rotación conocida" es simple y determinista -- pendiente de que
 el usuario confirme la mejora real de velocidad en su propio uso, con un pliego largo leído en varias
 tandas.
+
+## CRM de licitaciones: tablero Kanban del pipeline comercial
+
+El usuario compartió un prompt generado con Gemini pidiendo evaluar/replantear toda la arquitectura
+hacia un stack SaaS pesado (FastAPI + Celery + Redis + PostgreSQL + Elasticsearch + Next.js). Evaluado
+contra el código real antes de responder: la gran mayoría de lo que pedía ese prompt **ya existe** en
+la app actual (ETL SECOP I+II, ficha técnica, buscador avanzado, extracción de requisitos con IA,
+semáforo de habilitación GO/REVISAR/NO-GO) -- la única pieza genuinamente nueva era un **CRM con
+tablero Kanban** para el pipeline comercial (en qué etapa va cada proceso, desde que se detecta hasta
+que se gana o se pierde). Se descartó la reescritura completa -- el Kanban se construyó sobre la
+arquitectura actual (estático + Supabase), sin backend nuevo.
+
+Decisiones confirmadas con el usuario antes de construir (`AskUserQuestion`): 6 etapas (Por evaluar →
+Análisis de riesgos/RUP → Consorcio → Armado de propuesta → Radicado en SECOP → Adjudicado/Perdido, con
+sub-resultado); mover de etapa con un selector/botón ("Mover a ▸"), no arrastrar y soltar (la app no usa
+drag-and-drop en ningún otro lado, ni en celular es confiable); la etapa "Consorcio" solo etiqueta qué
+perfiles de "Perfil de la empresa" participan en ESE proceso puntual, como nota informativa -- sin
+tocar la evaluación de experiencia existente (`expevalPorPerfil`/`perfilesActivos`), que sigue siendo
+global.
+
+**Reutiliza `historial` (ya existe, ya sincroniza vía `app_state`) en vez de una clave nueva.**
+`historial[id]` ganó campos opcionales, presentes SOLO si el proceso se agregó al pipeline: `etapa`,
+`etapaTs`, `resultado` (`'adjudicado'|'perdido'|null`), `consorcio` (array de ids de perfiles), y
+`snapshot` (`{entidad, objeto, valor, closingRaw, pubRaw, fuente, url, referencia}`, capturado AL
+AGREGAR) -- el pipeline no depende de que el proceso siga apareciendo en una búsqueda nueva semanas
+después (mismo problema ya documentado para el Dashboard/"Actividad reciente", evitado aquí desde el
+diseño).
+
+**Simetría con `toggleStatus` (visto/descartado), riesgo real evitado antes de que pudiera manifestarse
+como bug**: antes, "Marcar visto"/"Descartar" borraban el `historial[id]` ENTERO al desmarcar -- si ese
+mismo proceso ya estaba en el pipeline, eso habría destruido `etapa`/`consorcio`/`snapshot` de paso.
+`toggleStatus` y la nueva `quitarDePipeline(id)` ahora son simétricas: cada una solo borra `status`/`ts`
+o `etapa`/`etapaTs`/`resultado`/`consorcio`/`snapshot` respectivamente, y la fila completa del
+`historial` solo se elimina si no queda nada más que guardar.
+
+**Nuevas funciones** (junto a `toggleStatus`): `ETAPAS_PIPELINE` (fuente única del orden de columnas y
+del selector "Mover a"); `siguienteEtapa`/`etapaAnterior` (puras, con test de humo);
+`agregarAPipeline(id, item)` (toma el `item` normalizado de `lastScored`, arma el snapshot, conserva
+`status` si ya existía); `moverEtapaPipeline(id, nuevaEtapa, resultado)`; `fijarConsorcioPipeline(id,
+perfilIds)`; `quitarDePipeline(id)`.
+
+**Vista nueva "Pipeline"** (7º ítem de nav + tarjeta rápida del Dashboard, mismo patrón genérico
+`data-view`/`VISTAS`/`mostrarVista()` ya usado por las demás 6 vistas): `renderPipelineView()` construye
+las 6 columnas (`.pipeline-col`) filtrando `Object.keys(historial)` por `etapa`, ordenadas por días para
+el cierre (`diasRestantesDe`, mismo cálculo que ya usa `render()` en "Buscar procesos").
+`renderPipelineCardHtml(id, h)`: tarjeta compacta con `fmtMoney`/`truncate`/el estado de análisis si
+existe (`analisis[id]`), selector "Mover a ▸" + botón "◂" para la etapa anterior, "✕ Quitar del
+pipeline"; en la etapa "Consorcio", un `<select multiple>` de `Object.keys(perfiles)`. CSS nuevo
+`.pipeline-board`/`.pipeline-col`/`.pipeline-card`: columnas en fila con scroll horizontal (mismo
+criterio que `.expeval-table-wrap` para tablas anchas), columnas más angostas a ≤560px.
+
+**Punto de entrada, sin repetir el desorden que ya se había limpiado en "Buscar procesos" (ver
+"Auditoría de 'Buscar procesos'" más abajo)**: en cada tarjeta, un link chico "+ Pipeline" (mismo peso
+visual que "Marcar visto", no un botón grande) si el proceso no está en el pipeline; si ya está, se
+reemplaza por una etiqueta pequeña con la etapa actual (clic navega a la vista Pipeline) -- cero peso
+visual extra para las tarjetas que nunca se agregan, y las que sí están trackeadas pasan de link a
+pastilla informativa en vez de sumar un quinto botón.
+
+**Deliberadamente fuera de esta ronda**: arrastrar y soltar (descartado explícitamente); cruzar
+"Adjudicado" contra datos reales de SECOP (el dataset no identifica de forma confiable que ESTA empresa
+ganó ESTE proceso puntual sin arriesgar inventar un dato -- el resultado lo marca el usuario a mano,
+mismo principio de "no inventar" de toda la app); tocar `expevalPorPerfil`/`perfilesActivos` -- el
+etiquetado de consorcio es solo informativo en esta pasada.
+
+**Verificado**: `node tests/smoke.mjs` (224/224, 1 prueba nueva para `siguienteEtapa`/`etapaAnterior` --
+`agregarAPipeline`/`moverEtapaPipeline`/`quitarDePipeline` mutan `historial` y llaman `saveHistorial()`/
+`rerender()`, fuera de lo que el arnés extrae sin DOM; se probaron en navegador real). Probado de punta
+a punta en navegador real (servidor local, datos de ejemplo): agregados 2 procesos al pipeline;
+movido uno a "Consorcio" (el multi-select de empresas aparece, vacío porque no había perfiles creados
+en esa sesión) y luego a "Resultado", marcado "✅ Adjudicado"; recargada la página (`navigate()`
+completo, no solo re-render) y confirmado que todo persiste (`localStorage['bitacora_historial']`
+conserva `etapa`/`resultado`/`snapshot`); confirmado que la tarjeta en "Buscar procesos" muestra la
+etiqueta de etapa correcta ("📌 Consorcio"/"📌 Adjudicado / Perdido"); confirmado que "Marcar visto"
+sobre un proceso que YA estaba en el pipeline conserva `etapa`/`consorcio`/`snapshot` intactos (la
+simetría del fix de `toggleStatus`); confirmado que "✕ Quitar del pipeline" borra los campos de
+pipeline pero conserva `status: "visto"` si lo había. Probado en 375px: `document.body.scrollWidth -
+clientWidth = -16` (el inset de 8px por lado ya documentado, sin overflow real) y el tablero del
+pipeline sí desborda horizontalmente dentro de su propio contenedor (scroll interno, no de la página) --
+el comportamiento esperado. 0 errores de consola (confirmado en una pestaña nueva).

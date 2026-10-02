@@ -805,6 +805,27 @@
     font-size: 11px; letter-spacing: .2px; color: var(--text-muted); text-transform: uppercase;
   }
 
+  /* Pipeline comercial (CRM Kanban): columnas con scroll horizontal, mismo
+     criterio ya usado para tablas anchas (.expeval-table-wrap). */
+  #bitacora-root .pipeline-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; }
+  #bitacora-root .pipeline-col { flex: 0 0 260px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+  #bitacora-root .pipeline-col-head { font-weight: 700; font-size: 12.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .2px; display: flex; justify-content: space-between; }
+  #bitacora-root .pipeline-col-count { background: var(--surface); border-radius: 999px; padding: 0 8px; }
+  #bitacora-root .pipeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  #bitacora-root .pipeline-card-urgente { border-color: var(--danger); }
+  #bitacora-root .pipeline-card-ent { font-weight: 700; font-size: 13px; }
+  #bitacora-root .pipeline-card-obj { font-size: 12.5px; color: var(--text-muted); }
+  #bitacora-root .pipeline-card-meta { font-size: 12px; }
+  #bitacora-root .pipeline-card-plazo { font-size: 12px; font-weight: 700; }
+  #bitacora-root .pipeline-card-urgente-texto { color: var(--danger); }
+  #bitacora-root .pipeline-consorcio select { width: 100%; margin-top: 4px; }
+  #bitacora-root .pipeline-resultado { display: flex; gap: 6px; }
+  #bitacora-root .pipeline-card-acciones { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  #bitacora-root .pipeline-card-acciones select { flex: 1; min-width: 0; }
+  @media (max-width: 560px) {
+    #bitacora-root .pipeline-col { flex: 0 0 220px; }
+  }
+
   /* Badge de estado (CUMPLE / NO CUMPLE / NO DETERMINABLE) — mismo
      sistema visual del resto de badges, con símbolo para no depender
      solo del color. */
@@ -1102,6 +1123,10 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
           <span class="nav-label">Evaluación y documentos</span>
         </button>
+        <button class="nav-item" type="button" id="bt-nav-pipeline" data-view="pipeline" role="tab" aria-selected="false" aria-controls="view-pipeline" title="Pipeline" aria-label="Pipeline">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="10" rx="1"/><rect x="16" y="4" width="5" height="13" rx="1"/></svg>
+          <span class="nav-label">Pipeline</span>
+        </button>
       </div>
       <div class="sidebar-foot" id="bt-sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>
     </nav>
@@ -1220,6 +1245,11 @@
               <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
               <div class="quick-card-title">Evaluación y documentos</div>
               <div class="quick-card-desc">Revisa el veredicto detallado de un proceso y genera tu carta de presentación y paquete de propuesta.</div>
+            </button>
+            <button class="quick-card" type="button" data-view="pipeline">
+              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="10" rx="1"/><rect x="16" y="4" width="5" height="13" rx="1"/></svg></div>
+              <div class="quick-card-title">Pipeline</div>
+              <div class="quick-card-desc">Sigue en qué etapa va cada proceso que decidiste perseguir, desde que lo detectas hasta que se adjudica o se pierde.</div>
             </button>
           </div>
         </section>
@@ -1674,6 +1704,15 @@
             </div>
             <div id="bt-eval-out"></div>
           </div>
+        </section>
+
+        <section class="view" id="view-pipeline" data-view="pipeline" role="tabpanel" aria-labelledby="bt-nav-pipeline" hidden>
+          <div class="view-header">
+            <h1>Pipeline</h1>
+            <p>Sigue en qué etapa va cada proceso que decidiste perseguir, desde que lo detectas hasta que se adjudica o se pierde. Agrega un proceso al pipeline desde su tarjeta en "Buscar procesos" (botón "+ Pipeline") -- lo que esté aquí no depende de que una búsqueda nueva lo siga mostrando.</p>
+          </div>
+          <div class="empty" id="bt-pipeline-empty" hidden>Todavía no tienes ningún proceso en el pipeline. Ve a "Buscar procesos" y usa "+ Pipeline" en el que te interese. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
+          <div id="bt-pipeline-board"></div>
         </section>
 
         <!-- Auditoría "primer uso": este bloque era un solo párrafo largo
@@ -2505,13 +2544,207 @@
   }
 
   function toggleStatus(id, status){
+    // CRM de licitaciones (pipeline): historial[id] ahora puede traer también etapa/consorcio/
+    // snapshot (ver agregarAPipeline más abajo) -- "Marcar visto"/"Descartar" NUNCA debe borrar eso
+    // de paso. Si el proceso está en el pipeline, se apaga el status pero se conserva el resto del
+    // registro; solo se borra la fila completa cuando no queda NADA más que guardar.
     if (historial[id] && historial[id].status === status){
-      delete historial[id];
+      delete historial[id].status;
+      delete historial[id].ts;
+      if (!historial[id].etapa) delete historial[id];
     } else {
-      historial[id] = { status: status, ts: Date.now() };
+      historial[id] = Object.assign({}, historial[id], { status: status, ts: Date.now() });
     }
     saveHistorial();
     rerender();
+  }
+
+  // ── CRM de licitaciones: pipeline comercial (tablero Kanban) ────────────
+  // Reutiliza `historial` (ya existe, ya sincroniza vía app_state -- ver SYNCED_KEYS) en vez de una
+  // clave nueva: cada proceso agregado al pipeline suma `etapa`/`etapaTs`/`resultado`/`consorcio`/
+  // `snapshot` a su entrada de historial, sin tocar `status`/`ts` (visto/descartado), que siguen
+  // funcionando exactamente igual, sean o no parte del pipeline.
+  const ETAPAS_PIPELINE = [
+    { id: 'por_evaluar', label: 'Por evaluar' },
+    { id: 'riesgos_rup', label: 'Análisis de riesgos / RUP' },
+    { id: 'consorcio', label: 'Consorcio' },
+    { id: 'propuesta', label: 'Armado de propuesta' },
+    { id: 'radicado', label: 'Radicado en SECOP' },
+    { id: 'resultado', label: 'Adjudicado / Perdido' },
+  ];
+  function siguienteEtapa(etapaActual){
+    const i = ETAPAS_PIPELINE.findIndex(e => e.id === etapaActual);
+    return (i === -1 || i >= ETAPAS_PIPELINE.length - 1) ? null : ETAPAS_PIPELINE[i + 1].id;
+  }
+  function etapaAnterior(etapaActual){
+    const i = ETAPAS_PIPELINE.findIndex(e => e.id === etapaActual);
+    return (i <= 0) ? null : ETAPAS_PIPELINE[i - 1].id;
+  }
+
+  // `item` es el proceso normalizado ya en memoria (de `scored`/`lastScored`) -- se captura un
+  // snapshot de sus datos clave porque el pipeline puede seguir vivo semanas después de que ese
+  // proceso ya no aparezca en una búsqueda nueva (SECOP se actualiza a diario, ver Dashboard /
+  // "Actividad reciente", que tiene el mismo problema documentado ahí).
+  function agregarAPipeline(id, item){
+    historial[id] = Object.assign({}, historial[id], {
+      etapa: 'por_evaluar',
+      etapaTs: Date.now(),
+      resultado: (historial[id] && historial[id].resultado) || null,
+      consorcio: (historial[id] && historial[id].consorcio) || [],
+      snapshot: {
+        entidad: item.entidad, objeto: item.objeto, valor: item.valor,
+        closingRaw: item.closingRaw, pubRaw: item.pubRaw,
+        fuente: item.fuente, url: item.url, referencia: item.referencia
+      }
+    });
+    saveHistorial();
+    rerender();
+    const vp = document.getElementById('view-pipeline');
+    if (vp && !vp.hidden) renderPipelineView();
+  }
+
+  function moverEtapaPipeline(id, nuevaEtapa, resultado){
+    if (!historial[id] || !historial[id].etapa) return;
+    historial[id].etapa = nuevaEtapa;
+    historial[id].etapaTs = Date.now();
+    if (nuevaEtapa === 'resultado') historial[id].resultado = resultado || null;
+    saveHistorial();
+    renderPipelineView();
+  }
+
+  function fijarConsorcioPipeline(id, perfilIds){
+    if (!historial[id] || !historial[id].etapa) return;
+    historial[id].consorcio = perfilIds;
+    saveHistorial();
+    renderPipelineView();
+  }
+
+  // Saca el proceso del pipeline sin perder su historial de visto/descartado si lo tenía -- mismo
+  // criterio inverso de toggleStatus: solo se borra la fila completa si no queda nada más.
+  function quitarDePipeline(id){
+    if (!historial[id]) return;
+    delete historial[id].etapa;
+    delete historial[id].etapaTs;
+    delete historial[id].resultado;
+    delete historial[id].consorcio;
+    delete historial[id].snapshot;
+    if (!historial[id].status) delete historial[id];
+    saveHistorial();
+    renderPipelineView();
+    rerender();
+  }
+
+  // Días hasta el cierre a partir del snapshot -- mismo cálculo que ya usa classify()/scoreRecord()
+  // en "Buscar procesos" (isPlausibleDate + diferencia en días), reutilizado aquí para que una
+  // tarjeta del pipeline muestre el mismo plazo sin depender de que el proceso siga en lastScored.
+  function diasRestantesDe(closingRaw){
+    if (!closingRaw || !isPlausibleDate(closingRaw)) return null;
+    return Math.ceil((new Date(closingRaw).getTime() - Date.now()) / 86400000);
+  }
+
+  function renderPipelineCardHtml(id, h){
+    const sn = h.snapshot || {};
+    const dias = diasRestantesDe(sn.closingRaw);
+    const vencePronto = dias !== null && dias <= 3;
+    const plazoTexto = dias === null ? 'Sin fecha de cierre reportada' : (dias < 0 ? 'Venció' : (dias + ' día(s) para el cierre'));
+    const entry = analisis[id];
+    const estadoAnalisis = entry
+      ? (entry.experienciaResultado ? entry.experienciaResultado.resultadoGlobal : '✓ Pliego analizado, experiencia sin evaluar')
+      : 'Sin analizar todavía';
+    const siguiente = siguienteEtapa(h.etapa);
+    const anterior = etapaAnterior(h.etapa);
+    const opcionesMover = ETAPAS_PIPELINE.filter(e => e.id !== h.etapa)
+      .map(e => '<option value="' + e.id + '"' + (e.id === siguiente ? ' selected' : '') + '>' + escapeHtml(e.label) + '</option>').join('');
+    const consorcioHtml = h.etapa === 'consorcio'
+      ? '<div class="pipeline-consorcio"><label>Empresas participantes</label><select multiple data-pipeline-consorcio-id="' + escapeHtml(id) + '" size="' + Math.min(4, Math.max(2, Object.keys(perfiles).length)) + '">' +
+          Object.keys(perfiles).map(pid => '<option value="' + escapeHtml(pid) + '"' + ((h.consorcio || []).indexOf(pid) !== -1 ? ' selected' : '') + '>' + escapeHtml(perfiles[pid].nombre || 'Sin nombre') + '</option>').join('') +
+          '</select></div>'
+      : (h.etapa === 'resultado' || (h.consorcio && h.consorcio.length))
+        ? '<div class="saved-note">Consorcio: ' + ((h.consorcio && h.consorcio.length) ? h.consorcio.map(pid => escapeHtml((perfiles[pid] && perfiles[pid].nombre) || 'Empresa eliminada')).join(', ') : 'ninguna empresa marcada') + '</div>'
+        : '';
+    const resultadoHtml = h.etapa === 'resultado'
+      ? '<div class="pipeline-resultado">' +
+          '<button type="button" class="btn-mini' + (h.resultado === 'adjudicado' ? ' active-visto' : '') + '" data-pipeline-resultado-id="' + escapeHtml(id) + '" data-resultado="adjudicado">✅ Adjudicado</button>' +
+          '<button type="button" class="btn-mini' + (h.resultado === 'perdido' ? ' active-descartado' : '') + '" data-pipeline-resultado-id="' + escapeHtml(id) + '" data-resultado="perdido">❌ Perdido</button>' +
+        '</div>'
+      : '';
+    return '<div class="pipeline-card' + (vencePronto ? ' pipeline-card-urgente' : '') + '" data-pipeline-card-id="' + escapeHtml(id) + '">' +
+      '<div class="pipeline-card-ent">' + escapeHtml(truncate(sn.entidad || 'Entidad no especificada', 60)) + '</div>' +
+      '<div class="pipeline-card-obj">' + escapeHtml(truncate(sn.objeto || '', 90)) + '</div>' +
+      '<div class="pipeline-card-meta">' + (sn.valor ? escapeHtml(fmtMoney(sn.valor) || '') + ' · ' : '') + '<span class="tag fuente">SECOP ' + escapeHtml(sn.fuente || '') + '</span></div>' +
+      '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' +
+      '<div class="saved-note">' + escapeHtml(estadoAnalisis) + '</div>' +
+      consorcioHtml + resultadoHtml +
+      '<div class="pipeline-card-acciones">' +
+        (anterior ? '<button type="button" class="link-btn" data-pipeline-mover-id="' + escapeHtml(id) + '" data-etapa="' + anterior + '" title="Mover a la etapa anterior">◂</button>' : '') +
+        '<select data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opcionesMover + '</select>' +
+        '<button type="button" class="link-btn" data-pipeline-quitar-id="' + escapeHtml(id) + '">✕ Quitar</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderPipelineView(){
+    const boardEl = document.getElementById('bt-pipeline-board');
+    const emptyEl = document.getElementById('bt-pipeline-empty');
+    if (!boardEl) return;
+    const ids = Object.keys(historial).filter(id => historial[id] && historial[id].etapa);
+    if (!ids.length){
+      boardEl.innerHTML = '';
+      if (emptyEl) emptyEl.hidden = false;
+      return;
+    }
+    if (emptyEl) emptyEl.hidden = true;
+    boardEl.innerHTML = '<div class="pipeline-board">' + ETAPAS_PIPELINE.map(etapa => {
+      const idsEtapa = ids.filter(id => historial[id].etapa === etapa.id)
+        .sort((a, b) => {
+          const da = diasRestantesDe((historial[a].snapshot || {}).closingRaw);
+          const db = diasRestantesDe((historial[b].snapshot || {}).closingRaw);
+          if (da === null) return 1;
+          if (db === null) return -1;
+          return da - db;
+        });
+      return '<div class="pipeline-col">' +
+        '<div class="pipeline-col-head">' + escapeHtml(etapa.label) + ' <span class="pipeline-col-count">' + idsEtapa.length + '</span></div>' +
+        idsEtapa.map(id => renderPipelineCardHtml(id, historial[id])).join('') +
+        '</div>';
+    }).join('') + '</div>';
+  }
+
+  // Delegado único para el tablero del pipeline (mover de etapa, quitar, consorcio,
+  // adjudicado/perdido) -- mismo patrón que el delegado grande de resultsEl, pero en su propio
+  // contenedor porque el tablero vive en una vista separada.
+  const pipelineBoardEl = document.getElementById('bt-pipeline-board');
+  if (pipelineBoardEl){
+    pipelineBoardEl.addEventListener('click', function(e){
+      const quitarBtn = e.target.closest('[data-pipeline-quitar-id]');
+      if (quitarBtn){
+        quitarDePipeline(quitarBtn.getAttribute('data-pipeline-quitar-id'));
+        return;
+      }
+      const anteriorBtn = e.target.closest('[data-pipeline-mover-id]');
+      if (anteriorBtn){
+        moverEtapaPipeline(anteriorBtn.getAttribute('data-pipeline-mover-id'), anteriorBtn.getAttribute('data-etapa'));
+        return;
+      }
+      const resultadoBtn = e.target.closest('[data-pipeline-resultado-id]');
+      if (resultadoBtn){
+        moverEtapaPipeline(resultadoBtn.getAttribute('data-pipeline-resultado-id'), 'resultado', resultadoBtn.getAttribute('data-resultado'));
+        return;
+      }
+    });
+    pipelineBoardEl.addEventListener('change', function(e){
+      const moverSelect = e.target.closest('[data-pipeline-mover-select-id]');
+      if (moverSelect){
+        moverEtapaPipeline(moverSelect.getAttribute('data-pipeline-mover-select-id'), moverSelect.value);
+        return;
+      }
+      const consorcioSelect = e.target.closest('[data-pipeline-consorcio-id]');
+      if (consorcioSelect){
+        const ids = Array.from(consorcioSelect.selectedOptions).map(o => o.value);
+        fijarConsorcioPipeline(consorcioSelect.getAttribute('data-pipeline-consorcio-id'), ids);
+        return;
+      }
+    });
   }
 
   // Múltiples perfiles de empresa: se guardan todos en 'perfiles_empresa' (mapa id -> perfil)
@@ -9571,12 +9804,20 @@
         ? '<button class="btn-mini analizar-ep" data-action="analizar-ep" data-id="' + escapeHtml(it.id) + '">📋 Analizar Estudio Previo</button>' +
           '<input type="file" accept=".pdf,.docx" data-analyze-ep-id="' + escapeHtml(it.id) + '" style="display:none">'
         : '';
+      // Pipeline comercial (CRM Kanban): link chico "+ Pipeline" si el proceso no está en el
+      // pipeline todavía (mismo peso visual que "Marcar visto", no un botón grande -- evitar
+      // repetir el desorden que ya se limpió en "Buscar procesos"); si ya está, una etiqueta
+      // pequeña con la etapa actual en vez de un quinto botón.
+      const pipelineBtnHtml = (hist && hist.etapa)
+        ? '<button type="button" class="link-btn" data-ir-pipeline="' + escapeHtml(it.id) + '">📌 ' + escapeHtml((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa) + '</button>'
+        : '<button type="button" class="link-btn" data-agregar-pipeline="' + escapeHtml(it.id) + '">+ Pipeline</button>';
       const actionsHtml =
         '<div class="row-actions">' +
           '<button class="btn-mini' + (isVisto ? ' active-visto' : '') + '" data-action="visto" data-id="' + escapeHtml(it.id) + '">' + (isVisto ? '✓ Visto' : 'Marcar visto') + '</button>' +
           '<button class="btn-mini' + (isDescartado ? ' active-descartado' : '') + '" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : '✕ Descartar') + '</button>' +
           '<button class="btn-mini analizar" data-action="analizar" data-id="' + escapeHtml(it.id) + '">' + analizarLabel + '</button>' +
           epBtnHtml +
+          pipelineBtnHtml +
         '</div>' +
         '<input type="file" accept="application/pdf" data-analyze-id="' + escapeHtml(it.id) + '" style="display:none">' +
         '<div class="analysis-slot">' + analysisHtml + '</div>';
@@ -11282,6 +11523,23 @@
       return;
     }
 
+    // 0a-bis) Pipeline comercial (CRM Kanban): "+ Pipeline" agrega el proceso (capturando un
+    // snapshot de `lastScored`, la búsqueda actual en pantalla); la etiqueta de etapa navega a
+    // la vista Pipeline en vez de hacer nada en la propia tarjeta.
+    const agregarPipelineBtn = e.target.closest('[data-agregar-pipeline]');
+    if (agregarPipelineBtn){
+      const id = agregarPipelineBtn.getAttribute('data-agregar-pipeline');
+      const s = (lastScored || []).find(x => x.item.id === id);
+      if (s) agregarAPipeline(id, s.item);
+      rerender();
+      return;
+    }
+    const irPipelineBtn = e.target.closest('[data-ir-pipeline]');
+    if (irPipelineBtn){
+      mostrarVista('pipeline');
+      return;
+    }
+
     // 0b) "Cargar/Reemplazar Estudio Previo" -- abre el selector de archivo
     // oculto de esta misma tarjeta (mismo patrón que el botón "Analizar
     // pliego (PDF)" de la acción de tarjeta, más abajo).
@@ -11836,7 +12094,7 @@
   // evaluación de experiencia siguen funcionando exactamente igual estén o no
   // a la vista).
   // ============================================================
-  const VISTAS = ['dashboard', 'buscar', 'perfil', 'experiencia', 'personal', 'evaluacion'];
+  const VISTAS = ['dashboard', 'buscar', 'perfil', 'experiencia', 'personal', 'evaluacion', 'pipeline'];
   // Nav móvil (menú desplegable, ver CSS ≤560px): botón que abre/cierra
   // #bt-nav como panel + el <span> donde se refleja el nombre de la vista
   // activa. En desktop estos elementos existen igual en el DOM, pero el
@@ -11890,6 +12148,7 @@
       rerender();
       renderAlertasList();
     }
+    if (nombre === 'pipeline') renderPipelineView();
   }
 
   // Indicador de los 5 pasos del flujo principal (Experiencia → Análisis →
