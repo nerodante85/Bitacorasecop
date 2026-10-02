@@ -21,6 +21,15 @@
     entry.transcripcionUso = u;
   }
 
+  // PDF-06: tiempo real de cada tanda por método (la lectura lenta deja de ser una impresión).
+  function medir(entry, lector, result, ms) {
+    const m = entry.lecturaMs = entry.lecturaMs || {};
+    const u = m[lector.metodo] = m[lector.metodo] || { tandas: 0, paginas: 0, ms: 0 };
+    u.tandas += 1;
+    u.paginas += (result.paginaOffsets || []).length;
+    u.ms += ms;
+  }
+
   // Suma el resultado de una tanda al entry (texto, offsets de página ya corridos, páginas leídas,
   // tokens de IA, rotación detectada por OCR).
   function aplicarResultado(entry, lector, result) {
@@ -40,9 +49,12 @@
   async function paso(entry, file, lector, onProgress) {
     const desde = entry.pagesRead + 1;
     const hasta = Math.min(entry.numPages, entry.pagesRead + lector.tanda);
+    const t0 = Date.now();
     const result = await lector.leer(file, desde, hasta, onProgress, entry);
+    const ms = Date.now() - t0;
     if (entry.textoLiberado) return { liberado: true };
     aplicarResultado(entry, lector, result);
+    medir(entry, lector, result, ms);
     return { liberado: false };
   }
 
@@ -61,9 +73,12 @@
       const entry = Object.assign({ id: opts.id, ts: Date.now(), fileName: opts.fileName, numPages: 0, pagesRead: 0, paginaOffsets: [] }, lector.marca || {});
       entry[lector.campoTexto] = '';
       entry.esSoloEP = !!opts.esSoloEP;
+      const t0 = Date.now();
       const result = await lector.leer(file, 1, lector.tanda, opts.onProgress, entry);
+      const ms = Date.now() - t0;
       entry.numPages = result.numPages;
       aplicarResultado(entry, lector, result);
+      medir(entry, lector, result, ms);
       const minTexto = opts.minTexto || 0;
       const corto = () => (entry[lector.campoTexto] || '').trim().length < minTexto;
       if (opts.extenderSiEscaso && corto() && entry.pagesRead < entry.numPages) {
@@ -122,7 +137,20 @@
     }
   }
 
-  const Lectura = { enCurso: enCurso, iniciar: iniciar, avanzar: avanzar, leerTodo: leerTodo, acumularUso: acumularUso };
+  const ETIQUETA_METODO = { texto: 'Texto', ocr: 'OCR', ia: 'IA' };
+  // Texto corto para mostrar al usuario: "OCR: 30 páginas en 150 s (5 s/página)".
+  function resumenTiempos(entry) {
+    const m = entry && entry.lecturaMs;
+    if (!m) return '';
+    return Object.keys(m).map(k => {
+      const u = m[k];
+      const seg = Math.max(1, Math.round(u.ms / 1000));
+      const porPagina = u.paginas > 0 && u.ms >= 2000 ? ' (' + Math.round(u.ms / 1000 / u.paginas * 10) / 10 + ' s/página)' : '';
+      return (ETIQUETA_METODO[k] || k) + ': ' + u.paginas + ' páginas en ' + seg + ' s' + porPagina;
+    }).join(' · ');
+  }
+
+  const Lectura = { enCurso: enCurso, resumenTiempos: resumenTiempos, iniciar: iniciar, avanzar: avanzar, leerTodo: leerTodo, acumularUso: acumularUso };
   if (typeof module !== 'undefined' && module.exports) module.exports = Lectura;
   else root.Lectura = Lectura;
 })(typeof window !== 'undefined' ? window : globalThis);

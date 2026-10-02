@@ -1825,7 +1825,10 @@
 </div>
 
 <script src="lectura.js"></script>
+<script src="coincidencia.js"></script>
 <script>
+// Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
+const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII } = Coincidencia;
 (function(){
   // Shim de almacenamiento: si corre como artifact de Claude, usa window.storage
   // (persistente en la nube); si corre como sitio independiente (GitHub Pages, etc.),
@@ -6044,28 +6047,6 @@
     return truncate(m[0].trim(), 160);
   }
 
-  // Parsea un número en formato colombiano: "1.234.567,89" -> 1234567.89 ;
-  // "1,33" -> 1.33 ; "3.500.000.000" -> 3500000000. Si hay coma, es el decimal
-  // (los puntos son miles); si no hay coma pero sí puntos de miles, se quitan.
-  function parseNumCO(s){
-    if (s == null) return null;
-    let t = String(s).replace(/[^\d.,\-]/g, '');
-    if (!/\d/.test(t)) return null;
-    // Auditoría MC-015: "1,234,567,890" (varias comas = miles) valía 1,234 y "1,500.50" (formato
-    // anglosajón) valía 1,5005. Si hay coma Y punto, el separador que aparece ÚLTIMO es el decimal;
-    // con varias comas todas son de miles. Una sola coma sigue siendo decimal (razones: "1,5").
-    const nComas = (t.match(/,/g) || []).length;
-    if (nComas > 0 && t.indexOf('.') !== -1){
-      if (t.lastIndexOf('.') > t.lastIndexOf(',')) t = t.replace(/,/g, '');
-      else t = t.replace(/\./g, '').replace(',', '.');
-    }
-    else if (nComas > 1) t = t.replace(/,/g, '');
-    else if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.');
-    else if ((t.match(/\./g) || []).length > 1 || /\.\d{3}(\D|$)/.test(t + ' ')) t = t.replace(/\./g, '');
-    const n = parseFloat(t);
-    return isNaN(n) ? null : n;
-  }
-
   // De un texto tipo "K residual = 1.200.000.000" o "15.320 SMMLV" saca
   // { valor, unidad }. Toma el número más grande del texto (evita agarrar el
   // "2007" de "Ley 1150 de 2007").
@@ -7016,51 +6997,6 @@
       });
     });
     return set;
-  }
-
-  // Auditoría de pre-lanzamiento S2-001/S2-002 (SECOP II). La consulta anterior
-  // era `$limit=300&$q=<palabra>&$order=fecha_de_publicacion_del DESC`. En
-  // Socrata el orden DESC pone los NULL primero, y ~127.000 procesos de SECOP II
-  // no traen fecha de publicación (borradores, cancelados...): para palabras
-  // comunes ("acueducto", "alcantarillado", "interventoria", "colegio") las 300
-  // filas eran todas NULL y NINGÚN proceso abierto llegaba a la pantalla (había
-  // ~40 abiertos por palabra en el servidor). Además, `$q` distingue tildes:
-  // "pavimentación" daba 2 resultados y "pavimentacion" 858.
-  // Ahora se piden DOS consultas por palabra y se unen:
-  //  1) VIGENTES: cierre de ofertas hoy o después, ordenada por cierre más
-  //     próximo. Son pocas (decenas), así que caben de sobra en 300 y no se
-  //     pierde ningún proceso abierto real.
-  //  2) RECIENTES: publicación NO nula, más reciente primero (lo de antes, pero
-  //     sin los NULL que tapaban todo).
-  // El término va sin tildes (el filtro fino real sigue siendo `matchesTerm`,
-  // que ya ignora tildes). Devuelve solo los parámetros de consulta; la URL base
-  // y el token los pone quien llama.
-  function consultasSecopII(qTerm, hoyISO){
-    const q = qTerm
-      ? '&$q=' + encodeURIComponent(String(qTerm).normalize('NFD').replace(/[̀-ͯ]/g, ''))
-      : '';
-    return {
-      vigentes: '$limit=300' + q +
-        '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'") +
-        '&$order=' + encodeURIComponent('fecha_de_recepcion_de ASC'),
-      recientes: '$limit=300' + q +
-        '&$where=' + encodeURIComponent('fecha_de_publicacion_del IS NOT NULL') +
-        '&$order=' + encodeURIComponent('fecha_de_publicacion_del DESC')
-    };
-  }
-
-  // Auditoría de pre-lanzamiento S2-003. Un estado que ya NO es una oportunidad
-  // de participar (cancelado, en borrador, ya seleccionado/adjudicado, suspendido,
-  // en evaluación...) no debe presentarse como oportunidad por defecto, aunque no
-  // tenga fecha de cierre (el 84% de los procesos de SECOP II no la trae, así que
-  // "ocultar vencidos" nunca los ocultaba). Ejemplos reales: en la muestra de
-  // "acueducto", 105 de 300 estaban Cancelados. Solo se decide por el ESTADO; un
-  // estado desconocido o vacío NO se oculta (mejor mostrar de más que perder un
-  // proceso abierto por un estado nuevo que la entidad inventó).
-  function esEstadoNoVigente(estado){
-    const e = normHeader(estado);
-    if (!e) return false;
-    return /^(cancelad|borrador|seleccionad|suspendid|aprobad|en aprobacion|evaluacion|adjudicad|celebrad|liquidad|terminad|declarad|desiert|revocad|descartad)/.test(e);
   }
 
   // Auditoría MC-004. Los índices se comparaban como números sueltos sin mirar la
@@ -8283,39 +8219,6 @@
   // cubre SECOP II (que solo existe desde ~2021).
   const SECOP_I_DATASET = 'f789-7hwg';
 
-  // Ancla de búsqueda ($q: las 2 palabras más largas del nombre -- Socrata
-  // combina las de $q con AND, así que menos palabras = más resultados; el
-  // filtro fino real lo hace `coincide`) + coincidencia de nombre tolerante
-  // (nombre completo vs sigla, ej. "INVIAS", uno contenido en el otro, o que
-  // todos los tokens del más corto estén en el más largo). Usado por
-  // buscarAdjudicaciones() ("Ver adjudicaciones de esta entidad", en
-  // Evaluación) para su búsqueda por ENTIDAD.
-  function prepararBusquedaPorNombre(nombre){
-    const norm = s => normalizeGeo(s);
-    const objetivo = norm(nombre);
-    const toks = objetivo.split(' ').filter(w => w.length >= 4);
-    const ancla = toks.slice().sort((a, b) => b.length - a.length).slice(0, 2).join(' ') || objetivo;
-    const coincide = candidato => {
-      const c = norm(candidato);
-      if (!c) return false;
-      if (c === objetivo || c.indexOf(objetivo) !== -1 || objetivo.indexOf(c) !== -1) return true;
-      const a = c.split(' ').filter(w => w.length >= 4), b = toks;
-      const chico = a.length <= b.length ? a : b, grande = a.length <= b.length ? b : a;
-      return chico.length >= 2 && chico.every(w => grande.indexOf(w) !== -1);
-    };
-    // Versión ESTRICTA (SI-001): todas las palabras distintivas del nombre buscado deben estar en el
-    // candidato. `coincide` (tolerante) dejaba pasar "SANTANDER - GOBERNACIÓN" al buscar la
-    // Gobernación de NORTE de Santander; aquí se usa para resolver el nombre exacto en SECOP I.
-    const coincideEstricta = candidato => {
-      const c = norm(candidato);
-      if (!c) return false;
-      if (c === objetivo || c.indexOf(objetivo) !== -1) return true;
-      const tc = c.split(' ');
-      return toks.length >= 2 && toks.every(w => tc.indexOf(w) !== -1);
-    };
-    return { ancla, coincide, coincideEstricta, palabras: toks.slice().sort((a, b) => b.length - a.length) };
-  }
-
   // La más reciente de las fechas plausibles del registro (findAllDates ya
   // descarta fechas centinela/basura) -- para un contrato ya adjudicado o
   // ejecutado, suele ser la fecha de firma/terminación, una referencia
@@ -9293,8 +9196,9 @@
       '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') +
         (entry.esSoloEP ? ' · <span class="tag" title="Sin Pliego de Condiciones publicado todavía">Estudio Previo</span>' : '') +
         ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
-      (entry.transcripcionUso
-        ? '<div class="saved-note">Lectura con IA: ' + entry.transcripcionUso.tandas + ' tanda(s) · ' + Number(entry.transcripcionUso.input_tokens).toLocaleString('es-CO') + ' tokens de entrada / ' + Number(entry.transcripcionUso.output_tokens).toLocaleString('es-CO') + ' de salida · ' + Math.round(entry.transcripcionUso.ms / 1000) + ' s en total</div>'
+      ((entry.lecturaMs || entry.transcripcionUso)
+        ? '<div class="saved-note">Tiempo de lectura -- ' + escapeHtml(Lectura.resumenTiempos(entry)) +
+            (entry.transcripcionUso ? ' · IA: ' + Number(entry.transcripcionUso.input_tokens).toLocaleString('es-CO') + ' tokens de entrada / ' + Number(entry.transcripcionUso.output_tokens).toLocaleString('es-CO') + ' de salida' : '') + '</div>'
         : '') +
       redFlagsHtml +
       bloqueCronogramaRiesgosIAHtml(entry) +
@@ -9366,18 +9270,6 @@
     '</div>';
   }
 
-  function findField(record, exactCandidates, substrFallback){
-    const keys = Object.keys(record);
-    for (const c of exactCandidates){
-      const k = keys.find(k => k.toLowerCase() === c.toLowerCase());
-      if (k && record[k] !== null && record[k] !== undefined && record[k] !== '') return record[k];
-    }
-    if (substrFallback){
-      const k = keys.find(k => k.toLowerCase().includes(substrFallback));
-      if (k && record[k]) return record[k];
-    }
-    return null;
-  }
 
   // El campo urlproceso del dataset abierto trae la URL SIN los parámetros
   // isFromPublicArea/isModal. Sin ellos, SECOP II a veces manda a la pantalla de
@@ -9507,50 +9399,6 @@
     const fuente = record._fuente === 'I' ? 'I' : 'II';
 
     return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente };
-  }
-
-  // Coincidencia por RAÍZ, no solo por texto exacto: "pavimentación" y "pavimento"
-  // son formas distintas de la misma palabra y antes NO se consideraban coincidencia
-  // (caso real detectado: un proceso decía "PAVIMENTO FLEXIBLE" y quedó fuera al
-  // buscar "pavimentación"). Para palabras de 6+ letras, además del texto exacto,
-  // se acepta que el texto contenga los primeros 6 caracteres de esa palabra --
-  // cubre pavimento/pavimentación, edificio/edificación, alcantarilla/alcantarillado.
-  //
-  // La raíz de 6 caracteres se aplica PALABRA POR PALABRA, no al término completo.
-  // Antes se tomaba el prefijo del término entero: "obra civil" -> "obra c", que
-  // coincidía con cualquier "obra c..." del registro ("obra construcción", "obra
-  // contratada"...). Ahora un término de varias palabras exige que TODAS sus
-  // palabras aparezcan (en cualquier orden), cada una con su propia regla de raíz;
-  // las palabras de <6 letras siguen exigiendo coincidencia exacta.
-  function matchesTerm(searchable, term){
-    if (!term) return false;
-    const t = String(term).toLowerCase().trim();
-    if (!t) return false;
-    if (searchable.includes(t)) return true; // frase completa literal
-    const words = t.split(/\s+/).filter(Boolean);
-    if (!words.length) return false;
-    return words.every(w =>
-      searchable.includes(w) || (w.length >= 6 && searchable.includes(w.slice(0, 6)))
-    );
-  }
-
-  // Coincidencia GEOGRÁFICA: igualdad exacta de departamento (sin acentos ni
-  // mayúsculas), NO contención de texto. "Santander" no debe traer "Norte de
-  // Santander" ni al revés -- son departamentos distintos, y "santander" es
-  // subcadena de "norte de santander", así que el includes() genérico los mezclaba.
-  function normalizeGeo(s){
-    return String(s || '')
-      .toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')        // quita acentos
-      .replace(/[^a-z\s]/g, ' ')                               // puntuación -> espacio
-      .replace(/^\s*(departamento|dpto|depto)\s+(de\s+)?/, '') // "Departamento de X" -> "X"
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
-  function matchesGeo(departamento, term){
-    const d = normalizeGeo(departamento);
-    const t = normalizeGeo(term);
-    return !!d && !!t && d === t;
   }
 
   // refNow: momento contra el que se miden "días restantes" y "días desde

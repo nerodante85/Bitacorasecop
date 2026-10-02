@@ -23,6 +23,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+// Reglas compartidas (coincidencia.js): el mismo archivo que carga el navegador y copia daily-digest.
+const Coincidencia = (await import(pathToFileURL(path.join(ROOT, 'coincidencia.js')).href)).default;
 const HTML_PATH = path.join(ROOT, 'index.html');
 const html = readFileSync(HTML_PATH, 'utf8');
 
@@ -105,7 +107,6 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'guardarAlertaActual', 'eliminarAlerta', 'evaluarAlerta', 'revisarTodasLasAlertas',
     'verNuevosDeAlerta', 'renderAlertasList', 'renderDashAlertas',
     'descuentoComparable', 'sugerenciaOfertaEconomica', 'renderOfertaSugeridaHtml',
-    'prepararBusquedaPorNombre',
     'calcularSCE', 'capacidadContractualEstimada', 'renderContratosEjecucion', 'renderCapacidadEstimada',
     'agregarContratoEjecucion', 'eliminarContratoEjecucion', 'actualizarCampoContrato',
     'generarCartaTexto', 'generarHojaDeVidaTexto',
@@ -129,7 +130,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
     // Requisitos habilitantes con IA (ver CLAUDE.md).
-    'verificarFilaIA', 'filaIAaRequisito', 'exigenciasDesdeIA', 'valorContratoEnSmmlv', 'consultasSecopII', 'esEstadoNoVigente',
+    'verificarFilaIA', 'filaIAaRequisito', 'exigenciasDesdeIA', 'valorContratoEnSmmlv',
   ];
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(html));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -252,12 +253,12 @@ function extractExperienceEngine() {
     'no se encontraron las anclas del bloque normHeader..evaluarExperienciaCompleta -- ¿se movió o renombró algo?');
   const blockA = scriptBody.slice(iA0, iA1);
 
-  const startB = 'function parseNumCO(s){';
+  const startB = 'function parseValorUnidad(s){';
   const endB = 'function extraerExigencias(text){';
   const iB0 = scriptBody.indexOf(startB);
   const iB1 = scriptBody.indexOf(endB, iB0);
   assert(iB0 !== -1 && iB1 !== -1 && iB1 > iB0,
-    'no se encontraron las anclas del bloque parseNumCO..parseValorUnidad -- ¿se movió o renombró algo?');
+    'no se encontraron las anclas del bloque parseValorUnidad..extraerExigencias -- ¿se movió o renombró algo?');
   const blockB = scriptBody.slice(iB0, iB1);
 
   // Bloque C: cálculo de capacidad contractual (SCE); usa parseNumCO del bloque B.
@@ -275,12 +276,9 @@ function extractExperienceEngine() {
   assert(iD0 !== -1 && iD1 !== -1 && iD1 > iD0, 'no se encontraron las anclas del bloque descuentoComparable..sugerenciaOfertaEconomica');
   const blockD = scriptBody.slice(iD0, iD1);
 
-  // Bloque E: resolución de nombre de entidad (SI-001); usa normalizeGeo (se inyecta como global).
-  const iE0 = scriptBody.indexOf('function prepararBusquedaPorNombre(nombre){');
-  const iE1 = scriptBody.indexOf('// La más reciente de las fechas', iE0);
-  assert(iE0 !== -1 && iE1 !== -1 && iE1 > iE0, 'no se encontraron las anclas de prepararBusquedaPorNombre');
-  const blockE = scriptBody.slice(iE0, iE1);
-  globalThis.normalizeGeo = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  // Las reglas de coincidencia (parseNumCO, normalizeGeo, prepararBusquedaPorNombre...) ya no están en
+  // index.html: vienen del módulo compartido coincidencia.js y se exponen como globales.
+  Object.assign(globalThis, Coincidencia);
 
   // Bloque F: generadores de documentos (carta, anexos, paquete) -- DG-001..DG-003. Usan
   // truncate/fmtMoney solo al ejecutarse; se inyectan como globales mínimos.
@@ -350,7 +348,7 @@ function extractExperienceEngine() {
   assert(iN0 !== -1 && iN1 !== -1 && iN1 > iN0, 'no se encontraron las anclas de ETAPAS_PIPELINE/siguienteEtapa/etapaAnterior');
   const blockN = scriptBody.slice(iN0, iN1);
 
-  const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockE + '\n' + blockF + '\n' + blockG +
+  const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN +
     '\nreturn { parsearExcelExperiencia, siguienteEtapa, etapaAnterior, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, experienciaGateDetalle, compsDe, codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, evaluarContraPerfiles, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
@@ -2749,47 +2747,13 @@ await check('textoKResidualDetectado: las 3 formas reales de extraerKResidualUmb
 // detectar esa divergencia si algún día ocurre.
 function extractDailyDigestEngine(){
   const raw = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
-  const iA0 = raw.indexOf('function parseNumCO(s: unknown): number | null {');
-  const iA1 = raw.indexOf('async function fetchSecopDataset', iA0);
-  assert(iA0 !== -1 && iA1 !== -1 && iA1 > iA0, 'no se encontraron las anclas de los helpers puros (parseNumCO..consultasSecopII) en daily-digest/index.ts');
-  const bloqueA = raw.slice(iA0, iA1);
-
-  const iB0 = raw.indexOf('function esEstadoNoVigente(estado: unknown): boolean {');
-  const iB1 = raw.indexOf('async function contarNuevosDeAlerta', iB0);
-  assert(iB0 !== -1 && iB1 !== -1 && iB1 > iB0, 'no se encontraron las anclas de esEstadoNoVigente en daily-digest/index.ts');
-  const bloqueB = raw.slice(iB0, iB1);
-
   const iC0 = raw.indexOf('function limpiarNombre(t: unknown): string {');
   const iC1 = raw.indexOf('const MAX_ALERTAS_POR_EMPRESA', iC0);
   assert(iC0 !== -1 && iC1 !== -1 && iC1 > iC0, 'no se encontraron las anclas de limpiarNombre en daily-digest/index.ts');
-  const bloqueC = raw.slice(iC0, iC1);
-
-  // Los tipos de este archivo son anotaciones simples en firmas de función (nunca genéricos
-  // dentro de un cuerpo, nunca "campo: tipo" en un literal -- los ":" de los objetos que arma
-  // consultasSecopII, ej. "vigentes: '...'"", son propiedades, no anotaciones, y no se tocan).
-  // Se despojan las 9 firmas conocidas por reemplazo LITERAL exacto (no un regex genérico sobre
-  // todo el bloque, para no arriesgar comerse un ":" que en realidad es de un objeto) --
-  // new Function(...) más abajo falla fuerte si algo quedó con sintaxis TS real.
-  const firmas = [
-    ['function parseNumCO(s: unknown): number | null {', 'function parseNumCO(s) {'],
-    ['function normalizeGeo(s: unknown): string {', 'function normalizeGeo(s) {'],
-    ['function matchesGeo(departamento: string, term: string): boolean {', 'function matchesGeo(departamento, term) {'],
-    ['function matchesTerm(searchable: string, term: string): boolean {', 'function matchesTerm(searchable, term) {'],
-    ['function findField(record: Record<string, unknown>, exactCandidates: string[], substrFallback?: string): unknown {', 'function findField(record, exactCandidates, substrFallback) {'],
-    ['function prepararBusquedaPorNombre(nombre: string) {', 'function prepararBusquedaPorNombre(nombre) {'],
-    ['const norm = (s: unknown) => normalizeGeo(s);', 'const norm = (s) => normalizeGeo(s);'],
-    ['const coincide = (candidato: unknown) => {', 'const coincide = (candidato) => {'],
-    ['function pubRawDeSecopII(record: Record<string, unknown>): string | null {', 'function pubRawDeSecopII(record) {'],
-    ['function consultasSecopII(qTerm: string | null, hoyISO: string) {', 'function consultasSecopII(qTerm, hoyISO) {'],
-    ['function esEstadoNoVigente(estado: unknown): boolean {', 'function esEstadoNoVigente(estado) {'],
-    ['function limpiarNombre(t: unknown): string {', 'function limpiarNombre(t) {'],
-  ];
-  let src = bloqueA + '\n' + bloqueB + '\n' + bloqueC;
-  for (const [de, a] of firmas){
-    assert(src.includes(de), 'firma esperada no encontrada (¿cambió la función real?): ' + de);
-    src = src.replace(de, a);
-  }
-  src += '\nreturn { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, pubRawDeSecopII, consultasSecopII, esEstadoNoVigente, limpiarNombre };';
+  // Las reglas de coincidencia ya no viven aquí (módulo compartido); solo se extrae lo propio del
+  // digest. La única anotación de tipo de este bloque está en la firma, y se despoja por reemplazo literal.
+  const de = 'function limpiarNombre(t: unknown): string {';
+  const src = raw.slice(iC0, iC1).replace(de, 'function limpiarNombre(t) {') + '\nreturn { limpiarNombre };';
   return new Function(src)();
 }
 const digestEngine = extractDailyDigestEngine();
@@ -2801,31 +2765,56 @@ await check('QA-001 daily-digest: limpiarNombre neutraliza enlaces (relay de phi
   assert(digestEngine.limpiarNombre(null) === '' && digestEngine.limpiarNombre(undefined) === '', 'sin dato: cadena vacía, no "null"/"undefined" literal');
 });
 
-await check('QA-001 daily-digest: parseNumCO/normalizeGeo/matchesGeo/matchesTerm resuelven bien los casos que ya prueban sus equivalentes en el cliente', () => {
-  assert(digestEngine.parseNumCO('1.500.000.000') === 1500000000, 'miles con punto: ' + digestEngine.parseNumCO('1.500.000.000'));
-  assert(digestEngine.parseNumCO('1,5') === 1.5, 'coma decimal: ' + digestEngine.parseNumCO('1,5'));
-  assert(digestEngine.parseNumCO(null) === null && digestEngine.parseNumCO('sin dígitos') === null, 'sin número reconocible: null');
-  assert(digestEngine.normalizeGeo('Departamento de Norte de Santander') === 'norte de santander', 'quita el prefijo "departamento de" y normaliza: ' + digestEngine.normalizeGeo('Departamento de Norte de Santander'));
-  assert(digestEngine.matchesGeo('Norte de Santander', 'norte de santander') === true, 'coincidencia exacta normalizada');
-  assert(digestEngine.matchesGeo('Norte de Santander', 'Santander') === false, 'NO debe confundir Norte de Santander con Santander (mismo criterio S2-007 que el cliente)');
-  ['pavimentación', 'pavimento'].forEach(t => assert(digestEngine.matchesTerm('obra de pavimentacion urbana', t) === true, 'raíz de 6 letras debe coincidir: ' + t));
-  assert(digestEngine.matchesTerm('obra cualquiera', 'alcantarillado') === false, 'sin relación no debe coincidir');
+// ---- Módulo de coincidencia compartido (coincidencia.js): un solo origen de las reglas de "¿este
+// proceso coincide con mi búsqueda/alerta?" para el navegador (index.html) y la función diaria
+// (daily-digest). Antes eran dos implementaciones a mano y YA habían divergido: el digest no tenía
+// el arreglo MC-015 de parseNumCO ("1,234,567,890" valía 1,234).
+await check('Coincidencia (módulo): expone las 8 reglas compartidas', () => {
+  ['parseNumCO', 'normalizeGeo', 'matchesGeo', 'matchesTerm', 'findField', 'prepararBusquedaPorNombre', 'esEstadoNoVigente', 'consultasSecopII'].forEach(n =>
+    assert(typeof Coincidencia[n] === 'function', 'falta ' + n));
 });
 
-await check('QA-001 daily-digest: esEstadoNoVigente y consultasSecopII coinciden con la copia real del cliente en los mismos casos (detecta divergencia entre las dos copias -- el propio index.ts advierte que hay que replicar los cambios a mano)', () => {
-  ['Cancelado', 'Seleccionado', 'Adjudicado', 'CELEBRADO', 'Abierto', 'Publicado', '', null].forEach(e => {
-    assert(digestEngine.esEstadoNoVigente(e) === expEngine.esEstadoNoVigente(e), 'esEstadoNoVigente diverge para "' + e + '": digest=' + digestEngine.esEstadoNoVigente(e) + ' cliente=' + expEngine.esEstadoNoVigente(e));
-  });
-  const propio = digestEngine.consultasSecopII('pavimentacion', '2026-01-01');
-  const cliente = expEngine.consultasSecopII('pavimentacion', '2026-01-01');
-  assert(propio.vigentes === cliente.vigentes && propio.recientes === cliente.recientes, 'consultasSecopII debe armar EXACTAMENTE las mismas URLs que el cliente (mismo criterio S2-001): ' + JSON.stringify({ propio, cliente }));
+await check('Coincidencia (módulo): parseNumCO entiende miles, decimales y los formatos con varias comas o anglosajón (MC-015, que el digest no tenía)', () => {
+  const C = Coincidencia;
+  assert(C.parseNumCO('1.500.000.000') === 1500000000 && C.parseNumCO('1,5') === 1.5, 'formato colombiano');
+  assert(C.parseNumCO('1,234,567,890') === 1234567890, 'varias comas son miles: ' + C.parseNumCO('1,234,567,890'));
+  assert(C.parseNumCO('1,500.50') === 1500.5, 'formato anglosajón: ' + C.parseNumCO('1,500.50'));
+  assert(C.parseNumCO(null) === null && C.parseNumCO('sin dígitos') === null, 'sin número: null');
 });
 
-await check('QA-001 daily-digest: consultasSecopII pide vigentes (cierre futuro) y recientes (publicación no nula) por separado -- mismo criterio que S2-001 del cliente', () => {
-  const c = digestEngine.consultasSecopII('pavimentacion', '2026-01-01');
-  assert(/fecha_de_recepcion_de.*%3E%3D.*2026-01-01/.test(c.vigentes) || /fecha_de_recepcion_de/.test(decodeURIComponent(c.vigentes)), 'vigentes debe filtrar por fecha de cierre futura: ' + c.vigentes);
-  assert(/fecha_de_publicacion_del IS NOT NULL/.test(decodeURIComponent(c.recientes)), 'recientes debe excluir publicación nula (el bug real de S2-001): ' + c.recientes);
-  assert(c.vigentes.includes('%24q=pavimentacion') || decodeURIComponent(c.vigentes).includes('$q=pavimentacion'), 'el término va en la consulta');
+await check('Coincidencia (módulo): geografía exacta, término con raíz de 6 letras, estados no vigentes y consultas de SECOP II', () => {
+  const C = Coincidencia;
+  assert(C.normalizeGeo('Departamento de Norte de Santander') === 'norte de santander', 'quita "departamento de"');
+  assert(C.matchesGeo('Norte de Santander', 'Santander') === false && C.matchesGeo('Norte de Santander', 'norte de santander') === true, 'exacta, no por contención');
+  ['pavimentación', 'pavimento'].forEach(x => assert(C.matchesTerm('obra de pavimentacion urbana', x) === true, 'raíz: ' + x));
+  assert(C.matchesTerm('obra cualquiera', 'alcantarillado') === false, 'sin relación no coincide');
+  ['Cancelado', 'Seleccionado', 'Adjudicado', 'CELEBRADO'].forEach(e => assert(C.esEstadoNoVigente(e) === true, e));
+  ['Abierto', 'Publicado', '', null].forEach(e => assert(C.esEstadoNoVigente(e) === false, String(e)));
+  const q = C.consultasSecopII('pavimentación', '2026-01-01');
+  assert(decodeURIComponent(q.vigentes).includes("fecha_de_recepcion_de >= '2026-01-01'") && decodeURIComponent(q.recientes).includes('fecha_de_publicacion_del IS NOT NULL'), 'vigentes y recientes por separado (S2-001)');
+  assert(decodeURIComponent(q.vigentes).includes('$q=pavimentacion') && !/ó/.test(q.vigentes), 'el término va sin tildes');
+  const b = C.prepararBusquedaPorNombre('Gobernación de Norte de Santander');
+  assert(b.coincide('GOBERNACION DE NORTE DE SANTANDER') && !b.coincideEstricta('SANTANDER - GOBERNACION'), 'tolerante vs estricta (SI-001)');
+  assert(C.findField({ Valor_Total: 5 }, ['valor_total']) === 5 && C.findField({ a: 1 }, ['b']) === null, 'findField sin distinguir mayúsculas');
+});
+
+await check('Coincidencia (módulo): UN solo origen -- daily-digest usa una copia idéntica y ya no define las reglas por su cuenta', () => {
+  const raiz = readFileSync(path.join(ROOT, 'coincidencia.js'), 'utf8');
+  const copia = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/coincidencia.js'), 'utf8');
+  assert(raiz === copia, 'supabase/functions/daily-digest/coincidencia.js debe ser idéntica a coincidencia.js (copiar: cp coincidencia.js supabase/functions/daily-digest/)');
+  const digest = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  assert(/import '\.\/coincidencia\.js';/.test(digest), 'el digest importa el módulo');
+  ['parseNumCO', 'normalizeGeo', 'matchesGeo', 'matchesTerm', 'findField', 'prepararBusquedaPorNombre', 'esEstadoNoVigente', 'consultasSecopII'].forEach(n =>
+    assert(!new RegExp('^function ' + n + '\\(', 'm').test(digest), 'el digest no debe redefinir ' + n));
+});
+
+await check('Coincidencia (módulo): index.html lo carga antes del script principal, no redefine las reglas y pages.yml lo publica', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const iMod = html.indexOf('<script src="coincidencia.js"></script>');
+  assert(iMod !== -1 && iMod < html.search(/^<script>$/m), 'coincidencia.js se carga antes del <script> principal');
+  ['parseNumCO', 'normalizeGeo', 'matchesGeo', 'matchesTerm', 'findField', 'prepararBusquedaPorNombre', 'esEstadoNoVigente', 'consultasSecopII'].forEach(n =>
+    assert(!new RegExp('^\\s+function ' + n + '\\(', 'm').test(html), 'index.html no debe redefinir ' + n));
+  assert(/cp index\.html lectura\.js coincidencia\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia coincidencia.js');
 });
 
 await check('ESC-002: la caché devuelve lo guardado mientras esté fresco y lo descarta al vencer', () => {
@@ -2981,6 +2970,31 @@ await check('Lectura (módulo): iniciar con extenderSiEscaso lee una tanda más 
   lecturas.length = 0;
   await Lectura.iniciar({}, mk(() => 'poco'), { id: 'b5', minTexto: 200 });
   assert(lecturas.length === 1, 'sin extenderSiEscaso no lee de más');
+});
+
+await check('PDF-06: Lectura mide cuánto tarda cada tanda por método (texto, OCR, IA) y cuántas páginas leyó, en la primera lectura y al seguir', async () => {
+  const lento = (metodo, campoTexto) => ({ metodo, campoTexto, tanda: 4, leer: async (f, d, h) => {
+    await new Promise(r => setTimeout(r, 25));
+    let text = ''; const paginaOffsets = [];
+    for (let p = d; p <= h; p++) { text += 'p' + p + ' '; paginaOffsets.push({ pagina: p, hasta: text.length }); }
+    return { text, pagesRead: h, numPages: 10, paginaOffsets };
+  } });
+  const r = await Lectura.iniciar({}, lento('ocr', 'ocrText'), { id: 'c1', minTexto: 1 });
+  const e = r.entry;
+  assert(e.lecturaMs && e.lecturaMs.ocr && e.lecturaMs.ocr.tandas === 1 && e.lecturaMs.ocr.paginas === 4 && e.lecturaMs.ocr.ms >= 20, 'primera tanda medida: ' + JSON.stringify(e.lecturaMs));
+  await Lectura.avanzar(e, {}, lento('ocr', 'ocrText'));
+  assert(e.lecturaMs.ocr.tandas === 2 && e.lecturaMs.ocr.paginas === 8 && e.lecturaMs.ocr.ms >= 40, 'acumula al seguir leyendo: ' + JSON.stringify(e.lecturaMs));
+  const e2 = { id: 'c2', numPages: 8, pagesRead: 0, ocrText: '', paginaOffsets: [] };
+  await Lectura.leerTodo(e2, {}, lento('ia', 'ocrText'));
+  assert(e2.lecturaMs.ia.tandas === 2 && e2.lecturaMs.ia.paginas === 8, 'leerTodo mide cada tanda: ' + JSON.stringify(e2.lecturaMs));
+  assert(!e2.lecturaMs.ocr && !e2.lecturaMs.texto, 'solo el método usado');
+});
+
+await check('PDF-06: Lectura.resumenTiempos describe el tiempo por método y por página; vacío si no hay mediciones', () => {
+  assert(Lectura.resumenTiempos({}) === '' && Lectura.resumenTiempos(null) === '', 'sin mediciones no inventa nada');
+  const txt = Lectura.resumenTiempos({ lecturaMs: { ocr: { tandas: 2, paginas: 30, ms: 150000 }, texto: { tandas: 1, paginas: 40, ms: 800 } } });
+  assert(/OCR: 30 páginas en 150 s/.test(txt) && /5 s\/página/.test(txt), 'OCR con segundos por página: ' + txt);
+  assert(/Texto: 40 páginas en 1 s/.test(txt), 'texto en menos de un segundo se redondea a 1 s: ' + txt);
 });
 
 await check('Lectura (módulo): index.html carga lectura.js, los 3 lectores comparten el módulo y pages.yml lo publica', () => {

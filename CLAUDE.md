@@ -6282,3 +6282,34 @@ envoltorio de dos líneas sobre ambos. Las pruebas ya no usan `setInputsFake`/`s
 (se eliminaron) y pasan `CTX_EVAL`; hay tres pruebas nuevas (rango de valor por ctx, personal por ctx,
 mejor de varios perfiles), con mutación comprobada en dos. Verificado en el navegador: la lista y la
 vista "Evaluación y documentos" siguen evaluando y la consola queda limpia.
+
+## Módulo `coincidencia.js` (revisión de arquitectura, candidato 3) y tiempos de lectura (PDF-06)
+
+**Coincidencia compartida.** Las reglas de "¿este proceso coincide con mi búsqueda/alerta?"
+(`parseNumCO`, `normalizeGeo`, `matchesGeo`, `matchesTerm`, `findField`, `prepararBusquedaPorNombre`,
+`esEstadoNoVigente`, `consultasSecopII`) estaban escritas dos veces: en `index.html` y en
+`daily-digest/index.ts` (un "puerto a mano" que una prueba comparaba). Ya habían divergido de verdad:
+el digest NO tenía el arreglo MC-015 de `parseNumCO` ("1,234,567,890" valía 1,234), así que el correo
+diario podía contar mal con montos escritos así. Ahora hay UN origen, `coincidencia.js` en la raíz
+(script clásico, funciones puras, `window.Coincidencia` en el navegador / `module.exports` en Node):
+`index.html` lo carga antes del script principal y lo desestructura al inicio, y `pages.yml` lo
+publica. `daily-digest` lleva una copia IDÉNTICA en su carpeta (la CLI de Supabase solo empaqueta lo
+que está bajo la carpeta de la función) y la importa con `import './coincidencia.js'` (cuelga
+`Coincidencia` de `globalThis`); una prueba falla si las dos copias difieren (para sincronizar:
+`cp coincidencia.js supabase/functions/daily-digest/`). Siguen duplicados a mano, por depender de cada
+runtime, `fetchSecopDataset` y `pubRawDeSecopII`. Las pruebas ya no extraen esas funciones de
+`index.html` por anclas: el arnés inyecta el módulo como globales.
+
+**RIESGO NO VERIFICADO**: no hay Deno en este entorno, así que el `import` del archivo hermano en la
+Edge Function no se ejecutó de verdad (solo se probó el módulo en Node y la página en el navegador).
+`funciones-supabase.yml` despliega solo al hacer push: tras desplegar, invocar `daily-digest` con
+`?debug=1` (ver "Fase 6") y confirmar que responde sin error antes de dar el cambio por bueno.
+
+**Tiempos de lectura (PDF-06).** `Lectura` (lectura.js) mide cada tanda por método
+(`entry.lecturaMs = {texto|ocr|ia: {tandas, paginas, ms}}`) en la primera lectura y al seguir, y
+`Lectura.resumenTiempos(entry)` arma el texto ("OCR: 30 páginas en 150 s (5 s/página)") que la
+tarjeta muestra junto a los tokens de IA. Así la velocidad real del OCR en producción deja de ser una
+impresión: la próxima lectura real del usuario queda medida en su propio análisis.
+
+Ambos cambios se hicieron escribiendo la prueba primero (fallaba) y luego implementando, a pedido del
+usuario; mutación comprobada (copia del digest distinta, `parseNumCO` sin MC-015).

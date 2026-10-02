@@ -12,17 +12,12 @@
 // algo nuevo, envía un correo breve (vía Resend) con el conteo y un enlace a
 // la app -- el detalle completo se ve adentro, este correo es solo el aviso.
 //
-// DUPLICACIÓN DELIBERADA, no descuido: las funciones de más abajo
-// (parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField,
-// prepararBusquedaPorNombre, fetchSecopDataset) son un puerto a Deno de las
-// funciones del mismo nombre en index.html. Una Edge Function corre en un
-// runtime completamente aparte del navegador -- no hay forma de "importar"
-// código de un <script> de una página HTML sin meter un paso de build que
-// esta app no tiene por diseño (ver CLAUDE.md, "por qué no hay backend").
-// Si alguna de esas funciones cambia en index.html (ej. se ajusta la regla
-// de la raíz de 6 letras en matchesTerm, o el orden de columnas de fecha en
-// SECOP II), hay que replicar el cambio aquí a mano -- están comentadas con
-// el nombre exacto de su contraparte para que sea fácil encontrarlas.
+// CÓDIGO COMPARTIDO CON index.html: las reglas de coincidencia (parseNumCO, normalizeGeo,
+// matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente,
+// consultasSecopII) viven en coincidencia.js, la misma fuente que carga el navegador. Esta carpeta
+// lleva una copia idéntica (la CLI solo empaqueta lo que está bajo la carpeta de la función) y una
+// prueba de tests/smoke.mjs falla si difieren. Lo que SÍ sigue duplicado a mano, por depender de
+// cada runtime: fetchSecopDataset y pubRawDeSecopII.
 //
 // SEGURIDAD: esta función NO usa la anon key -- usa la service_role key
 // (inyectada automáticamente por Supabase como SUPABASE_SERVICE_ROLE_KEY en
@@ -48,79 +43,12 @@ function socrataHeaders(){
   return SOCRATA_APP_TOKEN ? { 'X-App-Token': SOCRATA_APP_TOKEN } : {};
 }
 
-// ---- Helpers puros portados de index.html (ver comentario de arriba) ------
-
-// = parseNumCO en index.html
-function parseNumCO(s: unknown): number | null {
-  if (s == null) return null;
-  let t = String(s).replace(/[^\d.,\-]/g, '');
-  if (!/\d/.test(t)) return null;
-  if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.');
-  else if ((t.match(/\./g) || []).length > 1 || /\.\d{3}(\D|$)/.test(t + ' ')) t = t.replace(/\./g, '');
-  const n = parseFloat(t);
-  return isNaN(n) ? null : n;
-}
-
-// = normalizeGeo en index.html
-function normalizeGeo(s: unknown): string {
-  return String(s || '')
-    .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z\s]/g, ' ')
-    .replace(/^\s*(departamento|dpto|depto)\s+(de\s+)?/, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// = matchesGeo en index.html
-function matchesGeo(departamento: string, term: string): boolean {
-  const d = normalizeGeo(departamento);
-  const t = normalizeGeo(term);
-  return !!d && !!t && d === t;
-}
-
-// = matchesTerm en index.html (misma regla de raíz de 6 letras para
-// pavimento/pavimentación, alcantarilla/alcantarillado, etc.)
-function matchesTerm(searchable: string, term: string): boolean {
-  if (!term) return false;
-  const t = String(term).toLowerCase().trim();
-  if (!t) return false;
-  if (searchable.includes(t)) return true;
-  const words = t.split(/\s+/).filter(Boolean);
-  if (!words.length) return false;
-  return words.every((w) => searchable.includes(w) || (w.length >= 6 && searchable.includes(w.slice(0, 6))));
-}
-
-// = findField en index.html
-function findField(record: Record<string, unknown>, exactCandidates: string[], substrFallback?: string): unknown {
-  const keys = Object.keys(record);
-  for (const c of exactCandidates) {
-    const k = keys.find((k) => k.toLowerCase() === c.toLowerCase());
-    if (k && record[k] !== null && record[k] !== undefined && record[k] !== '') return record[k];
-  }
-  if (substrFallback) {
-    const k = keys.find((k) => k.toLowerCase().includes(substrFallback));
-    if (k && record[k]) return record[k];
-  }
-  return null;
-}
-
-// = prepararBusquedaPorNombre en index.html
-function prepararBusquedaPorNombre(nombre: string) {
-  const norm = (s: unknown) => normalizeGeo(s);
-  const objetivo = norm(nombre);
-  const toks = objetivo.split(' ').filter((w) => w.length >= 4);
-  const ancla = toks.slice().sort((a, b) => b.length - a.length).slice(0, 2).join(' ') || objetivo;
-  const coincide = (candidato: unknown) => {
-    const c = norm(candidato);
-    if (!c) return false;
-    if (c === objetivo || c.indexOf(objetivo) !== -1 || objetivo.indexOf(c) !== -1) return true;
-    const a = c.split(' ').filter((w) => w.length >= 4), b = toks;
-    const chico = a.length <= b.length ? a : b, grande = a.length <= b.length ? b : a;
-    return chico.length >= 2 && chico.every((w) => grande.indexOf(w) !== -1);
-  };
-  return { ancla, coincide };
-}
+// ---- Reglas de coincidencia compartidas con el navegador (un solo origen: coincidencia.js) ----
+// La copia de esta carpeta debe ser idéntica a coincidencia.js de la raíz del repo (una prueba lo
+// verifica). Es un script clásico que cuelga `Coincidencia` de globalThis.
+import './coincidencia.js';
+// deno-lint-ignore no-explicit-any
+const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII } = (globalThis as any).Coincidencia;
 
 // Extrae fecha de publicación y objeto/entidad/departamento de un registro
 // crudo de SECOP II -- versión recortada de normalize() en index.html: solo
@@ -135,26 +63,9 @@ function pubRawDeSecopII(record: Record<string, unknown>): string | null {
   return all.length ? all[0] : null;
 }
 
-// = fetchSecopDataset en index.html (mismo $limit, mismo reintento sin
-// orden si la columna no existe en ese dataset).
-// = consultasSecopII en index.html (auditoría S2-001/S2-002). El orden DESC de
-// Socrata pone los NULL primero y ~127.000 procesos de SECOP II no tienen fecha
-// de publicación: para palabras comunes las 300 filas eran todas NULL y ningún
-// proceso abierto llegaba, así que el correo podía decir "0 nuevos" con procesos
-// nuevos reales. Se piden dos consultas (vigentes por cierre próximo + recientes
-// con publicación no nula) y el término va sin tildes ($q distingue tildes).
-function consultasSecopII(qTerm: string | null, hoyISO: string) {
-  const q = qTerm ? '&$q=' + encodeURIComponent(String(qTerm).normalize('NFD').replace(/[̀-ͯ]/g, '')) : '';
-  return {
-    vigentes: '$limit=300' + q +
-      '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'") +
-      '&$order=' + encodeURIComponent('fecha_de_recepcion_de ASC'),
-    recientes: '$limit=300' + q +
-      '&$where=' + encodeURIComponent('fecha_de_publicacion_del IS NOT NULL') +
-      '&$order=' + encodeURIComponent('fecha_de_publicacion_del DESC'),
-  };
-}
-
+// = fetchSecopDataset en index.html (mismo $limit, mismo reintento sin orden si la columna no
+// existe en ese dataset). Las dos consultas a SECOP II (vigentes + recientes, auditoría
+// S2-001/S2-002) las arma consultasSecopII, del módulo compartido.
 async function fetchSecopDataset(datasetId: string, qTerm: string | null, ordenCol: string): Promise<Record<string, unknown>[]> {
   const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' + (qTerm ? '&$q=' + encodeURIComponent(qTerm) : '');
   async function intentar(url: string) {
@@ -205,15 +116,6 @@ interface Alerta {
 }
 interface EmpresaSeguida {
   id: string; nombre: string; ultimaRevision?: string;
-}
-
-// = esEstadoNoVigente en index.html (auditoría S2-003): un proceso cancelado,
-// en borrador, ya seleccionado/adjudicado, suspendido o en evaluación no es una
-// oportunidad nueva. Un estado vacío o desconocido NO se descarta.
-function esEstadoNoVigente(estado: unknown): boolean {
-  const e = String(estado ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9%\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!e) return false;
-  return /^(cancelad|borrador|seleccionad|suspendid|aprobad|en aprobacion|evaluacion|adjudicad|celebrad|liquidad|terminad|declarad|desiert|revocad|descartad)/.test(e);
 }
 
 // = evaluarAlerta en index.html -- cuenta procesos de SECOP II que coinciden
