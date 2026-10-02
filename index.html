@@ -5988,7 +5988,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return { estado: 'nd', detalle: 'Analiza el pliego de este proceso (y evalúa la experiencia requerida, en "Experiencia requerida" debajo del análisis) para conocer el cumplimiento de experiencia.' };
     }
     const ev = entry.experienciaResultado;
-    const estado = ev.resultadoGlobal === 'CUMPLE' ? 'ok' : (ev.resultadoGlobal === 'NO CUMPLE' ? 'fail' : 'revisar');
+    // "revisar" se muestra como "Cumple parcialmente" y cuenta en el % de cumplimiento. Con 0 CUMPLE y
+    // 0 NO CUMPLE (todo NO DETERMINABLE) no hay ni un avance parcial real: es "Requiere verificación"
+    // (nd), que no cuenta a favor ni en contra. El veredicto no cambia (revisar y nd dan REVISAR).
+    const sinAvance = !ev.conteo['CUMPLE'] && !ev.conteo['NO CUMPLE'];
+    const estado = ev.resultadoGlobal === 'CUMPLE' ? 'ok' : (ev.resultadoGlobal === 'NO CUMPLE' ? 'fail' : (sinAvance ? 'nd' : 'revisar'));
     const detalle = 'Experiencia requerida por este proceso: ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' +
       ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' +
       ev.resultados.length + ' requisito(s), ' + ev.totalObligatorios + ' obligatorio(s)). Ver detalle en "Experiencia requerida" debajo del análisis del pliego.';

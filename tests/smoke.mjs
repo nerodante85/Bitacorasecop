@@ -2568,6 +2568,20 @@ await check('parsearRUT: sin ningún item reconocible, todo queda null/0 -- no s
   assert(r.responsabilidades.length === 0 && r.encontrado === 0, 'sin datos: ' + JSON.stringify(r));
 });
 
+// ---- Gate de experiencia: "Cumple parcialmente" solo con un avance real ----
+function entryConConteo(conteo, resultadoGlobal) {
+  return { experienciaResultado: { resultadoGlobal, conteo, totalObligatorios: 2, resultados: [{}, {}] } };
+}
+await check('experienciaGateDetalle: todo NO DETERMINABLE (0 cumple, 0 no cumple) es "nd", no "revisar" (parcial)', () => {
+  const g = expEngine.experienciaGateDetalle(entryConConteo({ 'CUMPLE': 0, 'NO CUMPLE': 0, 'NO DETERMINABLE': 2 }, 'REQUIERE REVISIÓN'));
+  assert(g.estado === 'nd', 'sin ningún avance real debe ser nd: ' + g.estado);
+});
+await check('experienciaGateDetalle: con al menos un CUMPLE y pendientes sigue siendo "revisar" (parcial); CUMPLE y NO CUMPLE sin cambios', () => {
+  assert(expEngine.experienciaGateDetalle(entryConConteo({ 'CUMPLE': 1, 'NO CUMPLE': 0, 'NO DETERMINABLE': 1 }, 'REQUIERE REVISIÓN')).estado === 'revisar', 'parcial real');
+  assert(expEngine.experienciaGateDetalle(entryConConteo({ 'CUMPLE': 2, 'NO CUMPLE': 0, 'NO DETERMINABLE': 0 }, 'CUMPLE')).estado === 'ok', 'ok');
+  assert(expEngine.experienciaGateDetalle(entryConConteo({ 'CUMPLE': 0, 'NO CUMPLE': 1, 'NO DETERMINABLE': 1 }, 'NO CUMPLE')).estado === 'fail', 'fail');
+});
+
 // ---- QA-001: evaluarProceso completo (el veredicto GO/NO-GO/REVISAR real, no solo sus gates aislados) ----
 // Contexto explícito del motor: sin DOM ni globales (antes se simulaban con setInputsFake/setPerfilesProfesionales).
 const CTX_EVAL = { minV: 0, maxV: 0, perfilesProfesionales: {}, perfiles: [] };
