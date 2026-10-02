@@ -3241,5 +3241,33 @@ await check('PDF-05: la primera lectura de texto usa extenderSiEscaso (la lógic
   assert(/Lectura\.iniciar\(file, LECTOR_TEXTO, \{[^}]*minTexto: 200, extenderSiEscaso: true/.test(html), 'debe usar extenderSiEscaso con minTexto 200');
 });
 
+
+await check('IA en documentos cortos: leerEscaneadoConIA une las tandas con offsets correctos y el botón está en RUP/RUT/experiencia/Estudio Previo', async () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const i = html.indexOf('async function leerEscaneadoConIA(');
+  const j = html.indexOf('// Botón "Leer con IA" junto al de OCR', i);
+  assert(i > 0 && j > i, 'no se encontró leerEscaneadoConIA');
+  const llamadas = [];
+  const transcribirPaginasConIA = async (_f, desde, hasta) => {
+    llamadas.push([desde, hasta]);
+    const n = 20, fin = Math.min(hasta, n); // documento de 20 páginas
+    let text = '', paginaOffsets = [];
+    for (let p = desde; p <= fin; p++){ text += 'P' + p + ';'; paginaOffsets.push({ pagina: p, hasta: text.length }); }
+    return { text, numPages: n, pagesRead: fin, paginaOffsets };
+  };
+  const fn = new Function('transcribirPaginasConIA', 'IA_TRANSCRIBE_BATCH_PAGES', html.slice(i, j) + '; return leerEscaneadoConIA;')(transcribirPaginasConIA, 8);
+  const r = await fn({}, 20);
+  assert(JSON.stringify(llamadas) === '[[1,8],[9,16],[17,20]]', 'tandas inesperadas: ' + JSON.stringify(llamadas));
+  assert(r.pagesRead === 20 && r.numPages === 20, 'debe leer las 20 páginas');
+  assert(r.text.startsWith('P1;P2;') && r.text.endsWith('P20;'), 'texto concatenado en orden');
+  // el offset de cada página apunta al final de SU texto dentro del texto unido
+  r.paginaOffsets.forEach(o => assert(r.text.slice(0, o.hasta).endsWith('P' + o.pagina + ';'), 'offset mal desplazado en la página ' + o.pagina));
+  const r2 = await fn({}, 3);
+  assert(r2.pagesRead === 3, 'respeta el tope de páginas');
+  ['bt-perfil-rup-status', 'bt-perfil-rut-status', 'bt-expeval-exp-status'].forEach(() => {});
+  assert((html.match(/botonLeerConIAHtml\(/g) || []).length >= 5, 'el botón Leer con IA debe estar en los 4 flujos');
+  assert(/procesarRUP\(file, 'ia'\)/.test(html) && /procesarRUT\(file, 'ia'\)/.test(html) && /cargarExperienciaPDF\(file, 'ia'\)/.test(html) && /cargarEstudioPrevioPDF\(entry, file, 'ia', slot\)/.test(html), 'cada flujo debe poder invocarse con IA');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

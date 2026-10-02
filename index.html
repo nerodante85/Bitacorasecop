@@ -3537,12 +3537,21 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return partes;
   }
 
+  // "Inicia sesión" dentro de los avisos de estado de RUP/RUT/experiencia (el manejador de las tarjetas
+  // vive en resultsEl y no los alcanza).
+  [perfilRupStatusEl, perfilRutStatusEl, expevalExpStatusEl].forEach(el => {
+    if (el) el.addEventListener('click', e => { if (e.target.closest('[data-abrir-cuenta]')) openAccountModal(); });
+  });
+
   async function procesarRUP(file, viaOcr){
-    perfilRupStatusEl.textContent = viaOcr ? 'Leyendo el RUP con OCR (puede tardar varios minutos)…' : 'Leyendo el RUP…';
+    perfilRupStatusEl.textContent = viaOcr === 'ia' ? 'Leyendo el RUP con IA (puede tardar un par de minutos)…' : (viaOcr ? 'Leyendo el RUP con OCR (puede tardar varios minutos)…' : 'Leyendo el RUP…');
     let text = '', numPages = 0, pagesRead = 0;
     try {
       await appReady;
-      if (viaOcr){
+      if (viaOcr === 'ia'){
+        const r = await leerEscaneadoConIA(file, 20, (d, t) => { perfilRupStatusEl.textContent = 'La IA está leyendo el RUP… desde la página ' + d + ' (de ' + t + ')'; });
+        text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
+      } else if (viaOcr){
         const r = await ocrPdfPages(file, 1, 20, (pct, page, total) => {
           perfilRupStatusEl.textContent = 'OCR del RUP… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
         });
@@ -3559,9 +3568,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (!viaOcr && (!text || text.trim().length < 200)){
       pendingRupFile = file;
       perfilRupStatusEl.innerHTML = 'El PDF del RUP no tiene texto extraíble (parece escaneado). ' +
-        '<button class="link-btn" id="bt-perfil-rup-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
+        '<button class="link-btn" id="bt-perfil-rup-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).' + botonLeerConIAHtml();
       const b = document.getElementById('bt-perfil-rup-ocr');
       if (b) b.addEventListener('click', () => procesarRUP(file, true));
+      const bIa = perfilRupStatusEl.querySelector('[data-leer-ia]');
+      if (bIa) bIa.addEventListener('click', () => procesarRUP(file, 'ia'));
       return;
     }
 
@@ -3572,7 +3583,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     const partes = aplicarRUPaCampos(data);
     if (perfilSavedEl) perfilSavedEl.textContent = '';
-    perfilRupStatusEl.textContent = 'RUP leído (' + pagesRead + '/' + numPages + ' págs' + (viaOcr ? ', vía OCR' : '') + '). ' +
+    perfilRupStatusEl.textContent = 'RUP leído (' + pagesRead + '/' + numPages + ' págs' + (viaOcr === 'ia' ? ', vía IA' : (viaOcr ? ', vía OCR' : '')) + '). ' +
       (partes.length ? partes.join(' · ') + '. ' : '') +
       'La capacidad K/financiera y la capacidad residual del RUP salen de una tabla y pueden no leerse bien: revísalas contra el PDF antes de pulsar Guardar perfil.';
   }
@@ -3774,7 +3785,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   }
 
   async function procesarRUT(file, viaOcr){
-    perfilRutStatusEl.textContent = viaOcr ? 'Leyendo el RUT con OCR (puede tardar varios minutos)…' : 'Leyendo el RUT…';
+    perfilRutStatusEl.textContent = viaOcr === 'ia' ? 'Leyendo el RUT con IA…' : (viaOcr ? 'Leyendo el RUT con OCR (puede tardar varios minutos)…' : 'Leyendo el RUT…');
     let items = [], numPages = 0, pagesRead = 0;
     try {
       await appReady;
@@ -3785,18 +3796,21 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         // OCR. El RUT escaneado es mucho menos común que uno generado
         // digitalmente (que es como la DIAN lo entrega siempre), así que
         // este camino es solo un respaldo honesto, no la vía principal.
-        const r = await ocrPdfPages(file, 1, 3, (pct, page, total) => {
-          perfilRutStatusEl.textContent = 'OCR del RUT… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
-        });
+        const etiquetaVia = viaOcr === 'ia' ? 'IA' : 'OCR';
+        const r = viaOcr === 'ia'
+          ? await leerEscaneadoConIA(file, 3, () => { perfilRutStatusEl.textContent = 'La IA está leyendo el RUT…'; })
+          : await ocrPdfPages(file, 1, 3, (pct, page, total) => {
+              perfilRutStatusEl.textContent = 'OCR del RUT… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
+            });
         numPages = r.numPages; pagesRead = r.pagesRead;
         const data = parsearRUTTextoPlano(r.text);
         if (!data.encontrado){
-          perfilRutStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' páginas del RUT (vía OCR) pero no reconocí los datos con este formato. Rellena las casillas a mano.';
+          perfilRutStatusEl.textContent = 'Leí ' + pagesRead + '/' + numPages + ' páginas del RUT (vía ' + etiquetaVia + ') pero no reconocí los datos con este formato. Rellena las casillas a mano.';
           return;
         }
         const partesOcr = aplicarRUTaCampos(data);
         if (perfilSavedEl) perfilSavedEl.textContent = '';
-        perfilRutStatusEl.textContent = 'RUT leído (' + pagesRead + '/' + numPages + ' págs, vía OCR). ' +
+        perfilRutStatusEl.textContent = 'RUT leído (' + pagesRead + '/' + numPages + ' págs, vía ' + etiquetaVia + '). ' +
           (partesOcr.length ? partesOcr.join(' · ') + '. ' : '') + 'Revisa los datos contra el PDF antes de pulsar Guardar perfil.';
         return;
       }
@@ -3809,9 +3823,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
     if (!items.length){
       perfilRutStatusEl.innerHTML = 'El PDF del RUT no tiene texto extraíble (parece escaneado). ' +
-        '<button class="link-btn" id="bt-perfil-rut-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
+        '<button class="link-btn" id="bt-perfil-rut-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).' + botonLeerConIAHtml();
       const b = document.getElementById('bt-perfil-rut-ocr');
       if (b) b.addEventListener('click', () => procesarRUT(file, true));
+      const bIa = perfilRutStatusEl.querySelector('[data-leer-ia]');
+      if (bIa) bIa.addEventListener('click', () => procesarRUT(file, 'ia'));
       return;
     }
 
@@ -4457,6 +4473,34 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // que el servidor recibiera la petición), para no dejar el archivo huérfano.
       try { await client.storage.from('pliegos').remove([path]); } catch(_e){ /* best effort */ }
     }
+  }
+
+  // Lectura con IA de un PDF escaneado CORTO (RUP, RUT, experiencia del proponente, Estudio Previo): las
+  // primeras `maxPaginas` páginas en tandas de IA_TRANSCRIBE_BATCH_PAGES, con la misma forma de resultado que
+  // ocrPdfPages ({text, numPages, pagesRead, paginaOffsets}) para que cada flujo sea intercambiable OCR/IA.
+  function hayCuentaParaIA(){ return !!(SUPABASE_ENABLED && sbSession && sbCompanyId); }
+  async function leerEscaneadoConIA(file, maxPaginas, onProgreso){
+    let text = '', numPages = 0, pagesRead = 0;
+    const offsets = [];
+    let desde = 1;
+    while (desde <= maxPaginas && (!numPages || desde <= numPages)){
+      const hasta = Math.min(maxPaginas, desde + IA_TRANSCRIBE_BATCH_PAGES - 1);
+      if (onProgreso) onProgreso(desde, Math.min(maxPaginas, numPages || maxPaginas));
+      const r = await transcribirPaginasConIA(file, desde, hasta);
+      numPages = r.numPages;
+      const base = text.length;
+      text += r.text;
+      (r.paginaOffsets || []).forEach(o => offsets.push({ pagina: o.pagina, hasta: o.hasta + base }));
+      pagesRead = r.pagesRead;
+      desde = r.pagesRead + 1;
+      if (r.pagesRead >= numPages) break;
+    }
+    return { text: text, numPages: numPages, pagesRead: pagesRead, paginaOffsets: offsets };
+  }
+  // Botón "Leer con IA" junto al de OCR: solo con sesión (sin ella, una nota para iniciar sesión).
+  function botonLeerConIAHtml(atributos){
+    if (hayCuentaParaIA()) return ' <button class="link-btn" type="button" data-leer-ia ' + (atributos || '') + '>Leer con IA</button> (más rápido y preciso; consume crédito de IA).';
+    return SUPABASE_ENABLED ? ' <button class="link-btn" type="button" data-abrir-cuenta>Inicia sesión</button> para leerlo con IA.' : '';
   }
 
   // "Leer todo el documento con IA": encadena tandas de transcribirPaginasConIA una tras otra
@@ -10781,12 +10825,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // en la vía OCR, sin coordenadas disponibles, se parte por línea de
   // texto en vez de por posición.
   async function cargarExperienciaPDF(file, viaOcr){
-    expevalExpStatusEl.textContent = viaOcr ? 'Leyendo el PDF con OCR (puede tardar varios minutos)…' : 'Leyendo el PDF…';
+    expevalExpStatusEl.textContent = viaOcr === 'ia' ? 'Leyendo el PDF con IA (puede tardar un par de minutos)…' : (viaOcr ? 'Leyendo el PDF con OCR (puede tardar varios minutos)…' : 'Leyendo el PDF…');
     let filas = [], numPages = 0, pagesRead = 0;
     try {
       await appReady;
       if (viaOcr){
-        const r = await ocrPdfPages(file, 1, 20, (pct, page, total) => {
+        const r = viaOcr === 'ia'
+          ? await leerEscaneadoConIA(file, 20, (d, t) => { expevalExpStatusEl.textContent = 'La IA está leyendo la experiencia… desde la página ' + d + ' (de ' + t + ')'; })
+          : await ocrPdfPages(file, 1, 20, (pct, page, total) => {
           expevalExpStatusEl.textContent = 'OCR de la experiencia… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
         });
         numPages = r.numPages; pagesRead = r.pagesRead;
@@ -10802,9 +10848,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
     if (!viaOcr && filas.join('').length < 100){
       expevalExpStatusEl.innerHTML = 'El PDF no tiene texto extraíble (parece escaneado). ' +
-        '<button class="link-btn" id="bt-expeval-exp-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
+        '<button class="link-btn" id="bt-expeval-exp-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).' + botonLeerConIAHtml();
       const b = document.getElementById('bt-expeval-exp-ocr');
       if (b) b.addEventListener('click', () => cargarExperienciaPDF(file, true));
+      const bIa = expevalExpStatusEl.querySelector('[data-leer-ia]');
+      if (bIa) bIa.addEventListener('click', () => cargarExperienciaPDF(file, 'ia'));
       return;
     }
 
@@ -10913,11 +10961,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     try {
       await appReady;
       let r;
-      if (viaOcr) r = await ocrPdfPages(file, 1, 20, () => {});
+      if (viaOcr === 'ia') r = await leerEscaneadoConIA(file, 20);
+      else if (viaOcr) r = await ocrPdfPages(file, 1, 20, () => {});
       else r = await extractPdfText(file, 20);
       if (!viaOcr && (!r.text || r.text.trim().length < 100)){
         if (slot) slot.insertAdjacentHTML('beforeend',
-          '<div class="analysis-block analysis-warn">El Estudio Previo no tiene texto extraíble (parece escaneado). <button class="link-btn" data-ep-ocr-id="' + escapeHtml(entry.id) + '">Intentar con OCR</button></div>');
+          '<div class="analysis-block analysis-warn">El Estudio Previo no tiene texto extraíble (parece escaneado). <button class="link-btn" data-ep-ocr-id="' + escapeHtml(entry.id) + '">Intentar con OCR</button>' + botonLeerConIAHtml('data-ep-ia-id="' + escapeHtml(entry.id) + '"') + '</div>');
         return;
       }
       entry.estudioPrevioFileName = file.name;
@@ -11475,6 +11524,21 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         return;
       }
       await cargarEstudioPrevioPDF(entry, file, true, slot);
+      return;
+    }
+    const epIaBtn = e.target.closest('button[data-ep-ia-id]');
+    if (epIaBtn){
+      const id = epIaBtn.getAttribute('data-ep-ia-id');
+      const file = pendingEstudioPrevioFiles[id];
+      const entry = analisis[id];
+      const slot = epIaBtn.closest('.row').querySelector('.analysis-slot');
+      if (!file || !entry){
+        slot.innerHTML = '<div class="analysis-block analysis-warn">Se perdió el archivo original -- vuelve a cargar el Estudio Previo.</div>';
+        return;
+      }
+      epIaBtn.disabled = true;
+      epIaBtn.textContent = 'La IA está leyendo…';
+      await cargarEstudioPrevioPDF(entry, file, 'ia', slot);
       return;
     }
 

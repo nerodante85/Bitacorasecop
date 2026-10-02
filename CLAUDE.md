@@ -6470,3 +6470,18 @@ redibuja la lista conservando el mensaje de estado `[data-ia-status]` de la tarj
 "Evaluar experiencia". No se llama al marcar la casilla de confirmar una fila (cerraría los `<details>` abiertos).
 Verificado: tests 260 ok (+1 fallo SRI de red del sandbox) y la página carga sin errores de JS; la actualización
 del encabezado tras una lectura real queda por confirmar en producción.
+
+## "Leer con IA" también en RUP, RUT, experiencia del proponente y Estudio Previo
+
+Antes solo el análisis de pliegos ofrecía leer un PDF escaneado con IA; el RUP, el RUT, la experiencia del
+proponente (PDF) y el Estudio Previo secundario seguían solo con OCR (Tesseract). Ahora, cuando el PDF no tiene
+texto, el aviso ofrece "Intentar con OCR" **y** "Leer con IA" (con sesión; sin sesión, "Inicia sesión").
+`leerEscaneadoConIA(file, maxPaginas)` lee las primeras páginas en tandas de 8 con `transcribirPaginasConIA` y
+devuelve la misma forma que `ocrPdfPages` (con los offsets de página desplazados al texto unido), así que cada
+flujo solo cambia de dónde sale el texto: `procesarRUP(file,'ia')` (20 págs ≈ 3 llamadas), `procesarRUT(file,'ia')`
+(3 págs, 1 llamada), `cargarExperienciaPDF(file,'ia')` (20 págs), `cargarEstudioPrevioPDF(entry,file,'ia',slot)`.
+Reutiliza `transcribir-pdf` (mismo cupo diario de 40 tandas por empresa que la lectura de pliegos); no hay función
+ni contrato nuevos. El RUT por IA usa el mismo respaldo de texto plano que el OCR (sin coordenadas): lee menos campos
+que el PDF digital. Los parámetros `viaOcr` ahora son `false | true | 'ia'` (true = OCR, como antes).
+Prueba: tandas [1-8],[9-16],[17-20], texto unido y offsets verificados (mutación: sin desplazar offsets falla).
+**Sin probar con IA real** (necesita sesión y crédito): conviene que el usuario pruebe un RUP o RUT escaneado.
