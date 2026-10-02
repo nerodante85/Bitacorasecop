@@ -8878,7 +8878,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         ? '<div class="analysis-block analysis-warn" role="alert">⚠ Este PDF contiene texto dirigido a una IA (' + ia.avisosInyeccion.map(h => escapeHtml(h.documento + (h.pagina ? ', p. ' + h.pagina : ''))).join('; ') + '). Puede ser un intento de manipular la lectura: ninguna fila se da por buena hasta que la confirmes a mano.</div>' : '';
       tabla = avisoServidor + avisoInyeccion + '<div class="saved-note" style="margin:6px 0;">' + filas.length + ' requisito(s) extraído(s) por IA' +
         (ia.uso ? ' · ' + Number(ia.uso.input_tokens || 0).toLocaleString('es-CO') + ' tokens de entrada / ' + Number(ia.uso.output_tokens || 0).toLocaleString('es-CO') + ' de salida' : '') +
-        (nSin ? ' · <b>' + nSin + ' sin verificar</b> (no se usan para decidir hasta que las confirmes)' : '') + '.</div>' +
+        (nSin ? ' · <b>' + nSin + ' por confirmar</b> (cita sin verificar o que requiere tu revisión; no se usan para decidir hasta que las confirmes)' : '') + '.</div>' +
         '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Categoría</th><th>Requisito</th><th>Exigido</th><th>Estado con tu empresa</th><th>Fuente</th></tr></thead><tbody>' +
         filasHtml + '</tbody></table></div>';
     }
