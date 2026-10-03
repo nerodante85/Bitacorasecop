@@ -3332,7 +3332,7 @@ await check('Interfaz: en pantallas táctiles/angostas los controles tienen áre
   const html = readFileSync(HTML_PATH, 'utf8');
   const bloque = /@media \(pointer: coarse\), \(max-width: 560px\) \{([\s\S]*?)\r?\n  \}\r?\n/.exec(html);
   assert(bloque, 'falta el bloque táctil @media (pointer: coarse), (max-width: 560px)');
-  ['.btn-mini', '.link-btn', '.btn-primary', '.btn-secondary', '.field input', '.tag-tip', '.row-link a', 'summary'].forEach(s => assert(bloque[1].includes(s), 'el bloque táctil debe cubrir ' + s));
+  ['.btn-mini', '.link-btn', '.btn-primary', '.btn-secondary', '.field input', '.tag-tip', '.row-link a', 'summary', '.pipeline-card select'].forEach(s => assert(bloque[1].includes(s), 'el bloque táctil debe cubrir ' + s));
   assert(/inset:\s*-14px/.test(bloque[1]), 'la zona sensible extra debe sumar 28px a un enlace de 17px (>=44)');
   assert(/\.row-obj[^{]*\{[^}]*overflow-wrap:\s*anywhere/.test(html), 'un texto largo sin espacios (dato real de SECOP) no debe desbordar la página');
   assert(/min-height:\s*44px/.test(bloque[1]), 'min-height de 44px');
