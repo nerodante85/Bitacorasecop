@@ -74,16 +74,16 @@
     --navy-900: #12182A;    /* sidebar / marca */
     --navy-800: #1B2233;
     --ink-900: #171B26;     /* texto de cuerpo y de encabezado (Meridiano no colorea los títulos, los distingue por tipografía/peso) */
-    --ink-mute: #6B7488;
-    --ink-faint: #98A0B2;
+    --ink-mute: #535C6E;
+    --ink-faint: #5F687B;
 
     --paper: #FFFFFF;
     --canvas: #EEF1F6;      /* lienzo de la aplicación -- gris azulado frío, no blanco puro */
     --line: #D7DEEA;
     --line-strong: #C1CBDD;
 
-    --amber: #A6660A;        /* bronce -- color principal como TEXTO: enlaces, iconos, foco (pasa AA sobre fondo claro) */
-    --amber-hover: #7E4E08;
+    --amber: #8F5708;        /* bronce -- color principal como TEXTO: enlaces, iconos, foco (pasa AA sobre fondo claro) */
+    --amber-hover: #6B4206;
     --amber-soft: #FCEBD0;   /* fondo tintado suave (foco, hover, highlights) */
     --amber-fill: #F2A93C;   /* ámbar vivo -- SOLO relleno de fondo (botón lleno, paso activo, barra de progreso) */
     --amber-fill-hover: #DB9020;
@@ -136,9 +136,17 @@
      tarjeta, que se quedan en IBM Plex Sans -- ver --text-heading arriba),
      para que un título de página se lea distinto a un botón sin gritar. */
   #bitacora-root .display-font { font-family: 'Instrument Serif', 'IBM Plex Sans', serif; font-weight: 400; font-style: italic; line-height: 1.08; }
+  /* Utilidades de espaciado (antes eran style="" repetidos en el HTML y en las cadenas de JS). */
+  #bitacora-root .mt-8 { margin-top: 8px; }
+  #bitacora-root .mb-8 { margin-bottom: 8px; }
+  #bitacora-root .my-8 { margin: 8px 0; }
+  #bitacora-root .mt-10 { margin-top: 10px; }
+  #bitacora-root .mb-10 { margin-bottom: 10px; }
+  #bitacora-root .mt-12 { margin-top: 12px; }
+  #bitacora-root .text-muted-c { color: var(--text-muted); }
   #bitacora-root a { color: var(--accent); }
   #bitacora-root :focus-visible {
-    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm);
   }
 
   /* ============================================================
@@ -177,7 +185,7 @@
     font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif; letter-spacing: 0.06em;
   }
   #bitacora-root .sidebar-brand-text p {
-    margin: 2px 0 0; font-size: 11.5px; color: #8089A3; line-height: 1.3;
+    margin: 2px 0 0; font-size: 12px; color: #8089A3; line-height: 1.3;
   }
   #bitacora-root .sidebar-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
   /* El botón desplegable solo existe en celular -- oculto acá, se muestra
@@ -200,10 +208,10 @@
   #bitacora-root .nav-item.active { background: var(--accent-button); color: var(--accent-ink); }
   #bitacora-root .nav-item.active svg { opacity: 1; }
   #bitacora-root .sidebar-foot {
-    padding: 14px 20px 18px; font-size: 11px; color: #626C82; line-height: 1.5;
+    padding: 14px 20px 18px; font-size: 12px; color: #8089A3; line-height: 1.5;
     border-top: 1px solid rgba(255,255,255,.08);
   }
-  #bitacora-root .sidebar-foot .link-btn { color: #A6B2C9; text-decoration: underline; font-size: 11px; padding: 0; }
+  #bitacora-root .sidebar-foot .link-btn { color: #A6B2C9; text-decoration: underline; font-size: 12px; padding: 0; }
   #bitacora-root .sidebar-foot .link-btn:hover { color: #fff; }
 
   /* Modal de cuenta (Supabase, opcional) -- solo se usa/muestra cuando
@@ -413,7 +421,7 @@
      tokens de arriba). */
   #bitacora-root .btn-primary { background: var(--accent-button); color: var(--accent-ink); box-shadow: var(--shadow-sm); }
   #bitacora-root .btn-primary:hover { background: var(--accent-button-hover); }
-  #bitacora-root .btn-secondary { background: var(--surface); color: var(--accent-button); border: 1px solid var(--accent-button); }
+  #bitacora-root .btn-secondary { background: var(--surface); color: var(--accent-hover); border: 1px solid var(--accent-button); }
   #bitacora-root .btn-secondary:hover { background: var(--accent-soft); }
   #bitacora-root button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   #bitacora-root .saved-note { font-size: 12.5px; color: var(--text-muted); }
@@ -492,7 +500,7 @@
   #bitacora-root .row.descartado { opacity: .45; }
   #bitacora-root .row.vence-pronto { border-left-color: var(--danger); box-shadow: 0 0 0 1.5px var(--danger-border), var(--shadow-sm); }
   #bitacora-root .expire-alert {
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: .2px;
     color: var(--danger);
@@ -525,7 +533,7 @@
      Radio chico (ficha/sello), no de píldora -- coherente con el resto
      del sistema "Registro Catastral". */
   #bitacora-root .tag {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: .1px;
     border-radius: var(--radius-sm);
@@ -565,7 +573,7 @@
      listener delegado (ver resultsEl) revela el mismo texto de `title`
      en `.tag-tip-note`, la nota oculta que ya viene junto a cada tarjeta. */
   #bitacora-root .tag-tip { cursor: pointer; }
-  #bitacora-root .tag-tip::after { content: 'ⓘ'; margin-left: 3px; opacity: .6; font-size: 9px; }
+  #bitacora-root .tag-tip::after { content: 'ⓘ'; margin-left: 3px; opacity: .6; font-size: 12px; }
   #bitacora-root .tag-tip-note { margin-top: 6px; }
   #bitacora-root .tag-tip-note[hidden] { display: none; }
   /* Auditoría UX/UI: varios párrafos de explicación (cómo funciona la IA, la fórmula de
@@ -594,16 +602,29 @@
   #bitacora-root .ia-comparar { display: flex; gap: 14px; flex-wrap: wrap; }
   #bitacora-root .ia-comparar-campo, #bitacora-root .ia-comparar-cita { flex: 1 1 260px; min-width: 220px; font-size: 12.5px; }
   #bitacora-root .ia-comparar-cita { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }
-  #bitacora-root .ia-comparar-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); margin-bottom: 3px; }
+  #bitacora-root .ia-comparar-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); margin-bottom: 3px; }
   #bitacora-root .ia-comparar-notas { color: var(--text-muted); font-style: italic; margin-top: 4px; }
   #bitacora-root .expeval-sinverificar { border: 1px dashed currentColor; background: transparent; }
+  /* Área táctil de 44px (WCAG 2.5.8 pide 24 como mínimo; 44 es lo cómodo para el pulgar). Los botones y campos
+     crecen de verdad; los enlaces de texto y las etiquetas que se tocan conservan su aspecto y amplían solo la
+     zona sensible con un pseudo-elemento, para no reventar tarjetas con tres etiquetas por fila. */
+  @media (pointer: coarse), (max-width: 560px) {
+    #bitacora-root .btn-mini, #bitacora-root .btn-primary, #bitacora-root .btn-secondary,
+    #bitacora-root .nav-toggle, #bitacora-root .field input, #bitacora-root .field select { min-height: 44px; }
+    #bitacora-root .link-btn, #bitacora-root .tag-tip, #bitacora-root .row-link a, #bitacora-root summary { position: relative; }
+    #bitacora-root .link-btn::after, #bitacora-root .tag-tip::after, #bitacora-root .row-link a::after, #bitacora-root summary::after { content: ''; position: absolute; inset: -14px -4px; }
+    #bitacora-root input[type=checkbox], #bitacora-root input[type=radio] { width: 24px; height: 24px; }
+  }
+  /* Reducir movimiento NO apaga el feedback: sin animaciones ni desplazamiento suave, pero los cambios
+     de estado (color, borde, sombra, opacidad) se siguen viendo -- solo sin transform. */
   @media (prefers-reduced-motion: reduce) {
     #bitacora-root *, #bitacora-root *::before, #bitacora-root *::after {
-      animation-duration: .01ms !important; animation-iteration-count: 1 !important;
-      transition-duration: .01ms !important; scroll-behavior: auto !important;
+      animation: none !important; scroll-behavior: auto !important;
+      transition-property: color, background-color, border-color, box-shadow, opacity !important;
     }
   }
 
+  #bitacora-root .row-ent, #bitacora-root .row-obj { overflow-wrap: anywhere; }
   #bitacora-root .row-obj {
     font-size: 13.5px;
     line-height: 1.5;
@@ -692,7 +713,7 @@
        mayúsculas se leería como "gritar" el nombre real de una empresa. Los
        rótulos fijos de sección ("RECOMENDACIÓN", "REQUISITOS...") ya vienen
        en mayúscula literal desde el texto que genera cada función. */
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: .2px;
     color: var(--text-muted);
@@ -702,7 +723,7 @@
   #bitacora-root .analysis-list li { margin-bottom: 5px; line-height: 1.5; }
   #bitacora-root .analysis-disclaimer {
     margin-top: 10px;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--text-faint);
   }
   /* Línea anidada dentro del resumen de coincidencia por perfil (ej. "de esa,
@@ -753,7 +774,7 @@
   }
   #bitacora-root .dropzone-title { font-size: 14px; font-weight: 600; color: var(--text-heading); }
   #bitacora-root .dropzone-sub { font-size: 12.5px; color: var(--text-muted); }
-  #bitacora-root .dropzone-types { font-size: 11px; color: var(--text-faint); letter-spacing: .3px; text-transform: uppercase; margin-top: 2px; }
+  #bitacora-root .dropzone-types { font-size: 12px; color: var(--text-faint); letter-spacing: .3px; text-transform: uppercase; margin-top: 2px; }
 
   #bitacora-root .file-status {
     display: flex; align-items: center; gap: 12px;
@@ -779,7 +800,7 @@
   }
   #bitacora-root .step-num {
     width: 20px; height: 20px; border-radius: 50%; background: var(--brand-800); color: #fff;
-    font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   #bitacora-root .expeval-review { margin-top: 4px; margin-bottom: 14px; }
   #bitacora-root .expeval-review summary {
@@ -789,9 +810,9 @@
   #bitacora-root .expeval-review summary::before { content: '▸ '; }
   #bitacora-root .expeval-review[open] summary::before { content: '▾ '; }
   #bitacora-root .campo-esencial {
-    font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;
     color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border);
-    border-radius: 20px; padding: 1px 7px; margin-left: 6px; vertical-align: middle;
+    border-radius: var(--radius-sm); padding: 1px 7px; margin-left: 6px; vertical-align: middle;
   }
   #bitacora-root tr.fila-esencial-faltante td { background: var(--warning-bg); }
   #bitacora-root .expeval-table-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); }
@@ -802,7 +823,7 @@
   #bitacora-root table.expeval-table tbody tr:last-child td { border-bottom: none; }
   #bitacora-root table.expeval-table th {
     background: var(--bg); font-weight: 700;
-    font-size: 11px; letter-spacing: .2px; color: var(--text-muted); text-transform: uppercase;
+    font-size: 12px; letter-spacing: .2px; color: var(--text-muted); text-transform: uppercase;
   }
 
   /* Pipeline comercial (CRM Kanban): columnas con scroll horizontal, mismo
@@ -810,7 +831,7 @@
   #bitacora-root .pipeline-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; }
   #bitacora-root .pipeline-col { flex: 0 0 260px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 10px; }
   #bitacora-root .pipeline-col-head { font-weight: 700; font-size: 12.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .2px; display: flex; justify-content: space-between; }
-  #bitacora-root .pipeline-col-count { background: var(--surface); border-radius: 999px; padding: 0 8px; }
+  #bitacora-root .pipeline-col-count { background: var(--surface); border-radius: var(--radius-sm); padding: 0 8px; }
   #bitacora-root .pipeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
   #bitacora-root .pipeline-card-urgente { border-color: var(--danger); }
   #bitacora-root .pipeline-card-ent { font-weight: 700; font-size: 13px; }
@@ -857,7 +878,7 @@
     padding: 14px 16px; font-weight: 700; font-size: 24px; line-height: 1;
   }
   #bitacora-root .expeval-summary .stat span {
-    display: block; font-weight: 600; font-size: 11px;
+    display: block; font-weight: 600; font-size: 12px;
     color: var(--text-muted); letter-spacing: .2px; text-transform: uppercase; margin-top: 6px;
   }
 
@@ -1143,7 +1164,7 @@
       <div class="sidebar-foot" id="bt-sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>
     </nav>
 
-    <div class="main">
+    <main class="main">
       <div class="wrap">
 
         <section class="view" id="view-dashboard" data-view="dashboard" role="tabpanel" aria-labelledby="bt-nav-dashboard">
@@ -1177,7 +1198,7 @@
                  ahí primero choca con "Analizar pliego" bloqueado. No se reordena el sidebar
                  (buscar sin perfil completo es un uso válido), solo se aclara aquí que ese orden
                  es opcional. -->
-            <p class="saved-note" style="margin-top:10px;">Puedes buscar procesos desde ya -- el paso 4 no depende de los anteriores. Solo necesitas completar los pasos 1 a 3 antes de poder <strong>analizar</strong> el pliego de un proceso puntual.</p>
+            <p class="mt-10 saved-note">Puedes buscar procesos desde ya -- el paso 4 no depende de los anteriores. Solo necesitas completar los pasos 1 a 3 antes de poder <strong>analizar</strong> el pliego de un proceso puntual.</p>
           </div>
 
           <div class="stat-grid">
@@ -1333,7 +1354,7 @@
               <button class="btn-primary" id="bt-search">Aplicar filtros</button>
               <button class="btn-secondary" id="bt-demo">Ver datos de ejemplo</button>
             </div>
-            <div class="saved-note" id="bt-data-freshness" role="status" aria-live="polite" style="margin-top:8px;"></div>
+            <div class="mt-8 saved-note" id="bt-data-freshness" role="status" aria-live="polite"></div>
           </div>
 
           <!-- Auditoría de usabilidad, tercera pasada: este panel vivía ANTES
@@ -1378,7 +1399,7 @@
             </div>
             <details>
               <summary style="cursor:pointer;">Mostrar / guardar alertas</summary>
-              <div class="field" style="margin-top:12px;">
+              <div class="mt-12 field">
                 <label for="bt-alerta-nombre">Nombre de la alerta (opcional)</label>
                 <input id="bt-alerta-nombre" type="text" placeholder="ej. Obras civiles Norte de Santander">
               </div>
@@ -1407,11 +1428,11 @@
             </div>
             <details>
               <summary style="cursor:pointer;">Buscar en el PAA</summary>
-              <div class="actions" style="margin-top:12px;">
+              <div class="mt-12 actions">
                 <button class="btn-secondary" id="bt-paa-buscar" type="button">🔮 Buscar en el PAA (con las especialidades y la cobertura de arriba)</button>
                 <button type="button" class="link-btn" id="bt-paa-borrar">🗑 Borrar resultados</button>
               </div>
-              <div class="saved-note" id="bt-paa-status" style="margin-top:8px;"></div>
+              <div class="mt-8 saved-note" id="bt-paa-status"></div>
               <div class="recent-list" id="bt-paa-list"></div>
             </details>
           </div>
@@ -1473,7 +1494,7 @@
                 <div class="dropzone-types">PDF</div>
               </div>
               <input type="file" accept="application/pdf" id="bt-perfil-rup-file" hidden>
-              <div class="saved-note" id="bt-perfil-rup-status" style="margin-top:8px;">Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa Guardar perfil).</div>
+              <div class="mt-8 saved-note" id="bt-perfil-rup-status">Sube el certificado del RUP y se rellenan las casillas de abajo (revisa y pulsa Guardar perfil).</div>
             </div>
 
             <div class="field full" style="margin-bottom:18px;">
@@ -1485,7 +1506,7 @@
                 <div class="dropzone-types">PDF</div>
               </div>
               <input type="file" accept="application/pdf" id="bt-perfil-rut-file" hidden>
-              <div class="saved-note" id="bt-perfil-rut-status" style="margin-top:8px;">Sube el RUT y se rellenan NIT/dirección/ciudad/teléfono/correo (revisa y pulsa Guardar perfil).</div>
+              <div class="mt-8 saved-note" id="bt-perfil-rut-status">Sube el RUT y se rellenan NIT/dirección/ciudad/teléfono/correo (revisa y pulsa Guardar perfil).</div>
             </div>
 
             <div class="field-grid">
@@ -1555,7 +1576,7 @@
               <button class="btn-secondary" id="bt-perfil-save">Guardar perfil</button>
               <span class="saved-note" id="bt-perfil-saved"></span>
             </div>
-            <div class="saved-note" style="margin-top:8px;">Este perfil ya NO incluye experiencia general/específica — eso se carga en "Experiencia" y se compara automáticamente contra cada pliego que analices. El RUP tampoco se usa aquí para inferir experiencia. Los datos de NIT/representante/contacto se usan solo para generar la carta de presentación (ver "Evaluación") — ningún dato sale de tu navegador salvo que actives cuenta/sincronización.</div>
+            <div class="mt-8 saved-note">Este perfil ya NO incluye experiencia general/específica — eso se carga en "Experiencia" y se compara automáticamente contra cada pliego que analices. El RUP tampoco se usa aquí para inferir experiencia. Los datos de NIT/representante/contacto se usan solo para generar la carta de presentación (ver "Evaluación") — ningún dato sale de tu navegador salvo que actives cuenta/sincronización.</div>
 
             <!-- Auditoría UX/UI (arquitectura de información, hallazgo MEDIO): esta calculadora
                  se sentía pegada al final del formulario de la empresa (RUP, K, NIT, contacto) en
@@ -1568,7 +1589,7 @@
             </div>
             <details>
               <summary style="cursor:pointer;">Mostrar / registrar contratos en ejecución</summary>
-              <div id="bt-contratos-ejecucion-list" style="margin-top:12px;"></div>
+              <div class="mt-12" id="bt-contratos-ejecucion-list"></div>
               <div class="actions" style="margin-top:0;">
                 <button type="button" class="btn-secondary" id="bt-contrato-nuevo">+ Agregar contrato en ejecución</button>
               </div>
@@ -1618,10 +1639,10 @@
                 <div class="dropzone-types">Excel, PDF o Word</div>
               </div>
               <input type="file" accept=".xlsx,.xls,.csv,.pdf,.docx" id="bt-expeval-exp-file" aria-label="Seleccionar el archivo de experiencia del proponente (Excel, PDF o Word)" hidden>
-              <div class="saved-note" id="bt-expeval-exp-status" style="margin-top:8px;">Sin cargar.</div>
+              <div class="mt-8 saved-note" id="bt-expeval-exp-status">Sin cargar.</div>
               <details class="expeval-review">
                 <summary>Ver ejemplo de formato aceptado</summary>
-                <p class="saved-note" style="margin:8px 0;">En Excel, cualquier encabezado parecido a estos sirve (por ejemplo "Objeto" o "Cliente" también se reconocen) -- no hace falta copiar los nombres exactos. En PDF o Word sin tabla se extrae solo el texto completo, el valor (si hay una cifra clara) y hasta 2 fechas.</p>
+                <p class="my-8 saved-note">En Excel, cualquier encabezado parecido a estos sirve (por ejemplo "Objeto" o "Cliente" también se reconocen) -- no hace falta copiar los nombres exactos. En PDF o Word sin tabla se extrae solo el texto completo, el valor (si hay una cifra clara) y hasta 2 fechas.</p>
                 <div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Objeto del contrato</th><th>Entidad contratante</th><th>Valor del contrato</th><th>Fecha de inicio</th><th>Fecha de terminación</th></tr></thead><tbody>
                   <tr><td>Construcción y pavimentación de vía urbana, sector La Playa</td><td>Alcaldía de Los Patios</td><td>850.000.000</td><td>01/03/2022</td><td>15/11/2022</td></tr>
                 </tbody></table></div>
@@ -1758,7 +1779,7 @@
           <p data-help-view="buscar">"Buscar procesos" solo consulta SECOP II — SECOP I es casi todo histórico (contratos ya cerrados) desde que los procesos nuevos migraron a SECOP II en 2021, así que no aporta oportunidades abiertas reales. Sí se usa en "Ver adjudicaciones de esta entidad", para ampliar el historial de contratación más atrás de lo que cubre SECOP II.</p>
         </div>
       </div>
-    </div>
+    </main>
   </div>
 
   <!-- Modal de cuenta (Supabase, opcional) -- oculto por defecto (`hidden`) y
@@ -3216,11 +3237,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (!capacidadEstimadaOutEl) return;
     const cce = capacidadContractualEstimada(perfil || {});
     if (!cce){
-      capacidadEstimadaOutEl.innerHTML = '<div class="saved-note" style="margin-top:10px;">Para estimar tu capacidad disponible, declara arriba la "Capacidad K residual" en pesos (ej. "K residual = 1.200.000.000") — no se puede calcular si está en SMMLV o vacía.</div>';
+      capacidadEstimadaOutEl.innerHTML = '<div class="mt-10 saved-note">Para estimar tu capacidad disponible, declara arriba la "Capacidad K residual" en pesos (ej. "K residual = 1.200.000.000") — no se puede calcular si está en SMMLV o vacía.</div>';
       return;
     }
     if (cce.sinContratos){
-      capacidadEstimadaOutEl.innerHTML = '<div class="saved-note" style="margin-top:10px;">Sin contratos en ejecución registrados: tu capacidad disponible es tu K residual declarado, ' + (fmtMoney(cce.disponible) || cce.disponible) + '.</div>';
+      capacidadEstimadaOutEl.innerHTML = '<div class="mt-10 saved-note">Sin contratos en ejecución registrados: tu capacidad disponible es tu K residual declarado, ' + (fmtMoney(cce.disponible) || cce.disponible) + '.</div>';
       return;
     }
     capacidadEstimadaOutEl.innerHTML =
@@ -4548,7 +4569,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         reanalizar: reanalizarTextoAcumulado,
         onTanda: (desde, hasta, tandaActual, tandasTotal) => {
           slot.innerHTML = '<div class="analysis-loading">Leyendo con IA… tanda ' + tandaActual + ' de ' + tandasTotal + ' (páginas ' + desde + '-' + hasta + ')</div>' +
-            '<div style="margin-top:8px;"><button class="link-btn analysis-ia-cancelar-btn" data-ia-cancelar-id="' + escapeHtml(id) + '">Cancelar</button></div>';
+            '<div class="mt-8"><button class="link-btn analysis-ia-cancelar-btn" data-ia-cancelar-id="' + escapeHtml(id) + '">Cancelar</button></div>';
         },
         onProgreso: () => { analisis[id] = entry; saveAnalisis(id); }
       });
@@ -6010,7 +6031,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return '<tr' + (esEsencial && !encontrada ? ' class="fila-esencial-faltante"' : '') + '><td>' + escapeHtml(etiquetas[campo]) + marca + '</td><td>' + (encontrada ? escapeHtml(headers[idx]) : '<em>no detectada</em>') + '</td></tr>';
     }).join('');
     const aviso = faltaEsencial
-      ? '<p class="demo-banner" style="margin:8px 0;">⚠ No se detectó "' + escapeHtml(camposEsenciales.map(c => etiquetas[c]).join(', ')) + '" (marcado "esencial" abajo). Revisa los encabezados de tu archivo antes de analizar -- sin esto, el resultado puede quedar incompleto.</p>'
+      ? '<p class="my-8 demo-banner">⚠ No se detectó "' + escapeHtml(camposEsenciales.map(c => etiquetas[c]).join(', ')) + '" (marcado "esencial" abajo). Revisa los encabezados de tu archivo antes de analizar -- sin esto, el resultado puede quedar incompleto.</p>'
       : '';
     return '<details class="expeval-review"' + (faltaEsencial ? ' open' : '') + '><summary>Revisar interpretación: ' + escapeHtml(titulo) + ' (' + nRegistros + ' registro(s) leído(s))' + (faltaEsencial ? ' -- revisa esto primero' : '') + '</summary>' +
       aviso +
@@ -6032,7 +6053,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<td>' + (c.fechaInicio || '—') + '</td>' +
       '<td>' + (c.fechaFin || '—') + '</td></tr>').join('');
     return '<details class="expeval-review" open><summary>Revisar interpretación: Experiencia del proponente (' + escapeHtml(fuenteLabel) + ') -- ' + contratos.length + ' contrato(s) detectado(s), confirma que el corte tenga sentido</summary>' +
-      '<p class="saved-note" style="margin:8px 0;">El archivo no trae columnas -- cada fila de abajo es un fragmento de texto que se identificó como un posible contrato nuevo. Solo se extraen con confianza el texto completo (para el cruce por palabra clave) y, cuando hay una señal clara, el valor y hasta 2 fechas -- contratante, duración, cantidad y demás quedan "—" a propósito en vez de adivinados. Si algo importante falta, carga el Excel si lo tienes.</p>' +
+      '<p class="my-8 saved-note">El archivo no trae columnas -- cada fila de abajo es un fragmento de texto que se identificó como un posible contrato nuevo. Solo se extraen con confianza el texto completo (para el cruce por palabra clave) y, cuando hay una señal clara, el valor y hasta 2 fechas -- contratante, duración, cantidad y demás quedan "—" a propósito en vez de adivinados. Si algo importante falta, carga el Excel si lo tienes.</p>' +
       '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>#</th><th>Texto detectado</th><th>Valor</th><th>Fecha inicio</th><th>Fecha fin</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
   }
 
@@ -6052,7 +6073,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const desglose = (rc.general || 0) + ' clasificado(s) como experiencia general, ' + (rc.especifica || 0) + ' como específica' +
       (rc.noClasificado ? ', y ' + rc.noClasificado + ' sin esa distinción en el Excel' : '') +
       ' (' + (rc.total || 0) + ' contrato(s) en total).';
-    const identificacion = '<div class="saved-note" style="margin-bottom:8px;">Contratos de tu Excel de experiencia: ' + desglose +
+    const identificacion = '<div class="mb-8 saved-note">Contratos de tu Excel de experiencia: ' + desglose +
       ' Cada requisito de abajo se marca CUMPLE o NO CUMPLE según si encontramos contratos que lo satisfagan.</div>';
     const resumen = '<div class="expeval-summary">' +
       '<div class="stat">' + ev.resultados.length + '<span>REQUISITOS EVALUADOS</span></div>' +
@@ -6523,6 +6544,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
     }
     if (set.size < MIN_PAGINAS_FILTRO_IA) return null;
+    // Lectura parcial: sobre las páginas aún sin leer no hay texto con qué filtrar, así que se mandan
+    // TODAS (nunca se descartan a ciegas). Un pliego de 112 páginas leído hasta la 56 manda unas 30
+    // relevantes + las 56 sin leer, y cabe en el tope de 100 páginas de la IA.
+    const lp = lecturaParcial(entry);
+    if (lp) for (let pp = lp.pagesRead + 1; pp <= numPages; pp++) set.add(pp);
     return Array.from(set).sort((a, b) => a - b);
   }
 
@@ -7823,9 +7849,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         '<span class="eval-verdict ' + (res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar') + '">' + res.mejor.veredicto + '</span>' +
         (res.porPerfil.length > 1 ? ' <span style="color:var(--text-muted);font-weight:400;">(mejor de ' + res.porPerfil.length + ' perfiles)</span>' : '') + '</div>' +
       (lecturaParcial(entry)
-        ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este veredicto se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (metodoLecturaDe(entry) ? ' por ' + metodoLecturaDe(entry) : '') + ' -- el resto todavía no se ha analizado y podría cambiar el resultado. Ve a "Buscar procesos" y usa "Seguir leyendo más páginas" antes de decidir.</div>'
+        ? '<div class="my-8 analysis-block analysis-warn">⚠ Este veredicto se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (metodoLecturaDe(entry) ? ' por ' + metodoLecturaDe(entry) : '') + ' -- el resto todavía no se ha analizado y podría cambiar el resultado. Ve a "Buscar procesos" y usa "Seguir leyendo más páginas" antes de decidir.</div>'
         : '') +
-      '<div class="analysis-sub">RECOMENDACIÓN</div><div style="margin-bottom:8px;">' + escapeHtml(resumenEjecutivo(res)) + '</div>' +
+      '<div class="analysis-sub">RECOMENDACIÓN</div><div class="mb-8">' + escapeHtml(resumenEjecutivo(res)) + '</div>' +
       notasHtml +
       res.porPerfil.map(bloquePerfil).join('') +
       '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">' +
@@ -8634,7 +8660,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div class="stat-card-value small ' + clase + '">' + (fmtMoney(esc.valor) || esc.valor) + '</div>' +
       '<div class="stat-card-note">' + esc.pct.toFixed(1) + '% vs. presupuesto oficial</div></div>';
     return '<div class="analysis-sub">SUGERENCIA DE OFERTA ECONÓMICA (estimación orientativa, no garantiza adjudicación)</div>' +
-      '<div class="stat-grid" style="margin-bottom:10px;">' +
+      '<div class="mb-10 stat-grid">' +
         '<div class="stat-card"><div class="stat-card-label">Presupuesto oficial</div>' +
         '<div class="stat-card-value small">' + (fmtMoney(sug.presupuestoOficial) || sug.presupuestoOficial) + '</div>' +
         '<div class="stat-card-note">Del proceso actual</div></div>' +
@@ -8745,15 +8771,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // se publique el Pliego real, hay que analizarlo con el botón normal de la tarjeta (eso crea
     // un análisis nuevo, más completo, con el documento oficial).
     if (entry.esSoloEP){
-      return '<div style="margin-bottom:8px;">' +
+      return '<div class="mb-8">' +
         '<strong>Documentos del proceso:</strong> Estudio Previo ✓ (como documento principal -- el Pliego de Condiciones todavía no está publicado).</div>' +
-        '<div class="saved-note" style="margin-bottom:8px;">Cuando se publique el Pliego de Condiciones, vuelve a esta tarjeta y usa "Analizar pliego (PDF)" para completar el análisis con el documento oficial.</div>';
+        '<div class="mb-8 saved-note">Cuando se publique el Pliego de Condiciones, vuelve a esta tarjeta y usa "Analizar pliego (PDF)" para completar el análisis con el documento oficial.</div>';
     }
     const cargado = !!entry.estudioPrevioText;
     const estado = cargado
       ? '✓ ' + escapeHtml(entry.estudioPrevioFileName || 'Estudio Previo') + (entry.estudioPrevioViaOcr ? ' (vía OCR)' : '')
       : 'No cargado (opcional -- si lo tienes, mejora la trazabilidad y permite detectar inconsistencias con el Pliego).';
-    return '<div style="margin-bottom:8px;">' +
+    return '<div class="mb-8">' +
       '<strong>Documentos del proceso:</strong> Pliego de Condiciones ✓ · Estudio Previo: ' + estado + ' ' +
       '<input type="file" aria-label="Seleccionar el archivo del Estudio Previo (PDF o Word)" accept=".pdf,.docx" data-ep-id="' + escapeHtml(entry.id || '') + '" style="display:none">' +
       '<button class="link-btn" data-ep-upload-id="' + escapeHtml(entry.id || '') + '">' + (cargado ? '↻ Reemplazar' : '⬆ Cargar Estudio Previo') + '</button>' +
@@ -8783,7 +8809,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function renderPosiblesTablasHtml(tablas){
     if (!tablas || !tablas.length) return '';
     const items = tablas.map(t => '<li>' + escapeHtml(t.fuente) + ', p. ' + (t.pagina || '?') +
-      ' <span style="color:var(--text-muted);">(mención: "' + escapeHtml(t.ancla.replace(/\s+/g, ' ')) + '")</span></li>').join('');
+      ' <span class="text-muted-c">(mención: "' + escapeHtml(t.ancla.replace(/\s+/g, ' ')) + '")</span></li>').join('');
     return '<div class="analysis-sub">POSIBLE TABLA DE EXPERIENCIA NO LEÍDA</div>' +
       '<p class="saved-note" style="margin:4px 0 6px;">Estas páginas mencionan una matriz/tabla de experiencia, pero su contenido no se pudo interpretar como texto (las tablas de un PDF no siempre conservan filas y columnas al extraer el texto) -- revísalas a mano antes de confiar en el resultado de abajo.</p>' +
       '<ul class="analysis-list">' + items + '</ul>';
@@ -8794,7 +8820,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const req = entry.requisitosExperiencia || [];
     const general = req.filter(r => r.tipo === 'general').length;
     const especifica = req.filter(r => r.tipo === 'especifica').length;
-    const conteoHtml = '<div class="saved-note" style="margin-bottom:8px;">Requisitos identificados: ' + req.length +
+    const conteoHtml = '<div class="mb-8 saved-note">Requisitos identificados: ' + req.length +
       ' (' + general + ' de experiencia general, ' + especifica + ' de experiencia específica)' +
       (entry.esSoloEP ? ' -- basado solo en el Estudio Previo (el Pliego de Condiciones aún no está publicado).' : (entry.estudioPrevioText ? '.' : ' -- basado solo en el Pliego de Condiciones (sin Estudio Previo cargado).')) + '</div>';
     return conteoHtml + renderPosiblesTablasHtml(entry.posiblesTablasExperiencia) +
@@ -8972,7 +8998,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         '<details class="info-tip"><summary aria-label="Qué significa esto"></summary>' +
         '<p>Más allá de las 3 reglas legales objetivas de arriba -- esto es la valoración de la IA sobre cláusulas inusuales o de difícil cumplimiento, no una infracción confirmada.</p></details></div>' +
         '<ul class="analysis-list">' +
-        riesgos.map(f => '<li>' + sevTag(f.severidad) + ' ' + escapeHtml(f.descripcion || '') + ' <span style="color:var(--text-muted);">(' + fuenteDe(f) + ')</span></li>').join('') +
+        riesgos.map(f => '<li>' + sevTag(f.severidad) + ' ' + escapeHtml(f.descripcion || '') + ' <span class="text-muted-c">(' + fuenteDe(f) + ')</span></li>').join('') +
         '</ul>'
       : '';
     return cronogramaHtml + riesgosHtml;
@@ -8999,11 +9025,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // está a punto de renderizarse; sin resultado todavía, `g.detalle` SÍ
     // aporta algo nuevo (dirige al botón "Evaluar" de abajo), así que se
     // conserva en ese caso.
-    const introHtml = entry.experienciaResultado ? '' : '<div style="margin-bottom:8px;">' + escapeHtml(g.detalle) + '</div>';
+    const introHtml = entry.experienciaResultado ? '' : '<div class="mb-8">' + escapeHtml(g.detalle) + '</div>';
     return '<div class="analysis-sub">EXPERIENCIA REQUERIDA (extraída del Pliego/Estudio Previo de este proceso)</div>' +
       introHtml +
       epHtml +
-      '<div style="margin-bottom:8px;">' + btnHtml + informeBtnHtml + '</div>' +
+      '<div class="mb-8">' + btnHtml + informeBtnHtml + '</div>' +
       resultadoHtml;
   }
 
@@ -9083,7 +9109,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // botón (SECOP-010), truncando en silencio pliegos de más de 40 páginas.
     const lp = lecturaParcial(entry);
     const lecturaParcialHtml = lp
-      ? '<div class="analysis-block analysis-warn" style="margin:8px 0;">⚠ Este resultado se calculó con solo ' + lp.pagesRead + ' de ' + lp.numPages + ' páginas leídas' + (lp.metodo ? ' por ' + lp.metodo : '') + ' -- el resto del pliego todavía no se ha analizado y podría contener requisitos que cambien el veredicto. Usa "Seguir leyendo más páginas" (al final de esta tarjeta) antes de decidir.</div>'
+      ? '<div class="my-8 analysis-block analysis-warn">⚠ Este resultado se calculó con solo ' + lp.pagesRead + ' de ' + lp.numPages + ' páginas leídas' + (lp.metodo ? ' por ' + lp.metodo : '') + ' -- el resto del pliego todavía no se ha analizado y podría contener requisitos que cambien el veredicto. Usa "Seguir leyendo más páginas" (al final de esta tarjeta) antes de decidir.</div>'
       : '';
     const lista = (titulo, arr) => arr.length ? '<div class="analysis-sub">' + titulo + '</div><ul class="analysis-list">' + arr.map(x => '<li>' + escapeHtml(x) + '</li>').join('') + '</ul>' : '';
     const filas = gatesParaMostrar.map(g =>
@@ -9125,7 +9151,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       : '';
     const kResidualEnTabla = evalParaCompat && evalParaCompat.mejor.gates.some(g => g.nombre === 'Capacidad K residual');
     const kResidualFallbackHtml = (entry.kResidual && !kResidualEnTabla)
-      ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div style="margin-bottom:8px;">' + escapeHtml(textoKResidualDetectado(entry.kResidual)) + '</div>'
+      ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div class="mb-8">' + escapeHtml(textoKResidualDetectado(entry.kResidual)) + '</div>'
       : '';
 
     // Requisitos detectados en el TEXTO -- no dependen del perfil, se listan una
@@ -9156,7 +9182,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       .map(cat => {
         const items = porCategoria[cat].map(h =>
           '<li><b>' + escapeHtml(h.trigger) + ':</b> ' + escapeHtml(h.snippet) +
-          (h.cubiertoPor.length ? ' <span style="color:var(--text-muted);">— cubierto por: ' + escapeHtml(h.cubiertoPor.join(', ')) + '</span>' : '') +
+          (h.cubiertoPor.length ? ' <span class="text-muted-c">— cubierto por: ' + escapeHtml(h.cubiertoPor.join(', ')) + '</span>' : '') +
           '</li>'
         ).join('');
         return '<div class="analysis-sub">' + escapeHtml(cat.toUpperCase()) + '</div><ul class="analysis-list">' + items + '</ul>';
@@ -9181,7 +9207,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         ? '<ul class="analysis-list">' + entry.redFlags.map(f =>
             '<li><span class="tag redflag-' + escapeHtml(f.severidad) + '">' + escapeHtml(f.severidad.toUpperCase()) + '</span> ' +
             escapeHtml(f.mensaje) +
-            (f.pagina ? ' <span style="color:var(--text-muted);">— pliego, p. ' + f.pagina + '</span>' : '') +
+            (f.pagina ? ' <span class="text-muted-c">— pliego, p. ' + f.pagina + '</span>' : '') +
             ' <span class="tag fuente" title="' + escapeHtml(f.snippet) + '">' + escapeHtml(f.articulo) + '</span></li>'
           ).join('') + '</ul>'
         : '<ul class="analysis-list"><li>No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialRF ? ' (solo ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas): las demás no se revisaron' : '') + '.</li></ul>') +
@@ -9257,7 +9283,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // de requisitos habilitantes. Sin esta nota, era fácil asumir que había que terminar de
       // leer todo el documento aquí antes de poder usar esa tabla -- no es necesario.
       ((entry.viaIA || entry.viaOcr) && entry.pagesRead < entry.numPages && !entry.requisitosIA
-        ? '<div class="saved-note" style="margin-top:8px;">💡 Si solo necesitas la tabla de requisitos habilitantes, no hace falta seguir leyendo aquí -- usa "Extraer requisitos con IA" (arriba, en "Requisitos habilitantes"): como aún no se leyó todo el documento, manda el PDF completo a la IA (puede tardar más que con un pliego ya leído).</div>'
+        ? '<div class="mt-8 saved-note">💡 Si solo necesitas la tabla de requisitos habilitantes, no hace falta seguir leyendo aquí -- usa "Extraer requisitos con IA" (arriba, en "Requisitos habilitantes"): como aún no se leyó todo el documento, manda el PDF completo a la IA (puede tardar más que con un pliego ya leído).</div>'
         : '') +
       (entry.viaIA && entry.pagesRead < entry.numPages
         ? '<div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">' +
@@ -9266,14 +9292,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           '</div>'
         : '') +
       (entry.viaOcr && entry.pagesRead < entry.numPages
-        ? '<div style="margin-top:8px;"><button class="link-btn analysis-ocr-continue-btn" data-ocr-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
+        ? '<div class="mt-8"><button class="link-btn analysis-ocr-continue-btn" data-ocr-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
         : '') +
       // Mismo botón para el camino de texto normal (sin OCR ni IA) -- antes
       // un pliego con texto real de más de TEXT_BATCH_PAGES páginas se
       // truncaba en silencio, sin aviso ni forma de seguir leyendo
       // (SECOP-010, ver CLAUDE.md).
       (!entry.viaOcr && !entry.viaIA && entry.pagesRead < entry.numPages
-        ? '<div style="margin-top:8px;"><button class="link-btn analysis-continue-btn" data-analisis-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
+        ? '<div class="mt-8"><button class="link-btn analysis-continue-btn" data-analisis-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
         : '') +
     '</div>';
   }
@@ -9641,7 +9667,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         : '';
       resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Instrument Serif\',serif;font-style:italic;font-weight:400;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + embudoHtml + sugerencia +
         ' Puede que ahora mismo no haya ninguna licitación abierta con esos criterios -- no es un error.' +
-        '<div style="margin-top:10px;"><button type="button" class="link-btn" id="bt-empty-demo">Ver datos de ejemplo</button> para ver cómo luce la plataforma mientras tanto.</div></div>';
+        '<div class="mt-10"><button type="button" class="link-btn" id="bt-empty-demo">Ver datos de ejemplo</button> para ver cómo luce la plataforma mientras tanto.</div></div>';
       return;
     }
 
@@ -10749,7 +10775,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const nombresHojas = c.nHojas > 1
         ? Array.from(new Set(c.contratos.map(ct => ct.hoja).filter(Boolean)))
         : [];
-      html += '<div class="account-notice" style="margin-bottom:10px;">✓ Se leyeron ' + c.contratos.length + ' contrato(s) de la experiencia de ' + escapeHtml((perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'esta empresa') +
+      html += '<div class="mb-10 account-notice">✓ Se leyeron ' + c.contratos.length + ' contrato(s) de la experiencia de ' + escapeHtml((perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || 'esta empresa') +
         (nombresHojas.length ? ' (hojas: ' + nombresHojas.map(escapeHtml).join(', ') + ')' : '') + '.' +
         // RT-002: filas de TOTAL/SUBTOTAL y contratos repetidos se omiten para no
         // sumarlos dos veces en un requisito acumulable; se avisa, no es silencioso.
@@ -11155,10 +11181,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // motor de reglas ya detecta como relevantes (ver "Páginas relevantes..." arriba)
       // -- reduce cuánto tiene que leer/generar la IA, sin perder la ventaja de leer
       // el PDF como imagen (tablas/matrices). Las adendas se mandan siempre completas.
-      // PDF-01: el filtro busca anclas SOLO en el texto ya leído; con lectura parcial no puede ver
-      // las páginas aún sin leer y recortaría en silencio secciones reales. Con lectura parcial se
-      // manda siempre el PDF completo (más lento, pero "lee el documento completo" es cierto).
-      const paginasRelevantes = lecturaParcial(entry) ? null : paginasRelevantesParaIA(entry);
+      // PDF-01: con lectura parcial, paginasRelevantesParaIA suma TODAS las páginas aún sin leer (el
+      // filtro solo puede descartar páginas que ya vio), así nada se omite en silencio.
+      const paginasRelevantes = paginasRelevantesParaIA(entry);
       const { data, error } = await client.functions.invoke('extraer-requisitos', {
         body: {
           company_id: sbCompanyId,
@@ -11952,7 +11977,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const kb = Math.round(file.size / 1024);
     slot.innerHTML = '<div class="analysis-block">' +
       '<div class="analysis-head">✓ Pliego cargado</div>' +
-      '<div style="margin-bottom:10px;">' + escapeHtml(file.name) + ' (' + kb + ' KB). Revisa que sea el documento correcto y pulsa el botón para analizarlo.</div>' +
+      '<div class="mb-10">' + escapeHtml(file.name) + ' (' + kb + ' KB). Revisa que sea el documento correcto y pulsa el botón para analizarlo.</div>' +
       '<button class="btn-primary analysis-confirmar-btn" data-confirmar-id="' + escapeHtml(id) + '">Analizar pliego</button>' +
     '</div>';
   });
@@ -11979,7 +12004,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const kb = Math.round(file.size / 1024);
     slot.innerHTML = '<div class="analysis-block">' +
       '<div class="analysis-head">✓ Estudio Previo cargado</div>' +
-      '<div style="margin-bottom:10px;">' + escapeHtml(file.name) + ' (' + kb + ' KB). Como documento principal (el Pliego de Condiciones aún no está publicado). Revisa que sea el documento correcto y pulsa el botón para analizarlo.</div>' +
+      '<div class="mb-10">' + escapeHtml(file.name) + ' (' + kb + ' KB). Como documento principal (el Pliego de Condiciones aún no está publicado). Revisa que sea el documento correcto y pulsa el botón para analizarlo.</div>' +
       '<button class="btn-primary analysis-confirmar-btn" data-confirmar-id="' + escapeHtml(id) + '">Analizar Estudio Previo</button>' +
     '</div>';
   });

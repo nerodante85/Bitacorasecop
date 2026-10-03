@@ -6485,3 +6485,49 @@ ni contrato nuevos. El RUT por IA usa el mismo respaldo de texto plano que el OC
 que el PDF digital. Los parámetros `viaOcr` ahora son `false | true | 'ia'` (true = OCR, como antes).
 Prueba: tandas [1-8],[9-16],[17-20], texto unido y offsets verificados (mutación: sin desplazar offsets falla).
 **Sin probar con IA real** (necesita sesión y crédito): conviene que el usuario pruebe un RUP o RUT escaneado.
+
+## PDF-01, segunda versión: páginas sin leer siempre van a la IA (prueba real con el pliego de 112 páginas)
+
+La primera versión del arreglo PDF-01 mandaba el PDF COMPLETO a "Extraer requisitos con IA" mientras la
+lectura fuera parcial. Con un pliego escaneado real de 112 páginas leído hasta la 56 (prueba del
+usuario en producción) chocó con el tope de 100 páginas por petición que otra sesión agregó a
+`extraer-requisitos` (`MAX_PAGINAS_PDF`): la función mandó solo las primeras 100 y avisó que las 12
+últimas no se leyeron -- justo donde suelen estar los anexos. Ahora `paginasRelevantesParaIA` (que ya
+filtraba lo leído por anclas) suma TODAS las páginas aún sin leer cuando la lectura es parcial: sobre
+lo no leído no hay texto con qué filtrar, así que nunca se descarta a ciegas, y un pliego así manda
+unas 30 relevantes + 56 sin leer (~86) y cabe en el tope. Si la lectura es completa o hay menos de 4
+páginas relevantes, se comporta como antes. Escrito prueba primero (dos pruebas con entries
+sintéticos, mutación comprobada).
+
+Datos de esa misma prueba (PDF-06): lectura con IA de 56 páginas en 455 s (8,1 s/página, ~65 s por
+tanda de 8); 92.771 tokens de entrada y 56.966 de salida (~1.000 de salida por página: el costo de
+transcribir lo domina la salida); leer las 112 completas tomaría ~15 minutos. La extracción de
+requisitos del mismo pliego: 25 requisitos con 160.338 tokens de entrada y 11.521 de salida.
+
+## Auditoría de la interfaz (/impeccable audit) y sus correcciones
+
+Primera auditoría técnica de la interfaz con el detector de Impeccable más mediciones en celular
+emulado: 13/20 (accesibilidad 2, rendimiento 3, adaptación 2, temas 3, integridad 3). 103 de 105 avisos
+eran de contraste. Corregido (escribiendo las pruebas primero, `tests/smoke.mjs` "Interfaz: ..."):
+- **Contraste AA** en los tokens: `--ink-mute` #6B7488→#535C6E, `--ink-faint` #98A0B2→#5F687B (los
+  marcadores de posición estaban a 2,6:1), bronce `--amber` #A6660A→#8F5708 y `--amber-hover`
+  #7E4E08→#6B4206, pie de la barra lateral #626C82→#8089A3. El botón secundario usaba el ámbar vivo como
+  TEXTO (2,0:1): ahora el texto va en bronce profundo y el ámbar vivo queda solo como borde/relleno.
+  Una prueba calcula el contraste de los tokens resueltos desde el propio CSS.
+- **Landmark `<main>`** envuelve las vistas.
+- **Área táctil de 44px** (`@media (pointer: coarse), (max-width: 560px)`): botones y campos crecen;
+  enlaces de texto, etiquetas "ⓘ", enlaces de tarjeta y `summary` amplían solo la zona sensible con un
+  `::after` (inset -14px) para no reventar las tarjetas. Medido a 375px: de 56 de 63 controles bajo 44px a 0.
+- **Bug de adaptación encontrado al medir con datos reales**: un `row-obj` con una cadena larga sin
+  espacios (dato real de SECOP) ensanchaba toda la página (scrollWidth 679 en 375px); `overflow-wrap:
+  anywhere` en `.row-ent`/`.row-obj`. Los datos de ejemplo no lo mostraban: medir con datos en vivo.
+- **Reducir movimiento** ya no apaga todo con `.01ms`: quita animaciones y mantiene las transiciones de
+  color/borde/sombra/opacidad (el cambio de estado sigue visible).
+- **Nada bajo 12px** (había 9, 9.5, 10.5, 11 y 11.5) y sin radios de píldora (los de 999px/20px pasaron a
+  `--radius-sm`; el anillo de enfoque también).
+- **Estilos en línea**: 39 `style=""` repetidos pasaron a utilidades `.mt-8 .mb-8 .my-8 .mt-10 .mb-10
+  .mt-12 .text-muted-c`.
+`DESIGN.md` y `.impeccable/design.json` se actualizaron con los valores nuevos (y los tamaños de
+Headline/Stat). Los 2 "fuentes sobreusadas" y el "padding apretado" del detector son falsos positivos
+verificados; quedan avisos menores de deriva documental (tamaños de cifras de 17–24px y el velo del
+modal). NO verificado: la vista de escritorio en captura (la herramienta no terminó el screenshot).
