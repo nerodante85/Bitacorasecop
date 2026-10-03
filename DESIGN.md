@@ -6,14 +6,15 @@ colors:
   navy-ink: "#12182A"
   navy-slate: "#1B2233"
   ink: "#171B26"
-  ink-mute: "#6B7488"
-  ink-faint: "#98A0B2"
+  ink-mute: "#535C6E"
+  ink-faint: "#5F687B"
+  navy-mute: "#8089A3"
   paper: "#FFFFFF"
   canvas: "#EEF1F6"
   line: "#D7DEEA"
   line-strong: "#C1CBDD"
-  bronze: "#A6660A"
-  bronze-deep: "#7E4E08"
+  bronze: "#8F5708"
+  bronze-deep: "#6B4206"
   amber-wash: "#FCEBD0"
   amber-lamp: "#F2A93C"
   amber-lamp-deep: "#DB9020"
@@ -48,9 +49,19 @@ typography:
     lineHeight: 1.3
   label:
     fontFamily: "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-    fontSize: "11px"
+    fontSize: "12px"
     fontWeight: 600
     letterSpacing: "0.1px"
+  headline:
+    fontFamily: "'Instrument Serif', 'IBM Plex Sans', serif"
+    fontSize: "22px"
+    fontWeight: 400
+    lineHeight: 1.1
+  stat:
+    fontFamily: "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    fontSize: "28px"
+    fontWeight: 700
+    lineHeight: 1
   wordmark:
     fontFamily: "'Space Grotesk', 'IBM Plex Sans', sans-serif"
     fontSize: "16px"
@@ -82,7 +93,7 @@ components:
     backgroundColor: "{colors.amber-lamp-deep}"
   button-secondary:
     backgroundColor: "{colors.paper}"
-    textColor: "{colors.amber-lamp}"
+    textColor: "{colors.bronze-deep}"
     rounded: "{rounded.sm}"
     padding: "10px 16px"
   button-secondary-hover:
@@ -142,24 +153,28 @@ Una paleta fría y contenida con un único punto cálido: marino y gris azulado 
 
 ### Primary
 - **Lámpara de ámbar** (#F2A93C): relleno de la acción principal: botón lleno, ítem de navegación activo, paso activo del indicador de pasos, barra de progreso. Siempre con texto `amber-ink` encima, nunca blanco.
-- **Bronce** (#A6660A): el ámbar como TEXTO sobre fondo claro: enlaces, iconos, borde de foco. Es una versión oscurecida porque el ámbar vivo no pasa contraste AA como texto.
-- **Bronce profundo** (#7E4E08): hover de enlaces.
+- **Bronce** (#8F5708): el ámbar como TEXTO sobre fondo claro: enlaces, iconos, borde de foco (4,6:1 o más sobre blanco, lienzo y velo de ámbar). Es una versión oscurecida porque el ámbar vivo no pasa contraste AA como texto.
+- **Bronce profundo** (#6B4206): hover de enlaces y texto del botón secundario.
 - **Tinta de ámbar** (#241300): texto oscuro sobre la lámpara de ámbar.
 - **Velo de ámbar** (#FCEBD0): fondo tintado de foco, hover y resaltados.
 
 ### Secondary
 - **Marino de marca** (#12182A): lateral de navegación y ancla de la identidad.
 - **Marino profundo** (#0A0D15) y **Pizarra marina** (#1B2233): escalones más oscuro y más claro de la misma familia.
+- **Marino apagado** (#8089A3): texto secundario sobre el marino (pie de la barra lateral), 5,1:1.
 
 ### Neutral
 - **Lienzo gris azulado** (#EEF1F6): fondo de la aplicación; nunca blanco puro.
 - **Papel** (#FFFFFF): tarjetas y paneles.
 - **Tinta** (#171B26): texto de cuerpo y de encabezados (los títulos no se colorean; se distinguen por tipografía y peso).
-- **Tinta apagada** (#6B7488) y **Tinta tenue** (#98A0B2): texto secundario y marcadores de posición.
+- **Tinta apagada** (#535C6E) y **Tinta tenue** (#5F687B): texto secundario y marcadores de posición; ambas cumplen 4,5:1 sobre el lienzo y el papel.
 - **Línea** (#D7DEEA) y **Línea fuerte** (#C1CBDD): bordes y divisores.
 
 ### Señal de cumplimiento
 - **Verde cumple** (#1E7A45, fondo #E4F2E9, borde #B9DDC5), **Rojo no cumple** (#9B2C20, fondo #F3E1DC, borde #E0B8AC) y **Ámbar de revisión** (#8A5A10, fondo #F6EAD3, borde #E3C88F): CUMPLE / NO CUMPLE / GO / NO-GO / REVISAR y "requiere verificación".
+
+### Velo de modales
+- **Velo** (rgba(0,0,0,.35)): fondo semitransparente detrás del modal de cuenta; no es un color de la paleta.
 
 ### Marca del logo (independiente)
 - **Tinta del logo** (#14181C) y **verde del logo** (#51825B): el monograma "B" conserva su propia paleta a propósito; no usa los tokens de la interfaz.
@@ -179,9 +194,11 @@ Una paleta fría y contenida con un único punto cálido: marino y gris azulado 
 
 ### Hierarchy
 - **Display** (400 cursiva, 28px, 1.05): título de cada vista. Nunca en cuerpo, en títulos de tarjeta ni en badges.
+- **Headline** (400 cursiva, 22px, 1.1): título de diálogos como el de cuenta; misma serif cursiva que el Display.
+- **Stat** (700, 28px, 1): cifra de las tarjetas de resumen del Dashboard (con variantes de 17–24px para valores largos); la etiqueta que la acompaña va en Label.
 - **Title** (700, 14.5px): títulos de tarjeta y de bloque, en la misma tinta que el cuerpo.
 - **Body** (400, 14px, 1.5): texto de lectura; descripciones de vista con ancho máximo de 640px.
-- **Label** (600, 11px, 0.1px): etiquetas, tags y badges de estado.
+- **Label** (600, 12px, 0.1px): etiquetas, tags y badges de estado.
 - **Data** (400, 13px, mono sin ligaduras): cifras en pesos, fechas y radicados.
 - **Wordmark** (500, 16px, 0.06em): "Bitácora" en el lateral.
 
@@ -191,7 +208,7 @@ Una paleta fría y contenida con un único punto cálido: marino y gris azulado 
 
 ## Layout
 
-Aplicación de una columna de contenido con una barra lateral fija de 264px. A 900px o menos la barra se angosta a 208px y sigue vertical; a 560px o menos se convierte en un botón desplegable con el nombre de la vista activa, porque seis ítems con texto no caben en una fila de 375px. Las vistas se apilan como tarjetas con 20px de separación; las tablas anchas y el tablero del pipeline desbordan dentro de su propio contenedor con scroll horizontal, nunca a nivel de página. Ritmo de espaciado observado: 6, 10, 16 y 22px, con tarjetas de 22px × 24px.
+Aplicación de una columna de contenido con una barra lateral fija de 264px. A 900px o menos la barra se angosta a 208px y sigue vertical; a 560px o menos se convierte en un botón desplegable con el nombre de la vista activa, porque seis ítems con texto no caben en una fila de 375px. Las vistas se apilan como tarjetas con 20px de separación; las tablas anchas y el tablero del pipeline desbordan dentro de su propio contenedor con scroll horizontal, nunca a nivel de página. Ritmo de espaciado observado: 6, 10, 16 y 22px, con tarjetas de 22px × 24px. En pantallas táctiles o de 560px o menos, botones y campos miden al menos 44px de alto; los enlaces de texto y las etiquetas que se tocan amplían solo su zona sensible. El contenido principal vive en un landmark `main`. Ningún texto baja de 12px.
 
 ## Elevation & Depth
 
@@ -213,7 +230,7 @@ Esquinas moderadas, de carpeta de archivo, no de píldora: 5px para controles (b
 ### Buttons
 - **Shape:** esquina de 5px (`rounded.sm`), 10px × 16px, peso 600 en 13,5px.
 - **Primary:** relleno ámbar con texto marrón casi negro y sombra de reposo; hover hacia un ámbar más profundo.
-- **Secondary:** fondo blanco con borde y texto en ámbar; hover con velo de ámbar.
+- **Secondary:** fondo blanco con borde en ámbar vivo y texto en bronce profundo (el ámbar vivo nunca es texto); hover con velo de ámbar.
 - **Mini (acción de tarjeta):** botón pequeño de borde fino; "Analizar" lleva tinte verde para distinguirse de "Marcar visto" y "Descartar".
 - **Focus:** contorno de 2px en bronce con separación de 2px.
 
@@ -246,7 +263,7 @@ Badge con símbolo para no depender solo del color: GO, REVISAR, NO-GO y CUMPLE 
 
 ### Do:
 - **Do** reservar el ámbar vivo (#F2A93C) para la acción principal de la pantalla y ponerle siempre texto `amber-ink` encima.
-- **Do** usar bronce (#A6660A) cuando el acento sea texto sobre fondo claro.
+- **Do** usar bronce (#8F5708) cuando el acento sea texto sobre fondo claro.
 - **Do** mantener verde, rojo y ámbar de señal para cumplimiento, con símbolo además de color.
 - **Do** poner cifras, fechas y valores en pesos en la fuente de datos sin ligaduras.
 - **Do** anunciar cada vista con el título en serif cursiva de 28px y dejar el resto en IBM Plex Sans.

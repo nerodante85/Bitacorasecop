@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-03T14:50:57+00:00",
+  "generatedAt": "2026-10-03T15:03:57+00:00",
   "title": "Design System: Bitácora SECOP",
   "extensions": {
     "colorMeta": {
@@ -67,15 +67,15 @@
       "bronze": {
         "role": "primary",
         "displayName": "Bronce",
-        "canonical": "#A6660A",
+        "canonical": "#8F5708",
         "tonalRamp": [
           "#482C04",
-          "#7F4E08",
-          "#B6700B",
-          "#ED920E",
-          "#F4AB42",
-          "#F7C379",
-          "#FADCB0",
+          "#804E07",
+          "#B76F0A",
+          "#EE910D",
+          "#F4AA41",
+          "#F7C378",
+          "#FBDBB0",
           "#FEF4E7"
         ]
       },
@@ -203,7 +203,7 @@
       "refersTo": "button-primary",
       "description": "Acción principal de la pantalla: relleno ámbar con texto oscuro.",
       "html": "<button class=\"ds-btn-primary\">Analizar pliego</button>",
-      "css": ".ds-btn-primary{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13.5px;border:none;border-radius:5px;padding:10px 16px;cursor:pointer;background:#F2A93C;color:#241300;box-shadow:rgba(15,19,30,.10) 0 2px 4px 0,rgba(15,19,30,.05) 0 1px 1px 0,rgba(15,19,30,.10) 0 0 0 1px;transition:background .12s ease}.ds-btn-primary:hover{background:#DB9020}.ds-btn-primary:focus-visible{outline:2px solid #A6660A;outline-offset:2px}"
+      "css": ".ds-btn-primary{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13.5px;border:none;border-radius:5px;padding:10px 16px;cursor:pointer;background:#F2A93C;color:#241300;box-shadow:rgba(15,19,30,.10) 0 2px 4px 0,rgba(15,19,30,.05) 0 1px 1px 0,rgba(15,19,30,.10) 0 0 0 1px;transition:background .12s ease}.ds-btn-primary:hover{background:#DB9020}.ds-btn-primary:focus-visible{outline:2px solid #8F5708;outline-offset:2px}"
     },
     {
       "name": "Botón secundario",
@@ -211,7 +211,7 @@
       "refersTo": "button-secondary",
       "description": "Acción de apoyo: fondo blanco con borde y texto en ámbar.",
       "html": "<button class=\"ds-btn-secondary\">Ver datos de ejemplo</button>",
-      "css": ".ds-btn-secondary{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13.5px;border:1px solid #F2A93C;border-radius:5px;padding:10px 16px;cursor:pointer;background:#fff;color:#F2A93C;transition:background .12s ease}.ds-btn-secondary:hover{background:#FCEBD0}.ds-btn-secondary:focus-visible{outline:2px solid #A6660A;outline-offset:2px}"
+      "css": ".ds-btn-secondary{font-family:'IBM Plex Sans',sans-serif;font-weight:600;font-size:13.5px;border:1px solid #F2A93C;border-radius:5px;padding:10px 16px;cursor:pointer;background:#fff;color:#6B4206;transition:background .12s ease}.ds-btn-secondary:hover{background:#FCEBD0}.ds-btn-secondary:focus-visible{outline:2px solid #8F5708;outline-offset:2px}"
     },
     {
       "name": "Campo de texto",
@@ -219,7 +219,7 @@
       "refersTo": "input",
       "description": "Campo con borde fuerte y halo ámbar en foco.",
       "html": "<input class=\"ds-input\" placeholder=\"pavimentación, alcantarillado\">",
-      "css": ".ds-input{width:100%;box-sizing:border-box;border:1px solid #C1CBDD;border-radius:5px;background:#fff;padding:10px 12px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;color:#171B26;transition:border-color .12s ease,box-shadow .12s ease}.ds-input::placeholder{color:#98A0B2}.ds-input:focus{outline:none;border-color:#A6660A;box-shadow:0 0 0 3px #FCEBD0}"
+      "css": ".ds-input{width:100%;box-sizing:border-box;border:1px solid #C1CBDD;border-radius:5px;background:#fff;padding:10px 12px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;color:#171B26;transition:border-color .12s ease,box-shadow .12s ease}.ds-input::placeholder{color:#98A0B2}.ds-input:focus{outline:none;border-color:#8F5708;box-shadow:0 0 0 3px #FCEBD0}"
     },
     {
       "name": "Ítem de navegación",
@@ -235,7 +235,7 @@
       "refersTo": "tag",
       "description": "Etiqueta neutra y variantes de señal (alta, media).",
       "html": "<span class=\"ds-tag\">SECOP II</span> <span class=\"ds-tag ds-alta\">ALTA</span> <span class=\"ds-tag ds-media\">MEDIA</span>",
-      "css": ".ds-tag{font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:600;letter-spacing:.1px;border-radius:5px;border:1px solid #C1CBDD;background:#EEF1F6;color:#6B7488;padding:3px 10px;display:inline-block;white-space:nowrap}.ds-tag.ds-alta{border-color:#E0B8AC;background:#F3E1DC;color:#9B2C20}.ds-tag.ds-media{border-color:#E3C88F;background:#F6EAD3;color:#8A5A10}"
+      "css": ".ds-tag{font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:600;letter-spacing:.1px;border-radius:5px;border:1px solid #C1CBDD;background:#EEF1F6;color:#535C6E;padding:3px 10px;display:inline-block;white-space:nowrap}.ds-tag.ds-alta{border-color:#E0B8AC;background:#F3E1DC;color:#9B2C20}.ds-tag.ds-media{border-color:#E3C88F;background:#F6EAD3;color:#8A5A10}"
     },
     {
       "name": "Tarjeta",
@@ -243,7 +243,7 @@
       "refersTo": "card",
       "description": "Tarjeta base con encabezado y divisor.",
       "html": "<div class=\"ds-card\"><div class=\"ds-card-head\"><h2>Filtros de búsqueda</h2><span>Datos abiertos SECOP II</span></div><p>Contenido de la tarjeta.</p></div>",
-      "css": ".ds-card{border:1px solid #D7DEEA;background:#fff;border-radius:14px;box-shadow:rgba(15,19,30,.10) 0 2px 4px 0,rgba(15,19,30,.05) 0 1px 1px 0,rgba(15,19,30,.10) 0 0 0 1px;padding:22px 24px;font-family:'IBM Plex Sans',sans-serif;color:#171B26}.ds-card-head{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #D7DEEA;padding-bottom:12px;margin-bottom:18px;gap:10px}.ds-card-head h2{margin:0;font-size:14.5px;font-weight:700}.ds-card-head span{font-size:12px;color:#6B7488}.ds-card p{margin:0;font-size:14px;line-height:1.5}"
+      "css": ".ds-card{border:1px solid #D7DEEA;background:#fff;border-radius:14px;box-shadow:rgba(15,19,30,.10) 0 2px 4px 0,rgba(15,19,30,.05) 0 1px 1px 0,rgba(15,19,30,.10) 0 0 0 1px;padding:22px 24px;font-family:'IBM Plex Sans',sans-serif;color:#171B26}.ds-card-head{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #D7DEEA;padding-bottom:12px;margin-bottom:18px;gap:10px}.ds-card-head h2{margin:0;font-size:14.5px;font-weight:700}.ds-card-head span{font-size:12px;color:#535C6E}.ds-card p{margin:0;font-size:14px;line-height:1.5}"
     },
     {
       "name": "Fila de proceso",
@@ -251,7 +251,7 @@
       "refersTo": "process-row",
       "description": "Componente firma: proceso con borde izquierdo de prioridad, tags y datos clave.",
       "html": "<div class=\"ds-row\"><div class=\"ds-row-ent\">Alcaldía de Cúcuta <span class=\"ds-tag\">SECOP II</span></div><div class=\"ds-row-obj\">Mejoramiento y pavimentación de vías urbanas</div><div class=\"ds-row-data\">Valor base: $1.850.000.000 · 12 días</div></div>",
-      "css": ".ds-row{background:#fff;border:1px solid #D7DEEA;border-left:3px solid #9B2C20;border-radius:9px;box-shadow:rgba(15,19,30,.10) 0 2px 4px 0,rgba(15,19,30,.05) 0 1px 1px 0,rgba(15,19,30,.10) 0 0 0 1px;padding:16px 18px;font-family:'IBM Plex Sans',sans-serif;color:#171B26}.ds-row-ent{font-weight:700;font-size:14.5px;display:flex;gap:8px;align-items:center}.ds-row-obj{font-size:14px;margin:6px 0;line-height:1.5}.ds-row-data{font-family:'Fira Code',ui-monospace,monospace;font-size:12.5px;color:#6B7488;font-feature-settings:'liga' 0,'calt' 0}.ds-tag{font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:600;border-radius:5px;border:1px solid #C1CBDD;background:#EEF1F6;color:#6B7488;padding:3px 10px}"
+      "css": ".ds-row{background:#fff;border:1px solid #D7DEEA;border-left:3px solid #9B2C20;border-radius:9px;box-shadow:rgba(15,19,30,.10) 0 2px 4px 0,rgba(15,19,30,.05) 0 1px 1px 0,rgba(15,19,30,.10) 0 0 0 1px;padding:16px 18px;font-family:'IBM Plex Sans',sans-serif;color:#171B26}.ds-row-ent{font-weight:700;font-size:14.5px;display:flex;gap:8px;align-items:center}.ds-row-obj{font-size:14px;margin:6px 0;line-height:1.5}.ds-row-data{font-family:'Fira Code',ui-monospace,monospace;font-size:12.5px;color:#535C6E;font-feature-settings:'liga' 0,'calt' 0}.ds-tag{font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:600;border-radius:5px;border:1px solid #C1CBDD;background:#EEF1F6;color:#535C6E;padding:3px 10px}"
     },
     {
       "name": "Veredicto",
@@ -259,7 +259,7 @@
       "refersTo": "tag",
       "description": "Señal de cumplimiento con símbolo además de color.",
       "html": "<span class=\"ds-v ds-ok\">✓ CUMPLE</span> <span class=\"ds-v ds-fail\">✗ NO CUMPLE</span> <span class=\"ds-v ds-watch\">⚠ REQUIERE VERIFICACIÓN</span>",
-      "css": ".ds-v{font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:700;border-radius:5px;border:1px solid;padding:3px 10px;display:inline-block}.ds-ok{background:#E4F2E9;color:#1E7A45;border-color:#B9DDC5}.ds-fail{background:#F3E1DC;color:#9B2C20;border-color:#E0B8AC}.ds-watch{background:#F6EAD3;color:#8A5A10;border-color:#E3C88F}"
+      "css": ".ds-v{font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:700;border-radius:5px;border:1px solid;padding:3px 10px;display:inline-block}.ds-ok{background:#E4F2E9;color:#1E7A45;border-color:#B9DDC5}.ds-fail{background:#F3E1DC;color:#9B2C20;border-color:#E0B8AC}.ds-watch{background:#F6EAD3;color:#8A5A10;border-color:#E3C88F}"
     }
   ],
   "narrative": {
@@ -306,7 +306,7 @@
     ],
     "dos": [
       "Do reservar el ámbar vivo (#F2A93C) para la acción principal de la pantalla y ponerle siempre texto amber-ink encima.",
-      "Do usar bronce (#A6660A) cuando el acento sea texto sobre fondo claro.",
+      "Do usar bronce (#8F5708) cuando el acento sea texto sobre fondo claro.",
       "Do mantener verde, rojo y ámbar de señal para cumplimiento, con símbolo además de color.",
       "Do poner cifras, fechas y valores en pesos en la fuente de datos sin ligaduras.",
       "Do anunciar cada vista con el título en serif cursiva de 28px y dejar el resto en IBM Plex Sans.",

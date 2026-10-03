@@ -3268,5 +3268,62 @@ await check('PDF-05: la primera lectura de texto usa extenderSiEscaso (la lógic
   assert(/Lectura\.iniciar\(file, LECTOR_TEXTO, \{[^}]*minTexto: 200, extenderSiEscaso: true/.test(html), 'debe usar extenderSiEscaso con minTexto 200');
 });
 
+// ---- Auditoría de la interfaz (/impeccable audit): contraste, landmark, táctil, movimiento, tipografía ----
+function luminancia(hex) {
+  const h = hex.replace('#', ''); const c = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map(v => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+function contraste(a, b) { const [x, y] = [luminancia(a), luminancia(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); }
+function tokenesCss(html) {
+  const bloque = html.slice(html.indexOf('#bitacora-root {'), html.indexOf('#bitacora-root * { box-sizing'));
+  const crudo = {}; for (const m of bloque.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)) crudo[m[1]] = m[2].trim();
+  const resolver = (v, n = 0) => { const m = /^var\(--([a-z0-9-]+)\)$/.exec(v); return (m && n < 8) ? resolver(crudo[m[1]], n + 1) : v; };
+  const out = {}; Object.keys(crudo).forEach(k => { out[k] = resolver(crudo[k]); }); return out;
+}
+await check('Interfaz: los textos de los tokens cumplen contraste AA (4.5:1) sobre el lienzo, el papel y el velo de ámbar', () => {
+  const html = readFileSync(HTML_PATH, 'utf8'); const T = tokenesCss(html);
+  const pares = [['text-muted', 'bg'], ['text-muted', 'surface'], ['text-faint', 'surface'], ['text-faint', 'bg'], ['accent', 'surface'], ['accent', 'accent-soft'], ['accent-hover', 'accent-soft'], ['warning', 'warning-bg'], ['success', 'success-bg'], ['danger', 'danger-bg']];
+  pares.forEach(([f, b]) => { const r = contraste(T[f], T[b]); assert(r >= 4.5, f + ' (' + T[f] + ') sobre ' + b + ' (' + T[b] + ') = ' + r.toFixed(2) + ':1, mínimo 4.5'); });
+});
+await check('Interfaz: el botón secundario y el pie de la barra lateral cumplen contraste (antes 2.0:1 y 3.4:1)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8'); const T = tokenesCss(html);
+  const sec = /\.btn-secondary \{[^}]*\bcolor:\s*var\(--([a-z-]+)\)/.exec(html);
+  assert(sec, 'no se encontró .btn-secondary');
+  assert(sec[1] !== 'accent-button', 'el texto del botón secundario no puede ser el ámbar vivo (solo es relleno)');
+  assert(contraste(T[sec[1]], T.surface) >= 4.5 && contraste(T[sec[1]], T['accent-soft']) >= 4.5, 'texto del botón secundario en reposo y hover');
+  const pie = /sidebar-foot[^{]*\{[^}]*color:\s*(#[0-9A-Fa-f]{6})/.exec(html);
+  assert(pie && contraste(pie[1], T['brand-800']) >= 4.5, 'texto del pie de la barra lateral sobre el marino: ' + (pie && pie[1]));
+});
+await check('Interfaz: hay un landmark <main> que envuelve las vistas (lector de pantalla puede saltar al contenido)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/<main\b[^>]*>/.test(html) && /<\/main>/.test(html), 'falta <main>');
+  assert(html.indexOf('<main') < html.indexOf('id="view-dashboard"') && html.indexOf('</main>') > html.indexOf('id="view-evaluacion"'), '<main> debe envolver las vistas');
+});
+await check('Interfaz: en pantallas táctiles/angostas los controles tienen área de 44px', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const bloque = /@media \(pointer: coarse\), \(max-width: 560px\) \{([\s\S]*?)\r?\n  \}\r?\n/.exec(html);
+  assert(bloque, 'falta el bloque táctil @media (pointer: coarse), (max-width: 560px)');
+  ['.btn-mini', '.link-btn', '.btn-primary', '.btn-secondary', '.field input', '.tag-tip', '.row-link a', 'summary'].forEach(s => assert(bloque[1].includes(s), 'el bloque táctil debe cubrir ' + s));
+  assert(/inset:\s*-14px/.test(bloque[1]), 'la zona sensible extra debe sumar 28px a un enlace de 17px (>=44)');
+  assert(/\.row-obj[^{]*\{[^}]*overflow-wrap:\s*anywhere/.test(html), 'un texto largo sin espacios (dato real de SECOP) no debe desbordar la página');
+  assert(/min-height:\s*44px/.test(bloque[1]), 'min-height de 44px');
+});
+await check('Interfaz: reducir movimiento conserva el cambio de estado (colores) y quita animaciones; el texto más chico es 12px', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const rm = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\r?\n  \}\r?\n/.exec(html);
+  assert(rm && !/\.01ms/.test(rm[1]), 'sin el apagado global de .01ms');
+  assert(/animation:\s*none/.test(rm[1]) && /transition-property:/.test(rm[1]), 'animaciones fuera y solo transiciones de color/borde/sombra/opacidad');
+  const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  assert(!/font-size:\s*(9|9\.5|10|10\.5|11|11\.5)px/.test(css), 'ningún texto por debajo de 12px');
+  assert(!/border-radius:\s*(999px|20px)/.test(css), 'sin radios de píldora (DESIGN.md: radios 5/9/14)');
+});
+await check('Interfaz: los márgenes en línea más repetidos pasaron a clases utilitarias con nombre', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  ['margin-top:8px;', 'margin-bottom:8px;', 'margin:8px 0;', 'margin-top:10px;', 'margin-bottom:10px;', 'margin-top:12px;', 'color:var(--text-muted);'].forEach(s =>
+    assert(!html.includes('style="' + s + '"'), 'queda style="' + s + '" en línea'));
+  ['.mt-8', '.mb-8', '.my-8', '.mt-10', '.mb-10', '.mt-12', '.text-muted-c'].forEach(c => assert(html.includes('#bitacora-root ' + c + ' {'), 'falta la clase ' + c));
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
