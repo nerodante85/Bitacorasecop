@@ -4567,8 +4567,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       r = await Lectura.leerTodo(entry, file, LECTOR_IA, {
         cancelado: () => !!iaAutoLeerCancelado[id],
         reanalizar: reanalizarTextoAcumulado,
-        onTanda: (desde, hasta, tandaActual, tandasTotal) => {
-          slot.innerHTML = '<div class="analysis-loading">Leyendo con IA… tanda ' + tandaActual + ' de ' + tandasTotal + ' (páginas ' + desde + '-' + hasta + ')</div>' +
+        onTanda: (desde, hasta, tandaActual, tandasTotal, restanteSeg) => {
+          // La espera lleva la cuenta: páginas ya leídas y, desde la segunda tanda, cuánto falta según la velocidad
+          // medida en ESTE documento (no una cifra inventada). El estimado baja a medida que avanza.
+          const falta = restanteSeg != null ? ' · faltan ' + Lectura.formatoDuracion(restanteSeg) + ' (calculado con lo que va tardando este documento)' : '';
+          slot.innerHTML = '<div class="analysis-loading">Leyendo con IA… tanda ' + tandaActual + ' de ' + tandasTotal + ' (páginas ' + desde + '-' + hasta + ' de ' + entry.numPages + ')' + falta + '</div>' +
             '<div class="mt-8"><button class="link-btn analysis-ia-cancelar-btn" data-ia-cancelar-id="' + escapeHtml(id) + '">Cancelar</button></div>';
         },
         onProgreso: () => { analisis[id] = entry; saveAnalisis(id); }

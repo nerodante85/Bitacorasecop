@@ -3132,6 +3132,34 @@ await check('Páginas para la IA: lectura completa filtra como siempre (solo rel
   assert(expEngine.paginasRelevantesParaIA({ id: 'x', numPages: 10, pagesRead: 10, text: '', paginaOffsets: [] }) === null, 'sin texto: null');
 });
 
+// Delight (/impeccable delight): una espera de ~15 minutos se vuelve informativa -- cuánto falta, calculado con
+// la velocidad REAL medida en este mismo documento (nunca una cifra inventada ni un progreso falso).
+await check('Espera informativa: estimarRestante usa la velocidad medida del documento y no inventa nada sin mediciones', () => {
+  const entry = { numPages: 112, pagesRead: 16, lecturaMs: { ia: { tandas: 2, paginas: 16, ms: 130000 } } };
+  assert(Lectura.estimarRestante(entry, { metodo: 'ia' }) === 780, 'restan 96 páginas a 8,125 s/página = 780 s: ' + Lectura.estimarRestante(entry, { metodo: 'ia' }));
+  assert(Lectura.estimarRestante({ numPages: 112, pagesRead: 0 }, { metodo: 'ia' }) === null, 'sin mediciones: null (no se inventa)');
+  assert(Lectura.estimarRestante({ numPages: 112, pagesRead: 16, lecturaMs: { ocr: { paginas: 16, ms: 1000 } } }, { metodo: 'ia' }) === null, 'las mediciones de OTRO método no sirven');
+  assert(Lectura.estimarRestante({ numPages: 10, pagesRead: 10, lecturaMs: { ia: { paginas: 10, ms: 1000 } } }, { metodo: 'ia' }) === 0, 'documento terminado: 0');
+});
+await check('Espera informativa: formatoDuracion en palabras de la app (minutos, horas) y leerTodo entrega el estimado a la interfaz', async () => {
+  assert(Lectura.formatoDuracion(20) === 'menos de 1 min' && Lectura.formatoDuracion(780) === 'unos 13 min' && Lectura.formatoDuracion(3720) === 'más de 1 h', 'formatos: ' + [20, 780, 3720].map(Lectura.formatoDuracion).join(' | '));
+  const e = { id: 'd1', numPages: 24, pagesRead: 0, ocrText: '', paginaOffsets: [] };
+  const lento = { metodo: 'ia', campoTexto: 'ocrText', tanda: 8, leer: async (f, d, h) => {
+    await new Promise(r => setTimeout(r, 20)); let text = ''; const paginaOffsets = [];
+    for (let p = d; p <= h; p++) { text += 'p' + p + ' '; paginaOffsets.push({ pagina: p, hasta: text.length }); }
+    return { text, pagesRead: h, numPages: 24, paginaOffsets };
+  } };
+  const estimados = [];
+  await Lectura.leerTodo(e, {}, lento, { onTanda: (d, h, ta, tt, restanteSeg) => estimados.push(restanteSeg) });
+  assert(estimados.length === 3 && estimados[0] === null && typeof estimados[1] === 'number' && estimados[2] <= estimados[1], 'primera tanda sin estimado; las siguientes lo traen y baja: ' + JSON.stringify(estimados));
+});
+
+await check('Espera informativa: la tarjeta muestra el estimado solo cuando existe y lo declara calculado con el propio documento', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/onTanda: \(desde, hasta, tandaActual, tandasTotal, restanteSeg\)/.test(html) && /restanteSeg != null \? ' · faltan ' \+ Lectura\.formatoDuracion\(restanteSeg\)/.test(html), 'el mensaje de espera usa restanteSeg solo si no es null');
+  assert(/calculado con lo que va tardando este documento/.test(html), 'declara de dónde sale el estimado');
+});
+
 await check('Lectura (módulo): index.html carga lectura.js, los 3 lectores comparten el módulo y pages.yml lo publica', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert(/<script src="lectura\.js"><\/script>/.test(html), 'index.html debe cargar lectura.js antes del script principal');
@@ -3351,6 +3379,31 @@ await check('Interfaz: los márgenes en línea más repetidos pasaron a clases u
   ['margin-top:8px;', 'margin-bottom:8px;', 'margin:8px 0;', 'margin-top:10px;', 'margin-bottom:10px;', 'margin-top:12px;', 'color:var(--text-muted);'].forEach(s =>
     assert(!html.includes('style="' + s + '"'), 'queda style="' + s + '" en línea'));
   ['.mt-8', '.mb-8', '.my-8', '.mt-10', '.mb-10', '.mt-12', '.text-muted-c'].forEach(c => assert(html.includes('#bitacora-root ' + c + ' {'), 'falta la clase ' + c));
+});
+
+// Caché de los scripts propios: GitHub Pages sirve lectura.js/evaluacion.js/coincidencia.js con caché del navegador, y
+// justo después de un despliegue alguien podía recibir el index.html NUEVO con un script VIEJO (TypeError en una
+// función que el viejo no tiene). El despliegue sella cada script propio con ?v=<commit> en el index.html publicado.
+await check('Despliegue: cada script propio sale sellado con ?v=<commit> en el index.html publicado (sin caché desfasada)', () => {
+  const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
+  const lineaSed = yml.split('\n').find(l => /sed -i/.test(l) && /_site\/index\.html/.test(l));
+  assert(lineaSed, 'pages.yml debe sellar los scripts con sed sobre _site/index.html');
+  const tmp = path.join(ROOT, 'tests', '_sello_tmp');
+  try {
+    execFileSync('bash', ['-c', 'mkdir -p tests/_sello_tmp/_site'], { cwd: ROOT });
+    execFileSync('bash', ['-c', 'cp index.html tests/_sello_tmp/_site/index.html'], { cwd: ROOT });
+    execFileSync('bash', ['-c', lineaSed.trim().replace(/_site\//g, 'tests/_sello_tmp/_site/')], { cwd: ROOT, env: Object.assign({}, process.env, { GITHUB_SHA: 'abc123' }) });
+    const out = readFileSync(path.join(tmp, '_site/index.html'), 'utf8');
+    const locales = [...readFileSync(HTML_PATH, 'utf8').matchAll(/<script src="([a-z]+\.js)"><\/script>/g)].map(m => m[1]);
+    assert(locales.length >= 3, 'se esperaban al menos 3 scripts propios: ' + locales.join(','));
+    locales.forEach(s => {
+      assert(out.includes('<script src="' + s + '?v=abc123"></script>'), s + ' debe salir sellado con ?v=abc123');
+      assert(!out.includes('<script src="' + s + '"></script>'), s + ' no debe quedar sin sello');
+    });
+    assert(out.includes("'vendor/xlsx-") && !/vendor\/xlsx-[^']*\?v=/.test(out), 'las librerías de vendor/ no se tocan (ya llevan la versión en el nombre)');
+  } finally {
+    execFileSync('bash', ['-c', 'rm -rf tests/_sello_tmp'], { cwd: ROOT });
+  }
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

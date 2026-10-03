@@ -107,7 +107,7 @@
     }
   }
 
-  // opts: { onTanda(desde, hasta, tandaActual, tandasTotal), cancelado(), reanalizar(entry), onProgreso(entry) }
+  // opts: { onTanda(desde, hasta, tandaActual, tandasTotal, restanteSeg|null), cancelado(), reanalizar(entry), onProgreso(entry) }
   // Reanaliza UNA vez al terminar, o al fallar a medias (el entry ya trae lo leído hasta ahí).
   async function leerTodo(entry, file, lector, opts) {
     opts = opts || {};
@@ -120,7 +120,7 @@
           if (opts.cancelado && opts.cancelado()) break;
           const desde = entry.pagesRead + 1;
           const hasta = Math.min(entry.numPages, entry.pagesRead + lector.tanda);
-          if (opts.onTanda) opts.onTanda(desde, hasta, Math.ceil(desde / lector.tanda), Math.ceil(entry.numPages / lector.tanda));
+          if (opts.onTanda) opts.onTanda(desde, hasta, Math.ceil(desde / lector.tanda), Math.ceil(entry.numPages / lector.tanda), estimarRestante(entry, lector));
           const r = await paso(entry, file, lector, null);
           if (r.liberado) { liberado = true; break; }
           if (opts.onProgreso) opts.onProgreso(entry);
@@ -150,7 +150,23 @@
     }).join(' · ');
   }
 
-  const Lectura = { enCurso: enCurso, resumenTiempos: resumenTiempos, iniciar: iniciar, avanzar: avanzar, leerTodo: leerTodo, acumularUso: acumularUso };
+  // Cuánto falta, con la velocidad REAL medida en este mismo documento (segundos por página de las tandas
+  // ya leídas con ese método). Sin mediciones devuelve null: nunca se inventa un estimado.
+  function estimarRestante(entry, lector) {
+    const u = entry && entry.lecturaMs && entry.lecturaMs[lector.metodo];
+    if (!u || !u.paginas || !u.ms) return null;
+    const restantes = entry.numPages - entry.pagesRead;
+    if (restantes <= 0) return 0;
+    return Math.round(restantes * (u.ms / u.paginas) / 1000);
+  }
+
+  function formatoDuracion(seg) {
+    if (seg < 45) return 'menos de 1 min';
+    if (seg < 3600) return 'unos ' + Math.max(1, Math.round(seg / 60)) + ' min';
+    return 'más de ' + Math.floor(seg / 3600) + ' h';
+  }
+
+  const Lectura = { enCurso: enCurso, estimarRestante: estimarRestante, formatoDuracion: formatoDuracion, resumenTiempos: resumenTiempos, iniciar: iniciar, avanzar: avanzar, leerTodo: leerTodo, acumularUso: acumularUso };
   if (typeof module !== 'undefined' && module.exports) module.exports = Lectura;
   else root.Lectura = Lectura;
 })(typeof window !== 'undefined' ? window : globalThis);

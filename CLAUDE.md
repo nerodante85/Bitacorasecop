@@ -6531,3 +6531,28 @@ eran de contraste. Corregido (escribiendo las pruebas primero, `tests/smoke.mjs`
 Headline/Stat). Los 2 "fuentes sobreusadas" y el "padding apretado" del detector son falsos positivos
 verificados; quedan avisos menores de deriva documental (tamaños de cifras de 17–24px y el velo del
 modal). NO verificado: la vista de escritorio en captura (la herramienta no terminó el screenshot).
+
+## Delight (/impeccable delight): la espera de "Leer todo el documento con IA" lleva la cuenta
+
+Tesis: el cuaderno de obra lleva la cuenta -- una espera de ~15 minutos (8,1 s por página medido en
+producción) deja de ser una barra muda y dice cuánto falta, con datos reales. `Lectura.estimarRestante
+(entry, lector)` usa los segundos por página medidos en ESTE documento con ese método (`entry.lecturaMs`)
+y devuelve `null` sin mediciones (nunca se inventa); `Lectura.formatoDuracion` lo dice en palabras de la
+app ("unos 8 min", "menos de 1 min", "más de 1 h"); `leerTodo` entrega el estimado a la interfaz como 5º
+argumento de `onTanda`, que ahora muestra "tanda 3 de 14 (páginas 17-24 de 112) · faltan unos 8 min
+(calculado con lo que va tardando este documento)" -- desde la segunda tanda, y bajando. Sin sonido,
+animación ni confeti: el momento es la confianza, no el festejo. Prueba primero (fallaba) y mutación
+comprobada. Con los números de la prueba real (56 páginas en 455 s, 56 por leer) da "unos 8 min".
+Fuera de alcance a propósito: la lectura tanda por tanda manual y la extracción de requisitos (una sola
+espera, sin tandas que contar).
+
+## Caché de los scripts propios sellada en el despliegue
+
+`lectura.js`, `evaluacion.js` y `coincidencia.js` son archivos aparte y el navegador los guarda en
+caché: justo después de un despliegue alguien podía recibir el `index.html` NUEVO con un script VIEJO y
+tropezar con una función que el viejo no tiene (me pasó en una prueba local: `Lectura.estimarRestante is
+not a function` hasta forzar la recarga). `pages.yml` ahora sella cada script propio con
+`?v=${GITHUB_SHA}` en el `_site/index.html` publicado (el `index.html` del repo queda sin sello, para el
+servidor local). La prueba corre el `sed` real del workflow sobre una copia y exige que TODO script local
+de `index.html` salga sellado -- así un cuarto script que se agregue y se olvide de la lista falla en
+las pruebas, no en producción. `vendor/` no se toca (la versión ya va en el nombre).
