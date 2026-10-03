@@ -6470,3 +6470,21 @@ redibuja la lista conservando el mensaje de estado `[data-ia-status]` de la tarj
 "Evaluar experiencia". No se llama al marcar la casilla de confirmar una fila (cerraría los `<details>` abiertos).
 Verificado: tests 260 ok (+1 fallo SRI de red del sandbox) y la página carga sin errores de JS; la actualización
 del encabezado tras una lectura real queda por confirmar en producción.
+
+## PDF-01, segunda versión: páginas sin leer siempre van a la IA (prueba real con el pliego de 112 páginas)
+
+La primera versión del arreglo PDF-01 mandaba el PDF COMPLETO a "Extraer requisitos con IA" mientras la
+lectura fuera parcial. Con un pliego escaneado real de 112 páginas leído hasta la 56 (prueba del
+usuario en producción) chocó con el tope de 100 páginas por petición que otra sesión agregó a
+`extraer-requisitos` (`MAX_PAGINAS_PDF`): la función mandó solo las primeras 100 y avisó que las 12
+últimas no se leyeron -- justo donde suelen estar los anexos. Ahora `paginasRelevantesParaIA` (que ya
+filtraba lo leído por anclas) suma TODAS las páginas aún sin leer cuando la lectura es parcial: sobre
+lo no leído no hay texto con qué filtrar, así que nunca se descarta a ciegas, y un pliego así manda
+unas 30 relevantes + 56 sin leer (~86) y cabe en el tope. Si la lectura es completa o hay menos de 4
+páginas relevantes, se comporta como antes. Escrito prueba primero (dos pruebas con entries
+sintéticos, mutación comprobada).
+
+Datos de esa misma prueba (PDF-06): lectura con IA de 56 páginas en 455 s (8,1 s/página, ~65 s por
+tanda de 8); 92.771 tokens de entrada y 56.966 de salida (~1.000 de salida por página: el costo de
+transcribir lo domina la salida); leer las 112 completas tomaría ~15 minutos. La extracción de
+requisitos del mismo pliego: 25 requisitos con 160.338 tokens de entrada y 11.521 de salida.

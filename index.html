@@ -6479,6 +6479,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
     }
     if (set.size < MIN_PAGINAS_FILTRO_IA) return null;
+    // Lectura parcial: sobre las páginas aún sin leer no hay texto con qué filtrar, así que se mandan
+    // TODAS (nunca se descartan a ciegas). Un pliego de 112 páginas leído hasta la 56 manda unas 30
+    // relevantes + las 56 sin leer, y cabe en el tope de 100 páginas de la IA.
+    const lp = lecturaParcial(entry);
+    if (lp) for (let pp = lp.pagesRead + 1; pp <= numPages; pp++) set.add(pp);
     return Array.from(set).sort((a, b) => a - b);
   }
 
@@ -11106,10 +11111,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // motor de reglas ya detecta como relevantes (ver "Páginas relevantes..." arriba)
       // -- reduce cuánto tiene que leer/generar la IA, sin perder la ventaja de leer
       // el PDF como imagen (tablas/matrices). Las adendas se mandan siempre completas.
-      // PDF-01: el filtro busca anclas SOLO en el texto ya leído; con lectura parcial no puede ver
-      // las páginas aún sin leer y recortaría en silencio secciones reales. Con lectura parcial se
-      // manda siempre el PDF completo (más lento, pero "lee el documento completo" es cierto).
-      const paginasRelevantes = lecturaParcial(entry) ? null : paginasRelevantesParaIA(entry);
+      // PDF-01: con lectura parcial, paginasRelevantesParaIA suma TODAS las páginas aún sin leer (el
+      // filtro solo puede descartar páginas que ya vio), así nada se omite en silencio.
+      const paginasRelevantes = paginasRelevantesParaIA(entry);
       const { data, error } = await client.functions.invoke('extraer-requisitos', {
         body: {
           company_id: sbCompanyId,

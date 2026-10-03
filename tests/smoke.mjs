@@ -367,7 +367,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { parsearExcelExperiencia, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2987,7 +2987,7 @@ await check('Pipeline: siguienteEtapa/etapaAnterior recorren ETAPAS_PIPELINE en 
 
 await check('PDF-01: con lectura parcial, "Extraer requisitos con IA" no recorta el PDF por páginas (el filtro solo ve el texto ya leído)', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert(/lecturaParcial\(entry\) \? null : paginasRelevantesParaIA\(entry\)/.test(html), 'debe mandar el PDF completo si la lectura es parcial');
+  assert(/const paginasRelevantes = paginasRelevantesParaIA\(entry\);/.test(html) && !/lecturaParcial\(entry\) \? null/.test(html), 'extraerRequisitosConIA usa paginasRelevantesParaIA (que ya suma las no leídas), sin mandar todo por defecto');
   assert(!/lee el documento completo de una sola vez/.test(html), 'la nota ya no debe prometer lectura completa');
 });
 
@@ -3103,6 +3103,33 @@ await check('PDF-06: Lectura.resumenTiempos describe el tiempo por método y por
   const txt = Lectura.resumenTiempos({ lecturaMs: { ocr: { tandas: 2, paginas: 30, ms: 150000 }, texto: { tandas: 1, paginas: 40, ms: 800 } } });
   assert(/OCR: 30 páginas en 150 s/.test(txt) && /5 s\/página/.test(txt), 'OCR con segundos por página: ' + txt);
   assert(/Texto: 40 páginas en 1 s/.test(txt), 'texto en menos de un segundo se redondea a 1 s: ' + txt);
+});
+
+// PDF-01 (segunda versión): con lectura PARCIAL no se manda el PDF completo (un pliego de 112 páginas
+// chocaba con el tope de 100 páginas por petición de la IA y perdía el final, donde suelen estar los
+// anexos). Se mandan las páginas relevantes de lo YA leído + TODAS las aún sin leer (sobre estas no hay
+// texto con qué filtrar, así que nunca se descartan).
+function entryDePaginas(numPages, pagesRead, textoPorPagina) {
+  let text = ''; const paginaOffsets = [];
+  for (let p = 1; p <= pagesRead; p++) { text += (textoPorPagina[p] || 'Texto genérico sin relación.') + '\n'; paginaOffsets.push({ pagina: p, hasta: text.length }); }
+  return { id: 'pg', numPages, pagesRead, text, paginaOffsets };
+}
+await check('Páginas para la IA: con lectura parcial = relevantes de lo leído + todas las no leídas; lo leído sin relación se descarta', () => {
+  const entry = entryDePaginas(112, 56, { 5: 'Garantía de seriedad de la oferta', 20: 'Capital de trabajo mínimo', 40: 'Rentabilidad sobre el patrimonio' });
+  const r = expEngine.paginasRelevantesParaIA(entry);
+  assert(Array.isArray(r), 'debe devolver una lista de páginas: ' + r);
+  for (let p = 57; p <= 112; p++) assert(r.includes(p), 'la página no leída ' + p + ' debe ir');
+  [4, 5, 6, 19, 20, 21, 39, 40, 41].forEach(p => assert(r.includes(p), 'relevante (±1) ' + p));
+  assert(!r.includes(10) && !r.includes(30) && !r.includes(50), 'lo leído sin relación no va: ' + r.join(','));
+  assert(r.length <= 100, 'cabe en el tope de 100 páginas: ' + r.length);
+});
+await check('Páginas para la IA: lectura completa filtra como siempre (solo relevantes); poca evidencia en lo leído -> null (PDF completo)', () => {
+  const completo = entryDePaginas(60, 60, { 5: 'Garantía de seriedad', 20: 'Capital de trabajo', 40: 'Rentabilidad sobre el patrimonio' });
+  const r = expEngine.paginasRelevantesParaIA(completo);
+  assert(Array.isArray(r) && r.length === 9 && !r.includes(60), 'solo las 9 relevantes: ' + r);
+  const pocas = entryDePaginas(112, 56, { 5: 'Garantía de seriedad' });
+  assert(expEngine.paginasRelevantesParaIA(pocas) === null, 'con menos de 4 páginas relevantes en lo leído, no se filtra');
+  assert(expEngine.paginasRelevantesParaIA({ id: 'x', numPages: 10, pagesRead: 10, text: '', paginaOffsets: [] }) === null, 'sin texto: null');
 });
 
 await check('Lectura (módulo): index.html carga lectura.js, los 3 lectores comparten el módulo y pages.yml lo publica', () => {
