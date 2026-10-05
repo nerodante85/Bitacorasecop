@@ -200,6 +200,9 @@ async function enviarCorreo(to: string, asunto: string, textoPlano: string): Pro
 
 // ---- Límites y saneamiento (auditoría SEG-003, SEG-004, ESC-001, OPS-007) ----------------
 
+// Entrada del listado del bucket de Storage (la usa pliegosVencidos; va fuera del bloque que prueba el arnés).
+interface ArchivoStorage { name: string; id?: string | null; created_at?: string | null }
+
 // Un nombre de alerta o de empresa es TEXTO LIBRE del usuario y termina dentro de un correo: se quitan
 // saltos de línea y caracteres de control, se neutralizan los enlaces (relay de phishing) y se acota.
 function limpiarNombre(t: unknown): string {
@@ -211,11 +214,54 @@ function limpiarNombre(t: unknown): string {
     .slice(0, 60);
 }
 
+// Barrido de PDFs huérfanos del bucket `pliegos`. Las funciones de IA borran el PDF al terminar y el
+// navegador lo borra si algo falla mientras la pestaña sigue abierta, pero una pestaña cerrada o un corte
+// de red a mitad pueden dejar el archivo ahí (datos personales que no deben quedarse: Ley 1581).
+// Pura (sin red) para poder probarla. Solo devuelve archivos con fecha legible Y más viejos que `horas`:
+// una carpeta (id nulo) o una fecha ilegible NO se borran, porque no se puede asegurar que sobren.
+function pliegosVencidos(archivos: ArchivoStorage[], carpeta: string, ahoraMs: number, horas: number): string[] {
+  const limite = ahoraMs - horas * 3600 * 1000;
+  const fuera = [];
+  for (const a of archivos || []) {
+    if (!a || a.id == null || !a.created_at) continue;
+    const t = Date.parse(a.created_at);
+    if (Number.isNaN(t)) continue;
+    if (t < limite) fuera.push(carpeta + '/' + a.name);
+  }
+  return fuera;
+}
+
 const MAX_ALERTAS_POR_EMPRESA = 10;   // cota contra el fan-out hacia Socrata (SEG-004)
 const MAX_EMPRESAS_POR_EMPRESA = 10;
 const PRESUPUESTO_MS = 100_000;       // no se empiezan empresas nuevas pasado este tiempo (ESC-001)
 
 // ---- Handler ----------------------------------------------------------------
+
+const HORAS_VIDA_PDF = 24;          // ningún PDF legítimo vive más de unos minutos; 24 h deja margen de sobra
+const MAX_CARPETAS_BARRIDO = 200;   // acota el trabajo de una corrida (cada carpeta es una empresa)
+
+// Recorre el bucket `pliegos` (una carpeta por empresa) y borra los PDFs vencidos. Nunca lanza: un fallo
+// aquí no debe impedir el resumen diario; el resultado se devuelve para verlo con ?debug=1.
+async function barrerPliegosHuerfanos(admin: ReturnType<typeof createClient>): Promise<{ borrados: number; error?: string }> {
+  try {
+    const bucket = admin.storage.from('pliegos');
+    const { data: carpetas, error } = await bucket.list('', { limit: MAX_CARPETAS_BARRIDO });
+    if (error) return { borrados: 0, error: error.message };
+    let borrados = 0;
+    for (const c of carpetas || []) {
+      if (c.id != null) continue;                 // un archivo suelto en la raíz no es de ninguna empresa: no se toca
+      const { data: archivos } = await bucket.list(c.name, { limit: 1000 });
+      const fuera = pliegosVencidos((archivos || []) as ArchivoStorage[], c.name, Date.now(), HORAS_VIDA_PDF);
+      if (!fuera.length) continue;
+      const { error: errBorrar } = await bucket.remove(fuera);
+      if (errBorrar) return { borrados, error: errBorrar.message };
+      borrados += fuera.length;
+    }
+    return { borrados };
+  } catch (e) {
+    return { borrados: 0, error: e instanceof Error ? e.message : String(e) };
+  }
+}
 
 Deno.serve(async (req: Request) => {
   // Falla CERRADA: sin CRON_SECRET configurado la función NO responde (antes quedaba pública, y
@@ -334,7 +380,11 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  const body: Record<string, unknown> = { empresasRevisadas: porEmpresa.size, correosEnviados, errores: errores.length, pendientes: pendientes.length };
+  // Barrido de PDFs huérfanos del bucket `pliegos` (corre una vez al día con el resto; ver pliegosVencidos).
+  const barrido = await barrerPliegosHuerfanos(admin);
+  if (barrido.error) errores.push('barrido de pliegos: ' + barrido.error);
+
+  const body: Record<string, unknown> = { empresasRevisadas: porEmpresa.size, correosEnviados, errores: errores.length, pendientes: pendientes.length, pliegosBorrados: barrido.borrados };
   // Los correos de los usuarios (detalles) solo se devuelven en modo debug.
   if (debug) { body.detalles = detalles; body.debug = debugInfo; body.mensajesError = errores; }
   // OPS-007: con errores o empresas sin atender la respuesta es 500, para que quien invoque el cron
