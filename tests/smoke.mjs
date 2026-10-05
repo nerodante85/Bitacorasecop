@@ -3384,6 +3384,18 @@ await check('Interfaz: el lienzo de la página (html) también es oscuro, no sol
   assert(m[1].toLowerCase().includes('background: ' + canvas) || m[1].toLowerCase().includes('background:' + canvas), 'html debe usar el color --canvas (' + canvas + ')');
   assert(/color-scheme:\s*dark/.test(m[1]), 'html debe declarar color-scheme: dark');
 });
+await check('Interfaz: ningún texto visible al usuario manda a leer CLAUDE.md (es documentación del proyecto, no de la app)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  // Solo el texto que ve el usuario: sin comentarios HTML/CSS, sin <style> ni <script>.
+  const visible = html.slice(0, html.indexOf('<script src="lectura.js">'))
+    .replace(/<!--[\s\S]*?-->/g, '').replace(/<style[\s\S]*?<\/style>/g, '').replace(/<script[\s\S]*?<\/script>/g, '');
+  assert(!/CLAUDE\.md/.test(visible), 'el HTML visible menciona CLAUDE.md');
+});
+await check('Interfaz: la etiqueta "modificado por adenda" usa la variante discreta (.tag-sutil) y no el pastillón neutro', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/class="tag tag-sutil">modificado por adenda/.test(html), 'la etiqueta debe llevar tag-sutil');
+  assert(/#bitacora-root \.tag\.tag-sutil\s*\{/.test(html), 'falta el estilo .tag.tag-sutil');
+});
 await check('Interfaz: hay un landmark <main> que envuelve las vistas (lector de pantalla puede saltar al contenido)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   assert(/<main\b[^>]*>/.test(html) && /<\/main>/.test(html), 'falta <main>');

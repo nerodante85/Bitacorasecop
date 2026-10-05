@@ -554,6 +554,13 @@
     flex-shrink: 0;
     display: inline-block;
   }
+  /* Etiqueta informativa que acompaña a un dato (no es un estado): sin relleno ni negrita para no competir con él. */
+  #bitacora-root .tag.tag-sutil {
+    background: transparent;
+    font-weight: 500;
+    padding: 1px 8px;
+    color: var(--text-muted);
+  }
   #bitacora-root .row.alta .tag.priority { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
   #bitacora-root .row.media .tag.priority { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
   #bitacora-root .tag.visto { border-color: var(--border-strong); background: var(--bg); color: var(--text-muted); }
@@ -1882,7 +1889,7 @@
           <button class="btn-secondary" id="bt-account-delete" type="button" style="color:var(--danger);border-color:var(--danger);">Eliminar mi cuenta y mis datos</button>
         </div>
         <div class="account-error" id="bt-account-data-msg" hidden></div>
-        <p class="sub" id="bt-account-digest-note" style="margin-top:6px;">Requiere que tu Edge Function de correo esté activada (ver CLAUDE.md, "Fase 6: correo/job de alertas") -- sin eso, activar esto no envía nada.</p>
+        <p class="sub" id="bt-account-digest-note" style="margin-top:6px;">El resumen se envía una vez al día y solo si hay novedades. Por ahora el envío está en pruebas: puede no llegar a todas las cuentas.</p>
       </div>
     </div>
   </div>
@@ -8945,7 +8952,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const nSin = filas.filter(f => !f.confiable).length;
       const filasHtml = filas.map(f => {
         const fuente = escapeHtml(f.documento || 'Pliego') + (f.pagina ? ', p. ' + escapeHtml(String(f.pagina)) : '') +
-          (f.modificadaPorAdenda ? ' <span class="tag">modificado por adenda</span>' : '') +
+          (f.modificadaPorAdenda ? ' <span class="tag tag-sutil">modificado por adenda</span>' : '') +
           (f.verificada ? ' <span title="La cita se encontró en el texto del PDF">✓</span>' : '');
         // El control se mantiene visible aunque ya esté confirmada (para poder revertirla).
         const confirmar = (f.bloqueo || f.confirmada)
