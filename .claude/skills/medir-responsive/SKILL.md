@@ -19,9 +19,16 @@ Varios bugs reales de esta app (barra de navegación móvil, textos largos de SE
    const culpables = [...document.querySelectorAll('body *')]
      .filter(e => e.getBoundingClientRect().right > de.clientWidth + 1 && e.offsetParent)
      .slice(0, 5).map(e => e.tagName + '.' + e.className);
+   // Solo móvil. Se excluyen a propósito los enlaces de texto (.link-btn, los <a> de tarjeta) y las
+   // casillas dentro de un <label>: su caja visible es chica pero la app amplía la zona sensible a
+   // 44 px con un ::after (y la etiqueta entera es clicable). Contarlos da falsos positivos (95 en
+   // "Buscar procesos" a 375 px, todos de este tipo).
    const chicos = [...document.querySelectorAll('button, a, input, select, summary')]
-     .filter(e => e.offsetParent && (e.getBoundingClientRect().height < 44 || e.getBoundingClientRect().width < 44)).length; // solo móvil
+     .filter(e => e.offsetParent && !e.matches('.link-btn, a') && !(e.type === 'checkbox' && e.closest('label')))
+     .filter(e => e.getBoundingClientRect().height < 44 || e.getBoundingClientRect().width < 44).length;
    ```
+   Si quedan controles, mídelos aparte y confirma con `elementFromPoint` que el área extendida no responde:
+   los que sí cuentan son botones, campos y `summary` reales.
    Un scroll interno intencional (tabla ancha, tablero del Pipeline) no es desborde de página: confirma que el contenedor tiene su propio `overflow-x`.
 4. **Navegación móvil (≤560 px)**: abre el menú desplegable y mide `sidebar.scrollWidth - clientWidth` abierto y cerrado; cada ítem de nav nuevo ya rompió esto antes.
 5. **Por JS, no por clic**: cambia de vista con `javascript_tool` buscando el botón por su texto; los clics por coordenadas son inestables.
