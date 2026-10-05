@@ -128,6 +128,8 @@ components:
     padding: "3px 10px"
 ---
 
+> **Actualización (2026-10-05): dirección "Taller".** El usuario eligió entre 3 direcciones completas un tema oscuro con un solo acento ámbar. Los valores vigentes viven en el bloque `#bitacora-root { ... }` de `index.html` y mandan sobre cualquier valor de este documento. Cambios: lienzo `#0E1013`, tarjetas `#161A1F`, barra lateral `#0A0C0F`, texto `#E9ECF1`/`#98A1B1`, acento ámbar `#F0B75F` como texto y `#E8A33D` como relleno (texto oscuro `#1B1100`), radios 8/12/14, tipografía Outfit (títulos y cuerpo, sin serif) y JetBrains Mono para datos; el wordmark sigue en Space Grotesk. Los colores de estado conservan matiz y significado, aclarados para fondo oscuro (`#5FCF8C`, `#E7B45A`, `#F08A7C`) y con texto oscuro sobre su relleno (`--on-status`). Las secciones de abajo describen el sistema anterior ("El cuaderno de obra", claro, Instrument Serif); léelas por su intención, no por sus valores.
+
 # Design System: Bitácora SECOP
 
 ## Overview

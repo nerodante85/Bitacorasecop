@@ -6556,3 +6556,13 @@ not a function` hasta forzar la recarga). `pages.yml` ahora sella cada script pr
 servidor local). La prueba corre el `sed` real del workflow sobre una copia y exige que TODO script local
 de `index.html` salga sellado -- así un cuarto script que se agregue y se olvide de la lista falla en
 las pruebas, no en producción. `vendor/` no se toca (la versión ya va en el nombre).
+
+## Rediseño "Taller" (tema oscuro) -- 2026-10-05
+
+El usuario pidió rediseñar el aspecto y se le mostraron 3 direcciones completas en un Artifact (Plano: claro y denso, azul cobalto; Taller: oscuro con ámbar; Mesa: claro, bento, cian), cada una con la pantalla real de un proceso, veredicto y botones. Eligió **Taller**.
+
+- **Solo valores, no estructura**: se redefinió el bloque de tokens de `#bitacora-root` (mismos nombres) y `color-scheme: dark`. Fuentes: Outfit para UI y títulos (el `.display-font` ya no es serif cursiva), JetBrains Mono en `.mono`, Space Grotesk se queda solo en el wordmark del logo. Radios 8/12/14.
+- **Estados**: mismo matiz y significado, aclarados para fondo oscuro. Las reglas con `color: #fff` sobre relleno de estado (`.btn-mini.active-descartado`, `.btn-mini.analizar:hover`, `.step.is-done`) pasaron a `var(--on-status)` (texto oscuro), porque blanco sobre verde/rojo claro falla el contraste. `.btn-mini.active-visto` y el círculo numerado usan `--brand-700` con borde, no el casi negro de la barra.
+- **404.html** y `theme-color` se alinearon con la paleta nueva. `DESIGN.md` lleva una nota de actualización arriba; sus secciones describen el sistema anterior.
+- **Verificado**: pruebas de contraste AA calculadas desde los tokens (pasan con los valores oscuros), 273 de 274 (la que falla es la del SRI por red del sandbox), capturas en escritorio y 375px con datos de ejemplo, sin desbordamiento ni errores de JavaScript, menú móvil legible.
+- **Pendiente de revisar a ojo**: pantallas con análisis de pliego completo, tabla de requisitos con IA, Pipeline y modales en oscuro (no se recorrieron todas con datos reales en esta ronda).

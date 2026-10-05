@@ -22,7 +22,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://mfqdeqxuwnczexonhlxu.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
 <title>Bitácora — Consultoría en contratación pública</title>
 <meta name="description" content="Encuentra procesos de SECOP II, analiza el pliego de condiciones y compara los requisitos habilitantes (experiencia, capacidad financiera, K residual, personal) contra los datos de tu empresa. Herramienta para constructoras en Colombia.">
-<meta name="theme-color" content="#14181C">
+<meta name="theme-color" content="#0A0C0F">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://nerodante85.github.io/Bitacorasecop/">
 <meta property="og:type" content="website">
@@ -57,7 +57,7 @@
        atractivo". El lenguaje de Meridiano es el de una consultoría
        técnica seria pero con energía: grises azulados fríos (sidebar en
        azul marino profundo, no negro) + ámbar como único acento cálido,
-       con Instrument Serif itálica en los títulos de página para darle
+       con Outfit (sans) en los títulos de página para darle
        carácter sin perder seriedad -- nunca en los badges de estado, que
        se quedan en rojo/verde/ámbar semántico por accesibilidad (ver nota
        más abajo).
@@ -70,51 +70,57 @@
        --accent-ink oscuro encima, nunca blanco -- mismo problema que ya
        resolvió --brass-ink en la paleta anterior, aquí es aún más extendido
        porque --accent se usa como texto en muchos más sitios que --brass). */
-    --navy-950: #0A0D15;
-    --navy-900: #12182A;    /* sidebar / marca */
-    --navy-800: #1B2233;
-    --ink-900: #171B26;     /* texto de cuerpo y de encabezado (Meridiano no colorea los títulos, los distingue por tipografía/peso) */
-    --ink-mute: #535C6E;
-    --ink-faint: #5F687B;
+    /* Dirección "Taller" (oscura, un solo acento ámbar de lámpara), elegida
+       por el usuario entre 3 direcciones completas. Mismos nombres de token
+       que antes: solo cambian los valores. Los colores de estado conservan
+       su matiz (verde/ámbar/rojo) pero aclarados para fondo oscuro. */
+    --navy-950: #0A0C0F;
+    --navy-900: #0A0C0F;    /* barra lateral */
+    --navy-800: #1D222A;
+    --ink-900: #E9ECF1;     /* texto de cuerpo y de encabezado (sobre fondo oscuro) */
+    --ink-mute: #98A1B1;
+    --ink-faint: #8C95A6;
 
-    --paper: #FFFFFF;
-    --canvas: #EEF1F6;      /* lienzo de la aplicación -- gris azulado frío, no blanco puro */
-    --line: #D7DEEA;
-    --line-strong: #C1CBDD;
+    --paper: #161A1F;       /* tarjetas / paneles */
+    --canvas: #0E1013;      /* lienzo de la aplicación */
+    --line: #262C35;
+    --line-strong: #323A46;
 
-    --amber: #8F5708;        /* bronce -- color principal como TEXTO: enlaces, iconos, foco (pasa AA sobre fondo claro) */
-    --amber-hover: #6B4206;
-    --amber-soft: #FCEBD0;   /* fondo tintado suave (foco, hover, highlights) */
-    --amber-fill: #F2A93C;   /* ámbar vivo -- SOLO relleno de fondo (botón lleno, paso activo, barra de progreso) */
-    --amber-fill-hover: #DB9020;
-    --amber-ink: #241300;    /* texto oscuro sobre --amber-fill -- el ámbar vivo es muy claro para texto blanco */
+    --amber: #F0B75F;        /* color principal como TEXTO sobre fondo oscuro */
+    --amber-hover: #F7C77A;
+    --amber-soft: #2B2314;   /* fondo tintado (foco, hover, highlights) */
+    --amber-fill: #E8A33D;   /* ámbar vivo -- relleno de botón, paso activo, barra de progreso */
+    --amber-fill-hover: #F0B25A;
+    --amber-ink: #1B1100;    /* texto oscuro sobre --amber-fill */
 
     --brand-900: var(--navy-950);
-    --brand-800: var(--navy-900);   /* sidebar / marca */
+    --brand-800: var(--navy-900);   /* barra lateral */
     --brand-700: var(--navy-800);
     --brand-600: var(--navy-800);
-    --accent: var(--amber);         /* acción principal como texto: enlaces, foco, iconos */
+    --accent: var(--amber);
     --accent-hover: var(--amber-hover);
     --accent-soft: var(--amber-soft);
-    --accent-button: var(--amber-fill);       /* acción principal como fondo de botón/relleno */
+    --accent-button: var(--amber-fill);
     --accent-button-hover: var(--amber-fill-hover);
     --accent-ink: var(--amber-ink);
-    --bg: var(--canvas);           /* lienzo de la aplicación */
-    --surface: var(--paper);       /* tarjetas / paneles */
+    --bg: var(--canvas);
+    --surface: var(--paper);
     --border: var(--line);
     --border-strong: var(--line-strong);
     --text: var(--ink-900);
-    --text-heading: var(--ink-900); /* Meridiano no colorea los títulos de tarjeta -- misma tinta que el cuerpo, distinguidos por peso/tipografía */
+    --text-heading: var(--ink-900);
     --text-muted: var(--ink-mute);
     --text-faint: var(--ink-faint);
-    --success: #1E7A45; --success-bg: #E4F2E9; --success-border: #B9DDC5;
-    --danger:  #9B2C20; --danger-bg:  #F3E1DC; --danger-border:  #E0B8AC;
-    --warning: #8A5A10; --warning-bg: #F6EAD3; --warning-border: #E3C88F;
-    --neutral: var(--ink-mute); --neutral-bg: var(--canvas); --neutral-border: var(--line-strong);
-    --radius-sm: 5px; --radius-md: 9px; --radius-lg: 14px;
-    --shadow-sm: rgba(15,19,30,.10) 0 2px 4px 0, rgba(15,19,30,.05) 0 1px 1px 0, rgba(15,19,30,.10) 0 0 0 1px;
-    --shadow-md: rgba(15,19,30,.14) 0 20px 30px -14px, rgba(15,19,30,.08) 0 8px 12px -4px, rgba(15,19,30,.06) 0 2px 4px 0;
-    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --success: #5FCF8C; --success-bg: #12261B; --success-border: #1F4A33;
+    --danger:  #F08A7C; --danger-bg:  #2D1714; --danger-border:  #5A2A24;
+    --warning: #E7B45A; --warning-bg: #2A2212; --warning-border: #51411D;
+    --on-status: #0B100D;   /* texto sobre relleno de color de estado */
+    --neutral: var(--ink-mute); --neutral-bg: var(--navy-800); --neutral-border: var(--line-strong);
+    --radius-sm: 8px; --radius-md: 12px; --radius-lg: 14px;
+    --shadow-sm: rgba(0,0,0,.35) 0 2px 6px 0, rgba(255,255,255,.04) 0 0 0 1px;
+    --shadow-md: rgba(0,0,0,.55) 0 20px 30px -14px, rgba(0,0,0,.4) 0 8px 12px -4px, rgba(255,255,255,.05) 0 0 0 1px;
+    color-scheme: dark;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--text);
     background: var(--bg);
     min-height: 100%;
@@ -122,7 +128,7 @@
   }
   #bitacora-root * { box-sizing: border-box; }
   #bitacora-root .mono {
-    font-family: 'Fira Code', ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     /* Fira Code trae ligaduras tipográficas (->, !=, etc. se dibujan como un
        solo glifo) -- apagadas a propósito: esta clase muestra datos (valores
        en pesos, fechas, radicados), no código, y una ligadura ahí alteraría
@@ -135,7 +141,7 @@
      encabezados de página reales (nunca en texto de cuerpo ni en títulos de
      tarjeta, que se quedan en IBM Plex Sans -- ver --text-heading arriba),
      para que un título de página se lea distinto a un botón sin gritar. */
-  #bitacora-root .display-font { font-family: 'Instrument Serif', 'IBM Plex Sans', serif; font-weight: 400; font-style: italic; line-height: 1.08; }
+  #bitacora-root .display-font { font-family: 'Outfit', sans-serif; font-weight: 500; letter-spacing: -0.02em; line-height: 1.1; }
   /* Utilidades de espaciado (antes eran style="" repetidos en el HTML y en las cadenas de JS). */
   #bitacora-root .mt-8 { margin-top: 8px; }
   #bitacora-root .mb-8 { margin-bottom: 8px; }
@@ -182,7 +188,7 @@
   #bitacora-root .brand-mark svg { height: 19px; width: auto; }
   #bitacora-root .sidebar-brand-text h1 {
     margin: 0; font-size: 16px; font-weight: 500; color: #fff; line-height: 1.2;
-    font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif; letter-spacing: 0.06em;
+    font-family: 'Space Grotesk', 'Outfit', sans-serif; letter-spacing: 0.06em;
   }
   #bitacora-root .sidebar-brand-text p {
     margin: 2px 0 0; font-size: 12px; color: #8089A3; line-height: 1.3;
@@ -237,7 +243,7 @@
     width: 100%; max-width: 360px; padding: 26px; position: relative;
   }
   #bitacora-root .account-modal h2 {
-    margin: 0 0 4px; font-family: 'Instrument Serif', 'IBM Plex Sans', serif; font-weight: 400; font-style: italic;
+    margin: 0 0 4px; font-family: 'Outfit', sans-serif; font-weight: 500; letter-spacing: -0.02em;
     font-size: 22px; line-height: 1.1; color: var(--text-heading);
   }
   #bitacora-root .account-modal p.sub { margin: 0 0 18px; font-size: 12.5px; color: var(--text-muted); }
@@ -273,7 +279,7 @@
      en IBM Plex Sans -- son de UI, no "display". */
   #bitacora-root .view-header h1 {
     margin: 0 0 5px; font-size: 28px; letter-spacing: 0;
-    font-family: 'Instrument Serif', 'IBM Plex Sans', serif; font-weight: 400; font-style: italic; line-height: 1.05;
+    font-family: 'Outfit', sans-serif; font-weight: 500; letter-spacing: -0.02em; line-height: 1.05;
     color: var(--text-heading);
   }
   #bitacora-root .view-header p { margin: 0; font-size: 14px; color: var(--text-muted); max-width: 640px; line-height: 1.5; }
@@ -667,10 +673,10 @@
     cursor: pointer;
   }
   #bitacora-root .btn-mini:hover { background: var(--bg); }
-  #bitacora-root .btn-mini.active-visto { background: var(--brand-800); color: #fff; border-color: var(--brand-800); }
-  #bitacora-root .btn-mini.active-descartado { background: var(--danger); color: #fff; border-color: var(--danger); }
+  #bitacora-root .btn-mini.active-visto { background: var(--brand-700); color: var(--text); border-color: var(--border-strong); }
+  #bitacora-root .btn-mini.active-descartado { background: var(--danger); color: var(--on-status); border-color: var(--danger); }
   #bitacora-root .btn-mini.analizar { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
-  #bitacora-root .btn-mini.analizar:hover { background: var(--success); color: #fff; }
+  #bitacora-root .btn-mini.analizar:hover { background: var(--success); color: var(--on-status); }
 
   /* ============================================================
      BLOQUES DE RESULTADO — análisis de pliego, evaluación go/no-go,
@@ -799,7 +805,7 @@
     display: flex; align-items: center; gap: 8px;
   }
   #bitacora-root .step-num {
-    width: 20px; height: 20px; border-radius: 50%; background: var(--brand-800); color: #fff;
+    width: 20px; height: 20px; border-radius: 50%; background: var(--brand-700); color: var(--text); border: 1px solid var(--border-strong);
     font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   #bitacora-root .expeval-review { margin-top: 4px; margin-bottom: 14px; }
@@ -916,7 +922,7 @@
     background: var(--neutral-bg); color: var(--text-muted); border: 1px solid var(--border-strong);
   }
   #bitacora-root .step.is-active .step-circle { background: var(--accent-button); color: var(--accent-ink); border-color: var(--accent-button); }
-  #bitacora-root .step.is-done .step-circle { background: var(--success); color: #fff; border-color: var(--success); }
+  #bitacora-root .step.is-done .step-circle { background: var(--success); color: var(--on-status); border-color: var(--success); }
   #bitacora-root .step-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
   #bitacora-root .step.is-active .step-label, #bitacora-root .step.is-done .step-label { color: var(--text); }
   #bitacora-root .step-sep { width: 22px; height: 1px; background: var(--border-strong); flex-shrink: 0; }
@@ -1102,7 +1108,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600;700&family=Fira+Code:wght@500;600&family=Space+Grotesk:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500&display=swap" rel="stylesheet">
 
 <div id="bitacora-root">
   <div class="app-shell">
@@ -9668,7 +9674,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         ? '<div class="embudo" style="margin:10px 0;text-align:left;"><div><b>Se consultaron ' + records.length + ' procesos.</b>' + (embudo.length ? ' Esto es lo que ocultó cada filtro:' : '') + '</div>' +
             (embudo.length ? '<ul class="analysis-list">' + embudo.map(e => '<li>' + escapeHtml(e.nombre) + ': quitó ' + e.quita + ' <button type="button" class="link-btn" data-quitar-filtro="' + escapeHtml(e.clave) + '">quitar este filtro</button></li>').join('') + '</ul>' : '') + '</div>'
         : '';
-      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Instrument Serif\',serif;font-style:italic;font-weight:400;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + embudoHtml + sugerencia +
+      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Outfit\',sans-serif;font-weight:500;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + embudoHtml + sugerencia +
         ' Puede que ahora mismo no haya ninguna licitación abierta con esos criterios -- no es un error.' +
         '<div class="mt-10"><button type="button" class="link-btn" id="bt-empty-demo">Ver datos de ejemplo</button> para ver cómo luce la plataforma mientras tanto.</div></div>';
       return;
