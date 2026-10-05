@@ -3341,6 +3341,14 @@ await check('Tarjeta de análisis: resumen arriba y detalle en secciones plegabl
   assert(html.includes('function partesCompatibilidad(') && html.includes("p.titulo + '</div>' + p.hero"), 'renderCompatibilidadHtml debe seguir devolviendo el veredicto completo');
 });
 
+await check('Veredicto: el recuadro y el contador cuentan igual los criterios por verificar (sin datos + parciales)', async () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const i = html.indexOf('const subHero = ');
+  const bloque = html.slice(i, html.indexOf('const hero = ', i));
+  assert(/porVerificarN/.test(bloque) && /resumen\.sinDato\.length \+ resumen\.parciales\.length/.test(html.slice(i - 400, i + 600)), 'el recuadro debe contar sinDato + parciales');
+  assert(!/resumen\.sinDato\.length \+ ' requieren verificación'/.test(bloque), 'el recuadro no debe contar solo sinDato');
+});
+
 // ---- Auditoría de la interfaz (/impeccable audit): contraste, landmark, táctil, movimiento, tipografía ----
 function luminancia(hex) {
   const h = hex.replace('#', ''); const c = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255)

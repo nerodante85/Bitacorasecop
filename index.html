@@ -9108,8 +9108,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const lpHero = lecturaParcial(entry);
     // Un "100%" grande junto a requisitos pendientes o a un pliego leído a medias induce a pensar
     // que todo va bien: en esos casos se muestra el conteo real en vez del porcentaje.
-    const subHero = (resumen.sinDato.length || lpHero)
-      ? resumen.cumplen.length + ' de ' + gatesParaMostrar.length + ' requisitos cumplen · ' + resumen.sinDato.length + ' requieren verificación' + (lpHero ? ' · pliego leído solo en parte' : '') + (res.porPerfil.length > 1 ? ' · mejor perfil: ' + escapeHtml(res.mejor.perfil) : '')
+    // Mismo conteo que el chip "por verificar" de la tarjeta: sin dato + cumplimiento parcial.
+    const porVerificarN = resumen.sinDato.length + resumen.parciales.length;
+    const subHero = (porVerificarN || lpHero)
+      ? resumen.cumplen.length + ' de ' + gatesParaMostrar.length + ' requisitos cumplen · ' + porVerificarN + ' requieren verificación' + (lpHero ? ' · pliego leído solo en parte' : '') + (res.porPerfil.length > 1 ? ' · mejor perfil: ' + escapeHtml(res.mejor.perfil) : '')
       : (resumen.pct != null
         ? resumen.pct + '% de cumplimiento estimado sobre lo evaluable' + (res.porPerfil.length > 1 ? ' · mejor perfil: ' + escapeHtml(res.mejor.perfil) : '')
         : 'No hay suficiente información todavía para estimar un porcentaje.');
