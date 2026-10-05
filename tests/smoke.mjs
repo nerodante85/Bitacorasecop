@@ -2844,7 +2844,9 @@ function extractDailyDigestEngine(){
   // Las reglas de coincidencia ya no viven aquí (módulo compartido); solo se extrae lo propio del
   // digest. La única anotación de tipo de este bloque está en la firma, y se despoja por reemplazo literal.
   const de = 'function limpiarNombre(t: unknown): string {';
-  const src = raw.slice(iC0, iC1).replace(de, 'function limpiarNombre(t) {') + '\nreturn { limpiarNombre };';
+  const dePliegos = 'function pliegosVencidos(archivos: ArchivoStorage[], carpeta: string, ahoraMs: number, horas: number): string[] {';
+  assert(raw.includes(dePliegos), 'falta pliegosVencidos en daily-digest/index.ts (barrido de PDFs huérfanos)');
+  const src = raw.slice(iC0, iC1).replace(de, 'function limpiarNombre(t) {').replace(dePliegos, 'function pliegosVencidos(archivos, carpeta, ahoraMs, horas) {') + '\nreturn { limpiarNombre, pliegosVencidos };';
   return new Function(src)();
 }
 const digestEngine = extractDailyDigestEngine();
@@ -2854,6 +2856,22 @@ await check('QA-001 daily-digest: limpiarNombre neutraliza enlaces (relay de phi
   assert(digestEngine.limpiarNombre('linea1\ncon\tcontrol\x00chars') === 'linea1 con control chars', JSON.stringify(digestEngine.limpiarNombre('linea1\ncon\tcontrol\x00chars')));
   assert(digestEngine.limpiarNombre('x'.repeat(200)).length === 60, 'debe acotar a 60: ' + digestEngine.limpiarNombre('x'.repeat(200)).length);
   assert(digestEngine.limpiarNombre(null) === '' && digestEngine.limpiarNombre(undefined) === '', 'sin dato: cadena vacía, no "null"/"undefined" literal');
+});
+
+await check('Barrido de PDFs huérfanos: solo se borran los archivos más viejos que el límite; carpetas, fechas ilegibles y recientes se respetan', () => {
+  const ahora = Date.parse('2026-10-06T12:00:00Z');
+  const hace = h => new Date(ahora - h * 3600 * 1000).toISOString();
+  const lista = [
+    { name: 'viejo.pdf', id: 'a1', created_at: hace(30) },
+    { name: 'reciente.pdf', id: 'a2', created_at: hace(2) },
+    { name: 'justo.pdf', id: 'a3', created_at: hace(24) },
+    { name: 'sub', id: null, created_at: hace(100) },
+    { name: 'sinfecha.pdf', id: 'a4', created_at: null },
+    { name: 'rota.pdf', id: 'a5', created_at: 'no-es-fecha' },
+  ];
+  const r = digestEngine.pliegosVencidos(lista, 'empresa-1', ahora, 24);
+  assert(JSON.stringify(r) === JSON.stringify(['empresa-1/viejo.pdf']), 'solo el de 30 h: ' + JSON.stringify(r));
+  assert(digestEngine.pliegosVencidos([], 'x', ahora, 24).length === 0 && digestEngine.pliegosVencidos(null, 'x', ahora, 24).length === 0, 'vacío o null: nada que borrar');
 });
 
 // ---- Módulo de coincidencia compartido (coincidencia.js): un solo origen de las reglas de "¿este
