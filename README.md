@@ -104,12 +104,12 @@ del usuario y se publica tal cual con **GitHub Pages**.
   opcional, cargada solo si se configura — ver abajo). [SheetJS/xlsx](https://sheetjs.com/)
   (lectura de Excel) es la excepción: se auto-aloja en [`vendor/`](vendor/) en vez
   de cargarse desde un CDN — las versiones con los parches de seguridad más
-  recientes ya no se publican en un CDN con SRI verificable (ver `CLAUDE.md`,
+  recientes ya no se publican en un CDN con SRI verificable (ver `docs/HISTORIAL.md`,
   "SEG-006").
 
 El porqué de cada decisión de arquitectura (por qué no hay backend, cómo se
 llegó al diseño actual, bugs reales encontrados y cómo se corrigieron) está
-documentado en [`CLAUDE.md`](CLAUDE.md) — pensado como contexto para quien
+documentado en [`CLAUDE.md`](CLAUDE.md) (guía vigente) y [`docs/HISTORIAL.md`](docs/HISTORIAL.md) (historial de decisiones) — pensado como contexto para quien
 (persona o asistente de IA) retome el proyecto más adelante.
 
 ## Desarrollo local
@@ -178,7 +178,7 @@ dispositivos:
    principio del `<script>` de `index.html`.
 
 Detalle de diseño (modelo de datos, seguridad por fila, qué se sincroniza y
-qué no) en `CLAUDE.md`, sección "Fase 1: cuentas y sincronización".
+qué no) en `docs/HISTORIAL.md`, sección "Fase 1: cuentas y sincronización".
 
 ### Resumen diario por correo (opcional, requiere cuenta)
 
@@ -221,7 +221,7 @@ GitHub Pages):
 
 Detalle completo (por qué hace falta una Edge Function separada, qué hace
 exactamente, los dos bugs reales encontrados al desplegarla y cómo se
-corrigieron) en `CLAUDE.md`, sección "Fase 6: correo/job de alertas".
+corrigieron) en `docs/HISTORIAL.md`, sección "Fase 6: correo/job de alertas".
 
 ## Seguridad
 
@@ -239,7 +239,7 @@ corrigieron) en `CLAUDE.md`, sección "Fase 6: correo/job de alertas".
   (`escapeHtml`), y los enlaces externos se validan contra `http(s)://`
   antes de usarse como `href`.
 
-Detalle completo de estas decisiones en `CLAUDE.md`.
+Detalle completo de estas decisiones en `docs/HISTORIAL.md`.
 
 ## Licencia
 

@@ -11,7 +11,7 @@
 // texto de estado no restaurado, un `<script>` de terceros que deja de
 // coincidir con su hash SRI) — no es una suite de cobertura exhaustiva ni
 // reemplaza probar el flujo completo a mano en el navegador antes de un
-// cambio grande (ver "Cómo probar cambios sin desplegar" en CLAUDE.md).
+// cambio grande (ver "Cómo probar cambios sin desplegar" en docs/HISTORIAL.md).
 //
 // Uso: node tests/smoke.mjs
 // ============================================================================
@@ -683,7 +683,7 @@ await check('Tabla de un .docx (vía leerPrimeraTablaHtml) evaluada como matriz 
 // Regresión de un bug real encontrado con un Excel real de un usuario:
 // varias empresas organizan su experiencia por especialidad (una hoja por
 // categoría) -- leer solo SheetNames[0] dejaba las demás invisibles, sin
-// ningún aviso. Ver "leerTodasLasHojasComoFilas" / CLAUDE.md.
+// ningún aviso. Ver "leerTodasLasHojasComoFilas" / docs/HISTORIAL.md.
 await check('parsearExcelExperiencia: combina contratos de TODAS las hojas, no solo la primera', () => {
   const wb = fakeWorkbookMultiHoja([
     { nombre: 'COLEGIOS', headers: ['Objeto del contrato', 'Entidad contratante', 'Valor del contrato'],
