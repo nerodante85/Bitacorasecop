@@ -3326,6 +3326,21 @@ await check('IA en documentos cortos: leerEscaneadoConIA une las tandas con offs
   assert(/cargarExperienciaPDF\(file, 'ia'\)/.test(html) && /cargarEstudioPrevioPDF\(entry, file, 'ia', slot\)/.test(html), 'cada flujo debe poder invocarse con IA');
 });
 
+await check('Tarjeta de análisis: resumen arriba y detalle en secciones plegables (cerradas salvo lo que obliga a actuar)', async () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const i = html.indexOf('function renderAnalysisHtml(');
+  const cuerpo = html.slice(i, html.indexOf('function ensurePublicAreaParams', i));
+  assert(cuerpo.indexOf('resumenArriba + secciones') > 0, 'el resumen debe ir antes de las secciones plegables');
+  ['Alertas del pliego', 'Experiencia requerida', 'Requisitos habilitantes (IA)', 'Cronograma y riesgos (IA)', 'Lectura y avisos'].forEach(t =>
+    assert(cuerpo.includes("seccionPlegable('" + t + "'"), 'falta la sección: ' + t));
+  assert(cuerpo.includes("compat ? 'Detalle del veredicto'"), 'falta la sección del detalle del veredicto');
+  // los botones de seguir leyendo no se pierden: viven en "Lectura y avisos", abierta mientras falten páginas
+  assert(/seccionPlegable\('Lectura y avisos'[^;]*parcialLect\)/.test(cuerpo), 'Lectura y avisos debe abrirse sola con lectura parcial');
+  assert(cuerpo.includes('analysis-ocr-continue-btn') && cuerpo.includes('analysis-ia-leer-todo-btn') && cuerpo.includes('analysis-continue-btn'), 'faltan los botones de seguir leyendo');
+  assert(/\.analysis-fold\[open\] > summary::before/.test(html), 'falta el estilo de las secciones plegables');
+  assert(html.includes('function partesCompatibilidad(') && html.includes("p.titulo + '</div>' + p.hero"), 'renderCompatibilidadHtml debe seguir devolviendo el veredicto completo');
+});
+
 // ---- Auditoría de la interfaz (/impeccable audit): contraste, landmark, táctil, movimiento, tipografía ----
 function luminancia(hex) {
   const h = hex.replace('#', ''); const c = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255)

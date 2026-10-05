@@ -6566,3 +6566,15 @@ El usuario pidió rediseñar el aspecto y se le mostraron 3 direcciones completa
 - **404.html** y `theme-color` se alinearon con la paleta nueva. `DESIGN.md` lleva una nota de actualización arriba; sus secciones describen el sistema anterior.
 - **Verificado**: pruebas de contraste AA calculadas desde los tokens (pasan con los valores oscuros), 273 de 274 (la que falla es la del SRI por red del sandbox), capturas en escritorio y 375px con datos de ejemplo, sin desbordamiento ni errores de JavaScript, menú móvil legible.
 - **Pendiente de revisar a ojo**: pantallas con análisis de pliego completo, tabla de requisitos con IA, Pipeline y modales en oscuro (no se recorrieron todas con datos reales en esta ronda).
+
+## Tarjeta de análisis de pliego: resumen arriba, detalle plegado (2026-10-05)
+
+La tarjeta apilaba ~10 secciones abiertas y el veredicto quedaba en medio. Ahora `renderAnalysisHtml` pone arriba un resumen
+(`resumenArriba`: veredicto, aviso de lectura parcial, chips de cumple / no cumple / por verificar, alertas, días para el cierre,
+viabilidad, razones principales y los botones de carta y paquete) y debajo secciones `<details class="analysis-fold">` creadas con
+`seccionPlegable(titulo, meta, cuerpo, abierto, sinSub)`: Alertas, Experiencia requerida, Requisitos habilitantes (IA), Cronograma y
+riesgos (IA), Detalle del veredicto, Coincidencia con tus perfiles y Lectura y avisos. Cada una muestra un dato resumen en el título y
+solo se abre sola si obliga a actuar: alertas alta/media, experiencia sin evaluar o con NO CUMPLE, requisitos IA sin extraer, riesgo
+alto, o lectura parcial (ahí están los botones de "seguir leyendo"). `renderCompatibilidadHtml` se partió en `partesCompatibilidad`
+(piezas) y se conserva con la salida de siempre. Los `<details>` se cierran al re-renderizar la tarjeta (mismo límite que los demás).
+Medido a 375 y 1280 px: sin desborde. Bug encontrado al medir: un `grid` sin `minmax(0,1fr)` y un `nowrap` ensanchaban la página 117 px.
