@@ -6484,7 +6484,7 @@ Reutiliza `transcribir-pdf` (mismo cupo diario de 40 tandas por empresa que la l
 ni contrato nuevos. El RUT por IA usa el mismo respaldo de texto plano que el OCR (sin coordenadas): lee menos campos
 que el PDF digital. Los parámetros `viaOcr` ahora son `false | true | 'ia'` (true = OCR, como antes).
 Prueba: tandas [1-8],[9-16],[17-20], texto unido y offsets verificados (mutación: sin desplazar offsets falla).
-**Sin probar con IA real** (necesita sesión y crédito): conviene que el usuario pruebe un RUP o RUT escaneado.
+**Confirmado en producción por el usuario (2026-10-05)**: "Leer con IA" funciona con documentos escaneados reales.
 
 ## PDF-01, segunda versión: páginas sin leer siempre van a la IA (prueba real con el pliego de 112 páginas)
 
