@@ -725,6 +725,19 @@
     color: var(--text-muted);
     margin: 12px 0 5px;
   }
+  /* Tarjeta de análisis: resumen arriba y detalle en secciones plegables (resumen visible, detalle a un toque). */
+  #bitacora-root .analysis-resumen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 6px 0 4px; }
+  #bitacora-root .analysis-resumen .expeval-global { margin: 0; }
+  #bitacora-root .analysis-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  #bitacora-root .analysis-fold { border-top: 1px solid var(--border); margin-top: 8px; }
+  #bitacora-root .analysis-fold > summary { position: relative; display: flex; gap: 10px; align-items: baseline; cursor: pointer; list-style: none; padding: 9px 0; }
+  #bitacora-root .analysis-fold > summary::-webkit-details-marker { display: none; }
+  #bitacora-root .analysis-fold > summary::before { content: '▸'; color: var(--text-muted); font-size: 12px; flex-shrink: 0; }
+  #bitacora-root .analysis-fold[open] > summary::before { content: '▾'; }
+  #bitacora-root .fold-title { flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 13px; color: var(--text-heading); }
+  #bitacora-root .fold-meta { flex: 0 1 auto; font-size: 12px; color: var(--text-muted); text-align: right; }
+  #bitacora-root .fold-body { padding: 0 0 8px; }
+  #bitacora-root .fold-body.sin-sub > .analysis-sub:first-child { display: none; }
   #bitacora-root .analysis-list { margin: 0; padding-left: 20px; }
   #bitacora-root .analysis-list li { margin-bottom: 5px; line-height: 1.5; }
   #bitacora-root .analysis-disclaimer {
@@ -8902,7 +8915,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return '<span class="expeval-badge expeval-nd' + (estado === 'SIN VERIFICAR' ? ' expeval-sinverificar' : '') + '">' + escapeHtml(estado) + '</span>';
   }
 
-  function bloqueRequisitosIAHtml(entry, gates){
+  function bloqueRequisitosIAHtml(entry, gates, sinTitulo){
     const id = escapeHtml(entry.id || '');
     const ia = entry.requisitosIA;
     const conCuenta = SUPABASE_ENABLED && !!sbSession;
@@ -8967,9 +8980,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Categoría</th><th>Requisito</th><th>Exigido</th><th>Estado con tu empresa</th><th>Fuente</th></tr></thead><tbody>' +
         filasHtml + '</tbody></table></div>';
     }
-    return '<div class="analysis-sub">REQUISITOS HABILITANTES (extraídos con IA ' + (entry.esSoloEP ? 'del Estudio Previo' : 'del Pliego y sus Adendas') + ')' +
-      '<details class="info-tip"><summary aria-label="Cómo funciona esta extracción"></summary>' +
-      '<p>La IA solo lee el PDF y cita página y texto; el cumplimiento lo decide el motor de reglas contra tus datos. Cada cita se verifica contra el texto real del PDF: una fila sin verificar no se usa para decidir hasta que la confirmes. Al extraer, el PDF se envía a un proveedor de IA (Anthropic) para leerlo y se borra de nuestro almacenamiento al terminar.</p></details></div>' +
+    const tipExtraccion = '<details class="info-tip"><summary aria-label="Cómo funciona esta extracción"></summary>' +
+      '<p>La IA solo lee el PDF y cita página y texto; el cumplimiento lo decide el motor de reglas contra tus datos. Cada cita se verifica contra el texto real del PDF: una fila sin verificar no se usa para decidir hasta que la confirmes. Al extraer, el PDF se envía a un proveedor de IA (Anthropic) para leerlo y se borra de nuestro almacenamiento al terminar.</p></details>';
+    // sinTitulo: la tarjeta ya pone el título en el encabezado de la sección plegable.
+    return (sinTitulo
+        ? '<div class="mb-8 text-muted-c">Cómo funciona esta extracción ' + tipExtraccion + '</div>'
+        : '<div class="analysis-sub">REQUISITOS HABILITANTES (extraídos con IA ' + (entry.esSoloEP ? 'del Estudio Previo' : 'del Pliego y sus Adendas') + ')' + tipExtraccion + '</div>') +
       controles + estado + tabla;
   }
 
@@ -9073,7 +9089,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // "Evaluación go/no-go". Se muestra aquí también porque el usuario pidió
   // que el resultado de compatibilidad aparezca justo después de analizar el
   // pliego, no obligarlo a ir a otra sección a buscar el mismo dato.
-  function renderCompatibilidadHtml(res, entry){
+  function partesCompatibilidad(res, entry){
     // El gate "Experiencia" trae por defecto el mismo texto completo
     // (conteos, obligatorios) que ya se usa en "Evaluación go/no-go" --
     // ahí sigue haciendo falta, porque esa vista no tiene el bloque de
@@ -9116,8 +9132,26 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<tr><td>' + escapeHtml(g.nombre) + '</td><td><span class="expeval-badge ' + ESTADO_COMPAT_CLASE[g.estado] + '">' + escapeHtml(ESTADO_COMPAT_LABEL[g.estado] || g.estado) + '</span></td><td>' + escapeHtml(g.detalle) + '</td></tr>'
     ).join('');
     const tabla = '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Requisito</th><th>Estado</th><th>Evidencia y observaciones</th></tr></thead><tbody>' + filas + '</tbody></table></div>';
-    return '<div class="analysis-sub">VEREDICTO' + (res.porPerfil.length > 1 ? ' (mejor de ' + res.porPerfil.length + ' perfiles)' : '') + '</div>' +
-      hero + lecturaParcialHtml + lista('FORTALEZAS', resumen.fortalezas) + lista('DEBILIDADES', resumen.debilidades) + lista('RIESGOS Y PENDIENTES', resumen.riesgos) + tabla;
+    return {
+      hero: hero, lecturaParcialHtml: lecturaParcialHtml, resumen: resumen, gates: gatesParaMostrar,
+      titulo: 'VEREDICTO' + (res.porPerfil.length > 1 ? ' (mejor de ' + res.porPerfil.length + ' perfiles)' : ''),
+      detalleHtml: lista('FORTALEZAS', resumen.fortalezas) + lista('DEBILIDADES', resumen.debilidades) + lista('RIESGOS Y PENDIENTES', resumen.riesgos) + tabla
+    };
+  }
+
+  // Misma salida de siempre (veredicto completo en un bloque); la tarjeta del análisis usa partesCompatibilidad
+  // para poner el resumen arriba y el detalle en una sección plegable.
+  function renderCompatibilidadHtml(res, entry){
+    const p = partesCompatibilidad(res, entry);
+    return '<div class="analysis-sub">' + p.titulo + '</div>' + p.hero + p.lecturaParcialHtml + p.detalleHtml;
+  }
+
+  // Sección plegable de la tarjeta de análisis: el título y un dato resumen siempre visibles,
+  // el detalle dentro. `abierto` solo cuando hay algo que obliga a decidir o actuar.
+  function seccionPlegable(titulo, meta, cuerpo, abierto, sinSub){
+    if (!cuerpo) return '';
+    return '<details class="analysis-fold"' + (abierto ? ' open' : '') + '><summary><span class="fold-title">' + escapeHtml(titulo) + '</span>' +
+      (meta ? '<span class="fold-meta">' + escapeHtml(meta) + '</span>' : '') + '</summary><div class="fold-body' + (sinSub ? ' sin-sub' : '') + '">' + cuerpo + '</div></details>';
   }
 
   // item/s son OPCIONALES (compatibilidad hacia atrás): cuando no se pasan
@@ -9128,7 +9162,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const comps = compsDe(entry);
     const primero = comps[0] || {};
     const evalParaCompat = (item && s) ? evaluarMejor(item, s, entry) : null;
-    const compatHtml = evalParaCompat ? renderCompatibilidadHtml(evalParaCompat, entry) : '';
+    const compat = evalParaCompat ? partesCompatibilidad(evalParaCompat, entry) : null;
     // Red de seguridad: sin item/s (proceso reabierto que ya no está en
     // lastScored) o con 0 perfiles marcados para comparar, evalParaCompat/
     // compatHtml quedan vacíos y la fila "Capacidad K residual" de la tabla
@@ -9202,7 +9236,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Con el pliego leído en parte, "100/100" y "sin alertas" solo hablan de lo leído: se dice explícito.
     const parcialRF = lecturaParcial(entry);
     const redFlagsHtml = !tieneRedFlags ? '' :
-      '<div class="analysis-sub">ALERTAS DEL PLIEGO' + (entry.redFlags.length ? ' (' + entry.redFlags.length + ')' : '') + '</div>' +
       (entry.redFlags.length
         ? '<ul class="analysis-list">' + entry.redFlags.map(f =>
             '<li><span class="tag redflag-' + escapeHtml(f.severidad) + '">' + escapeHtml(f.severidad.toUpperCase()) + '</span> ' +
@@ -9211,12 +9244,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
             ' <span class="tag fuente" title="' + escapeHtml(f.snippet) + '">' + escapeHtml(f.articulo) + '</span></li>'
           ).join('') + '</ul>'
         : '<ul class="analysis-list"><li>No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialRF ? ' (solo ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas): las demás no se revisaron' : '') + '.</li></ul>') +
-      (entry.viabilidad != null
-        ? '<div style="margin:6px 0 8px;"><span style="font-size:22px;font-weight:700;color:' +
+      '';
+
+    const viabilidadHtml = (entry.viabilidad != null
+        ? '<span><span style="font-size:22px;font-weight:700;color:' +
           (entry.viabilidad >= 80 ? 'var(--success)' : (entry.viabilidad >= 50 ? 'var(--warning)' : 'var(--danger)')) +
           ';">' + entry.viabilidad + '/100</span> <span style="color:var(--text-muted);font-size:12.5px;">viabilidad orientativa' +
           (parcialRF ? ' <strong>— solo con las ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas leídas</strong>' : '') +
-          '<details class="info-tip"><summary aria-label="Cómo se calcula"></summary><p>100 menos una penalización fija por cada alerta — no es una certificación.</p></details></span></div>'
+          '<details class="info-tip"><summary aria-label="Cómo se calcula"></summary><p>100 menos una penalización fija por cada alerta — no es una certificación.</p></details></span></span>'
         : '');
 
     const perfilesHtml = comps.length
@@ -9226,44 +9261,65 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         ).join('')
       : '<ul class="analysis-list"><li>No hay perfiles marcados para comparar. Marca al menos uno en “Comparar en el análisis de pliegos” y vuelve a analizar.</li></ul>';
 
-    return '<div class="analysis-block">' +
-      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') +
-        (entry.esSoloEP ? ' · <span class="tag" title="Sin Pliego de Condiciones publicado todavía">Estudio Previo</span>' : '') +
-        ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
+    // ── Resumen arriba, detalle plegado ──
+    const filasIA = entry.requisitosIA ? filasRequisitosHabilitantes(entry, evalParaCompat ? evalParaCompat.mejor.gates : null) : [];
+    const nSinConfirmar = filasIA.filter(f => !f.confiable).length;
+    const ev = entry.experienciaResultado;
+    const evOk = !!(ev && ev.resultados && ev.resultados.length);
+    const nombres = arr => arr.map(g => g.nombre);
+    const razones = [];
+    if (compat){
+      if (compat.resumen.noCumplen.length) razones.push('<b>No cumple:</b> ' + escapeHtml(nombres(compat.resumen.noCumplen).slice(0, 4).join(', ')));
+      const porVerificar = compat.resumen.sinDato.concat(compat.resumen.parciales);
+      if (porVerificar.length) razones.push('<b>Por verificar:</b> ' + escapeHtml(nombres(porVerificar).slice(0, 4).join(', ')) + (porVerificar.length > 4 ? ' y ' + (porVerificar.length - 4) + ' más' : ''));
+    }
+    if (nSinConfirmar) razones.push('<b>' + nSinConfirmar + '</b> requisito(s) extraído(s) con IA por confirmar');
+    const dias = (item && item.closingRaw) ? diasRestantesDe(item.closingRaw) : null;
+    const nAltas = tieneRedFlags ? entry.redFlags.filter(f => f.severidad === 'alta' || f.severidad === 'media').length : 0;
+    const chips = [];
+    if (compat){
+      const rs = compat.resumen;
+      chips.push('<span class="expeval-badge expeval-cumple">' + rs.cumplen.length + ' cumple(n)</span>');
+      if (rs.noCumplen.length) chips.push('<span class="expeval-badge expeval-nocumple">' + rs.noCumplen.length + ' no cumple(n)</span>');
+      if (rs.sinDato.length + rs.parciales.length) chips.push('<span class="expeval-badge expeval-nd">' + (rs.sinDato.length + rs.parciales.length) + ' por verificar</span>');
+    }
+    if (tieneRedFlags) chips.push('<span class="tag' + (nAltas ? ' redflag-alta' : '') + '">' + (entry.redFlags.length ? entry.redFlags.length + ' alerta(s)' : 'sin alertas') + '</span>');
+    if (dias != null) chips.push('<span class="tag' + (dias < 0 ? ' redflag-alta' : (dias <= 5 ? ' redflag-media' : '')) + '">' + (dias < 0 ? 'cierre vencido' : (dias === 0 ? 'cierra hoy' : 'cierra en ' + dias + ' día(s)')) + '</span>');
+    if (viabilidadHtml) chips.push(viabilidadHtml);
+    const resumenArriba = '<div class="analysis-resumen">' +
+      (compat ? compat.hero + compat.lecturaParcialHtml : '') +
+      '<div class="analysis-chips">' + chips.join('') + '</div>' +
+      (razones.length ? '<ul class="analysis-list">' + razones.map(r => '<li>' + r + '</li>').join('') + '</ul>' : '') +
+      docsPropuestaHtml + '</div>';
+
+    const secciones =
+      (tieneRedFlags ? seccionPlegable('Alertas del pliego', entry.redFlags.length ? entry.redFlags.length + ' alerta(s)' : 'ninguna', redFlagsHtml, nAltas > 0) : '') +
+      seccionPlegable('Experiencia requerida', evOk ? ev.conteo['CUMPLE'] + ' cumple · ' + ev.conteo['NO CUMPLE'] + ' no cumple · ' + ev.conteo['NO DETERMINABLE'] + ' por verificar' : 'sin evaluar',
+        bloqueExperienciaHtml(entry), !evOk || !!ev.conteo['NO CUMPLE'] || !expevalContratos, true) +
+      seccionPlegable('Requisitos habilitantes (IA)', entry.requisitosIA ? filasIA.length + ' requisito(s)' + (nSinConfirmar ? ' · ' + nSinConfirmar + ' por confirmar' : '') : 'sin extraer',
+        bloqueRequisitosIAHtml(entry, evalParaCompat ? evalParaCompat.mejor.gates : null, true), !entry.requisitosIA) +
+      seccionPlegable('Cronograma y riesgos (IA)', (entry.cronogramaIA || []).length + ' fecha(s) · ' + (entry.riesgosIA || []).length + ' riesgo(s)',
+        bloqueCronogramaRiesgosIAHtml(entry), (entry.riesgosIA || []).some(r => r.severidad === 'alta')) +
+      seccionPlegable(compat ? 'Detalle del veredicto' : 'Capacidad K residual exigida', compat ? compat.gates.length + ' criterio(s)' : '',
+        (compat ? compat.detalleHtml : '') + kResidualFallbackHtml, false) +
+      seccionPlegable('Coincidencia con tus perfiles y otros requisitos', comps.length + ' perfil(es)',
+        // Con requisitos extraídos por IA, su tabla ya cubre RUP/personal/organizacional.
+        (entry.requisitosIA ? '' : '<div class="analysis-sub">OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ', experiencia' : '') + ')</div>' +
+        (sinHallazgos
+          ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de RUP, personal mínimo, capacidad organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ' o experiencia' : '') + ' en el texto extraído — revisa el pliego completo.' +
+            (notaElsewhere.length ? ' (' + notaElsewhere.join(' y ') + ' se muestra' + (notaElsewhere.length > 1 ? 'n' : '') + ' arriba, en su' + (notaElsewhere.length > 1 ? 's' : '') + ' propio' + (notaElsewhere.length > 1 ? 's' : '') + ' bloque' + (notaElsewhere.length > 1 ? 's' : '') + '.)' : '') +
+            '</li></ul>'
+          : hallazgosHtml)) +
+        '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' + perfilesHtml, false);
+
+    // Lectura y avisos: tiempos, descargas, aviso del método de lectura y botones de "seguir leyendo".
+    // Se abre sola mientras queden páginas sin leer, porque ahí están los botones para continuar.
+    const parcialLect = entry.pagesRead < entry.numPages;
+    const lecturaHtml =
       ((entry.lecturaMs || entry.transcripcionUso)
         ? '<div class="saved-note">Tiempo de lectura -- ' + escapeHtml(Lectura.resumenTiempos(entry)) +
             (entry.transcripcionUso ? ' · IA: ' + Number(entry.transcripcionUso.input_tokens).toLocaleString('es-CO') + ' tokens de entrada / ' + Number(entry.transcripcionUso.output_tokens).toLocaleString('es-CO') + ' de salida' : '') + '</div>'
         : '') +
-      redFlagsHtml +
-      bloqueCronogramaRiesgosIAHtml(entry) +
-      // El usuario pidió explícitamente hacer énfasis en esta sección: "es
-      // de vital importancia conocer ese análisis comparativo para que la
-      // empresa tenga información suficiente para tomar la decisión de
-      // participar o no". Antes vivía al final de la tarjeta, después de
-      // todo el resumen de compatibilidad y la lista cruda de requisitos --
-      // se mueve arriba, justo después de las alertas, para que sea de lo
-      // primero que se ve al abrir el análisis. La fila "Experiencia" de la
-      // tabla de gates más abajo (dentro de compatHtml) sigue existiendo,
-      // pero ahora apunta a este bloque en vez de repetir el mismo conteo.
-      bloqueRequisitosIAHtml(entry, evalParaCompat ? evalParaCompat.mejor.gates : null) +
-      bloqueExperienciaHtml(entry) +
-      compatHtml +
-      docsPropuestaHtml +
-      // "CAPACIDAD K RESIDUAL EXIGIDA" se quitó de aquí como sección FIJA --
-      // la fila "Capacidad K residual" de la tabla de gates (dentro de
-      // compatHtml, arriba) normalmente ya cita el mismo valor exigido Y lo
-      // compara contra el perfil. kResidualFallbackHtml restaura esta misma
-      // sección SOLO cuando esa fila no se pudo calcular (ver arriba).
-      kResidualFallbackHtml +
-      // Con requisitos extraídos por IA, la tabla de arriba ya cubre RUP/personal/organizacional.
-      (entry.requisitosIA ? '' : '<div class="analysis-sub">OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ', experiencia' : '') + ')</div>' +
-      (sinHallazgos
-        ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de RUP, personal mínimo, capacidad organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ' o experiencia' : '') + ' en el texto extraído — revisa el pliego completo.' +
-          (notaElsewhere.length ? ' (' + notaElsewhere.join(' y ') + ' se muestra' + (notaElsewhere.length > 1 ? 'n' : '') + ' arriba, en su' + (notaElsewhere.length > 1 ? 's' : '') + ' propio' + (notaElsewhere.length > 1 ? 's' : '') + ' bloque' + (notaElsewhere.length > 1 ? 's' : '') + '.)' : '') +
-          '</li></ul>'
-        : hallazgosHtml)) +
-      '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' +
-      perfilesHtml +
       (comps.length
         ? '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">' +
             '<button class="link-btn analysis-informe-btn" data-informe-id="' + escapeHtml(entry.id || '') + '">⬇ Descargar informe detallado (.txt)</button>' +
@@ -9278,29 +9334,32 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
             ? 'Ayuda de lectura: los requisitos se extrajeron con IA y se verificaron contra el texto del PDF; no reemplaza revisar el pliego completo antes de decidir.'
             : 'Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.') + '</div>') +
       // Un documento largo (OCR o IA) solo necesita la PRIMERA tanda para que este análisis
-      // exista -- "Extraer requisitos con IA", más abajo, lee el PDF COMPLETO de una sola vez
-      // (sin pasar por esta transcripción tanda por tanda) y es la vía más rápida para la tabla
-      // de requisitos habilitantes. Sin esta nota, era fácil asumir que había que terminar de
-      // leer todo el documento aquí antes de poder usar esa tabla -- no es necesario.
-      ((entry.viaIA || entry.viaOcr) && entry.pagesRead < entry.numPages && !entry.requisitosIA
-        ? '<div class="mt-8 saved-note">💡 Si solo necesitas la tabla de requisitos habilitantes, no hace falta seguir leyendo aquí -- usa "Extraer requisitos con IA" (arriba, en "Requisitos habilitantes"): como aún no se leyó todo el documento, manda el PDF completo a la IA (puede tardar más que con un pliego ya leído).</div>'
+      // exista -- "Extraer requisitos con IA" lee el PDF COMPLETO de una sola vez (sin pasar por
+      // esta transcripción tanda por tanda) y es la vía más rápida para la tabla de requisitos.
+      ((entry.viaIA || entry.viaOcr) && parcialLect && !entry.requisitosIA
+        ? '<div class="mt-8 saved-note">💡 Si solo necesitas la tabla de requisitos habilitantes, no hace falta seguir leyendo aquí -- usa "Extraer requisitos con IA" (en "Requisitos habilitantes"): como aún no se leyó todo el documento, manda el PDF completo a la IA (puede tardar más que con un pliego ya leído).</div>'
         : '') +
-      (entry.viaIA && entry.pagesRead < entry.numPages
+      (entry.viaIA && parcialLect
         ? '<div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">' +
             '<button class="link-btn analysis-ia-continue-btn" data-ia-continue-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo con IA (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button>' +
             '<button class="link-btn analysis-ia-leer-todo-btn" data-ia-todo-id="' + escapeHtml(entry.id || '') + '">Leer todo el documento con IA (~' + Math.ceil((entry.numPages - entry.pagesRead) / IA_TRANSCRIBE_BATCH_PAGES) + ' tanda(s) más)</button>' +
           '</div>'
         : '') +
-      (entry.viaOcr && entry.pagesRead < entry.numPages
+      (entry.viaOcr && parcialLect
         ? '<div class="mt-8"><button class="link-btn analysis-ocr-continue-btn" data-ocr-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
         : '') +
-      // Mismo botón para el camino de texto normal (sin OCR ni IA) -- antes
-      // un pliego con texto real de más de TEXT_BATCH_PAGES páginas se
-      // truncaba en silencio, sin aviso ni forma de seguir leyendo
-      // (SECOP-010, ver CLAUDE.md).
-      (!entry.viaOcr && !entry.viaIA && entry.pagesRead < entry.numPages
+      // Camino de texto normal: un pliego de más de TEXT_BATCH_PAGES páginas no se trunca en
+      // silencio (SECOP-010, ver CLAUDE.md).
+      (!entry.viaOcr && !entry.viaIA && parcialLect
         ? '<div class="mt-8"><button class="link-btn analysis-continue-btn" data-analisis-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
-        : '') +
+        : '');
+
+    return '<div class="analysis-block">' +
+      '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') +
+        (entry.esSoloEP ? ' · <span class="tag" title="Sin Pliego de Condiciones publicado todavía">Estudio Previo</span>' : '') +
+        ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
+      resumenArriba + secciones +
+      seccionPlegable('Lectura y avisos', entry.pagesRead + '/' + entry.numPages + ' págs · ' + (metodoLecturaDe(entry) || 'texto del PDF'), lecturaHtml, parcialLect) +
     '</div>';
   }
 
