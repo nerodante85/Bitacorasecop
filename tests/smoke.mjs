@@ -3326,6 +3326,17 @@ await check('IA en documentos cortos: leerEscaneadoConIA une las tandas con offs
   assert(/cargarExperienciaPDF\(file, 'ia'\)/.test(html) && /cargarEstudioPrevioPDF\(entry, file, 'ia', slot\)/.test(html), 'cada flujo debe poder invocarse con IA');
 });
 
+await check('Tarjeta de análisis: las secciones que el usuario abrió o cerró se respetan al redibujar la tarjeta', () => {
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const i = html.indexOf('function seccionPlegable(');
+  const f = html.slice(i, html.indexOf('}\n', i) + 2);
+  assert(/foldAbierto\(titulo, abierto\)/.test(f), 'seccionPlegable debe consultar la preferencia del usuario antes del valor por defecto');
+  const j = html.indexOf('function renderAnalysisHtml(');
+  assert(/foldCtxId = entry\.id/.test(html.slice(j, j + 400)), 'renderAnalysisHtml debe fijar de qué tarjeta son las secciones');
+  assert(/foldPrefs\[[^\]]+\]\s*=\s*foldPrefs\[[^\]]+\]\s*\|\|\s*\{\}/.test(html) && /!d\.open/.test(html), 'falta el registro del clic del usuario en el summary');
+  // el registro es por clic del usuario, no por el evento toggle (que también dispara al pintar con "open")
+  assert(!/addEventListener\('toggle'/.test(html.slice(html.indexOf('foldPrefs'), html.indexOf('foldPrefs') + 3000)), 'no debe usar toggle: se dispararía al pintar la tarjeta');
+});
 await check('Tarjeta de análisis: resumen arriba y detalle en secciones plegables (cerradas salvo lo que obliga a actuar)', async () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const i = html.indexOf('function renderAnalysisHtml(');

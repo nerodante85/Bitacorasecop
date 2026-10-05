@@ -9160,9 +9160,31 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   // Sección plegable de la tarjeta de análisis: el título y un dato resumen siempre visibles,
   // el detalle dentro. `abierto` solo cuando hay algo que obliga a decidir o actuar.
+  // Qué secciones abrió o cerró el USUARIO en cada tarjeta. Redibujar la tarjeta (al terminar una
+  // lectura, una extracción, etc.) reconstruye el HTML y los <details> volvían a su valor por
+  // defecto, cerrando lo que se estaba leyendo. Solo en memoria: al recargar vuelve al defecto.
+  const foldPrefs = {};      // { idProceso: { 'Título de la sección': true|false } }
+  let foldCtxId = null;      // tarjeta cuyas secciones se están armando (lo fija renderAnalysisHtml)
+  function foldAbierto(titulo, porDefecto){
+    const p = foldCtxId && foldPrefs[foldCtxId];
+    return p && Object.prototype.hasOwnProperty.call(p, titulo) ? p[titulo] : porDefecto;
+  }
+  // Se registra por CLIC en el summary, no por el evento toggle: toggle también dispara cuando la
+  // tarjeta se pinta con "open" y eso guardaría los valores por defecto como si fueran del usuario.
+  // El clic corre antes de que el navegador cambie d.open, por eso el nuevo estado es !d.open.
+  resultsEl.addEventListener('click', e => {
+    const sm = e.target.closest && e.target.closest('.analysis-fold > summary');
+    if (!sm) return;
+    const row = sm.closest('.row'), d = sm.parentElement, t = sm.querySelector('.fold-title');
+    if (!row || !d || !t) return;
+    const id = row.dataset.id;
+    foldPrefs[id] = foldPrefs[id] || {};
+    foldPrefs[id][t.textContent] = !d.open;
+  });
+
   function seccionPlegable(titulo, meta, cuerpo, abierto, sinSub){
     if (!cuerpo) return '';
-    return '<details class="analysis-fold"' + (abierto ? ' open' : '') + '><summary><span class="fold-title">' + escapeHtml(titulo) + '</span>' +
+    return '<details class="analysis-fold"' + (foldAbierto(titulo, abierto) ? ' open' : '') + '><summary><span class="fold-title">' + escapeHtml(titulo) + '</span>' +
       (meta ? '<span class="fold-meta">' + escapeHtml(meta) + '</span>' : '') + '</summary><div class="fold-body' + (sinSub ? ' sin-sub' : '') + '">' + cuerpo + '</div></details>';
   }
 
@@ -9171,6 +9193,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // simplemente no se agrega el resumen de compatibilidad -- el resto del
   // análisis se ve exactamente igual que antes.
   function renderAnalysisHtml(entry, item, s){
+    foldCtxId = entry.id;
     const comps = compsDe(entry);
     const primero = comps[0] || {};
     const evalParaCompat = (item && s) ? evaluarMejor(item, s, entry) : null;
