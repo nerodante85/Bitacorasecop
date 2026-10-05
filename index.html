@@ -3571,14 +3571,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   });
 
   async function procesarRUP(file, viaOcr){
-    perfilRupStatusEl.textContent = viaOcr === 'ia' ? 'Leyendo el RUP con IA (puede tardar un par de minutos)…' : (viaOcr ? 'Leyendo el RUP con OCR (puede tardar varios minutos)…' : 'Leyendo el RUP…');
+    perfilRupStatusEl.textContent = viaOcr ? 'Leyendo el RUP con OCR (puede tardar varios minutos)…' : 'Leyendo el RUP…';
     let text = '', numPages = 0, pagesRead = 0;
     try {
       await appReady;
-      if (viaOcr === 'ia'){
-        const r = await leerEscaneadoConIA(file, 20, (d, t) => { perfilRupStatusEl.textContent = 'La IA está leyendo el RUP… desde la página ' + d + ' (de ' + t + ')'; });
-        text = r.text; numPages = r.numPages; pagesRead = r.pagesRead;
-      } else if (viaOcr){
+      if (viaOcr){
         const r = await ocrPdfPages(file, 1, 20, (pct, page, total) => {
           perfilRupStatusEl.textContent = 'OCR del RUP… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
         });
@@ -3595,11 +3592,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (!viaOcr && (!text || text.trim().length < 200)){
       pendingRupFile = file;
       perfilRupStatusEl.innerHTML = 'El PDF del RUP no tiene texto extraíble (parece escaneado). ' +
-        '<button class="link-btn" id="bt-perfil-rup-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).' + botonLeerConIAHtml();
+        '<button class="link-btn" id="bt-perfil-rup-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
       const b = document.getElementById('bt-perfil-rup-ocr');
       if (b) b.addEventListener('click', () => procesarRUP(file, true));
-      const bIa = perfilRupStatusEl.querySelector('[data-leer-ia]');
-      if (bIa) bIa.addEventListener('click', () => procesarRUP(file, 'ia'));
       return;
     }
 
@@ -3610,7 +3605,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     const partes = aplicarRUPaCampos(data);
     if (perfilSavedEl) perfilSavedEl.textContent = '';
-    perfilRupStatusEl.textContent = 'RUP leído (' + pagesRead + '/' + numPages + ' págs' + (viaOcr === 'ia' ? ', vía IA' : (viaOcr ? ', vía OCR' : '')) + '). ' +
+    perfilRupStatusEl.textContent = 'RUP leído (' + pagesRead + '/' + numPages + ' págs' + (viaOcr ? ', vía OCR' : '') + '). ' +
       (partes.length ? partes.join(' · ') + '. ' : '') +
       'La capacidad K/financiera y la capacidad residual del RUP salen de una tabla y pueden no leerse bien: revísalas contra el PDF antes de pulsar Guardar perfil.';
   }
@@ -3812,7 +3807,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   }
 
   async function procesarRUT(file, viaOcr){
-    perfilRutStatusEl.textContent = viaOcr === 'ia' ? 'Leyendo el RUT con IA…' : (viaOcr ? 'Leyendo el RUT con OCR (puede tardar varios minutos)…' : 'Leyendo el RUT…');
+    perfilRutStatusEl.textContent = viaOcr ? 'Leyendo el RUT con OCR (puede tardar varios minutos)…' : 'Leyendo el RUT…';
     let items = [], numPages = 0, pagesRead = 0;
     try {
       await appReady;
@@ -3823,12 +3818,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         // OCR. El RUT escaneado es mucho menos común que uno generado
         // digitalmente (que es como la DIAN lo entrega siempre), así que
         // este camino es solo un respaldo honesto, no la vía principal.
-        const etiquetaVia = viaOcr === 'ia' ? 'IA' : 'OCR';
-        const r = viaOcr === 'ia'
-          ? await leerEscaneadoConIA(file, 3, () => { perfilRutStatusEl.textContent = 'La IA está leyendo el RUT…'; })
-          : await ocrPdfPages(file, 1, 3, (pct, page, total) => {
-              perfilRutStatusEl.textContent = 'OCR del RUT… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
-            });
+        const etiquetaVia = 'OCR';
+        const r = await ocrPdfPages(file, 1, 3, (pct, page, total) => {
+          perfilRutStatusEl.textContent = 'OCR del RUT… página ' + page + ' de ' + total + (pct ? ' · ' + Math.round(pct * 100) + '%' : '');
+        });
         numPages = r.numPages; pagesRead = r.pagesRead;
         const data = parsearRUTTextoPlano(r.text);
         if (!data.encontrado){
@@ -3850,11 +3843,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
     if (!items.length){
       perfilRutStatusEl.innerHTML = 'El PDF del RUT no tiene texto extraíble (parece escaneado). ' +
-        '<button class="link-btn" id="bt-perfil-rut-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).' + botonLeerConIAHtml();
+        '<button class="link-btn" id="bt-perfil-rut-ocr" type="button">Intentar con OCR</button> (lento, y menos preciso).';
       const b = document.getElementById('bt-perfil-rut-ocr');
       if (b) b.addEventListener('click', () => procesarRUT(file, true));
-      const bIa = perfilRutStatusEl.querySelector('[data-leer-ia]');
-      if (bIa) bIa.addEventListener('click', () => procesarRUT(file, 'ia'));
       return;
     }
 

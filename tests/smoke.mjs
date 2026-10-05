@@ -3297,7 +3297,7 @@ await check('PDF-05: la primera lectura de texto usa extenderSiEscaso (la lógic
 });
 
 
-await check('IA en documentos cortos: leerEscaneadoConIA une las tandas con offsets correctos y el botón está en RUP/RUT/experiencia/Estudio Previo', async () => {
+await check('IA en documentos cortos: leerEscaneadoConIA une las tandas con offsets correctos y el botón está en experiencia/Estudio Previo (no en RUP/RUT)', async () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const i = html.indexOf('async function leerEscaneadoConIA(');
   const j = html.indexOf('// Botón "Leer con IA" junto al de OCR', i);
@@ -3320,8 +3320,10 @@ await check('IA en documentos cortos: leerEscaneadoConIA une las tandas con offs
   const r2 = await fn({}, 3);
   assert(r2.pagesRead === 3, 'respeta el tope de páginas');
   ['bt-perfil-rup-status', 'bt-perfil-rut-status', 'bt-expeval-exp-status'].forEach(() => {});
-  assert((html.match(/botonLeerConIAHtml\(/g) || []).length >= 5, 'el botón Leer con IA debe estar en los 4 flujos');
-  assert(/procesarRUP\(file, 'ia'\)/.test(html) && /procesarRUT\(file, 'ia'\)/.test(html) && /cargarExperienciaPDF\(file, 'ia'\)/.test(html) && /cargarEstudioPrevioPDF\(entry, file, 'ia', slot\)/.test(html), 'cada flujo debe poder invocarse con IA');
+  assert(!/procesarRUP\(file, 'ia'\)/.test(html) && !/procesarRUT\(file, 'ia'\)/.test(html), 'RUP y RUT (PDF oficiales) no deben ofrecer lectura con IA');
+  assert(!/<button[^>]*id="bt-perfil-ru[pt]-ocr"[^>]*>[^`]*botonLeerConIAHtml/.test(html), 'sin botón de IA en RUP/RUT');
+  assert((html.match(/botonLeerConIAHtml\(/g) || []).length >= 3, 'el botón Leer con IA sigue en experiencia y Estudio Previo');
+  assert(/cargarExperienciaPDF\(file, 'ia'\)/.test(html) && /cargarEstudioPrevioPDF\(entry, file, 'ia', slot\)/.test(html), 'cada flujo debe poder invocarse con IA');
 });
 
 // ---- Auditoría de la interfaz (/impeccable audit): contraste, landmark, táctil, movimiento, tipografía ----
