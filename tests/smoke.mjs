@@ -3529,6 +3529,15 @@ await check('F-05: al cambiar de vista el foco del teclado no se pierde (pasa al
   // las pestañas del menú conservan el foco: el manejador de flechas enfoca la pestaña ANTES de cambiar de vista
   assert(/next\.focus\(\);\s*mostrarVista\(next\.getAttribute\('data-view'\)\)/.test(html), 'las flechas del menú enfocan la pestaña y luego cambian de vista');
 });
+await check('F-07: las pruebas de punta a punta (navegador real) existen y corren en pull requests y en main', () => {
+  const e2e = readFileSync(new URL('./e2e.mjs', import.meta.url), 'utf8');
+  for (const flujo of ['"Analizar pliego →"', 'Menú:', 'Celular', 'Evaluación fusionada', 'F-04', 'Datos de ejemplo']) assert(e2e.includes(flujo), 'e2e.mjs debe cubrir el flujo: ' + flujo);
+  assert(/ruta\.abort\(\)/.test(e2e), 'e2e debe bloquear la red externa (resultado determinista, sin depender de SECOP en vivo)');
+  for (const wf of ['smoke.yml', 'pages.yml']) {
+    const y = readFileSync(new URL('../.github/workflows/' + wf, import.meta.url), 'utf8');
+    assert(/node tests\/e2e\.mjs/.test(y) && /playwright-core@1\.56\.1/.test(y), wf + ' debe correr tests/e2e.mjs con playwright-core fijado');
+  }
+});
 await check('Interfaz: en pantallas táctiles/angostas los controles tienen área de 44px', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const bloque = /@media \(pointer: coarse\), \(max-width: 560px\) \{([\s\S]*?)\r?\n  \}\r?\n/.exec(html);
