@@ -45,6 +45,7 @@ sincronización, Edge Functions de IA y correo).
   perfil_empresa (legado), analisis_pliegos, experiencia_evaluacion, perfiles_profesionales, personal_activo_id, ultima_vista,
   alertas_guardadas, correo_digest_activo, schema_version.
   - `analisis_pliegos` se sincroniza **por elemento** en la tabla `app_state_analisis_items` (no como un blob).
+    Cada entrada guarda también `proceso` (resumen: `snapshotDeProceso`) para poder reabrirla sin la búsqueda en pantalla; `procesoPorId(id)` busca en la búsqueda actual y, si no está, lo reconstruye (`procesosAnalizadosFueraDeLista`: resumen propio → `historial[id].snapshot` → "sin datos guardados").
   - El **texto completo** de un pliego (`text`, `ocrText`, `estudioPrevioText`) vive en **IndexedDB** (`bitacora_textos_pliego`),
     no en el blob; es local al navegador.
   - `experiencia_evaluacion` guarda `{porPerfil: {perfilId: {contratos, meta}}}`; `expevalContratos` es el **combinado derivado**

@@ -3948,6 +3948,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     for (const unId of idsAGuardar){
       const e = analisis[unId];
       if (!e) continue; // pudo borrarse entre que se llamó y que corrió esto -- no hay nada que guardar
+      if (!e.proceso){
+        // F-04: resumen del proceso para poder reabrir este análisis sin la búsqueda en pantalla.
+        const sp = (lastScoredTodos || []).concat(lastScored || []).find(x => x.item && x.item.id === unId);
+        if (sp) e.proceso = snapshotDeProceso(sp.item, modoDatos(), Date.now());
+      }
       const { text, ocrText, estudioPrevioText, ...resto } = e;
       if (text || ocrText || estudioPrevioText){
         const ok = await idbSetTexto(unId, { text: text || '', ocrText: ocrText || '', estudioPrevioText: estudioPrevioText || '' });
@@ -4253,6 +4258,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const antes = buscar();
     const txt = antes ? antes.textContent : '';
     rerender();
+    // Sin búsqueda en pantalla rerender() no hace nada; la vista de análisis (que ahora también abre
+    // análisis guardados) se refresca por su cuenta.
+    const vistaAn = document.getElementById('view-analisis');
+    if (!lastRecords && vistaAn && !vistaAn.hidden) renderAnalisisView();
     if (txt){
       const nuevo = buscar();
       if (nuevo) nuevo.textContent = txt;
@@ -7500,6 +7509,48 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (modo === 'snapshot') return 'Estás viendo un snapshot de respaldo del ' + (snapshotFecha || 'fecha no indicada') + ': no son datos actuales (la consulta en vivo falló). Confirma el proceso en SECOP antes de decidir.';
     return '';
   }
+  // F-04 (auditoría 2026-10-06): un análisis guardaba el pliego pero no los datos del proceso, así que sin
+  // la búsqueda en pantalla no había con qué dibujar su tarjeta. Resumen mínimo (solo campos conocidos: el
+  // análisis se sincroniza con la cuenta, no debe arrastrar el registro crudo de SECOP) + cuándo y con qué
+  // datos (vivo/respaldo/ejemplo) se vio, para avisar que el plazo y el estado pueden haber cambiado.
+  function snapshotDeProceso(item, modo, ahoraMs){
+    const o = { modo: modo || 'vivo', ts: ahoraMs };
+    ['entidad', 'objeto', 'modalidad', 'valor', 'departamento', 'ciudad', 'url', 'referencia', 'fuente', 'closingRaw', 'pubRaw'].forEach(k => {
+      if (item && item[k] != null && item[k] !== '') o[k] = item[k];
+    });
+    return o;
+  }
+  // Procesos con análisis guardado que NO están en la lista de la búsqueda actual, con la misma forma que
+  // un elemento de `scored` (la tarjeta no distingue). Origen del resumen: el propio análisis, el pipeline
+  // (historial[id].snapshot) o nada -- en ese caso se dice "sin datos guardados", nunca se inventa.
+  function procesosAnalizadosFueraDeLista(analisisMap, historialMap, idsEnLista, ahoraMs){
+    const diasHasta = raw => {
+      if (!raw) return null;
+      const d = new Date(raw);
+      const y = d.getFullYear();
+      if (isNaN(d.getTime()) || y < 2015 || y > 2035) return null;
+      return Math.ceil((d.getTime() - ahoraMs) / 86400000);
+    };
+    return Object.keys(analisisMap || {})
+      .filter(id => !idsEnLista.has(id))
+      .sort((a, b) => ((analisisMap[b] && analisisMap[b].ts) || 0) - ((analisisMap[a] && analisisMap[a].ts) || 0))
+      .map(id => {
+        const e = analisisMap[id] || {};
+        const hs = historialMap && historialMap[id] && historialMap[id].snapshot;
+        let origen = 'sinDatos', fuente = null;
+        if (e.proceso){ origen = 'analisis'; fuente = e.proceso; } else if (hs){ origen = 'pipeline'; fuente = hs; }
+        const item = Object.assign({ id: id, fuente: 'II' }, fuente || {
+          entidad: 'Proceso sin datos guardados',
+          objeto: e.fileName ? 'Pliego analizado: ' + e.fileName : id
+        });
+        item.id = id;
+        return {
+          item: item, score: 0, tier: 'media', daysLeft: diasHasta(item.closingRaw), daysSincePub: null,
+          keywordHits: [], geoHits: [], scoreAdjusted: false, evaluacion: null,
+          guardado: { origen: origen, modo: fuente && fuente.modo, ts: (fuente && fuente.ts) || e.ts || null, sinDatos: origen === 'sinDatos' }
+        };
+      });
+  }
   // Nombres claros en vez de la jerga "GO / NO-GO / REVISAR".
   function etiquetaVeredicto(v){
     return v === 'GO' ? 'Cumple lo revisado' : (v === 'NO-GO' ? 'No cumple' : 'Falta información');
@@ -9707,6 +9758,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // sobre los que se dibujan; la lista muestra `limiteLista` y ofrece "mostrar más".
     const totalFiltrados = scored.length;
     lastScoredTodos = scored;
+    // F-04: los análisis guardados antes de este cambio no traen el resumen del proceso; se completa la
+    // primera vez que el proceso aparece en una búsqueda (una sola vez por análisis).
+    scored.forEach(sc => {
+      const e = analisis[sc.item.id];
+      if (e && !e.proceso){
+        e.proceso = snapshotDeProceso(sc.item, modoDatos(), Date.now());
+        saveAnalisis(sc.item.id);
+      }
+    });
     const todosParaContar = scored;
     scored = scored.slice(0, limiteLista);
 
@@ -9782,6 +9842,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       ? '🔒 Analizar pliego (completa Experiencia y Personal)'
       : (analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)');
 
+    // F-04: proceso reabierto desde el análisis guardado (ya no sale en la búsqueda en pantalla).
+    let guardadoHtml = '';
+    if (enAnalisis && s.guardado){
+      const g = s.guardado;
+      const cuando = g.ts ? fmtDate(new Date(g.ts).toISOString()) : null;
+      const modoTxt = g.modo === 'demo' ? ' Eran datos de ejemplo (ficticios).' : (g.modo === 'snapshot' ? ' Eran datos de respaldo, no actuales.' : '');
+      guardadoHtml = '<div class="saved-note">' + (g.sinDatos
+        ? 'Solo se guardó el análisis de este pliego, no los datos del proceso: busca el proceso en SECOP para ver su estado y su plazo.'
+        : 'Proceso guardado de una búsqueda anterior' + (cuando ? ' (visto el ' + escapeHtml(cuando) + ')' : '') + ': el plazo y el estado pueden haber cambiado -- confírmalos en SECOP antes de decidir.' + modoTxt) + '</div>';
+    }
+
     const venceProto = isVisto && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
     const venceAlertHtml = venceProto
       ? '<div class="expire-alert">⚠ VISTO Y VENCE ' + (s.daysLeft === 0 ? 'HOY' : ('EN ' + s.daysLeft + (s.daysLeft === 1 ? ' DÍA' : ' DÍAS'))) + '</div>'
@@ -9851,6 +9922,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         ? '<div class="tarjeta-veredicto saved-note"><b>' + escapeHtml(etiquetaVeredicto(s.evaluacion.mejor.veredicto)) + ':</b> ' + escapeHtml(lineaMotivoVeredicto(s.evaluacion.mejor.gates, s.evaluacion.mejor.veredicto, s.evaluacion.mejor.conPliego)) +
             ' · ' + escapeHtml(textoCoberturaLectura(analysisEntry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>'
         : '') +
+      guardadoHtml +
       linkHtml +
       actionsHtml +
     '</div>';
@@ -9868,19 +9940,26 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       fuenteEl.textContent = aviso;
       fuenteEl.style.display = aviso ? 'block' : 'none';
     }
-    const lista = lastScored || [];
+    // Búsqueda actual completa (no solo las 40 dibujadas) + análisis guardados que ya no salen en ella (F-04).
+    const enBusqueda = (lastScoredTodos && lastScoredTodos.length) ? lastScoredTodos : (lastScored || []);
+    const guardados = procesosAnalizadosFueraDeLista(analisis, historial, new Set(enBusqueda.map(x => x.item.id)), Date.now());
+    const lista = enBusqueda.concat(guardados);
     if (!lista.length){
       panel.hidden = true; vacio.hidden = false; analisisOutEl.innerHTML = '';
       return;
     }
     vacio.hidden = true; panel.hidden = false;
     if (!analisisSelId || !lista.some(x => x.item.id === analisisSelId)) analisisSelId = lista[0].item.id;
-    analisisSelectEl.innerHTML = lista.map(x => {
+    const opcion = x => {
       const et = x.item.entidad || 'Entidad';
       const rf = x.item.referencia ? ' [' + x.item.referencia + ']' : '';
       const marca = (analisis[x.item.id] ? '✓ ' : '') + (x.evaluacion ? '(' + x.evaluacion.mejor.veredicto + ') ' : '');
       return '<option value="' + escapeHtml(x.item.id) + '">' + marca + escapeHtml(truncate(et + ' — ' + x.item.objeto, 110) + rf) + '</option>';
-    }).join('');
+    };
+    analisisSelectEl.innerHTML = guardados.length
+      ? (enBusqueda.length ? '<optgroup label="En tu búsqueda actual">' + enBusqueda.map(opcion).join('') + '</optgroup>' : '') +
+        '<optgroup label="Analizados antes (ya no salen en la búsqueda)">' + guardados.map(opcion).join('') + '</optgroup>'
+      : enBusqueda.map(opcion).join('');
     analisisSelectEl.value = analisisSelId;
     const sel = lista.find(x => x.item.id === analisisSelId);
     const entry = analisis[analisisSelId];
@@ -10403,7 +10482,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // viendo datos de ejemplo", la misma confirmación de declaraciones y el mismo nombre
   // de archivo -- en vez de dos copias que podrían desincronizarse.
   function descargarCartaDeProceso(id, perfilId){
-    const s = (lastScored || []).find(x => x.item.id === id);
+    const s = procesoPorId(id);
     const p = perfiles[perfilId];
     if (!s || !p) return;
     if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera la carta de un proceso que no existe. Haz una búsqueda real primero.'); return; }
@@ -10411,7 +10490,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     descargarTexto('carta-presentacion-' + slugArchivo(p.nombre) + '-' + slugArchivo((s.item.referencia || s.item.entidad)) + '.txt', generarCartaTexto(migrarPerfil(p), s.item) + '\n\n[Nota interna -- borra esto antes de presentar] Datos del proceso. ' + pieFuenteActual());
   }
   function descargarPaqueteDeProceso(id, perfilId){
-    const s = (lastScored || []).find(x => x.item.id === id);
+    const s = procesoPorId(id);
     const p = perfiles[perfilId];
     if (!s || !p) return;
     if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se genera el paquete de un proceso que no existe. Haz una búsqueda real primero.'); return; }
@@ -10713,7 +10792,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const cartaBtn = e.target.closest('.eval-carta-btn');
     const paqueteBtn = e.target.closest('.eval-paquete-btn');
     if (infBtn){
-      const s = (lastScored || []).find(x => x.item.id === infBtn.getAttribute('data-eval-id'));
+      const s = procesoPorId(infBtn.getAttribute('data-eval-id'));
       if (!s) return;
       const entryInf = analisis[s.item.id];
       // Se recalcula (nunca el caché del último render): el análisis pudo cambiar después.
@@ -10730,7 +10809,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return;
     }
     if (adjBtn){
-      const s = (lastScored || []).find(x => x.item.id === adjBtn.getAttribute('data-eval-id'));
+      const s = procesoPorId(adjBtn.getAttribute('data-eval-id'));
       if (!s) return;
       const slot = adjBtn.closest('.fold-body').querySelector('.eval-adj-slot');
       slot.innerHTML = '<div class="analysis-loading">Consultando adjudicaciones de la entidad…</div>';
@@ -11576,8 +11655,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // duplicar la lógica de extracción/OCR/IA.
   const esSoloEPPendiente = {};
 
+  // Busca un proceso por id: primero en la búsqueda actual (completa, no solo lo dibujado) y, si ya no está,
+  // lo reconstruye del resumen guardado con su análisis o con el pipeline (F-04).
+  function procesoPorId(id){
+    const enBusqueda = (lastScoredTodos || []).concat(lastScored || []).find(x => x.item && x.item.id === id);
+    if (enBusqueda) return enBusqueda;
+    if (!analisis[id]) return null;
+    return procesosAnalizadosFueraDeLista({ [id]: analisis[id] }, historial, new Set(), Date.now())[0] || null;
+  }
+
   function itemYScorePara(id){
-    const s = (lastScored || []).find(x => x.item && x.item.id === id);
+    const s = procesoPorId(id);
     return { item: s ? s.item : null, s: s || null };
   }
 
@@ -11650,7 +11738,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const agregarPipelineBtn = e.target.closest('[data-agregar-pipeline]');
     if (agregarPipelineBtn){
       const id = agregarPipelineBtn.getAttribute('data-agregar-pipeline');
-      const s = (lastScored || []).find(x => x.item.id === id);
+      const s = procesoPorId(id);
       if (s) agregarAPipeline(id, s.item);
       rerender();
       return;
@@ -12064,7 +12152,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const id = informeBtn.getAttribute('data-informe-id');
       const entry = analisis[id];
       if (!entry){ alert('No se encontró el análisis para generar el informe. Vuelve a analizar el pliego.'); return; }
-      const s = (lastScored || []).find(x => x.item && x.item.id === id);
+      const s = procesoPorId(id);
       const it = s ? s.item : null;
       const texto = informeAnalisisTexto(entry, it, s);
       if (informeBtn.classList.contains('analysis-informe-copy-btn')){
