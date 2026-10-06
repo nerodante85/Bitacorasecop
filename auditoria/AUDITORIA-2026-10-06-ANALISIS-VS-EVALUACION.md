@@ -88,7 +88,8 @@ La pantalla "Evaluación y documentos" se fusionó en "Análisis de pliegos" (ra
 | F-02 (textos obsoletos) | **CERRADO** | 12 textos corregidos; la prueba nueva falla si reaparece alguno de los viejos. |
 | Solapamiento | **CERRADO** | Un solo veredicto por proceso; menú de 7 ítems; una `ultima_vista` guardada como `evaluacion` abre "Análisis de pliegos". |
 | F-03 (sin aviso de datos de ejemplo/respaldo) | **CERRADO** | `avisoFuenteDatos` + banner en "Análisis de pliegos". Navegador real: con snapshot de respaldo (consulta a datos.gov.co bloqueada) y con datos de ejemplo el aviso se ve; con datos en vivo (respuesta simulada) no aparece; sin desborde a 375 px. Prueba nueva verificada por dos mutaciones. |
-| F-04, F-05, F-06, F-07, F-08, F-09 | **ABIERTOS** | No se tocaron. |
+| F-04 (análisis guardado inaccesible fuera de la búsqueda) | **CERRADO** | Cada análisis guarda ahora un resumen del proceso (`proceso`: entidad, objeto, valor, plazo, enlace…, con cuándo y con qué datos se vio); los anteriores lo reciben la primera vez que su proceso reaparece en una búsqueda. El selector de "Análisis de pliegos" suma el grupo "Analizados antes (ya no salen en la búsqueda)" (resumen propio → del Pipeline → "sin datos guardados", nunca inventado) y usa la búsqueda completa, no solo las 40 tarjetas dibujadas. Navegador real: tras cambiar la búsqueda el proceso se abre con su análisis, informe y carta; nota "el plazo y el estado pueden haber cambiado". Prueba nueva verificada con 3 mutaciones. |
+| F-05, F-06, F-07, F-08, F-09 | **ABIERTOS** | No se tocaron. |
 
 Regresión encontrada y corregida durante la fusión: con una sola empresa y sin pliego analizado desaparecían la carta y el paquete por empresa (la pantalla vieja sí los ofrecía). Prueba nueva verificada por mutación.
 No verificado: adjudicaciones en vivo (sin red a datos.gov.co en el sandbox), sitio publicado y lectura real de un pliego con IA.
