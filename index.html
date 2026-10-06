@@ -280,6 +280,7 @@
   /* Instrument Serif itálica solo aquí: es el único título de página real
      ("folio"). El resto de encabezados (título de tarjeta, etc.) se quedan
      en IBM Plex Sans -- son de UI, no "display". */
+  #bitacora-root .view h1:focus, #bitacora-root .view:focus { outline: none; } /* destino de foco por código (F-05), no es un control */
   #bitacora-root .view-header h1 {
     margin: 0 0 5px; font-size: 28px; letter-spacing: 0;
     font-family: 'Outfit', sans-serif; font-weight: 500; letter-spacing: -0.02em; line-height: 1.05;
@@ -12280,7 +12281,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const navToggleEl = document.getElementById('bt-nav-toggle');
   const navToggleLabelEl = document.getElementById('bt-nav-toggle-label');
 
-  function mostrarVista(nombre){
+  function mostrarVista(nombre, opciones){
     if (nombre === 'evaluacion') nombre = 'analisis'; // la pantalla "Evaluación y documentos" se fusionó con "Análisis de pliegos"
     if (VISTAS.indexOf(nombre) === -1) nombre = 'dashboard';
     VISTAS.forEach(v => {
@@ -12327,6 +12328,24 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     if (nombre === 'pipeline') renderPipelineView();
     if (nombre === 'analisis') renderAnalisisView();
+    // F-05 (auditoría 2026-10-06): al pulsar un botón de una vista que se oculta (p. ej. "Analizar pliego →"),
+    // el foco caía al <body> y quien navega con teclado o lector de pantalla perdía su lugar. Si el foco se
+    // perdió, pasa al título de la vista nueva. NO se mueve cuando sigue en un control visible: así las
+    // flechas del menú (que enfocan la pestaña y luego cambian de vista) siguen funcionando. La carga inicial
+    // pasa { enfocar: false } para no robar el foco al abrir la página.
+    if (!(opciones && opciones.enfocar === false)){
+      const activo = document.activeElement;
+      const vistaDelActivo = activo && activo.closest ? activo.closest('.view') : null;
+      const perdido = !activo || activo === document.body || (vistaDelActivo && vistaDelActivo.hidden) || !activo.getClientRects().length;
+      if (perdido){
+        const sec = document.getElementById('view-' + nombre);
+        const titulo = sec && (sec.querySelector('h1') || sec);
+        if (titulo){
+          titulo.setAttribute('tabindex', '-1');
+          titulo.focus({ preventScroll: true });
+        }
+      }
+    }
   }
 
   // Indicador de los 5 pasos del flujo principal (Experiencia → Análisis →
@@ -12650,7 +12669,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (v === 'evaluacion') v = 'analisis';
     if (v && VISTAS.indexOf(v) !== -1) vistaInicial = v;
   } catch(e){ /* nada */ }
-  mostrarVista(vistaInicial);
+  mostrarVista(vistaInicial, { enfocar: false });
 
   // Carga automática al abrir la página: intenta en vivo, y si falla (p.ej.
   // corriendo dentro de un artifact de Claude.ai) cae al snapshot embebido.

@@ -100,6 +100,7 @@ sincronización, Edge Functions de IA y correo).
 - Reutiliza clases existentes (`.titleblock`, `.row`, `.tag`, `.analysis-*`, `.expeval-*`, `.stat-card`, `.info-tip`,
   `.analysis-fold`) antes de crear CSS nuevo. Si cambias el texto de un botón, busca dónde el JS reescribe su `textContent`.
 - Cada ítem nuevo de navegación obliga a volver a medir el menú en celular.
+- `mostrarVista(nombre, { enfocar:false })`: si el foco se perdió al cambiar de vista (cuerpo, vista oculta o control que dejó de verse), pasa al `h1` de la vista nueva (`tabindex=-1`); nunca se mueve si sigue en un control visible (las flechas del menú dependen de eso) y la carga inicial no lo roba.
 
 ## Cosas aprendidas por las malas (no las repitas)
 
