@@ -578,8 +578,7 @@
     border-radius: var(--radius-sm); padding: 3px 12px;
     border: 1px solid currentColor;
   }
-  #bitacora-root #bt-eval-out:empty { display: none; }
-  #bitacora-root #bt-eval-out .analysis-list li { margin-bottom: 6px; }
+  #bitacora-root #bt-analisis-out .analysis-list li { margin-bottom: 6px; }
   #bitacora-root .eval-adj-slot:empty { display: none; }
 
   /* Auditoría UX/UI: los sellos GO/REVISAR/NO-GO y ALTA/MEDIA/BAJA solo
@@ -1185,10 +1184,6 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/></svg>
           <span class="nav-label">Personal</span>
         </button>
-        <button class="nav-item" type="button" id="bt-nav-evaluacion" data-view="evaluacion" role="tab" aria-selected="false" aria-controls="view-evaluacion" title="Evaluación y documentos" aria-label="Evaluación y documentos">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-          <span class="nav-label">Evaluación y documentos</span>
-        </button>
         <button class="nav-item" type="button" id="bt-nav-pipeline" data-view="pipeline" role="tab" aria-selected="false" aria-controls="view-pipeline" title="Pipeline" aria-label="Pipeline">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="10" rx="1"/><rect x="16" y="4" width="5" height="13" rx="1"/></svg>
           <span class="nav-label">Pipeline</span>
@@ -1223,7 +1218,7 @@
               <li><button type="button" class="primeros-pasos-item" data-view="perfil"><span class="primeros-pasos-num">1</span><span><strong>Perfil de la empresa</strong> — carga el RUP o completa tu ficha (clasificación y capacidad financiera).</span></button></li>
               <li><button type="button" class="primeros-pasos-item" data-view="experiencia"><span class="primeros-pasos-num">2</span><span><strong>Experiencia</strong> — sube la experiencia acreditada de tu empresa (se compara automáticamente contra cada pliego que analices).</span></button></li>
               <li><button type="button" class="primeros-pasos-item" data-view="personal"><span class="primeros-pasos-num">3</span><span><strong>Personal</strong> — registra al menos un profesional de tu equipo de trabajo.</span></button></li>
-              <li><button type="button" class="primeros-pasos-item" data-view="buscar"><span class="primeros-pasos-num">4</span><span><strong>Buscar procesos</strong> — encuentra licitaciones abiertas y analiza el pliego que te interese.</span></button></li>
+              <li><button type="button" class="primeros-pasos-item" data-view="buscar"><span class="primeros-pasos-num">4</span><span><strong>Buscar procesos</strong> — encuentra licitaciones abiertas; luego analiza el pliego que te interese en "Análisis de pliegos".</span></button></li>
             </ol>
             <!-- Auditoría UX/UI (arquitectura de información, hallazgo MEDIO): el orden del
                  sidebar (Buscar procesos en la posición más prominente, antes de Perfil/
@@ -1312,10 +1307,10 @@
               <div class="quick-card-title">Personal</div>
               <div class="quick-card-desc">Registra el equipo de trabajo que puede acreditarse frente al personal mínimo de un pliego.</div>
             </button>
-            <button class="quick-card" type="button" data-view="evaluacion">
+            <button class="quick-card" type="button" data-view="analisis">
               <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
-              <div class="quick-card-title">Evaluación y documentos</div>
-              <div class="quick-card-desc">Revisa el veredicto detallado de un proceso y genera tu carta de presentación y paquete de propuesta.</div>
+              <div class="quick-card-title">Análisis de pliegos</div>
+              <div class="quick-card-desc">Analiza el pliego de un proceso, mira el veredicto detallado y genera tu carta de presentación y paquete de propuesta.</div>
             </button>
             <button class="quick-card" type="button" data-view="pipeline">
               <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="10" rx="1"/><rect x="16" y="4" width="5" height="13" rx="1"/></svg></div>
@@ -1634,7 +1629,7 @@
         <section class="view" id="view-experiencia" data-view="experiencia" role="tabpanel" aria-labelledby="bt-nav-experiencia" hidden>
           <div class="view-header">
             <h1>Experiencia</h1>
-            <p>Carga la experiencia acreditada de tu empresa. Si vas a participar en consorcio o unión temporal, cada empresa carga su propio archivo aquí -- al evaluar un pliego se suman los contratos de las empresas marcadas para comparar (ver "Perfil de la empresa"). Los requisitos que exige cada proceso se extraen automáticamente del Pliego de Condiciones y/o Estudio Previo al analizar ese pliego, en "Buscar procesos" -- ya no hace falta preparar una matriz aparte.</p>
+            <p>Carga la experiencia acreditada de tu empresa. Si vas a participar en consorcio o unión temporal, cada empresa carga su propio archivo aquí -- al evaluar un pliego se suman los contratos de las empresas marcadas para comparar (ver "Perfil de la empresa"). Los requisitos que exige cada proceso se extraen automáticamente del Pliego de Condiciones y/o Estudio Previo al analizar ese pliego, en "Análisis de pliegos" -- ya no hace falta preparar una matriz aparte.</p>
           </div>
 
           <div class="empty" id="bt-exp-sin-perfiles" hidden>Todavía no tienes ninguna empresa guardada. Ve a "Perfil de la empresa" y crea al menos una antes de cargar su experiencia. <button type="button" class="link-btn" data-ir-a="perfil">Ir a Perfil de la empresa</button></div>
@@ -1660,7 +1655,7 @@
           <div class="titleblock" id="bt-expeval-panel">
             <div class="titleblock-head">
               <h2>Experiencia acreditada de tu empresa</h2>
-              <span>Se compara, requisito por requisito, contra lo que exija el Pliego/Estudio Previo de cada proceso que analices en "Buscar procesos"</span>
+              <span>Se compara, requisito por requisito, contra lo que exija el Pliego/Estudio Previo de cada proceso que analices en "Análisis de pliegos"</span>
             </div>
 
             <div class="expeval-uploads">
@@ -1687,7 +1682,7 @@
               <button class="link-btn" id="bt-expeval-clear" style="display:none">Borrar lo cargado</button>
             </div>
           </div>
-          <div class="saved-note" id="bt-expeval-siguiente-paso" hidden>Ya cargaste tu experiencia. Siguiente paso: ve a "Personal" para registrar el equipo de trabajo, y después a "Buscar procesos" para analizar el pliego que te interese -- ahí se extraen los requisitos y se evalúa el cumplimiento.</div>
+          <div class="saved-note" id="bt-expeval-siguiente-paso" hidden>Ya cargaste tu experiencia. Siguiente paso: ve a "Personal" para registrar el equipo de trabajo, y después a "Buscar procesos" para elegir un proceso y a "Análisis de pliegos" para analizar su pliego -- ahí se extraen los requisitos y se evalúa el cumplimiento.</div>
         </section>
 
         <section class="view" id="view-personal" data-view="personal" role="tabpanel" aria-labelledby="bt-nav-personal" hidden>
@@ -1754,13 +1749,13 @@
               <div class="empty-inline">Todavía no has registrado ningún perfil profesional.</div>
             </div>
           </div>
-          <div class="saved-note" id="bt-personal-siguiente-paso" hidden>Siguiente paso: ve a "Buscar procesos" para analizar el pliego que te interese — ahí verás cuándo está todo listo.</div>
+          <div class="saved-note" id="bt-personal-siguiente-paso" hidden>Siguiente paso: ve a "Buscar procesos", elige un proceso y analiza su pliego en "Análisis de pliegos" — ahí verás cuándo está todo listo.</div>
         </section>
 
         <section class="view" id="view-analisis" data-view="analisis" role="tabpanel" aria-labelledby="bt-nav-analisis" hidden>
           <div class="view-header">
             <h1>Análisis de pliegos</h1>
-            <p>Aquí analizas el pliego (o el Estudio Previo) del proceso que elijas en "Buscar procesos": veredicto, requisitos, experiencia, cronograma, riesgos y documentos de propuesta. La lista de procesos se queda solo con lo esencial.</p>
+            <p>Aquí analizas el pliego (o el Estudio Previo) del proceso que elijas en "Buscar procesos": veredicto, requisitos, experiencia, cronograma y riesgos; la comparación por empresa, la carta y el paquete de propuesta, y las adjudicaciones históricas de la entidad con una sugerencia de oferta. La lista de procesos se queda solo con lo esencial.</p>
           </div>
           <div class="empty" id="bt-analisis-empty">Todavía no hay procesos para analizar. Ve a "Buscar procesos", aplica una búsqueda y usa "Analizar pliego →" en el proceso que te interese. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
           <div class="titleblock" id="bt-analisis-panel" hidden>
@@ -1773,30 +1768,6 @@
             </div>
           </div>
           <div id="bt-analisis-out"></div>
-        </section>
-
-        <section class="view" id="view-evaluacion" data-view="evaluacion" role="tabpanel" aria-labelledby="bt-nav-evaluacion" hidden>
-          <div class="view-header">
-            <h1>Evaluación y documentos</h1>
-            <p>Cruza un proceso puntual con la ficha de tus perfiles de empresa, obtén un veredicto detallado y genera tus documentos de propuesta. Ese mismo veredicto y sus botones de documentos también aparecen directo en la tarjeta de "Buscar procesos" al analizar el pliego -- esta pantalla suma la sugerencia de oferta económica y las adjudicaciones históricas de la entidad.</p>
-          </div>
-
-          <div class="empty" id="bt-eval-empty">Todavía no hay procesos para evaluar. Ve a "Buscar procesos" y aplica una búsqueda primero.</div>
-
-          <div class="titleblock" id="bt-eval-panel" style="display:none">
-            <div class="titleblock-head">
-              <h2>Evaluación go / no-go</h2>
-              <span>Cruza un proceso con la matriz de capacidad de los perfiles marcados</span>
-            </div>
-            <div class="perfil-switcher">
-              <div class="field">
-                <label for="bt-eval-select">Proceso a evaluar</label>
-                <select id="bt-eval-select"></select>
-              </div>
-              <button class="btn-primary" id="bt-eval-run">Evaluar</button>
-            </div>
-            <div id="bt-eval-out"></div>
-          </div>
         </section>
 
         <section class="view" id="view-pipeline" data-view="pipeline" role="tabpanel" aria-labelledby="bt-nav-pipeline" hidden>
@@ -1826,7 +1797,7 @@
           <p data-help-view="buscar">El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos" (RUP/clasificador y Capacidad K), empresa por empresa; el requisito de experiencia que detecta en el texto se muestra igual, pero si lo cumples o no sale de "Experiencia", no de este perfil. Desde el resultado puedes descargar o copiar un informe detallado.</p>
           <p data-help-view="buscar">Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto, más el resultado de la evaluación de experiencia si ya la corriste; esto también es orientativo. Los procesos revisados que vencen en 3 días o menos se resaltan en rojo. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.</p>
           <p data-help-view="buscar">Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes). Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados, más el resultado de "Experiencia" (CUMPLE/NO CUMPLE/NO DETERMINABLE), que es el mismo para cualquier perfil comparado. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist.</p>
-          <p data-help-view="evaluacion">En "Evaluación" ves el veredicto detallado por empresa con una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.</p>
+          <p data-help-view="analisis">En "Análisis de pliegos" ves, junto al análisis del pliego, una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), el veredicto por empresa cuando comparas varias, y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.</p>
           <p data-help-view="buscar">"Buscar procesos" solo consulta SECOP II — SECOP I es casi todo histórico (contratos ya cerrados) desde que los procesos nuevos migraron a SECOP II en 2021, así que no aporta oportunidades abiertas reales. Sí se usa en "Ver adjudicaciones de esta entidad", para ampliar el historial de contratación más atrás de lo que cubre SECOP II.</p>
         </div>
       </div>
@@ -2572,10 +2543,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const hideDiscardedEl = document.getElementById('bt-hide-discarded');
   const hideNoGoEl = document.getElementById('bt-hide-nogo');
   const estadoTogglesEl = document.getElementById('bt-estado-toggles');
-  const evalPanelEl = document.getElementById('bt-eval-panel');
-  const evalSelectEl = document.getElementById('bt-eval-select');
-  const evalRunBtn = document.getElementById('bt-eval-run');
-  const evalOutEl = document.getElementById('bt-eval-out');
   const clearHistorialBtn = document.getElementById('bt-clear-historial');
   const exportCsvBtn = document.getElementById('bt-export-csv');
   const copySummaryBtn = document.getElementById('bt-copy-summary');
@@ -7816,7 +7783,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // ahí buscaba un botón que no existe en esa pantalla. Apunta ahora a
     // "Buscar procesos", que es donde sí vive ese control.
     return !m.conPliego
-      ? 'Evaluación preliminar, sin pliego analizado. Ve a "Buscar procesos" y sube/analiza el PDF del pliego de este proceso para saber con certeza si vale la pena participar.'
+      ? 'Evaluación preliminar, sin pliego analizado. Ve a "Análisis de pliegos" y sube/analiza el PDF del pliego de este proceso para saber con certeza si vale la pena participar.'
       : 'Antes de decidir, confirma' + quien + ': ' + (revisar.length ? revisar.join(', ') : 'los puntos marcados como "revisar"') + '.';
   }
 
@@ -7863,58 +7830,65 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // documentado en CLAUDE.md) -- distinto de "nunca se analizó".
       return 'El pliego de este proceso ya se analizó, pero no se detectó ningún requisito de experiencia verificable en el texto extraído. ' + puntero;
     }
-    return 'Analiza el pliego de este proceso en "Buscar procesos" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
+    return 'Analiza el pliego de este proceso en "Análisis de pliegos" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
   }
 
   const EVAL_ICONO = { ok: '✅', fail: '❌', revisar: '⚠', nd: '·' };
-  function evalDetalleHtml(item, res, entry){
-    if (!res) return '<div class="analysis-block analysis-warn">No hay perfiles para evaluar. Marca al menos uno en "Comparar en el análisis de pliegos".</div>';
+  // Antes vivía en la pantalla "Evaluación y documentos" (fusionada con "Análisis de pliegos"): la
+  // recomendación de una línea, la participación en consorcio, el veredicto POR EMPRESA con sus
+  // documentos, el informe y el contexto de la entidad (adjudicaciones + sugerencia de oferta).
+  // Se dibuja DENTRO de la tarjeta de análisis (renderAnalysisHtml / renderSinPliegoHtml), así que se
+  // redibuja con ella y nunca queda un veredicto viejo (hallazgo F-01 de la auditoría 2026-10-06).
+  // Con una sola empresa comparada el detalle por criterio ya está en "Detalle del veredicto" y los
+  // botones de carta/paquete en el resumen: no se repiten.
+  function evalSeccionesHtml(item, res, entry){
+    if (!res) return '';
+    const varias = res.porPerfil.length > 1;
+    // Con pliego analizado y una sola empresa, el detalle por criterio y la carta/paquete ya están en el
+    // resumen de la tarjeta; sin pliego (evaluación ligera) no hay resumen, así que se ofrecen aquí.
+    const mostrarEmpresas = varias || !entry;
     const bloquePerfil = r => {
       const filas = r.gates.map(x =>
-        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry, 'Ver el detalle completo en "Buscar procesos", dentro del análisis de este pliego.') : x.detalle) + '</li>'
+        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry, 'Ver el detalle completo en "Análisis de pliegos", en la sección "Experiencia requerida" de este pliego.') : x.detalle) + '</li>'
       ).join('');
       const cls = r.veredicto === 'GO' ? 'eval-go' : r.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
-      // El botón de carta es POR PERFIL (r.perfilId) porque los datos de NIT/
-      // representante/contacto son de una empresa puntual, a diferencia de
-      // "Descargar evaluación" (que es del proceso completo, con todos los
-      // perfiles comparados). Sin perfilId (perfil eliminado entre que se
-      // corrió la evaluación y ahora) no se muestra, en vez de romper.
-      const cartaBtn = r.perfilId
-        ? ' <button type="button" class="link-btn eval-carta-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(r.perfilId) + '">⬇ Generar carta de presentación (.txt)</button>'
-        : '';
-      // Mismo criterio que cartaBtn (por perfil, no por proceso) -- el
-      // paquete completo incluye la carta, así que necesita los mismos
-      // datos de NIT/representante/contacto de UNA empresa puntual.
-      const paqueteBtn = r.perfilId
-        ? ' <button type="button" class="link-btn eval-paquete-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(r.perfilId) + '">📦 Generar paquete de propuesta (.txt)</button>'
+      // Carta y paquete son POR PERFIL (r.perfilId): NIT, representante y contacto son de una empresa
+      // puntual. Sin perfilId (perfil eliminado entre que se calculó y ahora) no se muestran.
+      const docs = r.perfilId
+        ? '<div class="mb-8"><button type="button" class="link-btn eval-carta-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(r.perfilId) + '">⬇ Generar carta de presentación (.txt)</button> ' +
+          '<button type="button" class="link-btn eval-paquete-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(r.perfilId) + '">📦 Generar paquete de propuesta (.txt)</button></div>'
         : '';
       return '<div class="analysis-sub">' + escapeHtml(r.perfil) + ' — <span class="eval-verdict ' + cls + '">' + r.veredicto + '</span>' +
-        (r.conPliego ? '' : ' <span style="color:var(--text-muted);font-weight:400;">(evaluación ligera — sin pliego analizado)</span>') + '</div>' +
-        '<ul class="analysis-list">' + filas + '</ul>' +
-        '<div style="margin:-4px 0 10px;">' + cartaBtn + paqueteBtn + '</div>';
+        (r.conPliego ? '' : ' <span class="text-muted-c">(evaluación ligera — sin pliego analizado)</span>') + '</div>' +
+        '<ul class="analysis-list">' + filas + '</ul>' + docs;
     };
     const notas = notasParticipacion(entry);
     const notasHtml = notas.length
       ? '<div class="analysis-sub">PARTICIPACIÓN EN CONSORCIO / UNIÓN TEMPORAL (del pliego, informativo)</div>' +
         '<ul class="analysis-list">' + notas.map(n => '<li>' + escapeHtml(n) + '</li>').join('') + '</ul>'
       : '';
-    return '<div class="analysis-block' + (res.mejor.veredicto === 'NO-GO' ? ' analysis-warn' : '') + '">' +
-      '<div class="analysis-head">' + escapeHtml(truncate(item.entidad, 90)) + ' — veredicto: ' +
-        '<span class="eval-verdict ' + (res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar') + '">' + res.mejor.veredicto + '</span>' +
-        (res.porPerfil.length > 1 ? ' <span style="color:var(--text-muted);font-weight:400;">(mejor de ' + res.porPerfil.length + ' perfiles)</span>' : '') + '</div>' +
-      (lecturaParcial(entry)
-        ? '<div class="my-8 analysis-block analysis-warn">⚠ Este veredicto se calculó con solo ' + entry.pagesRead + ' de ' + entry.numPages + ' páginas del pliego leídas' + (metodoLecturaDe(entry) ? ' por ' + metodoLecturaDe(entry) : '') + ' -- el resto todavía no se ha analizado y podría cambiar el resultado. Ve a "Buscar procesos" y usa "Seguir leyendo más páginas" antes de decidir.</div>'
-        : '') +
+    const cuerpoEmpresa =
       '<div class="analysis-sub">RECOMENDACIÓN</div><div class="mb-8">' + escapeHtml(resumenEjecutivo(res)) + '</div>' +
       notasHtml +
-      res.porPerfil.map(bloquePerfil).join('') +
-      '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">' +
-        '<button class="link-btn eval-informe-btn" data-eval-id="' + escapeHtml(item.id) + '">⬇ Descargar evaluación (.txt)</button>' +
-        '<button class="link-btn eval-adj-btn" data-eval-id="' + escapeHtml(item.id) + '">Ver adjudicaciones de esta entidad</button>' +
-      '</div>' +
+      (mostrarEmpresas ? res.porPerfil.map(bloquePerfil).join('') : '') +
+      '<div class="mb-8"><button type="button" class="link-btn eval-informe-btn" data-eval-id="' + escapeHtml(item.id) + '">⬇ Descargar evaluación (.txt)</button></div>';
+    const cuerpoEntidad =
+      '<div class="mb-8"><button type="button" class="link-btn eval-adj-btn" data-eval-id="' + escapeHtml(item.id) + '">Ver adjudicaciones de esta entidad</button></div>' +
       '<div class="eval-adj-slot"></div>' +
-      '<div class="analysis-disclaimer">Semáforo orientativo por coincidencia de palabras clave y umbrales detectados en el pliego. No valida jurídicamente los requisitos ni reemplaza el criterio del proponente. ' + escapeHtml(pieFuenteActual()) + '</div>' +
-    '</div>';
+      '<div class="analysis-disclaimer">Semáforo orientativo por coincidencia de palabras clave y umbrales detectados en el pliego. No valida jurídicamente los requisitos ni reemplaza el criterio del proponente. ' + escapeHtml(pieFuenteActual()) + '</div>';
+    return seccionPlegable('Recomendación y comparación por empresa', varias ? res.porPerfil.length + ' empresas' : 'recomendación', cuerpoEmpresa, false) +
+      seccionPlegable('Contexto de la entidad: adjudicaciones y oferta', 'bajo demanda', cuerpoEntidad, false);
+  }
+
+  // Tarjeta de análisis de un proceso SIN pliego analizado todavía: la evaluación ligera (valor, plazo,
+  // estado, perfiles) y las mismas secciones; el análisis completo llega al cargar el pliego.
+  function renderSinPliegoHtml(item, s){
+    foldCtxId = item.id;
+    const res = evaluarMejor(item, { daysLeft: s.daysLeft }, undefined);
+    if (!res) return '<div class="analysis-block analysis-warn">No hay perfiles para evaluar. Marca al menos uno en "Comparar en el análisis de pliegos" (Perfil de la empresa). <button class="link-btn" data-ir-a="perfil">Ir a Perfil de la empresa</button></div>';
+    const cls = res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
+    return '<div class="analysis-resumen"><div class="analysis-head">Evaluación preliminar (sin pliego analizado): <span class="eval-verdict ' + cls + '">' + res.mejor.veredicto + '</span></div></div>' +
+      evalSeccionesHtml(item, res, undefined);
   }
 
   function informeEvalTexto(item, res, entry){
@@ -8198,7 +8172,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('════════════════════════════════════════════════════════');
     L.push('[NOTAS INTERNAS -- borra desde aquí antes de presentar]');
     if (!hayResultados){
-      L.push('Todavía no se evaluó la experiencia de este proceso. Ve a "Buscar procesos", analiza el pliego y evalúa la experiencia; luego vuelve a generar el paquete.');
+      L.push('Todavía no se evaluó la experiencia de este proceso. Ve a "Análisis de pliegos", analiza el pliego y evalúa la experiencia; luego vuelve a generar el paquete.');
     } else {
       L.push('Autoevaluación automática (orientativa, del motor de "Experiencia requerida"): ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' + ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' + ev.resultados.length + ' requisito(s)).');
       ev.resultados.forEach((r, i) => { if (r.resultado !== 'CUMPLE') L.push('  - Requisito ' + (i + 1) + ': ' + r.resultado + ' -- ' + truncate(r.justificacion || '', 220)); });
@@ -8735,49 +8709,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const desde = fmtDate(rango.desde), hasta = fmtDate(rango.hasta);
     const periodo = desde === hasta ? desde : (desde + ' a ' + hasta);
     return ', entre ' + periodo + (rango.sinFecha ? ' -- ' + rango.sinFecha + ' de la muestra sin fecha reconocida' : '');
-  }
-
-  // Llena el desplegable de la sección de evaluación con los procesos en pantalla.
-  // Si no hay ninguno (aún no se buscó nada), se muestra un mensaje en vez de
-  // dejar la vista "Evaluación" completamente vacía.
-  function poblarEvalSelect(scored){
-    if (!evalSelectEl) return;
-    const emptyEl = document.getElementById('bt-eval-empty');
-    if (!scored || !scored.length){
-      evalPanelEl.style.display = 'none';
-      if (emptyEl) emptyEl.style.display = 'block';
-      return;
-    }
-    if (emptyEl) emptyEl.style.display = 'none';
-    evalPanelEl.style.display = 'block';
-    const prev = evalSelectEl.value;
-    evalSelectEl.innerHTML = scored.map(s => {
-      const v = s.evaluacion ? s.evaluacion.mejor.veredicto : '';
-      const et = s.item.entidad || 'Entidad';
-      const rf = s.item.referencia ? ' [' + s.item.referencia + ']' : '';
-      return '<option value="' + escapeHtml(s.item.id) + '">' + (v ? '(' + v + ') ' : '') + escapeHtml(truncate(et + ' — ' + s.item.objeto, 110) + rf) + '</option>';
-    }).join('');
-    if (prev && scored.some(s => s.item.id === prev)) evalSelectEl.value = prev;
-  }
-
-  // Auditoría UX/UI: recalcula SIEMPRE en vez de preferir `s.evaluacion`
-  // (el veredicto cacheado en el último render de la lista, ver 6020) --
-  // ese caché queda obsoleto en cuanto se analiza un pliego DESPUÉS de esa
-  // búsqueda (el análisis solo redibuja la tarjeta, no vuelve a correr
-  // render()). Bug real confirmado: "Buscar procesos" mostraba el
-  // análisis completo de un pliego ya analizado, pero "Evaluación" para
-  // ese MISMO proceso seguía diciendo "sin pliego analizado". Este panel
-  // evalúa un solo proceso a la vez por clic explícito -- recalcular aquí
-  // es barato, a diferencia del render de la lista completa (esa sí sigue
-  // cacheando `s.evaluacion` a propósito, por costo).
-  function runEvaluacion(){
-    if (!evalOutEl) return;
-    const id = evalSelectEl.value;
-    const s = (lastScored || []).find(x => x.item.id === id);
-    if (!s){ evalOutEl.innerHTML = '<div class="analysis-block analysis-warn">Elige un proceso de la lista.</div>'; return; }
-    const entry = analisis[id];
-    const res = evaluarMejor(s.item, { daysLeft: s.daysLeft }, entry);
-    evalOutEl.innerHTML = evalDetalleHtml(s.item, res, entry);
   }
 
   // Resumen de coincidencia de UN perfil: K, K residual, RUP/clasificador.
@@ -9425,6 +9356,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         (entry.esSoloEP ? ' · <span class="tag" title="Sin Pliego de Condiciones publicado todavía">Estudio Previo</span>' : '') +
         ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
       resumenArriba + secciones +
+      (evalParaCompat ? evalSeccionesHtml(item, evalParaCompat, entry) : '') +
       seccionPlegable('Lectura y avisos', entry.pagesRead + '/' + entry.numPages + ' págs · ' + (metodoLecturaDe(entry) || 'texto del PDF'), lecturaHtml, parcialLect) +
     '</div>';
   }
@@ -9780,7 +9712,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (goCount || nogoCount) countText += ' · ' + goCount + ' cumplen lo revisado / ' + nogoCount + ' no cumplen';
     countEl.textContent = countText;
     lastScored = scored;
-    poblarEvalSelect(scored);
     const vistaAnalisisEl = document.getElementById('view-analisis');
     if (vistaAnalisisEl && !vistaAnalisisEl.hidden) renderAnalisisView();
 
@@ -9837,7 +9768,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
     const analysisEntry = analisis[it.id];
     if (analysisEntry) analysisEntry.id = it.id; // backfill para análisis guardados antes de este cambio
-    const analysisHtml = (enAnalisis && analysisEntry) ? renderAnalysisHtml(analysisEntry, it, s) : '';
+    const analysisHtml = !enAnalisis ? '' : (analysisEntry ? renderAnalysisHtml(analysisEntry, it, s) : renderSinPliegoHtml(it, s));
     const analizarLabel = !flujoListoParaPliego
       ? '🔒 Analizar pliego (completa Experiencia y Personal)'
       : (analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)');
@@ -9932,7 +9863,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     analisisSelectEl.innerHTML = lista.map(x => {
       const et = x.item.entidad || 'Entidad';
       const rf = x.item.referencia ? ' [' + x.item.referencia + ']' : '';
-      const marca = analisis[x.item.id] ? '✓ ' : '';
+      const marca = (analisis[x.item.id] ? '✓ ' : '') + (x.evaluacion ? '(' + x.evaluacion.mejor.veredicto + ') ' : '');
       return '<option value="' + escapeHtml(x.item.id) + '">' + marca + escapeHtml(truncate(et + ' — ' + x.item.objeto, 110) + rf) + '</option>';
     }).join('');
     analisisSelectEl.value = analisisSelId;
@@ -10573,7 +10504,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // de experienciaGateDetalle() -- bug real corregido, ver CLAUDE.md).
     L.push('EXPERIENCIA (evaluación independiente — no varía por perfil)');
     L.push('  ' + textoExperienciaFueraDeAnalisis(experienciaGateDetalle(entry), entry,
-      'Descarga "Informe de experiencia (.txt)" desde la tarjeta de este pliego en "Buscar procesos" para el detalle completo por requisito.'));
+      'Descarga "Informe de experiencia (.txt)" desde la tarjeta de este pliego en "Análisis de pliegos" para el detalle completo por requisito.'));
     nl();
 
     // Requisitos habilitantes extraídos con IA (tabla de la tarjeta): una entrada por requisito,
@@ -10761,9 +10692,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   hideDiscardedEl.addEventListener('change', rerender);
   if (ordenEl) ordenEl.addEventListener('change', rerender);
   if (hideNoGoEl) hideNoGoEl.addEventListener('change', rerender);
-  if (evalRunBtn) evalRunBtn.addEventListener('click', runEvaluacion);
-  if (evalSelectEl) evalSelectEl.addEventListener('change', runEvaluacion);
-  if (evalOutEl) evalOutEl.addEventListener('click', async function(e){
+  enContenedoresDeProceso('click', async function manejarClickEvaluacion(e){
     const infBtn = e.target.closest('.eval-informe-btn');
     const adjBtn = e.target.closest('.eval-adj-btn');
     const cartaBtn = e.target.closest('.eval-carta-btn');
@@ -10772,7 +10701,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const s = (lastScored || []).find(x => x.item.id === infBtn.getAttribute('data-eval-id'));
       if (!s) return;
       const entryInf = analisis[s.item.id];
-      // Mismo fix que runEvaluacion() -- nunca preferir el caché obsoleto.
+      // Se recalcula (nunca el caché del último render): el análisis pudo cambiar después.
       const res = evaluarMejor(s.item, { daysLeft: s.daysLeft }, entryInf);
       descargarTexto('evaluacion-' + slugArchivo((s.item.referencia || s.item.entidad)) + '-' + new Date().toISOString().slice(0, 10) + '.txt', informeEvalTexto(s.item, res, entryInf));
       return;
@@ -10788,7 +10717,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (adjBtn){
       const s = (lastScored || []).find(x => x.item.id === adjBtn.getAttribute('data-eval-id'));
       if (!s) return;
-      const slot = adjBtn.closest('.analysis-block').querySelector('.eval-adj-slot');
+      const slot = adjBtn.closest('.fold-body').querySelector('.eval-adj-slot');
       slot.innerHTML = '<div class="analysis-loading">Consultando adjudicaciones de la entidad…</div>';
       try {
         const lista = await buscarAdjudicaciones(s.item.entidad);
@@ -12238,7 +12167,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // evaluación de experiencia siguen funcionando exactamente igual estén o no
   // a la vista).
   // ============================================================
-  const VISTAS = ['dashboard', 'buscar', 'analisis', 'perfil', 'experiencia', 'personal', 'evaluacion', 'pipeline'];
+  const VISTAS = ['dashboard', 'buscar', 'analisis', 'perfil', 'experiencia', 'personal', 'pipeline'];
   // Nav móvil (menú desplegable, ver CSS ≤560px): botón que abre/cierra
   // #bt-nav como panel + el <span> donde se refleja el nombre de la vista
   // activa. En desktop estos elementos existen igual en el DOM, pero el
@@ -12249,6 +12178,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const navToggleLabelEl = document.getElementById('bt-nav-toggle-label');
 
   function mostrarVista(nombre){
+    if (nombre === 'evaluacion') nombre = 'analisis'; // la pantalla "Evaluación y documentos" se fusionó con "Análisis de pliegos"
     if (VISTAS.indexOf(nombre) === -1) nombre = 'dashboard';
     VISTAS.forEach(v => {
       const sec = document.getElementById('view-' + v);
@@ -12319,7 +12249,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (el) el.className = 'step' + (estados[n] ? ' ' + estados[n] : '');
     });
     if (flujo.listo){
-      msgEl.innerHTML = '<div class="flujo-msg listo">✓ Ya puedes analizar cualquier pliego: baja a la lista de procesos y usa "Analizar pliego (PDF)" en la tarjeta que te interese.' +
+      msgEl.innerHTML = '<div class="flujo-msg listo">✓ Ya puedes analizar cualquier pliego: elige un proceso en "Buscar procesos", pulsa "Analizar pliego →" y súbelo en "Análisis de pliegos".' +
         (hayPliegoAnalizado ? ' Puedes repetirlo con cuantos procesos quieras.' : '') + '</div>';
     } else {
       const siguienteVista = !flujo.experienciaCargada ? 'experiencia' : 'personal';
@@ -12613,7 +12543,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Inicio si estabas trabajando en otra sección.
   let vistaInicial = 'dashboard';
   try {
-    const v = localStorage.getItem('bitacora_ultima_vista');
+    let v = localStorage.getItem('bitacora_ultima_vista');
+    if (v === 'evaluacion') v = 'analisis';
     if (v && VISTAS.indexOf(v) !== -1) vistaInicial = v;
   } catch(e){ /* nada */ }
   mostrarVista(vistaInicial);

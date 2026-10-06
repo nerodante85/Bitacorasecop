@@ -3428,7 +3428,7 @@ await check('Interfaz: la etiqueta "modificado por adenda" usa la variante discr
 await check('Interfaz: hay un landmark <main> que envuelve las vistas (lector de pantalla puede saltar al contenido)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   assert(/<main\b[^>]*>/.test(html) && /<\/main>/.test(html), 'falta <main>');
-  assert(html.indexOf('<main') < html.indexOf('id="view-dashboard"') && html.indexOf('</main>') > html.indexOf('id="view-evaluacion"'), '<main> debe envolver las vistas');
+  assert(html.indexOf('<main') < html.indexOf('id="view-dashboard"') && html.indexOf('</main>') > html.indexOf('id="view-pipeline"'), '<main> debe envolver las vistas');
 });
 await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el análisis del pliego vive en la vista "Análisis de pliegos"', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
@@ -3439,9 +3439,38 @@ await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el 
   const fn = html.slice(i, html.indexOf('function truncate(', i));
   assert(/data-ir-analisis/.test(fn), 'la tarjeta de la lista debe tener el botón que redirige al análisis');
   assert(/enAnalisis\s*\n?\s*\?\s*'<div class="row-actions">'[\s\S]*analysis-slot[\s\S]*:\s*'<div class="row-actions">'/.test(fn), 'el analysis-slot y los botones de pliego solo van en modo análisis');
-  assert(/enAnalisis && analysisEntry\) \? renderAnalysisHtml/.test(fn), 'el análisis completo solo se dibuja en modo análisis');
+  assert(/!enAnalisis \? '' : \(analysisEntry \? renderAnalysisHtml/.test(fn), 'el análisis completo solo se dibuja en modo análisis');
   assert(/tarjetaProcesoHtml\(s, flujoListoParaPliego, 'lista'\)/.test(html) && /tarjetaProcesoHtml\(s2, .*'analisis'\)/.test(html), 'la lista usa modo lista y la vista nueva modo analisis');
   assert(!/resultsEl\.addEventListener/.test(html), 'los listeners de tarjeta deben colgar de ambos contenedores (enContenedoresDeProceso)');
+});
+await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su contenido vive en "Análisis de pliegos"', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  for (const viejo of ['id="view-evaluacion"', 'id="bt-nav-evaluacion"', 'id="bt-eval-run"', 'id="bt-eval-select"', 'function runEvaluacion', 'function poblarEvalSelect', 'data-view="evaluacion"']) {
+    assert(!html.includes(viejo), 'quedó rastro de la pantalla Evaluación: ' + viejo);
+  }
+  assert(!/const VISTAS = \[[^\]]*'evaluacion'/.test(html), 'VISTAS no debe incluir evaluacion');
+  assert(/if \(nombre === 'evaluacion'\) nombre = 'analisis'/.test(html), 'una "última vista" guardada como evaluacion debe abrir analisis');
+  const i = html.indexOf('function evalSeccionesHtml');
+  assert(i !== -1, 'falta evalSeccionesHtml');
+  const fn = html.slice(i, i + 6000);
+  assert(/por empresa/.test(fn) && /Contexto de la entidad/.test(fn), 'faltan las secciones por empresa y de contexto de la entidad');
+  assert(/eval-adj-btn/.test(fn) && /eval-carta-btn/.test(fn) && /eval-paquete-btn/.test(fn) && /eval-informe-btn/.test(fn), 'faltan los botones de adjudicaciones, carta, paquete e informe');
+  const ra = html.slice(html.indexOf('function renderAnalysisHtml'), html.indexOf('function ensurePublicAreaParams'));
+  assert(/evalSeccionesHtml\(/.test(ra), 'renderAnalysisHtml debe incluir las secciones fusionadas (se redibujan con el análisis: no quedan veredictos viejos)');
+  assert(/function renderSinPliegoHtml/.test(html) && /renderSinPliegoHtml\(/.test(html.slice(html.indexOf('function tarjetaProcesoHtml'), html.indexOf('function truncate('))), 'sin pliego analizado la vista también debe mostrar la evaluación ligera y las secciones');
+  assert(/const mostrarEmpresas = varias \|\| !entry/.test(fn) && /mostrarEmpresas \? res\.porPerfil\.map\(bloquePerfil\)/.test(fn), 'sin pliego analizado (y con una sola empresa) la carta y el paquete por empresa deben seguir ofreciéndose');
+  assert(/enContenedoresDeProceso\('click', async function manejarClickEvaluacion/.test(html), 'los botones eval-* deben colgar de ambos contenedores');
+});
+await check('Fusión: ningún texto manda a "Buscar procesos" para subir/analizar el pliego (ahora es "Análisis de pliegos")', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const viejos = [
+    'Ve a "Buscar procesos" y sube/analiza', 'Analiza el pliego de este proceso en "Buscar procesos"',
+    'Ve a "Buscar procesos", analiza el pliego', 'tarjeta de este pliego en "Buscar procesos"', 'baja a la lista de procesos y usa "Analizar pliego (PDF)"',
+    'en "Buscar procesos" -- ya no hace falta', 'que analices en "Buscar procesos"', 'a "Buscar procesos" para analizar el pliego', 've a "Buscar procesos" para analizar el pliego',
+    'dentro del análisis de este pliego.', 'En "Evaluación" ves'
+  ].filter(t => t !== 'dentro del análisis de este pliego.');
+  for (const t of viejos) assert(!html.includes(t), 'texto obsoleto: ' + t);
+  assert(/Ver el detalle completo en "Análisis de pliegos"/.test(html), 'el gate de experiencia debe remitir a Análisis de pliegos');
 });
 await check('Interfaz: en pantallas táctiles/angostas los controles tienen área de 44px', () => {
   const html = readFileSync(HTML_PATH, 'utf8');

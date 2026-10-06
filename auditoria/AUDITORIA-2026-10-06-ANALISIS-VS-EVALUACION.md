@@ -75,3 +75,19 @@ Lo realmente exclusivo de "Evaluación" es: veredicto **por empresa**, documento
 4. F-05, F-06, F-07, F-08 como pulido; F-09 como higiene.
 
 Criterio de cierre por hallazgo: prueba que falla antes y pasa después (con mutación para F-01, F-03 y F-04) y medición en navegador real para F-05 y F-06.
+
+---
+
+## 6. Cierre posterior (fusión de las dos pantallas)
+
+La pantalla "Evaluación y documentos" se fusionó en "Análisis de pliegos" (rama `claude/affectionate-allen-87jomu`).
+
+| ID | Estado | Verificación |
+|---|---|---|
+| F-01 (veredicto desactualizado) | **CERRADO** | Ya no existe el panel que se calculaba solo al pulsar "Evaluar": las secciones viven dentro de la tarjeta de análisis y se redibujan con ella. Prueba nueva en `tests/smoke.mjs`; en navegador real, con y sin pliego, con 1 y 2 empresas: sin errores de JS. |
+| F-02 (textos obsoletos) | **CERRADO** | 12 textos corregidos; la prueba nueva falla si reaparece alguno de los viejos. |
+| Solapamiento | **CERRADO** | Un solo veredicto por proceso; menú de 7 ítems; una `ultima_vista` guardada como `evaluacion` abre "Análisis de pliegos". |
+| F-03, F-04, F-05, F-06, F-07, F-08, F-09 | **ABIERTOS** | No se tocaron en esta fusión. |
+
+Regresión encontrada y corregida durante la fusión: con una sola empresa y sin pliego analizado desaparecían la carta y el paquete por empresa (la pantalla vieja sí los ofrecía). Prueba nueva verificada por mutación.
+No verificado: adjudicaciones en vivo (sin red a datos.gov.co en el sandbox), sitio publicado y lectura real de un pliego con IA.

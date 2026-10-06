@@ -36,7 +36,7 @@ sincronización, Edge Functions de IA y correo).
     (jsDelivr) y supabase-js 2.116.0 se cargan con **SRI**; si subes una versión, recalcula el hash.
 - Otros archivos del sitio: `404.html`, `privacidad.html`, `snapshot.json` (respaldo de procesos si falla la consulta en vivo),
   `sitemap.xml`.
-- **Vistas** (`VISTAS`): dashboard, buscar, analisis ("Análisis de pliegos": tarjeta completa del proceso elegido; la lista de Buscar solo trae lo esencial + botón `data-ir-analisis`; `tarjetaProcesoHtml(s, listo, 'lista'|'analisis')`, listeners en ambos contenedores vía `enContenedoresDeProceso`), perfil, experiencia, personal, evaluacion ("Evaluación y documentos"), pipeline.
+- **Vistas** (`VISTAS`): dashboard, buscar, analisis ("Análisis de pliegos": tarjeta completa del proceso elegido; la lista de Buscar solo trae lo esencial + botón `data-ir-analisis`; `tarjetaProcesoHtml(s, listo, 'lista'|'analisis')`, listeners en ambos contenedores vía `enContenedoresDeProceso`; incluye, fusionado desde la antigua pantalla "Evaluación y documentos", `evalSeccionesHtml`: recomendación, veredicto por empresa con carta/paquete, informe y adjudicaciones + oferta; sin pliego, `renderSinPliegoHtml`; una `ultima_vista` guardada como `evaluacion` abre `analisis`), perfil, experiencia, personal, pipeline.
   Todas viven en el DOM; `mostrarVista()` alterna `hidden`. En ≤560 px el nav es un menú desplegable.
 - **Datos**: dataset SECOP II `p6dx-8zbt` (Buscar procesos), SECOP I `f789-7hwg` (solo en "Ver adjudicaciones de esta entidad"),
   PAA `9sue-ezhx`. Todo vía Socrata (datos.gov.co) con `X-App-Token`.
