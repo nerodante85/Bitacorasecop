@@ -87,7 +87,8 @@ La pantalla "Evaluación y documentos" se fusionó en "Análisis de pliegos" (ra
 | F-01 (veredicto desactualizado) | **CERRADO** | Ya no existe el panel que se calculaba solo al pulsar "Evaluar": las secciones viven dentro de la tarjeta de análisis y se redibujan con ella. Prueba nueva en `tests/smoke.mjs`; en navegador real, con y sin pliego, con 1 y 2 empresas: sin errores de JS. |
 | F-02 (textos obsoletos) | **CERRADO** | 12 textos corregidos; la prueba nueva falla si reaparece alguno de los viejos. |
 | Solapamiento | **CERRADO** | Un solo veredicto por proceso; menú de 7 ítems; una `ultima_vista` guardada como `evaluacion` abre "Análisis de pliegos". |
-| F-03, F-04, F-05, F-06, F-07, F-08, F-09 | **ABIERTOS** | No se tocaron en esta fusión. |
+| F-03 (sin aviso de datos de ejemplo/respaldo) | **CERRADO** | `avisoFuenteDatos` + banner en "Análisis de pliegos". Navegador real: con snapshot de respaldo (consulta a datos.gov.co bloqueada) y con datos de ejemplo el aviso se ve; con datos en vivo (respuesta simulada) no aparece; sin desborde a 375 px. Prueba nueva verificada por dos mutaciones. |
+| F-04, F-05, F-06, F-07, F-08, F-09 | **ABIERTOS** | No se tocaron. |
 
 Regresión encontrada y corregida durante la fusión: con una sola empresa y sin pliego analizado desaparecían la carta y el paquete por empresa (la pantalla vieja sí los ofrecía). Prueba nueva verificada por mutación.
 No verificado: adjudicaciones en vivo (sin red a datos.gov.co en el sandbox), sitio publicado y lectura real de un pliego con IA.
