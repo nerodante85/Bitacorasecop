@@ -55,6 +55,11 @@ sincronización, Edge Functions de IA y correo).
   8), `daily-digest` (correo diario vía Resend + cron), `eliminar-cuenta`. Reglas comunes: `verify_jwt`, empresa resuelta en el
   servidor, cupo diario reservado en `ai_usage` antes de llamar a Claude, PDFs de Storage borrados al terminar, respuesta en
   streaming con latidos (el gateway corta a ~150 s). `CONTRATO_VERSION` cliente/servidor debe coincidir (hay prueba).
+- **CORS (F-09)**: las 3 funciones que llama el navegador (`eliminar-cuenta`, `extraer-requisitos`, `transcribir-pdf`) solo dan permiso
+  a `https://nerodante85.github.io` (comparación exacta, nunca `*`); el origen se decide por petición en el envoltorio `Deno.serve`
+  → `manejar(req)`. Otro dominio o un servidor local contra el backend real: secret opcional `ALLOWED_ORIGINS` (coma). El auxiliar
+  `corsOrigenHeaders` es idéntico en las tres (una prueba lo verifica). Si publicas en un dominio propio y no pones su origen ahí,
+  **el navegador bloqueará las llamadas a las funciones** (síntoma: la IA "no responde" y la consola dice CORS).
 - **RLS es la única barrera** entre empresas (la app es 100 % cliente). Los secretos (`ANTHROPIC_API_KEY`, `RESEND_API_KEY`,
   `CRON_SECRET`, `DEBUG_SECRET`) viven solo como secrets de Supabase, nunca en el repo ni en el chat.
 - **CSP** por `<meta>`: `connect-src` fija el host del proyecto Supabase. Si usas un origen nuevo, agrégalo (hay una prueba).
