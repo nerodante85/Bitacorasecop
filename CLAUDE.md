@@ -139,6 +139,13 @@ sincronización, Edge Functions de IA y correo).
   **falla en local si no hay salida a internet; en CI debe pasar**), el motor de experiencia/veredicto ejecutado de verdad con
   Excel sintéticos, lectura, red flags, IA, Edge Functions (lógica pura), accesibilidad, contraste y tarjeta. Extrae funciones de
   `index.html` por anclas de texto; si renombras una función, actualiza la lista.
+- `node tests/e2e.mjs` (F-07): flujos reales en un navegador (Buscar → Análisis de pliegos, foco del teclado, menú móvil, descargas,
+  análisis guardados, aviso de datos de ejemplo/respaldo). Sirve el repo en local y **aborta toda red externa** (la app cae al
+  snapshot: determinista). Necesita Playwright solo para esto: en CI `npm install --no-save --no-package-lock --ignore-scripts
+  playwright-core@1.56.1` + el Chrome del runner; en el sandbox `PLAYWRIGHT_NODE_MODULES=/opt/node-tools/node_modules
+  CHROME_PATH=/opt/pw-browsers/chromium node tests/e2e.mjs`. smoke.mjs mira el código; e2e comprueba que el flujo FUNCIONA (con averías
+  de comportamiento a propósito, smoke no las vio y e2e sí). Corre en PR (`smoke.yml`) y en main (`pages.yml`, sin bloquear el despliegue
+  todavía). Al cambiar un flujo de pantalla, actualiza también e2e.
 - Navegador real: `python3 -m http.server 8123` en la raíz y Chromium/Playwright (en el sandbox: `/opt/pw-browsers`,
   `/opt/node-tools/node_modules/playwright`). Archivos se inyectan por `DataTransfer` (skill `probar-con-archivos-reales`).
   Los datos de ejemplo ("Ver datos de ejemplo") requieren desmarcar los filtros restrictivos. Pestaña nueva para mirar la consola
