@@ -42,8 +42,20 @@ const TIMEOUT_ANTHROPIC_MS = 145_000;
 const CONTRATO_VERSION = 4; // v4: admite rol 'estudio_previo_principal' (ver index.html: CONTRATO_EXTRACCION)
 const FUNCTION_NAME = 'extraer-requisitos';
 
+// ==== CORS-F09 inicio (copia idéntica en eliminar-cuenta, extraer-requisitos y transcribir-pdf; una prueba lo verifica) ====
+// Solo el sitio publicado puede leer la respuesta desde un navegador (antes: "*"). Más orígenes -- otro dominio o un
+// servidor local de pruebas -- van en el secret ALLOWED_ORIGINS, separados por coma. Comparación EXACTA (esquema + host +
+// puerto), sin comodines. Una petición sin Origin (curl, servidor a servidor) no necesita CORS y no recibe permiso.
+const ORIGENES_PERMITIDOS_BASE = ['https://nerodante85.github.io'];
+function corsOrigenHeaders(origin: string | null, extra: string | undefined): Record<string, string> {
+  const permitidos = ORIGENES_PERMITIDOS_BASE.concat((extra || '').split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0));
+  const headers: Record<string, string> = { 'Vary': 'Origin' };
+  if (origin && permitidos.indexOf(origin) !== -1) headers['Access-Control-Allow-Origin'] = origin;
+  return headers;
+}
+// ==== CORS-F09 fin ====
+
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-debug',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
@@ -254,7 +266,7 @@ RIESGOS_IA: cláusulas inusuales, multas o sanciones especialmente severas, o re
 
 16. Devuelve únicamente el JSON pedido.`;
 
-Deno.serve(async (req: Request) => {
+async function manejar(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
   }
@@ -551,6 +563,16 @@ Deno.serve(async (req: Request) => {
       await liberarReserva();
     }
   }
+}
+
+// El origen permitido se decide POR PETICIÓN (nunca '*'), fuera del manejador: así no hay que tocar cada respuesta ni
+// mezclar orígenes entre peticiones concurrentes. Se reconstruye la respuesta conservando estado y cuerpo (streaming).
+Deno.serve(async (req: Request) => {
+  const respuesta = await manejar(req);
+  const cors = corsOrigenHeaders(req.headers.get('Origin'), Deno.env.get('ALLOWED_ORIGINS'));
+  const headers = new Headers(respuesta.headers);
+  Object.keys(cors).forEach((k) => headers.set(k, cors[k]));
+  return new Response(respuesta.body, { status: respuesta.status, statusText: respuesta.statusText, headers });
 });
 
 function json(data: unknown, status = 200): Response {

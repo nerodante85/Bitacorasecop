@@ -3538,6 +3538,71 @@ await check('F-07: las pruebas de punta a punta (navegador real) existen y corre
     assert(/node tests\/e2e\.mjs/.test(y) && /playwright-core@1\.56\.1/.test(y), wf + ' debe correr tests/e2e.mjs con playwright-core fijado');
   }
 });
+await check('F-09: las Edge Functions que llama el navegador solo responden a orígenes permitidos (nunca "*"), con el auxiliar idéntico en las tres', () => {
+  const funciones = ['eliminar-cuenta', 'extraer-requisitos', 'transcribir-pdf'];
+  const fuentes = funciones.map(f => readFileSync(new URL('../supabase/functions/' + f + '/index.ts', import.meta.url), 'utf8'));
+  const bloques = fuentes.map((src, i) => {
+    const a = src.indexOf('// ==== CORS-F09 inicio');
+    const b = src.indexOf('// ==== CORS-F09 fin ====');
+    assert(a !== -1 && b > a, funciones[i] + ': falta el bloque CORS-F09');
+    return src.slice(a, b);
+  });
+  // la primera línea (comentario) nombra las funciones; el código debe ser idéntico
+  const codigo = bloques.map(b => b.slice(b.indexOf('\n')));
+  assert(codigo[0] === codigo[1] && codigo[1] === codigo[2], 'el auxiliar CORS debe ser idéntico en las tres funciones');
+  fuentes.forEach((src, i) => {
+    assert(!/'Access-Control-Allow-Origin':\s*'\*'/.test(src), funciones[i] + ': no debe quedar Access-Control-Allow-Origin: *');
+    assert(/async function manejar\(req: Request\): Promise<Response>/.test(src), funciones[i] + ': el manejador debe llamarse manejar()');
+    const envoltorio = src.slice(src.indexOf('Deno.serve(async (req: Request) => {'), src.indexOf('Deno.serve(async (req: Request) => {') + 900);
+    assert(/corsOrigenHeaders\(req\.headers\.get\('Origin'\), Deno\.env\.get\('ALLOWED_ORIGINS'\)\)/.test(envoltorio) && /await manejar\(req\)/.test(envoltorio), funciones[i] + ': el envoltorio debe decidir el origen por petición');
+    assert(/new Response\(respuesta\.body, \{ status: respuesta\.status/.test(envoltorio), funciones[i] + ': el envoltorio debe conservar el cuerpo (streaming) y el estado');
+  });
+  // comportamiento: se quita la tipografía de TypeScript (solo estas anotaciones) y se ejecuta
+  const js = codigo[0].replace(/: Record<string, string>/g, '').replace(/: string \| null/g, '').replace(/: string \| undefined/g, '').replace(/\(s: string\)/g, '(s)');
+  const corsOrigenHeaders = new Function(js + '\nreturn corsOrigenHeaders;')();
+  const PAGES = 'https://nerodante85.github.io';
+  const ok = corsOrigenHeaders(PAGES, undefined);
+  assert(ok['Access-Control-Allow-Origin'] === PAGES && ok['Vary'] === 'Origin', 'el sitio publicado debe quedar permitido: ' + JSON.stringify(ok));
+  for (const mal of ['https://evil.example', 'http://nerodante85.github.io', 'https://nerodante85.github.io/', 'https://nerodante85.github.io.evil.example', 'null', '', null, undefined]) {
+    const h = corsOrigenHeaders(mal, undefined);
+    assert(!('Access-Control-Allow-Origin' in h) && h['Vary'] === 'Origin', 'no debe permitir el origen ' + JSON.stringify(mal) + ': ' + JSON.stringify(h));
+  }
+  const extra = corsOrigenHeaders('http://localhost:8123', ' http://localhost:8123 , https://app.midominio.co ,, ');
+  assert(extra['Access-Control-Allow-Origin'] === 'http://localhost:8123', 'ALLOWED_ORIGINS suma orígenes (con espacios y comas sobrantes)');
+  assert(corsOrigenHeaders(PAGES, 'http://localhost:8123')['Access-Control-Allow-Origin'] === PAGES, 'el origen base sigue permitido con ALLOWED_ORIGINS');
+  assert(!('Access-Control-Allow-Origin' in corsOrigenHeaders('https://evil.example', 'http://localhost:8123')), 'ALLOWED_ORIGINS no abre la puerta a otros');
+});
+await check('F-09: el envoltorio real de cada función (ejecutado con un manejador falso) conserva estado, cuerpo en streaming y cabeceras, y solo da permiso al origen permitido', async () => {
+  const quitarTipos = js => js.replace(/: Record<string, string>/g, '').replace(/: string \| null/g, '').replace(/: string \| undefined/g, '').replace(/\(s: string\)/g, '(s)').replace(/\(req: Request\)/g, '(req)');
+  const PAGES = 'https://nerodante85.github.io';
+  for (const f of ['eliminar-cuenta', 'extraer-requisitos', 'transcribir-pdf']) {
+    const src = readFileSync(new URL('../supabase/functions/' + f + '/index.ts', import.meta.url), 'utf8');
+    const bloque = src.slice(src.indexOf('const ORIGENES_PERMITIDOS_BASE'), src.indexOf('// ==== CORS-F09 fin ===='));
+    const ini = src.indexOf('Deno.serve(async (req: Request) => {');
+    const envoltorio = src.slice(ini, src.indexOf('\n});\n', ini) + 5);
+    let handler = null;
+    const Deno = { serve: h => { handler = h; }, env: { get: k => (k === 'ALLOWED_ORIGINS' ? 'http://localhost:8123' : undefined) } };
+    const manejar = async req => {
+      if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' } });
+      if (new URL(req.url).pathname === '/stream') {
+        const enc = new TextEncoder();
+        return new Response(new ReadableStream({ async start(c) { c.enqueue(enc.encode(' ')); await new Promise(r => setTimeout(r, 10)); c.enqueue(enc.encode('{"ok":true}')); c.close(); } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ error: 'x' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    };
+    new Function('Deno', 'manejar', quitarTipos(bloque) + '\n' + quitarTipos(envoltorio) + '\nreturn 1;')(Deno, manejar);
+    assert(typeof handler === 'function', f + ': el envoltorio debe registrar el manejador');
+    const llamar = (metodo, origen, ruta = '/') => handler(new Request('http://f' + ruta, { method: metodo, headers: origen ? { Origin: origen } : {} }));
+    const pre = await llamar('OPTIONS', PAGES), j = await llamar('POST', PAGES), st = await llamar('POST', PAGES, '/stream');
+    const local = await llamar('POST', 'http://localhost:8123'), mal = await llamar('POST', 'https://evil.example'), sin = await llamar('POST', null);
+    assert(pre.status === 204 && pre.headers.get('access-control-allow-origin') === PAGES && /POST/.test(pre.headers.get('access-control-allow-methods')), f + ': preflight');
+    assert(j.status === 401 && j.headers.get('content-type') === 'application/json' && j.headers.get('access-control-allow-origin') === PAGES && j.headers.get('vary') === 'Origin' && (await j.json()).error === 'x', f + ': respuesta JSON');
+    assert(st.status === 200 && st.headers.get('access-control-allow-origin') === PAGES && (await st.text()) === ' {"ok":true}', f + ': el streaming debe conservar el cuerpo completo');
+    assert(local.headers.get('access-control-allow-origin') === 'http://localhost:8123', f + ': ALLOWED_ORIGINS');
+    assert(!mal.headers.has('access-control-allow-origin') && mal.status === 401, f + ': un origen ajeno no recibe permiso');
+    assert(!sin.headers.has('access-control-allow-origin') && sin.status === 401, f + ': sin Origin no hay permiso CORS y la respuesta no cambia');
+  }
+});
 await check('Interfaz: en pantallas táctiles/angostas los controles tienen área de 44px', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const bloque = /@media \(pointer: coarse\), \(max-width: 560px\) \{([\s\S]*?)\r?\n  \}\r?\n/.exec(html);
