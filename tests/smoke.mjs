@@ -3537,6 +3537,9 @@ await check('Interfaz: en pantallas táctiles/angostas los controles tienen áre
   assert(/inset:\s*-14px/.test(bloque[1]), 'la zona sensible extra debe sumar 28px a un enlace de 17px (>=44)');
   assert(/\.row-obj[^{]*\{[^}]*overflow-wrap:\s*anywhere/.test(html), 'un texto largo sin espacios (dato real de SECOP) no debe desbordar la página');
   assert(/min-height:\s*44px/.test(bloque[1]), 'min-height de 44px');
+  // F-06 (auditoría 2026-10-06): los ítems del menú móvil medían 40px porque la regla de 44px no los cubría.
+  const regla44 = /([^{}]+)\{\s*min-height:\s*44px;\s*\}/.exec(bloque[1]);
+  assert(regla44 && /#bitacora-root \.nav-item\b/.test(regla44[1]), 'la regla de min-height 44px debe cubrir los ítems del menú (.nav-item)');
 });
 await check('Interfaz: reducir movimiento conserva el cambio de estado (colores) y quita animaciones; el texto más chico es 12px', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
