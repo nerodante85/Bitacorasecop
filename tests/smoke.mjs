@@ -3516,6 +3516,19 @@ await check('F-04: un análisis guardado se puede abrir aunque su proceso ya no 
     assert(!html.includes(viejo), 'quedó una búsqueda que ignora los procesos guardados: ' + viejo);
   }
 });
+await check('F-05: al cambiar de vista el foco del teclado no se pierde (pasa al título de la vista nueva) sin romper la navegación con flechas del menú ni robar el foco al cargar', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('function mostrarVista');
+  const fn = html.slice(i, html.indexOf('// Indicador de los 5 pasos', i));
+  assert(/function mostrarVista\(nombre, opciones\)/.test(fn), 'mostrarVista debe aceptar opciones (para no enfocar en la carga inicial)');
+  assert(/document\.activeElement/.test(fn) && /document\.body/.test(fn) && /\.closest\('\.view'\)/.test(fn), 'solo se recupera el foco cuando se perdió (cuerpo de la página o dentro de una vista ya oculta)');
+  assert(/getClientRects\(\)\.length/.test(fn), 'también se recupera cuando el control enfocado dejó de verse (p. ej. el menú móvil que se cierra al elegir una sección)');
+  assert(/setAttribute\('tabindex', '-1'\)/.test(fn) && /focus\(\{ preventScroll: true \}\)/.test(fn), 'el título se enfoca programáticamente (tabindex -1, sin saltos de scroll)');
+  assert(/mostrarVista\(vistaInicial, \{ enfocar: false \}\)/.test(html), 'la carga inicial no debe mover el foco');
+  assert(/#bitacora-root \.view h1:focus/.test(html), 'el título enfocado por código no lleva recuadro de foco (no es un control)');
+  // las pestañas del menú conservan el foco: el manejador de flechas enfoca la pestaña ANTES de cambiar de vista
+  assert(/next\.focus\(\);\s*mostrarVista\(next\.getAttribute\('data-view'\)\)/.test(html), 'las flechas del menú enfocan la pestaña y luego cambian de vista');
+});
 await check('Interfaz: en pantallas táctiles/angostas los controles tienen área de 44px', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const bloque = /@media \(pointer: coarse\), \(max-width: 560px\) \{([\s\S]*?)\r?\n  \}\r?\n/.exec(html);
