@@ -1757,6 +1757,7 @@
             <h1>Análisis de pliegos</h1>
             <p>Aquí analizas el pliego (o el Estudio Previo) del proceso que elijas en "Buscar procesos": veredicto, requisitos, experiencia, cronograma y riesgos; la comparación por empresa, la carta y el paquete de propuesta, y las adjudicaciones históricas de la entidad con una sugerencia de oferta. La lista de procesos se queda solo con lo esencial.</p>
           </div>
+          <div class="demo-banner" id="bt-analisis-fuente" style="display:none" role="status"></div>
           <div class="empty" id="bt-analisis-empty">Todavía no hay procesos para analizar. Ve a "Buscar procesos", aplica una búsqueda y usa "Analizar pliego →" en el proceso que te interese. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
           <div class="titleblock" id="bt-analisis-panel" hidden>
             <div class="perfil-switcher">
@@ -7491,6 +7492,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (modo === 'snapshot') return 'Fuente: ' + ds + ' -- SNAPSHOT DE RESPALDO del ' + (snapshotFecha || 'fecha no indicada') + ' (no son datos actuales; la consulta en vivo falló).';
     return 'Fuente: ' + ds + ' -- consultado ' + (consultadoISO || 'fecha no registrada') + ' -- modo: en vivo.';
   }
+  // Aviso visible (no solo el pie de los .txt) para las pantallas donde se decide sobre un proceso:
+  // con datos de ejemplo o de respaldo el usuario podría analizar un pliego creyendo que el proceso es
+  // actual. En vivo no hay nada que avisar (cadena vacía).
+  function avisoFuenteDatos(modo, snapshotFecha){
+    if (modo === 'demo') return 'Estás viendo datos de ejemplo (ficticios): no provienen de SECOP II en vivo y no sirven para decidir ni para presentarte a nada.';
+    if (modo === 'snapshot') return 'Estás viendo un snapshot de respaldo del ' + (snapshotFecha || 'fecha no indicada') + ': no son datos actuales (la consulta en vivo falló). Confirma el proceso en SECOP antes de decidir.';
+    return '';
+  }
   // Nombres claros en vez de la jerga "GO / NO-GO / REVISAR".
   function etiquetaVeredicto(v){
     return v === 'GO' ? 'Cumple lo revisado' : (v === 'NO-GO' ? 'No cumple' : 'Falta información');
@@ -9853,6 +9862,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const panel = document.getElementById('bt-analisis-panel');
     const vacio = document.getElementById('bt-analisis-empty');
     if (!analisisSelectEl || !analisisOutEl || !panel || !vacio) return;
+    const fuenteEl = document.getElementById('bt-analisis-fuente');
+    if (fuenteEl){
+      const aviso = avisoFuenteDatos(modoDatos(), fmtDate(DATA_SNAPSHOT_DATE + 'T00:00:00.000'));
+      fuenteEl.textContent = aviso;
+      fuenteEl.style.display = aviso ? 'block' : 'none';
+    }
     const lista = lastScored || [];
     if (!lista.length){
       panel.hidden = true; vacio.hidden = false; analisisOutEl.innerHTML = '';
