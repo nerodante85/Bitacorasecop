@@ -3430,6 +3430,19 @@ await check('Interfaz: hay un landmark <main> que envuelve las vistas (lector de
   assert(/<main\b[^>]*>/.test(html) && /<\/main>/.test(html), 'falta <main>');
   assert(html.indexOf('<main') < html.indexOf('id="view-dashboard"') && html.indexOf('</main>') > html.indexOf('id="view-evaluacion"'), '<main> debe envolver las vistas');
 });
+await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el análisis del pliego vive en la vista "Análisis de pliegos"', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/id="view-analisis"/.test(html) && /id="bt-nav-analisis"/.test(html) && /id="bt-analisis-out"/.test(html), 'falta la vista/nav/contenedor de análisis');
+  assert(/const VISTAS = \['dashboard', 'buscar', 'analisis'/.test(html), 'VISTAS debe incluir analisis');
+  const i = html.indexOf('function tarjetaProcesoHtml');
+  assert(i !== -1, 'falta tarjetaProcesoHtml');
+  const fn = html.slice(i, html.indexOf('function truncate(', i));
+  assert(/data-ir-analisis/.test(fn), 'la tarjeta de la lista debe tener el botón que redirige al análisis');
+  assert(/enAnalisis\s*\n?\s*\?\s*'<div class="row-actions">'[\s\S]*analysis-slot[\s\S]*:\s*'<div class="row-actions">'/.test(fn), 'el analysis-slot y los botones de pliego solo van en modo análisis');
+  assert(/enAnalisis && analysisEntry\) \? renderAnalysisHtml/.test(fn), 'el análisis completo solo se dibuja en modo análisis');
+  assert(/tarjetaProcesoHtml\(s, flujoListoParaPliego, 'lista'\)/.test(html) && /tarjetaProcesoHtml\(s2, .*'analisis'\)/.test(html), 'la lista usa modo lista y la vista nueva modo analisis');
+  assert(!/resultsEl\.addEventListener/.test(html), 'los listeners de tarjeta deben colgar de ambos contenedores (enContenedoresDeProceso)');
+});
 await check('Interfaz: en pantallas táctiles/angostas los controles tienen área de 44px', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const bloque = /@media \(pointer: coarse\), \(max-width: 560px\) \{([\s\S]*?)\r?\n  \}\r?\n/.exec(html);

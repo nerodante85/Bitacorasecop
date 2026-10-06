@@ -1169,6 +1169,10 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="20" y1="20" x2="15.4" y2="15.4"/></svg>
           <span class="nav-label">Buscar procesos</span>
         </button>
+        <button class="nav-item" type="button" id="bt-nav-analisis" data-view="analisis" role="tab" aria-selected="false" aria-controls="view-analisis" title="Análisis de pliegos" aria-label="Análisis de pliegos">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+          <span class="nav-label">Análisis de pliegos</span>
+        </button>
         <button class="nav-item" type="button" id="bt-nav-perfil" data-view="perfil" role="tab" aria-selected="false" aria-controls="view-perfil" title="Perfil de la empresa" aria-label="Perfil de la empresa">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
           <span class="nav-label">Perfil de la empresa</span>
@@ -1751,6 +1755,24 @@
             </div>
           </div>
           <div class="saved-note" id="bt-personal-siguiente-paso" hidden>Siguiente paso: ve a "Buscar procesos" para analizar el pliego que te interese — ahí verás cuándo está todo listo.</div>
+        </section>
+
+        <section class="view" id="view-analisis" data-view="analisis" role="tabpanel" aria-labelledby="bt-nav-analisis" hidden>
+          <div class="view-header">
+            <h1>Análisis de pliegos</h1>
+            <p>Aquí analizas el pliego (o el Estudio Previo) del proceso que elijas en "Buscar procesos": veredicto, requisitos, experiencia, cronograma, riesgos y documentos de propuesta. La lista de procesos se queda solo con lo esencial.</p>
+          </div>
+          <div class="empty" id="bt-analisis-empty">Todavía no hay procesos para analizar. Ve a "Buscar procesos", aplica una búsqueda y usa "Analizar pliego →" en el proceso que te interese. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
+          <div class="titleblock" id="bt-analisis-panel" hidden>
+            <div class="perfil-switcher">
+              <div class="field">
+                <label for="bt-analisis-select">Proceso a analizar</label>
+                <select id="bt-analisis-select"></select>
+              </div>
+              <button type="button" class="btn-secondary" data-ir-a="buscar">← Volver a la lista</button>
+            </div>
+          </div>
+          <div id="bt-analisis-out"></div>
         </section>
 
         <section class="view" id="view-evaluacion" data-view="evaluacion" role="tabpanel" aria-labelledby="bt-nav-evaluacion" hidden>
@@ -2534,6 +2556,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const paaListEl = document.getElementById('bt-paa-list');
   const dashAlertasEl = document.getElementById('bt-dash-alertas');
   const resultsEl = document.getElementById('bt-results');
+  // Vista "Análisis de pliegos": renderiza la tarjeta COMPLETA (con el análisis) del proceso elegido.
+  // Los listeners delegados de la tarjeta (clic, cambio de archivo, teclado) se registran en este
+  // contenedor y en `resultsEl` con el mismo código -- ver enContenedoresDeProceso.
+  const analisisOutEl = document.getElementById('bt-analisis-out');
+  const analisisSelectEl = document.getElementById('bt-analisis-select');
+  function enContenedoresDeProceso(tipo, fn){
+    [resultsEl, analisisOutEl].forEach(el => { if (el) el.addEventListener(tipo, fn); });
+  }
   const statusEl = document.getElementById('bt-status');
   const countEl = document.getElementById('bt-count');
   const hideClosedEl = document.getElementById('bt-hide-closed');
@@ -4251,11 +4281,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // IA, verificar citas). Redibuja la lista y conserva el mensaje de estado que la tarjeta mostraba.
   function refrescarTarjeta(id){
     const sel = '.row[data-id="' + String(id).replace(/"/g, '\\"') + '"]';
-    const antes = resultsEl.querySelector(sel + ' [data-ia-status]');
+    const buscar = () => resultsEl.querySelector(sel + ' [data-ia-status]') || (analisisOutEl && analisisOutEl.querySelector(sel + ' [data-ia-status]'));
+    const antes = buscar();
     const txt = antes ? antes.textContent : '';
     rerender();
     if (txt){
-      const nuevo = resultsEl.querySelector(sel + ' [data-ia-status]');
+      const nuevo = buscar();
       if (nuevo) nuevo.textContent = txt;
     }
   }
@@ -9172,7 +9203,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Se registra por CLIC en el summary, no por el evento toggle: toggle también dispara cuando la
   // tarjeta se pinta con "open" y eso guardaría los valores por defecto como si fueran del usuario.
   // El clic corre antes de que el navegador cambie d.open, por eso el nuevo estado es !d.open.
-  resultsEl.addEventListener('click', e => {
+  enContenedoresDeProceso('click', e => {
     const sm = e.target.closest && e.target.closest('.analysis-fold > summary');
     if (!sm) return;
     const row = sm.closest('.row'), d = sm.parentElement, t = sm.querySelector('.fold-title');
@@ -9750,6 +9781,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     countEl.textContent = countText;
     lastScored = scored;
     poblarEvalSelect(scored);
+    const vistaAnalisisEl = document.getElementById('view-analisis');
+    if (vistaAnalisisEl && !vistaAnalisisEl.hidden) renderAnalisisView();
 
     if (scored.length === 0){
       const sugerencia = buscandoProceso
@@ -9769,99 +9802,162 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // recorrer perfiles/experiencia una vez por cada proceso en pantalla.
     const flujoListoParaPliego = estadoFlujoPliego().listo;
 
-    resultsEl.innerHTML = scored.map(s => {
-      const it = s.item;
-      const hist = historial[it.id];
-      const isVisto = hist && hist.status === 'visto';
-      const isDescartado = hist && hist.status === 'descartado';
-      const loc = [it.departamento, it.ciudad].filter(Boolean).join(' · ') || 'Ubicación no especificada';
-      const pub = fmtDate(it.pubRaw);
-      const close = fmtDate(it.closingRaw);
-      const money = fmtMoney(it.valor);
-      const vencido = s.daysLeft !== null && s.daysLeft < 0;
-      const tierLabel = s.tier === 'alta' ? 'ALTA' : s.tier === 'media' ? 'MEDIA' : 'BAJA';
-      const deadlineText = close ? (vencido ? ('Venció · ' + close) : (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close)) : 'Sin fecha de presentación reportada';
-      const safeUrl = it.url && /^https?:\/\//i.test(it.url) ? escapeHtml(it.url) : null;
-      const linkHtml = safeUrl
-        ? '<div class="row-link"><a href="' + safeUrl + '" target="_blank" rel="noopener">Abrir expediente en SECOP ' + it.fuente + '</a></div>'
-        : (it.fuente === 'I'
-            ? '<div class="row-link"><a href="https://www.colombiacompra.gov.co/secop/secop-i/consulte-en-el-secop-i" target="_blank" rel="noopener">Buscar en SECOP I (por número de proceso)</a></div>'
-            : '<div class="row-link"><a href="https://community.secop.gov.co/Public/Tendering/ContractNoticeManagement/Index?currentLanguage=es-CO" target="_blank" rel="noopener">Buscar en SECOP II</a></div>');
+    resultsEl.innerHTML = scored.map(s => tarjetaProcesoHtml(s, flujoListoParaPliego, 'lista')).join('') + (totalFiltrados > scored.length
+      ? '<div style="text-align:center;margin:14px 0;"><button type="button" class="btn-secondary" id="bt-mas-resultados">Mostrar ' + Math.min(40, totalFiltrados - scored.length) + ' más (quedan ' + (totalFiltrados - scored.length) + ')</button></div>'
+      : '');
+  }
 
-      const analysisEntry = analisis[it.id];
-      if (analysisEntry) analysisEntry.id = it.id; // backfill para análisis guardados antes de este cambio
-      const analysisHtml = analysisEntry ? renderAnalysisHtml(analysisEntry, it, s) : '';
-      const analizarLabel = !flujoListoParaPliego
-        ? '🔒 Analizar pliego (completa Experiencia y Personal)'
-        : (analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)');
+  // Tarjeta de un proceso en dos modos:
+  //  - 'lista' (vista "Buscar procesos"): solo lo importante del proceso (entidad, objeto, valor, plazo,
+  //    ubicación, sello de cumplimiento) y los botones de gestión; el análisis del pliego vive en la
+  //    vista "Análisis de pliegos" y la tarjeta solo trae el botón que lleva allá (data-ir-analisis).
+  //  - 'analisis' (vista "Análisis de pliegos"): la misma tarjeta con el veredicto resumido, los botones
+  //    de pliego / Estudio Previo y el `.analysis-slot` con el análisis completo.
+  // Los listeners delegados (ver `enContenedoresDeProceso`) cuelgan de ambos contenedores, así que los
+  // data-action / data-id funcionan igual en los dos modos.
+  function tarjetaProcesoHtml(s, flujoListoParaPliego, modo){
+    const enAnalisis = modo === 'analisis';
+    const it = s.item;
+    const hist = historial[it.id];
+    const isVisto = hist && hist.status === 'visto';
+    const isDescartado = hist && hist.status === 'descartado';
+    const loc = [it.departamento, it.ciudad].filter(Boolean).join(' · ') || 'Ubicación no especificada';
+    const pub = fmtDate(it.pubRaw);
+    const close = fmtDate(it.closingRaw);
+    const money = fmtMoney(it.valor);
+    const vencido = s.daysLeft !== null && s.daysLeft < 0;
+    const tierLabel = s.tier === 'alta' ? 'ALTA' : s.tier === 'media' ? 'MEDIA' : 'BAJA';
+    const deadlineText = close ? (vencido ? ('Venció · ' + close) : (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close)) : 'Sin fecha de presentación reportada';
+    const safeUrl = it.url && /^https?:\/\//i.test(it.url) ? escapeHtml(it.url) : null;
+    const linkHtml = safeUrl
+      ? '<div class="row-link"><a href="' + safeUrl + '" target="_blank" rel="noopener">Abrir expediente en SECOP ' + it.fuente + '</a></div>'
+      : (it.fuente === 'I'
+          ? '<div class="row-link"><a href="https://www.colombiacompra.gov.co/secop/secop-i/consulte-en-el-secop-i" target="_blank" rel="noopener">Buscar en SECOP I (por número de proceso)</a></div>'
+          : '<div class="row-link"><a href="https://community.secop.gov.co/Public/Tendering/ContractNoticeManagement/Index?currentLanguage=es-CO" target="_blank" rel="noopener">Buscar en SECOP II</a></div>');
 
-      const venceProto = isVisto && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
-      const venceAlertHtml = venceProto
-        ? '<div class="expire-alert">⚠ VISTO Y VENCE ' + (s.daysLeft === 0 ? 'HOY' : ('EN ' + s.daysLeft + (s.daysLeft === 1 ? ' DÍA' : ' DÍAS'))) + '</div>'
-        : '';
+    const analysisEntry = analisis[it.id];
+    if (analysisEntry) analysisEntry.id = it.id; // backfill para análisis guardados antes de este cambio
+    const analysisHtml = (enAnalisis && analysisEntry) ? renderAnalysisHtml(analysisEntry, it, s) : '';
+    const analizarLabel = !flujoListoParaPliego
+      ? '🔒 Analizar pliego (completa Experiencia y Personal)'
+      : (analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)');
 
-      // "Analizar Estudio Previo" -- algunos procesos (sobre todo en etapa temprana) todavía no
-      // tienen Pliego de Condiciones publicado, solo Estudio Previo. Solo se ofrece ANTES de que
-      // exista un análisis (una vez hay uno -- de cualquiera de los dos orígenes -- "↻ Volver a
-      // analizar" lo reemplaza; el Estudio Previo sigue disponible como SOPORTE del análisis ya
-      // hecho, dentro de la tarjeta, ver renderEstudioPrevioUploadHtml).
-      const epBtnHtml = (flujoListoParaPliego && !analysisEntry)
-        ? '<button class="btn-mini analizar-ep" data-action="analizar-ep" data-id="' + escapeHtml(it.id) + '">📋 Analizar Estudio Previo</button>' +
-          '<input type="file" aria-label="Seleccionar el PDF o Word del Estudio Previo para analizarlo" accept=".pdf,.docx" data-analyze-ep-id="' + escapeHtml(it.id) + '" style="display:none">'
-        : '';
-      // Pipeline comercial (CRM Kanban): link chico "+ Pipeline" si el proceso no está en el
-      // pipeline todavía (mismo peso visual que "Marcar visto", no un botón grande -- evitar
-      // repetir el desorden que ya se limpió en "Buscar procesos"); si ya está, una etiqueta
-      // pequeña con la etapa actual en vez de un quinto botón.
-      const pipelineBtnHtml = (hist && hist.etapa)
-        ? '<button type="button" class="link-btn" data-ir-pipeline="' + escapeHtml(it.id) + '">📌 ' + escapeHtml((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa) + '</button>'
-        : '<button type="button" class="link-btn" data-agregar-pipeline="' + escapeHtml(it.id) + '">+ Pipeline</button>';
-      const actionsHtml =
-        '<div class="row-actions">' +
-          '<button class="btn-mini' + (isVisto ? ' active-visto' : '') + '" data-action="visto" data-id="' + escapeHtml(it.id) + '">' + (isVisto ? '✓ Visto' : 'Marcar visto') + '</button>' +
-          '<button class="btn-mini' + (isDescartado ? ' active-descartado' : '') + '" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : '✕ Descartar') + '</button>' +
+    const venceProto = isVisto && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
+    const venceAlertHtml = venceProto
+      ? '<div class="expire-alert">⚠ VISTO Y VENCE ' + (s.daysLeft === 0 ? 'HOY' : ('EN ' + s.daysLeft + (s.daysLeft === 1 ? ' DÍA' : ' DÍAS'))) + '</div>'
+      : '';
+
+    // "Analizar Estudio Previo" -- algunos procesos (sobre todo en etapa temprana) todavía no
+    // tienen Pliego de Condiciones publicado, solo Estudio Previo. Solo se ofrece ANTES de que
+    // exista un análisis (una vez hay uno -- de cualquiera de los dos orígenes -- "↻ Volver a
+    // analizar" lo reemplaza; el Estudio Previo sigue disponible como SOPORTE del análisis ya
+    // hecho, dentro de la tarjeta, ver renderEstudioPrevioUploadHtml).
+    const epBtnHtml = (flujoListoParaPliego && !analysisEntry)
+      ? '<button class="btn-mini analizar-ep" data-action="analizar-ep" data-id="' + escapeHtml(it.id) + '">📋 Analizar Estudio Previo</button>' +
+        '<input type="file" aria-label="Seleccionar el PDF o Word del Estudio Previo para analizarlo" accept=".pdf,.docx" data-analyze-ep-id="' + escapeHtml(it.id) + '" style="display:none">'
+      : '';
+    // Pipeline comercial (CRM Kanban): link chico "+ Pipeline" si el proceso no está en el
+    // pipeline todavía (mismo peso visual que "Marcar visto", no un botón grande -- evitar
+    // repetir el desorden que ya se limpió en "Buscar procesos"); si ya está, una etiqueta
+    // pequeña con la etapa actual en vez de un quinto botón.
+    const pipelineBtnHtml = (hist && hist.etapa)
+      ? '<button type="button" class="link-btn" data-ir-pipeline="' + escapeHtml(it.id) + '">📌 ' + escapeHtml((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa) + '</button>'
+      : '<button type="button" class="link-btn" data-agregar-pipeline="' + escapeHtml(it.id) + '">+ Pipeline</button>';
+    const gestionHtml =
+      '<button class="btn-mini' + (isVisto ? ' active-visto' : '') + '" data-action="visto" data-id="' + escapeHtml(it.id) + '">' + (isVisto ? '✓ Visto' : 'Marcar visto') + '</button>' +
+      '<button class="btn-mini' + (isDescartado ? ' active-descartado' : '') + '" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : '✕ Descartar') + '</button>';
+    const irAnalisisLabel = analysisEntry ? 'Ver análisis del pliego →' : 'Analizar pliego →';
+    const actionsHtml = enAnalisis
+      ? '<div class="row-actions">' +
+          gestionHtml +
           '<button class="btn-mini analizar" data-action="analizar" data-id="' + escapeHtml(it.id) + '">' + analizarLabel + '</button>' +
           epBtnHtml +
           pipelineBtnHtml +
         '</div>' +
         '<input type="file" aria-label="Seleccionar el PDF del pliego para analizarlo" accept="application/pdf" data-analyze-id="' + escapeHtml(it.id) + '" style="display:none">' +
-        '<div class="analysis-slot">' + analysisHtml + '</div>';
+        '<div class="analysis-slot">' + analysisHtml + '</div>'
+      : '<div class="row-actions">' +
+          gestionHtml +
+          '<button type="button" class="btn-mini analizar" data-ir-analisis="' + escapeHtml(it.id) + '">' + irAnalisisLabel + '</button>' +
+          pipelineBtnHtml +
+        '</div>';
 
-      return '<div class="row ' + s.tier + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
-        venceAlertHtml +
-        '<div class="row-head"><div class="row-ent">' + escapeHtml(it.entidad) + '</div>' +
-          // Auditoría UX/UI: la tarjeta muestra dos "semáforos" (GO/REVISAR/
-          // NO-GO de cumplimiento, y ALTA/MEDIA/BAJA de prioridad por palabra
-          // clave) sin ninguna aclaración junto a ellos -- solo en el pie de
-          // página general de la vista, lejos de donde realmente se leen.
-          // El title explica esto en desktop (hover), pero un title NUNCA
-          // se ve en pantalla táctil -- sin hover, no hay forma de
-          // disparlo. Además de "tag-tip" (clase compartida) + data-tip
-          // (mismo texto que title), tapeable: revela el mismo texto en
-          // una nota debajo de la tarjeta (ver el listener delegado
-          // "tag-tip-note" y su CSS).
-          '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority tag-tip" tabindex="0" role="button" aria-expanded="false" title="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '" data-tip="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '">' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
-        '</div>' +
-        '<div class="tag-tip-note saved-note" hidden></div>' +
-        '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 220)) + '</div>' +
-        '<div class="row-meta">' +
-          '<span>' + escapeHtml(loc) + '</span>' +
-          (it.modalidad ? '<span><b>Modalidad:</b> ' + escapeHtml(it.modalidad) + '</span>' : '') +
-          (money ? '<span><b>Valor base:</b> ' + money + '</span>' : '') +
-          '<span><b>Presentación de oferta:</b> ' + deadlineText + '</span>' +
-          (pub ? '<span><b>Apertura del proceso:</b> ' + pub + '</span>' : '') +
-          (it.referencia ? '<span><b>Referencia:</b> ' + escapeHtml(it.referencia) + '</span>' : '') +
-        '</div>' +
-        (s.evaluacion
-          ? '<div class="tarjeta-veredicto saved-note"><b>' + escapeHtml(etiquetaVeredicto(s.evaluacion.mejor.veredicto)) + ':</b> ' + escapeHtml(lineaMotivoVeredicto(s.evaluacion.mejor.gates, s.evaluacion.mejor.veredicto, s.evaluacion.mejor.conPliego)) +
-              ' · ' + escapeHtml(textoCoberturaLectura(analysisEntry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>'
-          : '') +
-        linkHtml +
-        actionsHtml +
-      '</div>';
-    }).join('') + (totalFiltrados > scored.length
-      ? '<div style="text-align:center;margin:14px 0;"><button type="button" class="btn-secondary" id="bt-mas-resultados">Mostrar ' + Math.min(40, totalFiltrados - scored.length) + ' más (quedan ' + (totalFiltrados - scored.length) + ')</button></div>'
-      : '');
+    return '<div class="row ' + s.tier + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
+      venceAlertHtml +
+      '<div class="row-head"><div class="row-ent">' + escapeHtml(it.entidad) + '</div>' +
+        // Auditoría UX/UI: la tarjeta muestra dos "semáforos" (GO/REVISAR/
+        // NO-GO de cumplimiento, y ALTA/MEDIA/BAJA de prioridad por palabra
+        // clave) sin ninguna aclaración junto a ellos -- solo en el pie de
+        // página general de la vista, lejos de donde realmente se leen.
+        // El title explica esto en desktop (hover), pero un title NUNCA
+        // se ve en pantalla táctil -- sin hover, no hay forma de
+        // disparlo. Además de "tag-tip" (clase compartida) + data-tip
+        // (mismo texto que title), tapeable: revela el mismo texto en
+        // una nota debajo de la tarjeta (ver el listener delegado
+        // "tag-tip-note" y su CSS).
+        '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority tag-tip" tabindex="0" role="button" aria-expanded="false" title="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '" data-tip="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '">' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
+      '</div>' +
+      '<div class="tag-tip-note saved-note" hidden></div>' +
+      '<div class="row-obj">' + escapeHtml(truncate(it.objeto, enAnalisis ? 600 : 220)) + '</div>' +
+      '<div class="row-meta">' +
+        '<span>' + escapeHtml(loc) + '</span>' +
+        (it.modalidad ? '<span><b>Modalidad:</b> ' + escapeHtml(it.modalidad) + '</span>' : '') +
+        (money ? '<span><b>Valor base:</b> ' + money + '</span>' : '') +
+        '<span><b>Presentación de oferta:</b> ' + deadlineText + '</span>' +
+        (enAnalisis && pub ? '<span><b>Apertura del proceso:</b> ' + pub + '</span>' : '') +
+        (it.referencia ? '<span><b>Referencia:</b> ' + escapeHtml(it.referencia) + '</span>' : '') +
+      '</div>' +
+      (enAnalisis && s.evaluacion
+        ? '<div class="tarjeta-veredicto saved-note"><b>' + escapeHtml(etiquetaVeredicto(s.evaluacion.mejor.veredicto)) + ':</b> ' + escapeHtml(lineaMotivoVeredicto(s.evaluacion.mejor.gates, s.evaluacion.mejor.veredicto, s.evaluacion.mejor.conPliego)) +
+            ' · ' + escapeHtml(textoCoberturaLectura(analysisEntry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>'
+        : '') +
+      linkHtml +
+      actionsHtml +
+    '</div>';
+  }
+
+  // ---- Vista "Análisis de pliegos" ---------------------------------------------------------------
+  let analisisSelId = null;
+  function renderAnalisisView(){
+    const panel = document.getElementById('bt-analisis-panel');
+    const vacio = document.getElementById('bt-analisis-empty');
+    if (!analisisSelectEl || !analisisOutEl || !panel || !vacio) return;
+    const lista = lastScored || [];
+    if (!lista.length){
+      panel.hidden = true; vacio.hidden = false; analisisOutEl.innerHTML = '';
+      return;
+    }
+    vacio.hidden = true; panel.hidden = false;
+    if (!analisisSelId || !lista.some(x => x.item.id === analisisSelId)) analisisSelId = lista[0].item.id;
+    analisisSelectEl.innerHTML = lista.map(x => {
+      const et = x.item.entidad || 'Entidad';
+      const rf = x.item.referencia ? ' [' + x.item.referencia + ']' : '';
+      const marca = analisis[x.item.id] ? '✓ ' : '';
+      return '<option value="' + escapeHtml(x.item.id) + '">' + marca + escapeHtml(truncate(et + ' — ' + x.item.objeto, 110) + rf) + '</option>';
+    }).join('');
+    analisisSelectEl.value = analisisSelId;
+    const sel = lista.find(x => x.item.id === analisisSelId);
+    const entry = analisis[analisisSelId];
+    // El veredicto cacheado en el último render puede estar obsoleto (ver evaluarMejor): se recalcula.
+    const evalActual = (sel.evaluacion || entry) ? evaluarMejor(sel.item, { daysLeft: sel.daysLeft }, entry) : null;
+    const s2 = Object.assign({}, sel, { evaluacion: evalActual });
+    analisisOutEl.innerHTML = tarjetaProcesoHtml(s2, estadoFlujoPliego().listo, 'analisis');
+  }
+  function abrirAnalisis(id){
+    analisisSelId = id;
+    mostrarVista('analisis');
+  }
+  // Botones estáticos "Ir a ..." fuera de las tarjetas (los de dentro ya los atiende el listener de la tarjeta).
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('button[data-ir-a]');
+    if (!b || resultsEl.contains(b) || (analisisOutEl && analisisOutEl.contains(b))) return;
+    mostrarVista(b.getAttribute('data-ir-a'));
+  });
+  if (analisisSelectEl){
+    analisisSelectEl.addEventListener('change', () => {
+      analisisSelId = analisisSelectEl.value;
+      renderAnalisisView();
+    });
   }
 
   function truncate(s, n){ s = String(s); return s.length > n ? s.slice(0,n) + '…' : s; }
@@ -11545,7 +11641,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // resultados: acciones de tarjeta (visto/descartar/analizar), y los dos
   // botones del análisis de pliegos (OCR y "seguir leyendo"). Antes eran tres
   // listeners 'click' separados sobre el mismo elemento.
-  resultsEl.addEventListener('click', async function(e){
+  enContenedoresDeProceso('click', async function(e){
     // -1) "Ver datos de ejemplo" ofrecido directo en el estado vacío (SIN
     // RESULTADOS) -- auditoría "primer uso": con los filtros de fábrica, la
     // primera búsqueda de alguien nuevo puede dar 0 resultados reales (no es
@@ -11613,6 +11709,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const s = (lastScored || []).find(x => x.item.id === id);
       if (s) agregarAPipeline(id, s.item);
       rerender();
+      return;
+    }
+    const irAnalisisBtn = e.target.closest('[data-ir-analisis]');
+    if (irAnalisisBtn){
+      abrirAnalisis(irAnalisisBtn.getAttribute('data-ir-analisis'));
       return;
     }
     const irPipelineBtn = e.target.closest('[data-ir-pipeline]');
@@ -12042,7 +12143,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Activación por teclado (Enter/Espacio) del mismo tooltip táctil de
   // arriba -- `.tag-tip` lleva tabindex="0" role="button" para que también
   // sea accesible sin mouse ni pantalla táctil.
-  resultsEl.addEventListener('keydown', function(e){
+  enContenedoresDeProceso('keydown', function(e){
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const tagTip = e.target.closest('.tag-tip');
     if (!tagTip) return;
@@ -12054,7 +12155,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // usuario -- "la carga del documento y el análisis deben ser acciones
   // diferentes"). No se extrae texto ni se analiza nada todavía; eso ocurre
   // al pulsar el botón "Analizar pliego" (ver .analysis-confirmar-btn arriba).
-  resultsEl.addEventListener('change', async function(e){
+  enContenedoresDeProceso('change', async function(e){
     const input = e.target.closest('input[type=file][data-analyze-id]');
     if (!input) return;
     const id = input.getAttribute('data-analyze-id');
@@ -12080,7 +12181,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // todavía no está publicado. Mismo patrón de dos pasos (cargar, luego confirmar) y MISMO
   // store (pendingPliegoFiles) que el pliego real -- así reutiliza sin duplicar toda la lectura/
   // OCR/IA ya construida para ese flujo; solo esSoloEPPendiente[id] distingue el origen.
-  resultsEl.addEventListener('change', async function(e){
+  enContenedoresDeProceso('change', async function(e){
     const input = e.target.closest('input[type=file][data-analyze-ep-id]');
     if (!input) return;
     const id = input.getAttribute('data-analyze-ep-id');
@@ -12107,7 +12208,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // listener 'change' porque su <input> se genera dentro de
   // renderEstudioPrevioUploadHtml, con `data-ep-id` en vez de
   // `data-analyze-id`.
-  resultsEl.addEventListener('change', async function(e){
+  enContenedoresDeProceso('change', async function(e){
     const input = e.target.closest('input[type=file][data-ep-id]');
     if (!input) return;
     const id = input.getAttribute('data-ep-id');
@@ -12137,7 +12238,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // evaluación de experiencia siguen funcionando exactamente igual estén o no
   // a la vista).
   // ============================================================
-  const VISTAS = ['dashboard', 'buscar', 'perfil', 'experiencia', 'personal', 'evaluacion', 'pipeline'];
+  const VISTAS = ['dashboard', 'buscar', 'analisis', 'perfil', 'experiencia', 'personal', 'evaluacion', 'pipeline'];
   // Nav móvil (menú desplegable, ver CSS ≤560px): botón que abre/cierra
   // #bt-nav como panel + el <span> donde se refleja el nombre de la vista
   // activa. En desktop estos elementos existen igual en el DOM, pero el
@@ -12192,6 +12293,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       renderAlertasList();
     }
     if (nombre === 'pipeline') renderPipelineView();
+    if (nombre === 'analisis') renderAnalisisView();
   }
 
   // Indicador de los 5 pasos del flujo principal (Experiencia → Análisis →
