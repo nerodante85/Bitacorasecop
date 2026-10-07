@@ -704,9 +704,9 @@ await check('parsearExcelExperiencia: combina contratos de TODAS las hojas, no s
   assert(parsed.contratos.some(c => c.valor === 5930400645), 'el valor del contrato de COLEGIOS no se leyó bien');
 });
 
-// Regresión de un bug real encontrado con un Excel real de experiencia (constructora Dora Garay):
-// algunas hojas de un libro de varias hojas son en realidad un resumen de una sola cifra ("DORA
-// NAHIR GARAY GUTIERREZ" + un valor suelto, sin tabla real) -- el heurístico de "primera fila con
+// Regresión de un bug real encontrado con un Excel real de experiencia (persona natural):
+// algunas hojas de un libro de varias hojas son en realidad un resumen de una sola cifra ("NOMBRE
+// DE LA PERSONA" + un valor suelto, sin tabla real) -- el heurístico de "primera fila con
 // >=2 celdas no vacías" las confunde con un encabezado real, y las filas de abajo (vacías, de
 // espaciado) quedaban contadas como "contratos" con TODO en null. Con el archivo real: 80 de 127
 // "contratos" reportados no tenían ningún dato -- inflaba el conteo sin aportar nada comparable.
@@ -721,7 +721,7 @@ await check('parsearExcelExperiencia: una hoja basura (resumen de una cifra, sin
     // que SÍ pasan el filtro de "alguna celda no vacía" y se parsean como "contrato" -- pero
     // ninguna columna de ese encabezado-basura matchea nada, así que todos los campos salen null.
     { nombre: 'ALCANTARILLADO', headers: [],
-      rows: [['', 'DORA NAHIR GARAY GUTIERREZ', '', '', '', '', '', '', '', '', '', '', '1,750,905.00'],
+      rows: [['', 'NOMBRE DE LA PERSONA', '', '', '', '', '', '', '', '', '', '', '1,750,905.00'],
              ['', '', '', '', '', '', '', '', '', '', '', '', '-'],
              ['', '', '', '', '', '', '', '', '', '', '', '', '-']] },
     { nombre: 'ACUEDUCTO', headers: ['N°', 'OBJETO DEL CONTRATO', 'ENTIDAD CONTRATANTE', 'VALOR DEL CONTRATO'],
@@ -1613,7 +1613,7 @@ await check('"En Ejecución" en la columna de terminación: el contrato no acred
   const { r } = evaluarReqTexto('Experiencia en construcción de puentes vehiculares', H, [[PUENTE, 'Alcaldía X', '900000000', '2024-03-01']]);
   assert(r.resultado === 'CUMPLE', 'control: terminado sí cumple');
 });
-// Archivo real de PCM: "VALOR ACTUALIZADO" solo venía en 25 de 57 contratos aunque todos traían "VALOR CONTRATO".
+// Archivo real de una constructora: "VALOR ACTUALIZADO" solo venía en 25 de 57 contratos aunque todos traían "VALOR CONTRATO".
 await check('Valor del contrato: si la columna de valor actualizado está vacía en una fila, se usa el valor del contrato de ESA fila, marcado como nominal y sin dar por ajustado el % de participación', () => {
   const H = ['Objeto', 'Contratante', 'Valor contrato', 'Valor actualizado (según % participación)'];
   const rows = [

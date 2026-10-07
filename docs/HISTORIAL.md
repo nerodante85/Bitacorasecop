@@ -4447,7 +4447,7 @@ valor" funciona -- hacía falta la POSICIÓN (x,y) de cada fragmento.
 **Investigación de posición, confirmada contra el archivo real** (no
 supuesta): el valor llenado de un campo aparece cerca de su etiqueta
 numerada -- casi siempre justo DEBAJO, en la misma columna (ej. "31.
-Primer apellido" en y=532 → "GALVIS" en y=521, misma x); a veces a la
+Primer apellido" en y=532 → "APELLIDO" en y=521, misma x); a veces a la
 DERECHA, en el mismo renglón, para campos de una sola línea (correo,
 teléfono, folios, firma) -- nunca pegado como texto plano.
 
@@ -5742,17 +5742,16 @@ aparte (quién firma, bajo qué figura) que no se resuelve inventando un formato
 ## Probado con 4 Excel reales de experiencia (uno por empresa): bug real de hojas "resumen" sin tabla
 
 El usuario pidió probar "Experiencia por empresa" (sección anterior) con Excel reales, uno por empresa:
-4 archivos reales de 4 constructoras distintas (Constructora Gilli, PCM S.A.S., Dora Garay, Egida
-Construcciones -- 2 en `.xlsx`, 2 en `.xls` viejo). Los 4 se leyeron sin errores (xlsx.js lee `.xls` igual
+4 archivos reales de 4 constructoras distintas (empresas A a D, una de ellas una persona natural -- 2 en `.xlsx`, 2 en `.xls` viejo). Los 4 se leyeron sin errores (xlsx.js lee `.xls` igual
 que `.xlsx`, sin diferencia) y el combinado sumó sus contratos como se esperaba -- pero inspeccionar el
-Excel de Dora Garay (19 hojas, organizado por especialidad) expuso un bug real preexistente, no introducido
+Excel de la persona natural (19 hojas, organizado por especialidad) expuso un bug real preexistente, no introducido
 por la ronda anterior.
 
 **El bug**: reportaba "127 contrato(s) leído(s)", pero solo 47 tenían algún campo con dato real -- los
 otros 80 eran filas completamente vacías (`objeto`/`valor`/`contratante`/fechas, todo `null`). Causa raíz
 en `leerHojaPorNombre`: varias hojas del archivo (ALCANTARILLADO, CANALES, CASAS, ESCUELA,
 POLIDEPORTIVOS, CIC, REDES) no son tablas de contratos -- son un resumen de UNA sola cifra por hoja (ej.
-"DORA NAHIR GARAY GUTIERREZ" + un valor suelto). El heurístico "primera fila con ≥2 celdas no vacías es
+"NOMBRE DE LA PERSONA" + un valor suelto). El heurístico "primera fila con ≥2 celdas no vacías es
 el encabezado" confundía esa fila de título con un encabezado real; como ninguna columna de ese
 "encabezado" matchea `DICC_CONTRATO`, las filas de relleno/espaciado de abajo (con alguna celda suelta no
 vacía -- pasan el filtro `.some(c => no vacía)` de `leerHojaPorNombre`, aunque no tengan ningún dato
@@ -5789,7 +5788,7 @@ algunos contratos reales adicionales de hojas menores no inspeccionadas a mano),
 explícitamente "Se omitieron 76 fila(s) vacía(s)", y el panel de interpretación muestra correctamente
 "OBJETO DEL CONTRATO"/"ENTIDAD CONTRATANTE"/etc. detectados (de la hoja ACUEDUCTO), con la columna de
 valor ajustado por participación (Fase del bug de Clarent, ver arriba) también detectada bien en esta
-hoja. Las otras 3 empresas (Gilli: 175, PCM: 57, Egida: 74) no cambiaron de conteo -- confirma que el fix
+hoja. Las otras 3 empresas (empresa A: 175, empresa D: 57, empresa C: 74) no cambiaron de conteo -- confirma que el fix
 es quirúrgico, no afecta archivos que no tienen este problema. El combinado de las 4 empresas pasó de
 (incorrectamente) 433 a (correctamente) 357 contratos. 0 errores de consola. Archivos de prueba
 eliminados antes de terminar (`git status --porcelain` limpio).

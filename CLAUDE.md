@@ -57,6 +57,7 @@ sincronización, Edge Functions de IA y correo).
   completa (CO, E, CT, CF: Fase 2, pendiente de la fuente oficial). Lógica pura en `evaluacion.js` (`validarContratoEjecucion`, `contratosDuplicados`, `resumenCapacidadResidual` con estados
   completa/preliminar/no_calculable, `comparacionCapacidadResidual`). En el análisis, `capacidadResidualAnalisisHtml` muestra exigida vs empresa con fuente y página; la misma regla del gate
   "Capacidad K residual". `extraerKResidualUmbral` devuelve `conflicto` si el documento trae montos distintos (nunca elige uno). Detalle en `auditoria/CAPACIDAD-RESIDUAL-FASE1.md`.
+- **Formato Maestro de Experiencia** (diseño, 2026-10): plantilla en `plantillas/Formato_Maestro_Experiencia_BitacoraSECOP_v1.xlsx` (sujetos, contratos únicos, participaciones, UNSPSC, cantidades, listas y SMMLV con fórmulas). La app todavía **no** lo importa (Fase 3); sigue leyendo los Excel antiguos. Diseño y auditoría en `auditoria/FORMATO-MAESTRO-EXPERIENCIA-FASE*.md`.
 - **Documentos**: `inventarioDocumentos` (puro) lista lo cargado; no guarda archivos nuevos (RUP/RUT/hojas de vida no se conservan como archivo).
 - **SECOP I fue retirado por completo** (2026-10, decisión del usuario): ni búsqueda ni adjudicaciones; solo SECOP II. Decisión abierta: texto jurídico de privacidad.
 - **Datos**: dataset SECOP II `p6dx-8zbt` (Buscar procesos y adjudicaciones), PAA `9sue-ezhx`. Todo vía Socrata (datos.gov.co) con `X-App-Token`.
