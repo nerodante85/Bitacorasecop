@@ -67,7 +67,7 @@ Calculados: valor participado, SMMLV participados, valor actualizado participado
 
 ### SUJETOS · UNSPSC · CANTIDADES
 
-- **SUJETOS**: ID_SUJETO, TIPO (Empresa / Persona natural), NOMBRE y DOCUMENTO obligatorios; REGISTRO (RUP o matrícula) y observaciones opcionales; calcula nº de contratos y valor actualizado total.
+- **SUJETOS**: ID_SUJETO, TIPO (Empresa / Persona natural), NOMBRE y DOCUMENTO obligatorios; REGISTRO (RUP o matrícula), CUENTA_PARA y observaciones opcionales. `CUENTA_PARA` (solo personas) indica la empresa a la que se le cuenta la experiencia de esa persona (por ejemplo, su representante o socio); vacío significa que la experiencia es solo de la persona. Calcula nº de contratos y valor actualizado propios, y los "con vinculados" (propios + los de las personas que cuentan para el sujeto). Un contrato compartido no se cuenta dos veces: cada uno aporta solo su porcentaje. La hoja `RESUMEN` permite incluir o excluir a las personas vinculadas.
 - **UNSPSC**: ID_CONTRATO y CODIGO_UNSPSC (8 dígitos, validado) obligatorios; descripción opcional; calcula segmento y familia.
 - **CANTIDADES**: ID_CONTRATO, ITEM, CANTIDAD (≥ 0) y UNIDAD (m, ml, m², m³, km, un, kg, ton, global, otra) obligatorios.
 
@@ -120,7 +120,7 @@ El importador de la app leerá este formato en lugar de adivinar columnas: `CONT
 
 1. **SMMLV por verificar**: 1991, 1992, 2019, 2022, 2024 y 2025 están marcados "por verificar contra el decreto". Los demás años (1990, 1993–2018, 2020, 2021, 2023, 2026) coinciden con los valores implícitos en los archivos de experiencia. Detalle: en Empresa A, algunos contratos de 2022 a 2024 traen un SMMLV que no corresponde al año de terminación; conviene revisarlos.
 2. **Año de conversión**: se usa el año de terminación, como hacen los archivos. Si la guía de la entidad o el RUP exige otro criterio (fecha de suscripción), se ajusta en `ANO_SMMLV`.
-3. **Persona natural**: se registra aparte; si el usuario decide que la experiencia de una persona cuenta para una empresa (por ejemplo, un director de obra), esa regla va en la integración con el motor.
+3. **Persona natural**: se registra aparte y solo cuenta para una empresa si se indica en `CUENTA_PARA` (decisión del usuario: la experiencia de las personas de uno de los archivos cuenta para su empresa). Cuando la app importe el formato, deberá respetar esa relación y permitir apagarla.
 4. **Datos que llegarán incompletos**: 25 de las 56 filas de Empresa D (sin número, entidad ni fechas), algunas de Persona B y los contratos de Empresa D sin valor ejecutado. El formato no los inventa: salen con alertas.
 5. **Entidades**: el catálogo (161 nombres de los archivos, con "posibles relacionadas") necesita una revisión humana antes de unificar.
 6. **Ejemplos**: las tres filas de ejemplo de la plantilla son ficticias (el repositorio es público; los datos reales no se publican).
