@@ -3318,7 +3318,7 @@ await check('Accesibilidad: todo control de formulario tiene su etiqueta (label 
   const huerfanas = [...body.matchAll(/<label>(?:(?!<\/label>)[\s\S])*<\/label>/g)].filter(m => !/<(?:input|select|textarea)\b/.test(m[0]));
   assert(huerfanas.length === 0, 'labels sin for ni control dentro: ' + huerfanas.map(m => m[0].slice(0, 50)).join(' | '));
   const tips = [...html.matchAll(/tag-tip" tabindex="0" role="button"([^>]{0,40})/g)];
-  assert(tips.length >= 2 && tips.every(m => /aria-expanded="false"/.test(m[1])), 'cada sello .tag-tip debe nacer con aria-expanded="false"');
+  assert(tips.length >= 1 && tips.every(m => /aria-expanded="false"/.test(m[1])), 'cada sello .tag-tip debe nacer con aria-expanded="false"');
   assert(/setAttribute\('aria-expanded'/.test(html), 'el manejador debe actualizar aria-expanded al abrir/cerrar la nota');
 });
 
@@ -3549,7 +3549,13 @@ await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el 
   const i = html.indexOf('function tarjetaProcesoHtml');
   assert(i !== -1, 'falta tarjetaProcesoHtml');
   const fn = html.slice(i, html.indexOf('function truncate(', i));
-  assert(/data-ir-analisis/.test(fn), 'la tarjeta de la lista debe tener el botón que redirige al análisis');
+  const lista = fn.slice(fn.indexOf(": '<div class=\"row-actions\">'"));
+  assert(!/data-ir-analisis/.test(lista), 'Buscar procesos no debe llevar al análisis: se guarda y se abre desde Mis procesos');
+  assert(/<dl class="ficha">/.test(fn) && /data-agregar-pipeline/.test(fn), 'la tarjeta es una ficha con los datos del proceso y el botón Guardar');
+  assert(/enAnalisis \? evalChipHtml\(s\.evaluacion\) : ''/.test(fn) && !/class="tag priority/.test(fn), 'el sello GO/REVISAR y la prioridad no van en la lista');
+  const render = html.slice(html.indexOf('function render(records'), html.indexOf('function tarjetaProcesoHtml'));
+  assert(!/evaluarMejor|hideNoGo|alta prioridad|cumplen lo revisado/.test(render), 'render() de Buscar no debe evaluar ni contar GO/NO-GO ni prioridad');
+  assert(!/id="bt-hide-nogo"|id="bt-export-csv"|id="bt-copy-summary"|value="prioridad"/.test(html), 'no deben quedar controles de análisis en Buscar procesos');
   assert(/enAnalisis\s*\n?\s*\?\s*'<div class="row-actions">'[\s\S]*analysis-slot[\s\S]*:\s*'<div class="row-actions">'/.test(fn), 'el analysis-slot y los botones de pliego solo van en modo análisis');
   assert(/!enAnalisis \? '' : \(analysisEntry \? renderAnalysisHtml/.test(fn), 'el análisis completo solo se dibuja en modo análisis');
   assert(/tarjetaProcesoHtml\(s, flujoListoParaPliego, 'lista'\)/.test(html) && /tarjetaProcesoHtml\(s2, .*'analisis'\)/.test(html), 'la lista usa modo lista y la vista nueva modo analisis');

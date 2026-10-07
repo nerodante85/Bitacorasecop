@@ -85,15 +85,19 @@ const vistaActiva = pg => pg.evaluate(() => { const v = [...document.querySelect
 const focoActual = pg => pg.evaluate(() => { const a = document.activeElement; return a.tagName + (a.tagName === 'H1' ? ':' + a.textContent.trim() : ''); });
 const sinDesborde = pg => pg.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 const quitarFiltros = pg => pg.evaluate(() => {
-  ['bt-hide-nogo', 'bt-hide-closed', 'bt-hide-old', 'bt-only-licitacion', 'bt-hide-discarded'].forEach(i => {
+  ['bt-hide-closed', 'bt-hide-old', 'bt-only-licitacion', 'bt-hide-discarded'].forEach(i => {
     const e = document.getElementById(i);
     if (e && e.checked) { e.checked = false; e.dispatchEvent(new Event('change', { bubbles: true })); }
   });
 });
-// El análisis ya no tiene ítem de menú: se llega a él desde la tarjeta de un proceso (o desde Documentos / Mis procesos).
+// El análisis ya no se abre desde Buscar procesos: se guarda el proceso y se abre desde Mis procesos.
 const abrirAnalisisDelPrimero = async pg => {
   await pg.click('#bt-nav-buscar');
-  await pg.locator('#bt-results .row').first().locator('[data-ir-analisis]').click();
+  const fila = pg.locator('#bt-results .row').first();
+  const id = await fila.getAttribute('data-id');
+  if (await fila.locator('[data-agregar-pipeline]').count()) await fila.locator('[data-agregar-pipeline]').click();
+  await pg.click('#bt-nav-procesos');
+  await pg.locator('#view-procesos [data-pipeline-abrir-id="' + id + '"]').first().click();
   await pg.waitForFunction(() => !document.getElementById('view-analisis').hidden);
 };
 const dosEmpresas = () => {
@@ -104,19 +108,22 @@ const dosEmpresas = () => {
 
 console.log('Bitácora SECOP — pruebas de punta a punta (navegador real, sin red externa)\n');
 
-await check('Buscar → "Analizar pliego →" → Análisis de pliegos: la lista queda limpia, la vista abre el proceso elegido, avisa del respaldo y el foco va al título', async () => {
+await check('Buscar procesos solo busca y muestra la ficha (sin análisis); Guardar → Mis procesos → Abrir lleva al análisis, avisa del respaldo y el foco va al título', async () => {
   const { ctx, pg } = await abrir();
   await pg.click('#bt-nav-buscar');
   const fila = await pg.evaluate(() => {
     const r = document.querySelector('#bt-results .row');
-    return { id: r.dataset.id, analisis: !!r.querySelector('.analysis-slot, .analysis-fold'), archivo: !!r.querySelector('input[type=file]'), boton: !!r.querySelector('[data-ir-analisis]') };
+    const campos = [...r.querySelectorAll('.ficha dt')].map(x => x.textContent.trim());
+    return { id: r.dataset.id, analisis: !!r.querySelector('.analysis-slot, .analysis-fold'), archivo: !!r.querySelector('input[type=file]'),
+      botonAnalisis: !!r.querySelector('[data-ir-analisis]'), sello: !!r.querySelector('.tarjeta-veredicto, .tag.priority, .eval-chip'), campos,
+      guardar: !!r.querySelector('[data-agregar-pipeline], [data-ir-pipeline]'), nogo: !!document.getElementById('bt-hide-nogo'), csv: !!document.getElementById('bt-export-csv') };
   });
   assert(!fila.analisis && !fila.archivo, 'la tarjeta de la lista no debe traer análisis ni carga de archivo');
-  assert(fila.boton, 'la tarjeta debe traer el botón "Analizar pliego →"');
-  await pg.locator('#bt-results .row').first().locator('[data-ir-analisis]').focus();
-  await pg.keyboard.press('Enter');
-  await pg.waitForFunction(() => !document.getElementById('view-analisis').hidden);
-  assert(await vistaActiva(pg) === 'view-analisis', 'debe abrirse la vista de análisis');
+  assert(!fila.botonAnalisis && !fila.sello, 'Buscar procesos no debe ofrecer análisis, sello GO/REVISAR ni prioridad');
+  assert(!fila.nogo && !fila.csv, 'no deben quedar controles de análisis (Ocultar NO-GO, exportar alta prioridad)');
+  assert(['Cuantía', 'Ubicación', 'Cierre'].every(c => fila.campos.includes(c)), 'la ficha debe traer los datos clave del proceso: ' + fila.campos.join(', '));
+  assert(fila.guardar, 'la tarjeta debe poder guardarse en Mis procesos');
+  await abrirAnalisisDelPrimero(pg);
   const v = await pg.evaluate(() => ({
     sel: document.getElementById('bt-analisis-select').value,
     filaId: (document.querySelector('#bt-analisis-out .row') || {}).dataset && document.querySelector('#bt-analisis-out .row').dataset.id,
@@ -434,7 +441,7 @@ await check('Sin pliego: el proceso se abre con NO DETERMINABLE (no hay evidenci
   assert(['NO DETERMINABLE', 'NO-GO'].includes(v.nombre) && v.nombre !== 'GO', 'sin pliego nunca es GO ni REVISAR "de avance": ' + v.nombre);
   if (v.nombre === 'NO DETERMINABLE') assert(/no hay evidencia|sin él/i.test(v.expl), 'explica por qué: ' + v.expl);
   assert(v.botones[0] === 'Analizar proceso', 'la acción principal es "Analizar proceso": ' + v.botones.join(' | '));
-  assert(v.botones.includes('Guardar') && v.botones.includes('Ver en SECOP'), 'Guardar y Ver en SECOP: ' + v.botones.join(' | '));
+  assert(v.botones.some(b => b === 'Guardar' || /^✓ Guardado/.test(b)) && v.botones.includes('Ver en SECOP'), 'Guardar y Ver en SECOP: ' + v.botones.join(' | '));
   await ctx.close();
 });
 
