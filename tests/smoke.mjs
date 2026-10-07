@@ -4042,5 +4042,62 @@ await check('FM-010: el importador está cargado en index.html antes del script 
   assert(/cp index\.html [^\n]*formatomaestro\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro/.test(yml), 'pages.yml debe copiar y sellar formatomaestro.js');
 });
 
+// ---- Experiencia por UNSPSC: el pliego exige que el contrato acreditado esté clasificado en ciertos códigos ----
+function contratosConUnspsc(codigosPorContrato) {
+  const cs = expEngine.parsearExcelExperiencia(fakeWorkbook(
+    ['Objeto', 'Fecha de terminación'],
+    codigosPorContrato.map((c, i) => ['Construcción de puentes vehiculares tramo ' + (i + 1), '2024-03-15'])
+  )).contratos;
+  cs.forEach((c, i) => { if (codigosPorContrato[i]) c.formatoMaestro = { unspsc: codigosPorContrato[i] }; });
+  return cs;
+}
+const FILA_UNSPSC = (cods, extra) => filaIA(Object.assign({ min_contratos: 2, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: false, codigos_unspsc: cods }, extra || {}));
+
+await check('EU-001: el pliego exige códigos y los contratos los traen (misma clase) -> CUMPLE; la clase se compara con 6 dígitos', () => {
+  const r = evaluarFilaIA(FILA_UNSPSC(['72141003']), contratosConUnspsc([['72141001'], ['72141099', '95121500']]));
+  assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + r.resultado + ' -- ' + r.justificacion);
+  assert(/UNSPSC/.test(r.justificacion), 'la justificación debe mencionar la clasificación UNSPSC: ' + r.justificacion);
+});
+
+await check('EU-002: contratos con otro código NO acreditan aunque el objeto coincida (nunca CUMPLE por el objeto solo)', () => {
+  const r = evaluarFilaIA(FILA_UNSPSC(['72141003']), contratosConUnspsc([['95121500'], ['95121600']]));
+  assert(r.resultado !== 'CUMPLE', 'no debía dar CUMPLE: ' + r.resultado);
+  assert(/UNSPSC/.test(r.justificacion), r.justificacion);
+});
+
+await check('EU-003: contratos sin ningún código -> NO DETERMINABLE y se explica que faltan los UNSPSC (no CUMPLE por el objeto)', () => {
+  const r = evaluarFilaIA(FILA_UNSPSC(['72141003']), contratosConUnspsc([null, null]));
+  assert(r.resultado === 'NO DETERMINABLE', 'fue ' + r.resultado + ' -- ' + r.justificacion);
+  assert(/sin c[oó]digo|no traen? c[oó]digo|UNSPSC/i.test(r.justificacion), r.justificacion);
+});
+
+await check('EU-004: un contrato con código y otro sin código, mínimo 2 -> NO DETERMINABLE (el que no tiene código podría completar el mínimo), nunca NO CUMPLE', () => {
+  const r = evaluarFilaIA(FILA_UNSPSC(['72141003']), contratosConUnspsc([['72141001'], null]));
+  assert(r.resultado === 'NO DETERMINABLE', 'fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('EU-005: con código confirmado en todos y menos contratos de los exigidos -> NO CUMPLE (el incumplimiento sí se demuestra)', () => {
+  const r = evaluarFilaIA(FILA_UNSPSC(['72141003']), contratosConUnspsc([['72141001']]));
+  assert(r.resultado === 'NO CUMPLE', 'fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('EU-006: una fila sin códigos se evalúa exactamente como antes (no se sobre-corrige)', () => {
+  const r = evaluarFilaIA(FILA_UNSPSC([]), contratosConUnspsc([null, null]));
+  assert(r.resultado === 'CUMPLE', 'fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('EU-007: un código exigido que no se puede comparar (menos de 6 dígitos) bloquea el CUMPLE automático', () => {
+  const r = evaluarFilaIA(FILA_UNSPSC(['72']), contratosConUnspsc([['72141001'], ['72141001']]));
+  assert(r.resultado === 'NO DETERMINABLE', 'fue ' + r.resultado + ' -- ' + r.justificacion);
+});
+
+await check('EU-008: el contrato importado del Formato Maestro lleva sus UNSPSC al motor (extremo a extremo)', () => {
+  const d = fmDatos();
+  d.unspsc = [{ ID_CONTRATO: d.contratos[0].ID_CONTRATO, CODIGO_UNSPSC: '72141001' }];
+  const imp = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: false }).contratos;
+  const c = imp.find(x => x.formatoMaestro && x.formatoMaestro.unspsc.length);
+  assert(c && c.formatoMaestro.unspsc[0] === '72141001', 'el importador debe conservar los códigos del contrato');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
