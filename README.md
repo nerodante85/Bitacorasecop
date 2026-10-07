@@ -40,6 +40,7 @@ analiza el pliego de condiciones de un proceso puntual.
   requisitos habilitantes y muestra un resumen de compatibilidad (%
   estimado, fortalezas, debilidades, riesgos) además del semáforo GO / NO-GO
   / REVISAR.
+- **Formato Maestro de Experiencia** (en "Empresa › Experiencia"): un libro de Excel estándar (plantilla en `plantillas/`) con sujetos, contratos únicos y participaciones. Al cargarlo, Bitácora pregunta a qué empresa corresponde, suma opcionalmente la experiencia de las personas vinculadas y envía los contratos en ejecución a Capacidad Residual.
 - **Capacidad Residual** (en "Empresa › Datos"): registra tus contratos en ejecución (valores, fechas,
   participación en consorcio o unión temporal) y la app calcula lo que te queda disponible de tu K residual
   declarada, con alertas y un "Ver cómo se calculó". Al analizar un proceso compara la K que exige con la tuya,
