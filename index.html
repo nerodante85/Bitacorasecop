@@ -4880,8 +4880,24 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // confundir una fila-título suelta arriba con el encabezado real). Una
   // hoja sin ninguna fila así (ej. un listado de un solo valor por fila,
   // sin tabla real) devuelve headers/rows vacíos, no inventa un encabezado.
+  // Una celda de fecha de Excel guarda un NÚMERO DE SERIE; el texto con formato ("12/2/94") depende de la configuración regional
+  // (mes/día) y trae el año en 2 dígitos: leerlo como texto es ambiguo y se descartaba (0 de ~300 contratos de archivos reales
+  // tenían fecha). Aquí el texto formateado de esas celdas se reemplaza por la fecha real en ISO (aaaa-mm-dd), que no es ambigua.
+  function fechasDeHojaAISO(XLSX, hoja){
+    if (!hoja || !hoja['!ref'] || !XLSX || !XLSX.SSF || !XLSX.SSF.is_date || !XLSX.SSF.parse_date_code) return;
+    Object.keys(hoja).forEach(dir => {
+      if (dir.charAt(0) === '!') return;
+      const c = hoja[dir];
+      if (!c || c.t !== 'n' || typeof c.v !== 'number' || !c.z || !XLSX.SSF.is_date(c.z)) return;
+      const d = XLSX.SSF.parse_date_code(c.v);
+      if (!d || !d.y || d.y < 1900 || d.y > 2100) return;
+      c.w = d.y + '-' + String(d.m).padStart(2, '0') + '-' + String(d.d).padStart(2, '0');
+    });
+  }
+
   function leerHojaPorNombre(workbook, nombreHoja){
     const hoja = workbook.Sheets[nombreHoja];
+    fechasDeHojaAISO(window.XLSX, hoja);
     const filas = window.XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
     const idxHeader = filas.findIndex(f => f.filter(c => String(c).trim() !== '').length >= 2);
     if (idxHeader === -1) return { headers: [], rows: [], hojaNombre: nombreHoja };
@@ -5014,6 +5030,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         valorAjustado: valorAjustado,
         fechaInicio: parseFechaExcel(get(row, 'fechaInicio')),
         fechaFin: parseFechaExcel(get(row, 'fechaFin')),
+        // "En Ejecución" (texto) en la columna de terminación: el contrato todavía no acredita experiencia (ver contratoEnEjecucion).
+        enEjecucion: /\ben\s+ejecuci[oó]n\b/i.test(String(get(row, 'fechaFin') || '')),
         duracion: (get(row, 'duracion') || '').toString().trim() || null,
         cantidad: cantidadObj,
         cantidadRaw: (get(row, 'cantidad') || '').toString().trim() || null,
@@ -5386,6 +5404,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // experiencia (el trabajo no se ha completado). Con ventana temporal ya lo trata como "sin fecha
   // confiable" estadoTemporalDeContrato; esta función cubre los requisitos SIN ventana.
   function contratoEnEjecucion(c, hoy){
+    if (c && c.enEjecucion === true) return true;
     if (!c || !c.fechaFin) return false;
     const d = new Date(c.fechaFin + 'T00:00:00');
     return !isNaN(d.getTime()) && d.getFullYear() >= 1990 && d.getTime() > hoy.getTime();
@@ -11451,7 +11470,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     try {
       const XLSX = await loadXlsxLib();
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array' });
+      const wb = XLSX.read(buf, { type: 'array', cellNF: true }); // cellNF: conserva el formato de cada celda (para reconocer las fechas)
       const parsed = parsearExcelExperiencia(wb);
       if (!parsed.contratos.length){
         expevalExpStatusEl.textContent = 'Se leyó el archivo pero no se reconocieron filas de contratos. Revisa que tenga encabezados y al menos una fila de datos.';
