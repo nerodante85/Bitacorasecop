@@ -5010,12 +5010,28 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   function parsearExperienciaDeFilas(datos){
     const headers = datos.headers, rows = datos.rows;
-    const cols = preferirColumnaValorActualizado(headers, detectarColumnas(headers, DICC_CONTRATO));
+    const colsBase = detectarColumnas(headers, DICC_CONTRATO);
+    const cols = preferirColumnaValorActualizado(headers, colsBase);
+    // Si se prefirió la columna "actualizada/según %", la original queda de respaldo FILA POR FILA: un archivo real traía el valor
+    // actualizado en 25 de 57 contratos y el valor del contrato en todos. El respaldo es nominal (no actualizado) y no se da por
+    // ajustado por participación, así que el motor lo trata como un valor del contrato más.
+    const hNorm = headers.map(normHeader);
+    const idxNominal = (cols.valor != null && /actualiz|participac/.test(hNorm[cols.valor] || ''))
+      ? hNorm.findIndex((h, i) => i !== cols.valor && /valor/.test(h) && /contrato/.test(h) && !/actualiz|participac|ejecutad|factur|smm|smlmv/.test(h))
+      : -1;
     const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
     const hValor = cols.valor != null ? normHeader(headers[cols.valor] || '') : '';
     const valorAjustado = /valor/.test(hValor) && (/actualiz/.test(hValor) || /participac/.test(hValor));
     const contratos = rows.map((row, i) => {
-      const valorObj = parseValorUnidad(String(get(row, 'valor') || ''));
+      let valorObj = parseValorUnidad(String(get(row, 'valor') || ''));
+      let valorRawFila = (get(row, 'valor') || '').toString().trim() || null;
+      let ajustadoFila = valorAjustado, nominalFila = false;
+      // Solo en filas que son contratos de verdad (con objeto o contratante): un código suelto en esa columna no es un contrato.
+      const esContrato = !!((get(row, 'objeto') || '').toString().trim() || (get(row, 'contratante') || '').toString().trim());
+      if (!valorObj && idxNominal !== -1 && esContrato){
+        const nominal = parseValorUnidad(String(row[idxNominal] || ''));
+        if (nominal){ valorObj = nominal; valorRawFila = String(row[idxNominal]).trim() || null; ajustadoFila = false; nominalFila = true; }
+      }
       const cantidadObj = parseValorUnidad(String(get(row, 'cantidad') || ''));
       const tipoRaw = normHeader(String(get(row, 'tipo') || ''));
       let tipo = 'no-clasificado';
@@ -5026,8 +5042,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         objeto: (get(row, 'objeto') || '').toString().trim() || null,
         contratante: (get(row, 'contratante') || '').toString().trim() || null,
         valor: valorObj ? valorObj.valor : null,
-        valorRaw: (get(row, 'valor') || '').toString().trim() || null,
-        valorAjustado: valorAjustado,
+        valorRaw: valorRawFila,
+        valorAjustado: ajustadoFila,
+        valorNominal: nominalFila,
         fechaInicio: parseFechaExcel(get(row, 'fechaInicio')),
         fechaFin: parseFechaExcel(get(row, 'fechaFin')),
         // "En Ejecución" (texto) en la columna de terminación: el contrato todavía no acredita experiencia (ver contratoEnEjecucion).
