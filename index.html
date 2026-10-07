@@ -518,6 +518,8 @@
   #bitacora-root .btn-primary:hover { background: var(--accent-button-hover); }
   #bitacora-root .btn-secondary { background: var(--surface); color: var(--accent-hover); border: 1px solid var(--accent-button); }
   #bitacora-root .btn-secondary:hover { background: var(--accent-soft); }
+  /* Un enlace con aspecto de botón (p. ej. "Ver en SECOP") se vestía como enlace subrayado: mismo molde que el <button>. */
+  #bitacora-root a.btn-secondary, #bitacora-root a.btn-primary { display: inline-flex; align-items: center; font-weight: 600; font-size: 13.5px; padding: 10px 16px; border-radius: var(--radius-sm); text-decoration: none; }
   #bitacora-root button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   #bitacora-root .saved-note { font-size: 12.5px; color: var(--text-muted); }
 
@@ -742,6 +744,12 @@
     margin-bottom: 10px;
   }
   #bitacora-root .row-meta b { color: var(--text); font-weight: 600; }
+  /* Ficha del proceso en Buscar procesos: solo datos (etiqueta + valor), sin análisis. */
+  #bitacora-root .ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px 18px; margin: 0 0 12px; }
+  #bitacora-root .ficha > div { min-width: 0; }
+  #bitacora-root .ficha dt { font-size: 12px; color: var(--text-muted); margin: 0 0 2px; }
+  #bitacora-root .ficha dd { margin: 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
+  #bitacora-root .ficha dd.ficha-valor { font-weight: 600; }
   #bitacora-root .row-link a {
     font-size: 12.5px;
     font-weight: 600;
@@ -1348,7 +1356,7 @@
         <section class="view" id="view-buscar" data-view="buscar" role="tabpanel" aria-labelledby="bt-nav-buscar" hidden>
           <div class="view-header">
             <h1>Buscar procesos</h1>
-            <p>Encuentra procesos de contratación pública abiertos y decide rápido si vale la pena presentarse.</p>
+            <p>Encuentra procesos de contratación pública de SECOP II y consulta sus datos clave. El análisis de cada proceso se hace desde Mis procesos.</p>
           </div>
 
           <div class="titleblock" id="bt-buscador">
@@ -1412,10 +1420,9 @@
                 <div class="field">
                   <label for="bt-orden">Ordenar por</label>
                   <select id="bt-orden">
-                    <option value="prioridad">Prioridad (por defecto)</option>
+                    <option value="reciente">Publicación -- más reciente primero</option>
                     <option value="cuantia_desc">Cuantía -- mayor a menor</option>
                     <option value="cierre_asc">Fecha de cierre -- más próxima primero</option>
-                    <option value="reciente">Publicación -- más reciente primero</option>
                   </select>
                 </div>
               </div>
@@ -1437,12 +1444,9 @@
                 <label class="toggle"><input type="checkbox" id="bt-hide-old" checked> Solo publicados hace ≤30 días</label>
                 <label class="toggle"><input type="checkbox" id="bt-only-licitacion"> Solo Licitación Pública (Obra pública)</label>
                 <label class="toggle"><input type="checkbox" id="bt-hide-discarded"> Ocultar descartados</label>
-                <label class="toggle"><input type="checkbox" id="bt-hide-nogo"> Ocultar NO-GO (shortlist)</label>
               </div>
               <div class="status-toggles" id="bt-estado-toggles"></div>
               <div class="status-toggles">
-                <button class="link-btn" id="bt-export-csv">Exportar alta prioridad (CSV)</button>
-                <button class="link-btn" id="bt-copy-summary">Copiar resumen</button>
                 <button class="link-btn" id="bt-clear-historial">Borrar historial</button>
               </div>
             </details>
@@ -1786,7 +1790,7 @@
             <p>El resultado, el resumen de viabilidad, las alertas y la matriz de requisitos de un proceso. Analiza su Pliego de Condiciones (o el Estudio Previo) para compararlo con tu empresa.</p>
           </div>
           <div class="demo-banner" id="bt-analisis-fuente" style="display:none" role="status"></div>
-          <div class="empty" id="bt-analisis-empty">Todavía no hay procesos para analizar. Ve a "Buscar procesos", aplica una búsqueda y usa "Analizar pliego →" en el proceso que te interese. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
+          <div class="empty" id="bt-analisis-empty">Todavía no hay procesos para analizar. Busca un proceso, guárdalo con "Guardar" y ábrelo desde "Mis procesos". <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
           <div class="titleblock" id="bt-analisis-panel" hidden>
             <div class="perfil-switcher">
               <div class="field">
@@ -2622,11 +2626,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const hideOldEl = document.getElementById('bt-hide-old');
   const onlyLicitacionEl = document.getElementById('bt-only-licitacion');
   const hideDiscardedEl = document.getElementById('bt-hide-discarded');
-  const hideNoGoEl = document.getElementById('bt-hide-nogo');
   const estadoTogglesEl = document.getElementById('bt-estado-toggles');
   const clearHistorialBtn = document.getElementById('bt-clear-historial');
-  const exportCsvBtn = document.getElementById('bt-export-csv');
-  const copySummaryBtn = document.getElementById('bt-copy-summary');
   const demoBanner = document.getElementById('bt-demo-banner');
   const dataFreshnessEl = document.getElementById('bt-data-freshness');
   const perfilRupEl = document.getElementById('bt-perfil-rup');
@@ -7601,8 +7602,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return out;
   }
 
+  // Un Estudio Previo suele listar los indicadores seguidos ("Índice de liquidez ≥ 1,2 Índice de
+  // endeudamiento ≤ 0,70 Razón de cobertura ≥ 1,0 ..."): sin cortar, la ventana de cada uno veía las
+  // cifras de sus vecinos y todos salían "varias cifras" (NO DETERMINABLE). Se corta donde empieza
+  // OTRO indicador; si el corte deja la ventana sin cifras se usa la ventana completa (comportamiento previo).
+  const RE_OTRO_INDICADOR = /[íi]ndice\s+de\s+(?:liquidez|endeudamiento)|raz[óo]n\s+de\s+(?:liquidez|cobertura)|nivel\s+de\s+endeudamiento|liquidez\s+corriente|cobertura\s+de\s+intereses|capital\s+de\s+trabajo|patrimonio|rentabilidad|capacidad\s+residual|k\s*residual/i;
   function buscarUmbralCerca(t, etqRe, valRe){
-    const ventanas = ventanasDeEtiqueta(t, etqRe, 110);
+    const propias = new RegExp('^(?:' + etqRe + ')$', 'i');
+    const ventanas = ventanasDeEtiqueta(t, etqRe, 110).map(w => {
+      const re = new RegExp(RE_OTRO_INDICADOR.source, 'gi');
+      let m, corte = -1;
+      while ((m = re.exec(w.ventana))){ if (!propias.test(m[0])){ corte = m.index; break; } }
+      if (corte === -1) return w;
+      const recorte = w.ventana.slice(0, corte);
+      if (!cifrasCandidatas(recorte).length) return w;
+      return Object.assign({}, w, { ventana: recorte, raw: (w.etiqueta + recorte).trim() });
+    });
     let primeroNoClaro = null;
     for (const w of ventanas){
       if (w.niega){
@@ -9377,6 +9392,36 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return '<span class="expeval-badge ' + ESTADO_REQ_CLASE[e] + '"><span aria-hidden="true">' + ESTADO_REQ_GLIFO[e] + '</span> ' + e + '</span>';
   }
 
+  // Un Estudio Previo con la misma tabla en varios tramos daba varias filas "Experiencia: 7. OBRAS EN PUENTES..."
+  // casi iguales (ruido que no ayuda a decidir). Solo la PRESENTACIÓN: se juntan las filas de experiencia (leídas
+  // del texto) con el mismo encabezado, el mismo resultado Y la misma exigencia; la fila resultante conserva las
+  // citas de todos los fragmentos para "Ver evidencia". Con otro resultado o exigencia NO se junta (no se esconde
+  // un CUMPLE ni una exigencia distinta). El veredicto sale del motor, que no pasa por aquí.
+  function unirFilasExperienciaRepetidas(filas){
+    const encabezado = f => String(f.requisito || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 45);
+    const grupos = new Map();
+    const salida = [];
+    filas.forEach(f => {
+      if (!f.clave || f.clave.indexOf('exp-') !== 0){ salida.push(f); return; }
+      const k = encabezado(f) + '|' + f.resultado + '|' + f.exigencia;
+      const g = grupos.get(k);
+      if (!g){
+        const copia = Object.assign({}, f, { evidencia: Object.assign({}, f.evidencia), _fragmentos: 1 });
+        grupos.set(k, copia);
+        salida.push(copia);
+        return;
+      }
+      g._fragmentos++;
+      const cita = f.evidencia && f.evidencia.cita;
+      if (cita && g.evidencia.cita.indexOf(cita) === -1) g.evidencia.cita += '\n\n— — —\n\n' + cita;
+    });
+    salida.forEach(f => {
+      if (f._fragmentos > 1) f.requisito += ' (' + f._fragmentos + ' fragmentos del documento)';
+      delete f._fragmentos;
+    });
+    return salida;
+  }
+
   // Filas de la matriz: { clave, requisito, exigencia, empresa, resultado, evidencia:{documento,pagina,cita,verificada,...} }.
   // Con requisitos extraídos por IA, cada fila habilitante; sin ellos (o para lo que la IA no cubre), cada gate del motor.
   // Una fila con cita sin verificar es NO DETERMINABLE (nunca CUMPLE) hasta que el usuario la confirme.
@@ -9434,7 +9479,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         evidencia: { documento: g.nombre === 'Capacidad vs valor' ? 'Datos del proceso (SECOP)' : dePliego, pagina: null, cita: cita, verificada: !!cita, confirmada: false, bloqueo: null, modificadaPorAdenda: false, origen: 'motor' }
       });
     });
-    return filas;
+    return unirFilasExperienciaRepetidas(filas);
   }
   const GATES_ADMIN_UI = ['Estado del proceso', 'Presentación de oferta', 'Valor de la obra'];
   const GATES_META_UI = ['Lectura del pliego', 'Requisitos por verificar a mano', 'Completitud de la lectura', 'Requisitos habilitantes'];
@@ -9958,7 +10003,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const geoSearchable = (departamento || '').toLowerCase();
     const fuente = record._fuente === 'I' ? 'I' : 'II';
 
-    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente };
+    // Datos extra para la ficha de Buscar procesos (todos opcionales: si el dataset no los trae, no se muestran).
+    const codigo = findField(record, ['id_del_proceso'], '') || null;
+    const tipoContrato = findField(record, ['tipo_de_contrato'], '') || null;
+    const ultima = dates.find(d => /ultima_publicaci/.test(d.key.toLowerCase()));
+    const ultimaRaw = ultima ? ultima.val : null;
+    const durN = findField(record, ['duracion'], '');
+    const durU = findField(record, ['unidad_de_duracion'], '');
+    const duracion = durN && Number(durN) > 0 ? (durN + (durU && durU !== 'No definido' ? ' ' + String(durU).toLowerCase() : '')) : null;
+
+    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente, codigo, tipoContrato, ultimaRaw, duracion };
   }
 
   // refNow: momento contra el que se miden "días restantes" y "días desde
@@ -10005,38 +10059,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return 'baja';
   }
 
-  // Ajusta el puntaje según cuántos términos del perfil (RUP/K) aparecieron en
-  // el análisis del pliego PDF, si se subió uno para este proceso, más el
-  // resultado de la experiencia requerida por ESE proceso (extraída de su
-  // Pliego/Estudio Previo, ver "Experiencia requerida") si ya se evaluó. Con
-  // varios perfiles marcados se toma el MEJOR: si alguna de las empresas
-  // cubre bien los requisitos, el proceso vale la pena priorizarlo.
-  function analysisScoreAdjustment(entry){
-    const comps = compsDe(entry);
-    const expResultado = entry && entry.experienciaResultado;
-    const expPeso = expResultado
-      ? { total: 1, matched: expResultado.resultadoGlobal === 'CUMPLE' ? 1 : (expResultado.resultadoGlobal === 'NO CUMPLE' ? 0 : 0.5) }
-      : { total: 0, matched: 0 };
-    if (!comps.length && !expPeso.total) return 0;
-    let best = -Infinity;
-    (comps.length ? comps : [{}]).forEach(c => {
-      const total = (c.rupTotal || 0) + (c.kTotal || 0) + expPeso.total;
-      if (total === 0) return;
-      const matched = (c.rupMatches || []).length + (c.kMatches || []).length + expPeso.matched;
-      best = Math.max(best, matched / total);
-    });
-    if (best === -Infinity) return 0;
-    if (best >= 0.66) return 3;
-    if (best >= 0.33) return 1;
-    return -2;
-  }
-
   function render(records, keywords, geos, municipios, minV, maxV, numProceso){
     const hideClosed = hideClosedEl.checked;
     const hideOld = hideOldEl.checked;
     const onlyLicitacion = onlyLicitacionEl.checked;
     const hideDiscarded = hideDiscardedEl.checked;
-    const hideNoGo = hideNoGoEl && hideNoGoEl.checked;
     // Con Nº de proceso lleno, esa búsqueda MANDA: se ignoran especialidades,
     // departamento, y el resto de casillas (vencidos/≤30 días/Licitación
     // Pública/estado/descartados) para no ocultar por accidente el proceso
@@ -10047,13 +10074,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // del snapshot, no contra hoy (ver scoreRecord).
     const snapshotTs = new Date(DATA_SNAPSHOT_DATE + 'T00:00:00.000').getTime();
     const refNow = (isSnapshot && !isNaN(snapshotTs)) ? snapshotTs : Date.now();
-
-    // ¿algún perfil marcado tiene datos para evaluar, o hay experiencia de
-    // la empresa cargada (con la que se podría evaluar cualquier pliego que
-    // se analice)? (si no hay nada de esto, no se muestra semáforo)
-    const perfilConDatos = perfilesParaComparar().some(p =>
-      (p.rup || '').trim() || (p.k || '').trim() || (p.kResidual || '').trim()) ||
-      !!(expevalContratos && expevalContratos.contratos && expevalContratos.contratos.length);
 
     // UX-002: cuántos procesos quita cada filtro (para explicar un resultado vacío).
     const embudo = [];
@@ -10066,10 +10086,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const item = normalize(r);
       item.id = getProcessId(r, item);
       const base = scoreRecord(item, keywords, geos, minV, maxV, refNow);
-      const analysisEntry = analisis[item.id];
-      const adjustment = analysisScoreAdjustment(analysisEntry);
-      const score = base.score + adjustment;
-      return { item, score, daysLeft: base.daysLeft, daysSincePub: base.daysSincePub, keywordHits: base.keywordHits, geoHits: base.geoHits, tier: classify(score), scoreAdjusted: adjustment !== 0, evaluacion: null };
+      return { item, score: base.score, daysLeft: base.daysLeft, daysSincePub: base.daysSincePub, keywordHits: base.keywordHits, geoHits: base.geoHits, tier: classify(base.score), scoreAdjusted: false, evaluacion: null };
     });
 
     if (buscandoProceso){
@@ -10137,13 +10154,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
     if (!buscandoProceso) paso('estado', 'estado del proceso (cancelados, adjudicados...)', s => estadoSeleccionado[s.item.estado || 'Sin estado'] !== false);
 
-    // Evaluación go/no-go: se calcula AQUÍ (tras los filtros baratos) para no
-    // correrla sobre los ~1000 registros crudos.
-    scored.forEach(s => {
-      const entry = analisis[s.item.id];
-      if (perfilConDatos || entry) s.evaluacion = evaluarMejor(s.item, { daysLeft: s.daysLeft }, entry);
-    });
-
     const vistoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'visto').length;
     const descartadoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'descartado').length;
     const venceProntoCount = scored.filter(s => {
@@ -10152,23 +10162,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }).length;
 
     if (hideDiscarded && !buscandoProceso) paso('descartados', '"Ocultar descartados"', s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
-    if (hideNoGo) paso('nogo', '"Ocultar los que no cumplen"', s => !(s.evaluacion && s.evaluacion.mejor.veredicto === 'NO-GO'));
 
     // Orden por defecto (prioridad): score primero, cierre más próximo y
     // publicación más reciente como desempate -- sin cambios. "Ordenar
     // por" (nuevo) deja elegir un criterio explícito en vez del implícito;
     // en los 3 casos, la prioridad queda como desempate final, así que dos
     // procesos con el mismo valor/fecha no quedan en un orden arbitrario.
-    const ordenSel = ordenEl ? ordenEl.value : 'prioridad';
+    const ordenSel = ordenEl ? ordenEl.value : 'reciente';
     const ordenPrioridad = (a, b) => b.score - a.score || (a.daysLeft ?? 999) - (b.daysLeft ?? 999) || (a.daysSincePub ?? 999) - (b.daysSincePub ?? 999);
     if (ordenSel === 'cuantia_desc'){
       scored.sort((a, b) => (Number(b.item.valor) || 0) - (Number(a.item.valor) || 0) || ordenPrioridad(a, b));
     } else if (ordenSel === 'cierre_asc'){
       scored.sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999) || ordenPrioridad(a, b));
-    } else if (ordenSel === 'reciente'){
-      scored.sort((a, b) => (a.daysSincePub ?? 999) - (b.daysSincePub ?? 999) || ordenPrioridad(a, b));
     } else {
-      scored.sort(ordenPrioridad);
+      scored.sort((a, b) => (a.daysSincePub ?? 999) - (b.daysSincePub ?? 999) || ordenPrioridad(a, b));
     }
     // UX-001: los contadores se calculan sobre TODOS los procesos que pasan los filtros, no solo
     // sobre los que se dibujan; la lista muestra `limiteLista` y ofrece "mostrar más".
@@ -10187,14 +10194,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     scored = scored.slice(0, limiteLista);
 
     statusEl.style.display = 'flex';
-    const altaCount = todosParaContar.filter(s => s.tier === 'alta').length;
-    let countText = (totalFiltrados > scored.length ? 'Mostrando ' + scored.length + ' de ' + totalFiltrados : scored.length) + ' procesos · ' + altaCount + ' de alta prioridad';
+    let countText = (totalFiltrados > scored.length ? 'Mostrando ' + scored.length + ' de ' + totalFiltrados : scored.length) + ' procesos';
     if (vistoCount) countText += ' · ' + vistoCount + ' vistos';
     if (descartadoCount) countText += ' · ' + descartadoCount + ' descartados';
     if (venceProntoCount) countText += ' · ⚠ ' + venceProntoCount + ' por vencer';
-    const goCount = todosParaContar.filter(s => s.evaluacion && s.evaluacion.mejor.veredicto === 'GO').length;
-    const nogoCount = todosParaContar.filter(s => s.evaluacion && s.evaluacion.mejor.veredicto === 'NO-GO').length;
-    if (goCount || nogoCount) countText += ' · ' + goCount + ' cumplen lo revisado / ' + nogoCount + ' no cumplen';
     countEl.textContent = countText;
     lastScored = scored;
     const vistaAnalisisEl = document.getElementById('view-analisis');
@@ -10245,9 +10248,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const tierLabel = s.tier === 'alta' ? 'ALTA' : s.tier === 'media' ? 'MEDIA' : 'BAJA';
     const deadlineText = close ? (vencido ? ('Venció · ' + close) : (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close)) : 'Sin fecha de presentación reportada';
     const safeUrl = it.url && /^https?:\/\//i.test(it.url) ? escapeHtml(it.url) : null;
-    const linkHtml = safeUrl
-      ? '<div class="row-link"><a href="' + safeUrl + '" target="_blank" rel="noopener">Abrir expediente en SECOP ' + it.fuente + '</a></div>'
-      : '<div class="row-link"><a href="https://community.secop.gov.co/Public/Tendering/ContractNoticeManagement/Index?currentLanguage=es-CO" target="_blank" rel="noopener">Buscar en SECOP II</a></div>';
 
     const analysisEntry = analisis[it.id];
     if (analysisEntry) analysisEntry.id = it.id; // backfill para análisis guardados antes de este cambio
@@ -10288,7 +10288,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const pipelineBtnHtml = (hist && hist.etapa)
       ? '<button type="button" class="link-btn" data-ir-pipeline="' + escapeHtml(it.id) + '" title="Está en Mis procesos">✓ Guardado · ' + escapeHtml((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa) + '</button>'
       : '<button type="button" class="btn-mini" data-agregar-pipeline="' + escapeHtml(it.id) + '">Guardar</button>';
-    const irAnalisisLabel = analysisEntry ? 'Ver análisis →' : 'Ver proceso →';
     // Una sola acción principal por pantalla: en el detalle del proceso es "Analizar proceso" (cargar el pliego o el
     // estudio previo). Guardar y Ver en SECOP son secundarias; Descartar y el estudio previo, discretas.
     const actionsHtml = enAnalisis
@@ -10303,10 +10302,26 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         '<input type="file" aria-label="Seleccionar el PDF del pliego para analizarlo" accept="application/pdf" data-analyze-id="' + escapeHtml(it.id) + '" style="display:none">' +
         '<div class="analysis-slot">' + analysisHtml + '</div>'
       : '<div class="row-actions">' +
-          '<button type="button" class="btn-mini analizar" data-ir-analisis="' + escapeHtml(it.id) + '">' + irAnalisisLabel + '</button>' +
           pipelineBtnHtml +
+          (safeUrl ? '<a class="btn-secondary" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
           '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
         '</div>';
+
+    const dato = (k, v, cls) => v ? '<div><dt>' + k + '</dt><dd' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</dd></div>' : '';
+    const ultima = fmtDate(it.ultimaRaw);
+    const fichaHtml = '<dl class="ficha">' +
+      dato('Cuantía', money, 'ficha-valor') +
+      dato('Ubicación', escapeHtml(loc)) +
+      dato('Cierre', escapeHtml(deadlineText)) +
+      dato('Estado', it.estado ? escapeHtml(it.estado) : '') +
+      dato('Modalidad', it.modalidad ? escapeHtml(it.modalidad) : '') +
+      dato('Tipo de contrato', it.tipoContrato ? escapeHtml(it.tipoContrato) : '') +
+      dato('Número de proceso', it.referencia ? escapeHtml(it.referencia) : '') +
+      dato('Código SECOP II', it.codigo ? escapeHtml(it.codigo) : '') +
+      dato('Publicación', pub ? escapeHtml(pub) : '') +
+      dato('Última actualización', ultima ? escapeHtml(ultima) : '') +
+      dato('Duración', it.duracion ? escapeHtml(it.duracion) : '') +
+    '</dl>';
 
     return '<div class="row ' + s.tier + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
       venceAlertHtml +
@@ -10321,24 +10336,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         // (mismo texto que title), tapeable: revela el mismo texto en
         // una nota debajo de la tarjeta (ver el listener delegado
         // "tag-tip-note" y su CSS).
-        '<div class="row-head-tags">' + evalChipHtml(s.evaluacion) + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + '<span class="tag fuente">SECOP ' + it.fuente + '</span><span class="tag priority tag-tip" tabindex="0" role="button" aria-expanded="false" title="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '" data-tip="' + escapeHtml((s.scoreAdjusted ? 'Prioridad ajustada por el análisis del pliego PDF. ' : '') + 'Puntaje orientativo por coincidencia de palabras clave y cercanía del plazo -- no es el cumplimiento (eso lo indica el sello GO/REVISAR/NO-GO, si aparece).') + '">' + tierLabel + (s.scoreAdjusted ? ' ⚙' : '') + '</span></div>' +
+        '<div class="row-head-tags">' + (enAnalisis ? evalChipHtml(s.evaluacion) : '') + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + (enAnalisis ? '<span class="tag fuente">SECOP ' + it.fuente + '</span>' : '') + '</div>' +
       '</div>' +
-      '<div class="tag-tip-note saved-note" hidden></div>' +
-      '<div class="row-obj">' + escapeHtml(truncate(it.objeto, enAnalisis ? 600 : 220)) + '</div>' +
-      '<div class="row-meta">' +
+      '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 600)) + '</div>' +
+      (enAnalisis ? (      '<div class="row-meta">' +
         '<span>' + escapeHtml(loc) + '</span>' +
         (it.modalidad ? '<span><b>Modalidad:</b> ' + escapeHtml(it.modalidad) + '</span>' : '') +
         (money ? '<span><b>Valor base:</b> ' + money + '</span>' : '') +
         '<span><b>Presentación de oferta:</b> ' + deadlineText + '</span>' +
         (enAnalisis && pub ? '<span><b>Apertura del proceso:</b> ' + pub + '</span>' : '') +
         (it.referencia ? '<span><b>Referencia:</b> ' + escapeHtml(it.referencia) + '</span>' : '') +
-      '</div>' +
+      '</div>') : fichaHtml) +
       (enAnalisis && s.evaluacion
         ? '<div class="tarjeta-veredicto saved-note"><b>' + escapeHtml(etiquetaVeredicto(s.evaluacion.mejor.veredictoGlobal)) + ':</b> ' + escapeHtml(lineaMotivoVeredicto(s.evaluacion.mejor.gates, s.evaluacion.mejor.veredictoGlobal, s.evaluacion.mejor.conPliego)) +
             ' · ' + escapeHtml(textoCoberturaLectura(analysisEntry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>'
         : '') +
       guardadoHtml +
-      (enAnalisis ? '' : linkHtml) +
       actionsHtml +
     '</div>';
   }
@@ -10927,58 +10940,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return s;
   }
 
-  function exportAltaPrioridadCSV(){
-    const altas = lastScoredTodos.filter(s => s.tier === 'alta');
-    if (altas.length === 0){
-      alert('No hay procesos de alta prioridad en la vista actual para exportar.');
-      return;
-    }
-    const headers = ['Entidad','Objeto','Modalidad','Departamento','Ciudad','Valor base','Apertura del proceso','Presentación de oferta','Días restantes','Referencia','Enlace','Fuente','Consultado','Modo'];
-    const modoTxt = { vivo: 'en vivo', snapshot: 'snapshot de respaldo ' + DATA_SNAPSHOT_DATE, demo: 'DATOS DE EJEMPLO FICTICIOS' }[modoDatos()];
-    const rows = altas.map(s => {
-      const it = s.item;
-      return [
-        it.entidad, it.objeto, it.modalidad || '', it.departamento || '', it.ciudad || '',
-        it.valor || '', fmtDate(it.pubRaw) || '', fmtDate(it.closingRaw) || '', (s.daysLeft ?? ''), it.referencia || '', it.url || '',
-        'datos.gov.co p6dx-8zbt', lastConsultaISO || '', modoTxt
-      ].map(csvEscape).join(',');
-    });
-    const csv = headers.map(csvEscape).join(',') + '\n' + rows.join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'bitacora-alta-prioridad-' + new Date().toISOString().slice(0,10) + '.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  async function copyAltaPrioridadSummary(){
-    const altas = lastScoredTodos.filter(s => s.tier === 'alta');
-    if (altas.length === 0){
-      alert('No hay procesos de alta prioridad en la vista actual para copiar.');
-      return;
-    }
-    const lineas = altas.map(s => {
-      const it = s.item;
-      const close = fmtDate(it.closingRaw);
-      const plazo = close ? (s.daysLeft !== null ? (s.daysLeft + ' días · ' + close) : close) : 'sin fecha de presentación reportada';
-      const money = fmtMoney(it.valor);
-      return '• ' + it.entidad + ' — ' + truncate(it.objeto, 140) + '\n  Presentación de oferta: ' + plazo + (money ? ' · Valor base: ' + money : '') + (it.referencia ? '\n  Referencia: ' + it.referencia : '') + (it.url ? '\n  ' + it.url : '');
-    });
-    const texto = 'Procesos de alta prioridad — Bitácora (' + new Date().toLocaleDateString('es-CO') + ')\n\n' + lineas.join('\n\n') + '\n\n' + pieFuenteActual();
-    try {
-      await navigator.clipboard.writeText(texto);
-      const original = copySummaryBtn.textContent;
-      copySummaryBtn.textContent = 'Copiado ✓';
-      setTimeout(() => { copySummaryBtn.textContent = original; }, 2000);
-    } catch(e){
-      alert('No se pudo copiar automáticamente. Copia manual:\n\n' + texto);
-    }
-  }
-
   function descargarTexto(nombreArchivo, texto){
     const blob = new Blob(['﻿' + texto], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -11337,7 +11298,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   onlyLicitacionEl.addEventListener('change', rerender);
   hideDiscardedEl.addEventListener('change', rerender);
   if (ordenEl) ordenEl.addEventListener('change', rerender);
-  if (hideNoGoEl) hideNoGoEl.addEventListener('change', rerender);
   enContenedoresDeProceso('click', async function manejarClickEvaluacion(e){
     const infBtn = e.target.closest('.eval-informe-btn');
     const adjBtn = e.target.closest('.eval-adj-btn');
@@ -12302,8 +12262,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     } catch(e){ mensajeRespaldo('No se pudo restaurar: ' + ((e && e.message) || 'error')); }
   });
 
-  exportCsvBtn.addEventListener('click', exportAltaPrioridadCSV);
-  copySummaryBtn.addEventListener('click', copyAltaPrioridadSummary);
 
   const pendingOcrFiles = {}; // { id: File } -- se guarda porque input.value se limpia después de leer, y el botón de OCR se hace clic más tarde
   // Pliego cargado pero AÚN NO analizado (paso "cargar" separado de "analizar",
@@ -12365,7 +12323,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       else if (k === '30d') hideOldEl.checked = false;
       else if (k === 'licitacion') onlyLicitacionEl.checked = false;
       else if (k === 'descartados') hideDiscardedEl.checked = false;
-      else if (k === 'nogo' && hideNoGoEl) hideNoGoEl.checked = false;
       else if (k === 'estado') Object.keys(estadoSeleccionado).forEach(x => { estadoSeleccionado[x] = true; });
       rerender();
       return;

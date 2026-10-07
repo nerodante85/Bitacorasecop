@@ -1969,6 +1969,17 @@ await check('MC-005: "no será exigido / no se exigirá / no aplica" NO produce 
   }
 });
 
+await check('Estudio Previo LP-008-2026: indicadores listados seguidos -> cada uno lee SOLO su cifra (antes liquidez/endeudamiento salían "varias cifras" y NO DETERMINABLE)', () => {
+  const t = 'Índice de liquidez ≥ 1,2 Índice de endeudamiento ≤ 0,70 Razón de cobertura de intereses ≥ 1,0 Capital de trabajo Definido en el documento base Patrimonio (Ver nota 1)';
+  assert(umbral(t, ETQ_LIQ).valor === 1.2, 'liquidez 1,2, fue ' + JSON.stringify(umbral(t, ETQ_LIQ)));
+  assert(umbral(t, ETQ_END).valor === 0.7, 'endeudamiento 0,70, fue ' + JSON.stringify(umbral(t, ETQ_END)));
+  assert(umbral(t, ETQ_COB).valor === 1, 'cobertura 1,0, fue ' + JSON.stringify(umbral(t, ETQ_COB)));
+  const raw = umbral(t, ETQ_LIQ).raw;
+  assert(!/endeudamiento/i.test(raw), 'la cita de liquidez no debe arrastrar el siguiente indicador: ' + raw);
+  // Sin otro indicador a la vista el comportamiento no cambia (la ambigüedad real sigue siendo ambigua).
+  assert(umbral('Índice de liquidez 1,2 y 1,5', ETQ_LIQ).valor === null, 'dos cifras reales de LA MISMA etiqueta siguen ambiguas');
+});
+
 await check('MC-005: varias cifras sin operador que desempate -> ambiguo (no se elige); con operador o cifras iguales, sí; controles positivos', () => {
   assert(umbral('Índice de liquidez 1,2 y 1,5', ETQ_LIQ).valor === null, 'dos cifras distintas sin operador: ambiguo');
   assert(umbral('Índice de liquidez 1,2 y mayor o igual a 1,5', ETQ_LIQ).valor === 1.5, 'con un solo operador, ese decide');
@@ -3307,7 +3318,7 @@ await check('Accesibilidad: todo control de formulario tiene su etiqueta (label 
   const huerfanas = [...body.matchAll(/<label>(?:(?!<\/label>)[\s\S])*<\/label>/g)].filter(m => !/<(?:input|select|textarea)\b/.test(m[0]));
   assert(huerfanas.length === 0, 'labels sin for ni control dentro: ' + huerfanas.map(m => m[0].slice(0, 50)).join(' | '));
   const tips = [...html.matchAll(/tag-tip" tabindex="0" role="button"([^>]{0,40})/g)];
-  assert(tips.length >= 2 && tips.every(m => /aria-expanded="false"/.test(m[1])), 'cada sello .tag-tip debe nacer con aria-expanded="false"');
+  assert(tips.length >= 1 && tips.every(m => /aria-expanded="false"/.test(m[1])), 'cada sello .tag-tip debe nacer con aria-expanded="false"');
   assert(/setAttribute\('aria-expanded'/.test(html), 'el manejador debe actualizar aria-expanded al abrir/cerrar la nota');
 });
 
@@ -3538,11 +3549,40 @@ await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el 
   const i = html.indexOf('function tarjetaProcesoHtml');
   assert(i !== -1, 'falta tarjetaProcesoHtml');
   const fn = html.slice(i, html.indexOf('function truncate(', i));
-  assert(/data-ir-analisis/.test(fn), 'la tarjeta de la lista debe tener el botón que redirige al análisis');
+  const lista = fn.slice(fn.indexOf(": '<div class=\"row-actions\">'"));
+  assert(!/data-ir-analisis/.test(lista), 'Buscar procesos no debe llevar al análisis: se guarda y se abre desde Mis procesos');
+  assert(/<dl class="ficha">/.test(fn) && /data-agregar-pipeline/.test(fn), 'la tarjeta es una ficha con los datos del proceso y el botón Guardar');
+  assert(/enAnalisis \? evalChipHtml\(s\.evaluacion\) : ''/.test(fn) && !/class="tag priority/.test(fn), 'el sello GO/REVISAR y la prioridad no van en la lista');
+  const render = html.slice(html.indexOf('function render(records'), html.indexOf('function tarjetaProcesoHtml'));
+  assert(!/evaluarMejor|hideNoGo|alta prioridad|cumplen lo revisado/.test(render), 'render() de Buscar no debe evaluar ni contar GO/NO-GO ni prioridad');
+  assert(!/id="bt-hide-nogo"|id="bt-export-csv"|id="bt-copy-summary"|value="prioridad"/.test(html), 'no deben quedar controles de análisis en Buscar procesos');
   assert(/enAnalisis\s*\n?\s*\?\s*'<div class="row-actions">'[\s\S]*analysis-slot[\s\S]*:\s*'<div class="row-actions">'/.test(fn), 'el analysis-slot y los botones de pliego solo van en modo análisis');
   assert(/!enAnalisis \? '' : \(analysisEntry \? renderAnalysisHtml/.test(fn), 'el análisis completo solo se dibuja en modo análisis');
   assert(/tarjetaProcesoHtml\(s, flujoListoParaPliego, 'lista'\)/.test(html) && /tarjetaProcesoHtml\(s2, .*'analisis'\)/.test(html), 'la lista usa modo lista y la vista nueva modo analisis');
   assert(!/resultsEl\.addEventListener/.test(html), 'los listeners de tarjeta deben colgar de ambos contenedores (enContenedoresDeProceso)');
+});
+await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('function unirFilasExperienciaRepetidas');
+  assert(i !== -1, 'falta unirFilasExperienciaRepetidas');
+  const unir = new Function(html.slice(i, html.indexOf('function matrizRequisitos', i)) + '\nreturn unirFilasExperienciaRepetidas;')();
+  const fila = (clave, req, res, exig, cita) => ({ clave, requisito: req, exigencia: exig, empresa: 'x', resultado: res, evidencia: { documento: 'Estudio Previo', pagina: 3, cita, verificada: true } });
+  const r = unir([
+    fila('exp-0', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento TIPO A', 'NO DETERMINABLE', '—', 'cita A'),
+    fila('exp-1', 'Experiencia: 3. OBRAS MARITIMAS Y FLUVIALES Cuantías', 'NO DETERMINABLE', '—', 'cita B'),
+    fila('exp-2', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento TIPO D', 'NO DETERMINABLE', '—', 'cita C'),
+    fila('gate-Índice de liquidez', 'Índice de liquidez', 'CUMPLE', '≥ 1,2', 'liq')
+  ]);
+  assert(r.length === 3, 'de 4 filas debe quedar 3, quedó ' + r.length);
+  assert(r[0].clave === 'exp-0' && /2 fragmentos/.test(r[0].requisito), 'la primera junta 2 fragmentos y lo dice: ' + r[0].requisito);
+  assert(/cita A/.test(r[0].evidencia.cita) && /cita C/.test(r[0].evidencia.cita), 'la evidencia conserva las dos citas');
+  assert(r[1].clave === 'exp-1' && r[2].clave === 'gate-Índice de liquidez', 'el orden y las demás filas no cambian');
+  const no = unir([
+    fila('exp-0', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento a', 'CUMPLE', '—', 'a'),
+    fila('exp-1', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento b', 'NO DETERMINABLE', '—', 'b'),
+    fila('exp-2', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento c', 'CUMPLE', 'Contratos relevantes: 0 (exige mínimo 5)', 'c')
+  ]);
+  assert(no.length === 3, 'con distinto resultado o exigencia no se junta (esconder un CUMPLE o una exigencia sería mentir): ' + no.length);
 });
 await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su contenido vive en "Análisis de pliegos"', () => {
   const html = readFileSync(HTML_PATH, 'utf8');

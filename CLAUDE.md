@@ -43,6 +43,7 @@ sincronización, Edge Functions de IA y correo).
   (sin ítem de menú; `vistaOrigenAnalisis` decide qué ítem queda marcado). `perfil/experiencia/personal` son paneles con pestañas dentro de
   `empresa` (mismos ids de DOM). `ALIAS_VISTAS` (`pipeline→procesos`, `evaluacion→analisis`) mantiene vivas las últimas vistas guardadas.
   `mostrarVista(nombre)` acepta cualquiera de los nombres; el foco pasa al `h1` del contenedor.
+- **Buscar procesos no analiza** (decisión del usuario, 2026-10): solo busca y muestra una ficha con los datos del proceso (`.ficha`: cuantía, ubicación, cierre, estado, modalidad, tipo, número, código SECOP II, fechas, duración; lo que el dataset no trae no se muestra). Sin sello GO/REVISAR, sin prioridad ALTA/MEDIA/BAJA, sin "Ocultar NO-GO" ni exportar alta prioridad; orden por defecto = publicación más reciente. Acciones: Guardar, Ver en SECOP, Descartar. El análisis se abre desde **Mis procesos** (Guardar → Mis procesos → Abrir). No reintroduzcas análisis en esta vista sin que el usuario lo pida.
 - **Mis procesos** reemplaza el pipeline: 5 estados (`ETAPAS_PIPELINE`: por_revisar, en_analisis, viable, no_viable, presentada) en `historial[id].etapa`;
   `migrarHistorialEtapas` lleva las 6 etapas viejas a los 5 estados al cargar (conserva `consorcio`/`resultado` en el dato, sin pantalla).
 - **Resultado global** con 4 nombres: `GO · REVISAR · NO-GO · NO DETERMINABLE`. `decidirVeredicto` (3 valores) no cambia; `veredictoGlobal` (evaluacion.js) agrega
