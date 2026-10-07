@@ -2077,6 +2077,28 @@ await check('Regla del veredicto: fail -> NO-GO; revisar o nd -> REVISAR; sin pl
   assert(expEngine.decidirVeredicto(TODO_OK.concat([{ estado: 'fail' }, { estado: 'nd' }]), false) === 'NO-GO', 'un fail domina aunque no haya pliego');
 });
 
+// Reestructuración (2026-10): el resultado GLOBAL también puede ser NO DETERMINABLE ("no hay evidencia
+// suficiente"), sin tocar GO/REVISAR/NO-GO. `decidirVeredicto` queda intacto; `veredictoGlobal` es la capa de
+// presentación. Casos 1-4 del prompt de reestructuración.
+await check('Veredicto global, caso 1: todo cumple y hay pliego leído -> GO', () => {
+  assert(expEngine.veredictoGlobal(TODO_OK, true) === 'GO', 'todo en verde con pliego es GO');
+});
+await check('Veredicto global, caso 2: un requisito crítico que no se cumple -> NO-GO (aunque falte información en otros)', () => {
+  assert(expEngine.veredictoGlobal(TODO_OK.concat([{ nombre: 'Capacidad K residual', estado: 'fail' }]), true) === 'NO-GO', 'fail');
+  assert(expEngine.veredictoGlobal([{ nombre: 'Experiencia', estado: 'nd' }, { nombre: 'Capacidad K residual', estado: 'fail' }], false) === 'NO-GO', 'un fail domina aunque no haya pliego ni evidencia');
+});
+await check('Veredicto global, caso 3: hay evidencia pero un punto queda pendiente -> REVISAR', () => {
+  assert(expEngine.veredictoGlobal(TODO_OK.concat([{ nombre: 'Personal / equipo de trabajo', estado: 'nd' }]), true) === 'REVISAR', 'un pendiente con otros requisitos en verde');
+  assert(expEngine.veredictoGlobal([okGate('Presentación de oferta'), { nombre: 'Capacidad vs valor', estado: 'revisar' }, { nombre: 'Experiencia', estado: 'nd' }], true) === 'REVISAR', 'un "revisar" es evidencia de que hay algo que mirar: no se esconde tras NO DETERMINABLE');
+});
+await check('Veredicto global, caso 4: sin evidencia de ningún requisito -> NO DETERMINABLE, nunca GO ni un REVISAR que insinúe avance', () => {
+  assert(expEngine.veredictoGlobal([], true) === 'NO DETERMINABLE', 'sin gates');
+  assert(expEngine.veredictoGlobal(TODO_OK, false) === 'NO DETERMINABLE', 'sin pliego analizado no hay evidencia de requisitos');
+  const soloAdmin = [okGate('Estado del proceso'), okGate('Presentación de oferta'), okGate('Valor de la obra'), { nombre: 'Experiencia', estado: 'nd' }, { nombre: 'Capacidad K residual', estado: 'nd' }];
+  assert(expEngine.veredictoGlobal(soloAdmin, true) === 'NO DETERMINABLE', 'fechas y valor "ok" no son evidencia de cumplimiento de los requisitos');
+  assert(expEngine.decidirVeredicto(soloAdmin, true) === 'REVISAR', 'control: el motor interno sigue diciendo REVISAR (sin cambios)');
+});
+
 await check('MC-014: contratos en ejecución sin saldo o sin fecha NO se ignoran en silencio: se cuentan como incompletos', () => {
   const hoy = new Date('2026-06-01T00:00:00').getTime();
   const r = expEngine.calcularSCE([{ saldo: '', fechaFin: '2027-01-01' }, { saldo: '1.500.000.000', fechaFin: '' }], hoy);

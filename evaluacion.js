@@ -67,6 +67,20 @@
     return 'GO';
   }
 
+  // Capa de PRESENTACIÓN del resultado global (decidirVeredicto no cambia). Agrega "NO DETERMINABLE":
+  // no hay evidencia de ningún requisito (sin pliego analizado, o todos los requisitos en nd). Las
+  // condiciones administrativas (estado, plazo, valor) no son evidencia de cumplimiento: que la oferta
+  // siga abierta no dice nada de si la empresa puede participar. Un "revisar" SÍ es evidencia de que
+  // hay algo concreto que mirar, así que no se esconde tras NO DETERMINABLE. Un fail siempre domina.
+  const GATES_ADMINISTRATIVOS = ['Estado del proceso', 'Presentación de oferta', 'Valor de la obra'];
+  function veredictoGlobal(gates, hayPliego){
+    const base = decidirVeredicto(gates, hayPliego);
+    if (base === 'NO-GO') return base;
+    if (!hayPliego || !gates.length) return 'NO DETERMINABLE';
+    const hayEvidencia = gates.some(x => (x.estado === 'ok' || x.estado === 'revisar') && GATES_ADMINISTRATIVOS.indexOf(x.nombre) === -1);
+    return (base === 'REVISAR' && !hayEvidencia) ? 'NO DETERMINABLE' : base;
+  }
+
 
   // Normaliza un entry (nuevo o del esquema viejo de un solo comp) a una lista de comps.
   function compsDe(entry){
@@ -260,7 +274,7 @@
     // GO pleno -- falta información, no evidencia de cumplimiento (ver decidirVeredicto).
     const gatesFinal = ajustarGatesPorContratosIncompletos(gates, (matriz.capacidadEstimada && matriz.capacidadEstimada.incompletos) || 0);
     const veredicto = decidirVeredicto(gatesFinal, !!entry);
-    return { veredicto: veredicto, gates: gatesFinal, conPliego: !!entry, perfil: matriz.nombre, perfilId: matriz.id };
+    return { veredicto: veredicto, veredictoGlobal: veredictoGlobal(gatesFinal, !!entry), gates: gatesFinal, conPliego: !!entry, perfil: matriz.nombre, perfilId: matriz.id };
   }
 
   // Evalúa contra TODOS los perfiles marcados (o el que se edita si no hay marcados)
@@ -277,7 +291,7 @@
 
     return {
       gateCapacidadVsValor: gateCapacidadVsValor, ajustarGatesPorContratosIncompletos: ajustarGatesPorContratosIncompletos,
-      gateLecturaParcial: gateLecturaParcial, decidirVeredicto: decidirVeredicto, compsDe: compsDe,
+      gateLecturaParcial: gateLecturaParcial, decidirVeredicto: decidirVeredicto, veredictoGlobal: veredictoGlobal, compsDe: compsDe,
       codigosExigidosEnPliego: codigosExigidosEnPliego, gatePersonalRequerido: gatePersonalRequerido,
       evaluarProceso: evaluarProceso, evaluarContraPerfiles: evaluarContraPerfiles
     };
