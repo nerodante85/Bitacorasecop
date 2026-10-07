@@ -99,7 +99,7 @@ await check('todo getElementById(\'...\') referenciado existe como id="..." en e
 await check('las funciones clave del flujo (experiencia → personal → pliego → resultado) existen', () => {
   const REQUIRED = [
     'escapeHtml', 'mostrarVista', 'runSearch', 'render',
-    'estadoFlujoPliego', 'mensajeFlujoFaltante', 'renderFlujoStepper',
+    'estadoFlujoPliego', 'renderFlujoStepper',
     'evaluarProceso', 'evaluarMejor', 'gatePersonalRequerido',
     'resumenCompatibilidad', 'renderCompatibilidadHtml',
     'parsearExcelExperiencia', 'evaluarExperienciaCompleta',
@@ -367,7 +367,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2346,14 +2346,20 @@ await check('TR-007/TR-008: el pie de fuente dice dataset, fecha y modo; la demo
   assert(/EJEMPLO FICTICIOS/.test(demo) && !/p6dx-8zbt/.test(demo), 'demo: ' + demo);
 });
 
-await check('UX-003: nombres claros del veredicto y una línea visible con el motivo (gate fallido y acción, o lo que falta confirmar)', () => {
-  assert(expEngine.etiquetaVeredicto('GO') === 'Cumple lo revisado' && expEngine.etiquetaVeredicto('NO-GO') === 'No cumple' && expEngine.etiquetaVeredicto('REVISAR') === 'Falta información', 'etiquetas');
+await check('UX-003 (revisado en la reestructuración): el resultado se muestra con sus 4 nombres canónicos (GO, REVISAR, NO-GO, NO DETERMINABLE), nunca solo con color, y cada uno trae su explicación en lenguaje llano y una línea con el motivo', () => {
+  ['GO', 'REVISAR', 'NO-GO', 'NO DETERMINABLE'].forEach(v => assert(expEngine.etiquetaVeredicto(v) === v, 'etiqueta ' + v));
+  assert(expEngine.etiquetaVeredicto('algo raro') === 'NO DETERMINABLE' && expEngine.etiquetaVeredicto(undefined) === 'NO DETERMINABLE', 'un valor desconocido nunca se muestra como GO');
+  assert(/no se identificaron incumplimientos determinantes/i.test(expEngine.descripcionVeredicto("GO")) && /validación humana|valid/i.test(expEngine.descripcionVeredicto('REVISAR')) && /no cumple/i.test(expEngine.descripcionVeredicto('NO-GO')) && /no hay evidencia suficiente/i.test(expEngine.descripcionVeredicto('NO DETERMINABLE')), 'descripciones');
+  assert(expEngine.claseVeredicto('GO') === 'eval-go' && expEngine.claseVeredicto('NO-GO') === 'eval-nogo' && expEngine.claseVeredicto('REVISAR') === 'eval-revisar' && expEngine.claseVeredicto('NO DETERMINABLE') === 'eval-nd', 'clases');
   const gates = [{ nombre: 'Índice de liquidez', estado: 'fail' }, { nombre: 'Experiencia', estado: 'nd' }, { nombre: 'Valor', estado: 'ok' }];
   const no = expEngine.lineaMotivoVeredicto(gates, 'NO-GO', true);
   assert(/Índice de liquidez/.test(no) && !/Experiencia/.test(no) && /subsanar|consorcio/.test(no), 'NO-GO: ' + no);
   const rev = expEngine.lineaMotivoVeredicto(gates.slice(1), 'REVISAR', true);
   assert(/Falta confirmar: Experiencia/.test(rev), 'REVISAR: ' + rev);
   assert(/analiza el pliego/i.test(expEngine.lineaMotivoVeredicto([], 'REVISAR', false)), 'sin pliego');
+  const nd = expEngine.lineaMotivoVeredicto([{ nombre: 'Experiencia', estado: 'nd' }], 'NO DETERMINABLE', true);
+  assert(/no hay evidencia suficiente/i.test(nd) && /Experiencia/.test(nd) && /nunca|no se interpreta/i.test(nd), 'NO DETERMINABLE con pliego: ' + nd);
+  assert(/analiza el pliego/i.test(expEngine.lineaMotivoVeredicto([], 'NO DETERMINABLE', false)), 'NO DETERMINABLE sin pliego');
 });
 
 await check('UX-004: la cobertura de lectura se muestra junto al veredicto (parcial o completa)', () => {
@@ -2655,6 +2661,22 @@ await check('avisoRangoValor: avisa solo cuando el mínimo supera al máximo y a
   assert(a(900, 100) !== null, 'min > max avisa');
   assert(a(100, 900) === null && a(500, 500) === null, 'rango válido no avisa');
   assert(a(0, 100) === null && a(900, 0) === null && a(0, 0) === null, 'sin un extremo definido no avisa');
+});
+await check('Filtros de Buscar: el valor, la entidad y la fecha de cierre filtran de verdad; un dato ausente no esconde el proceso (valor) o lo excluye solo cuando se pide certeza (cierre)', () => {
+  const v = expEngine.cumpleRangoValor;
+  assert(v(1000, 0, 0) === true, 'sin rango todo pasa');
+  assert(v(400e6, 500e6, 3000e6) === false && v(3500e6, 500e6, 3000e6) === false, 'fuera del rango se oculta');
+  assert(v(500e6, 500e6, 3000e6) === true && v(3000e6, 500e6, 3000e6) === true, 'los extremos pertenecen al rango');
+  assert(v(400e6, 0, 3000e6) === true && v(4000e6, 0, 3000e6) === false && v(4000e6, 500e6, 0) === true && v(100e6, 500e6, 0) === false, 'solo mínimo / solo máximo');
+  assert(v(null, 500e6, 3000e6) === true && v(undefined, 500e6, 3000e6) === true && v(0, 500e6, 3000e6) === true && v('abc', 500e6, 3000e6) === true, 'sin valor (o inválido) no se oculta: no se descarta una oportunidad por falta de dato');
+  const e = expEngine.coincideEntidad;
+  assert(e('GOBERNACIÓN DE NORTE DE SANTANDER', 'gobernacion') === true && e('Alcaldía de San José de Cúcuta', 'alcaldia cucuta') === true, 'sin tildes ni mayúsculas, por palabras');
+  assert(e('INSTITUTO NACIONAL DE VÍAS - INVÍAS', 'invias') === true && e('Alcaldía de Ocaña', 'cucuta') === false && e('', 'alcaldia') === false, 'no coincide / entidad vacía');
+  assert(e('Cualquiera', '') === true && e('Cualquiera', '   ') === true, 'sin texto no filtra');
+  const c = expEngine.cierraEnDias;
+  assert(c(5, 7) === true && c(7, 7) === true && c(0, 7) === true && c(8, 7) === false && c(-1, 7) === false, 'ventana de cierre (un vencido no cuenta)');
+  assert(c(null, 7) === false, 'con el filtro puesto, un proceso sin fecha de cierre confiable no se muestra como "cierra pronto"');
+  assert(c(null, 0) === true && c(null, '') === true && c(500, 0) === true, 'sin filtro todo pasa');
 });
 await check('Entradas: el campo de años no se guarda si es inválido y el rango muestra su aviso (cableado en index.html)', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -2995,34 +3017,42 @@ await check('OPS-001: pages.yml despliega solo detrás de las pruebas y de la va
 // las únicas piezas puras del nuevo módulo -- agregarAPipeline/moverEtapaPipeline/
 // quitarDePipeline mutan `historial` (estado global) y llaman a saveHistorial()/rerender() (DOM
 // real), fuera de lo que este arnés extrae sin DOM; se prueban en el navegador (ver CLAUDE.md).
-await check('Pipeline: resumenPipeline cuenta por etapa y la tasa de éxito solo sobre adjudicados/perdidos (null sin ninguno)', () => {
-  const h = {
-    a: { etapa: 'por_evaluar' }, b: { etapa: 'propuesta' }, c: { etapa: 'radicado' },
-    d: { etapa: 'resultado', resultado: 'adjudicado', snapshot: { valor: 500000000 } },
-    e: { etapa: 'resultado', resultado: 'perdido' }, f: { etapa: 'resultado', resultado: null },
-    g: { status: 'visto' }, h: { etapa: 'etapa-rara' }
-  };
-  const r = expEngine.resumenPipeline(h);
-  assert(r.total === 6, 'solo cuentan los procesos con etapa válida: ' + r.total);
-  assert(r.radicados === 4, 'radicado + resultado: ' + r.radicados);
-  assert(r.adjudicados === 1 && r.perdidos === 1 && r.pendientes === 1, JSON.stringify(r));
-  assert(r.tasaExito === 50 && r.valorAdjudicado === 500000000, 'tasa/valor: ' + r.tasaExito + '/' + r.valorAdjudicado);
-  const vacio = expEngine.resumenPipeline({ x: { etapa: 'resultado', resultado: null } });
-  assert(vacio.tasaExito === null, 'sin resultados marcados no se inventa un 0%');
-  assert(expEngine.resumenPipeline(null).total === 0, 'historial vacío no revienta');
+await check('Mis procesos: 5 estados (Por revisar, En análisis, Viable, No viable, Presentada) en ese orden; siguiente/anterior devuelven null en los extremos', () => {
+  assert(Array.isArray(expEngine.ETAPAS_PIPELINE) && expEngine.ETAPAS_PIPELINE.length === 5, 'deben ser 5 estados, no el pipeline de 6 etapas');
+  const ids = expEngine.ETAPAS_PIPELINE.map(e => e.id);
+  assert(ids.join(',') === 'por_revisar,en_analisis,viable,no_viable,presentada', 'orden de estados: ' + ids.join(','));
+  assert(expEngine.ETAPAS_PIPELINE.map(e => e.label).join('|') === 'Por revisar|En análisis|Viable|No viable|Presentada', 'etiquetas visibles');
+  assert(expEngine.siguienteEtapa('por_revisar') === 'en_analisis' && expEngine.siguienteEtapa('presentada') === null, 'siguiente');
+  assert(expEngine.etapaAnterior('presentada') === 'no_viable' && expEngine.etapaAnterior('por_revisar') === null, 'anterior');
+  assert(expEngine.siguienteEtapa('inexistente') === null && expEngine.etapaAnterior('inexistente') === null, 'un estado que no existe no revienta');
 });
 
-await check('Pipeline: siguienteEtapa/etapaAnterior recorren ETAPAS_PIPELINE en orden, null en los extremos', () => {
-  assert(Array.isArray(expEngine.ETAPAS_PIPELINE) && expEngine.ETAPAS_PIPELINE.length === 6, 'ETAPAS_PIPELINE debe tener las 6 etapas');
-  const ids = expEngine.ETAPAS_PIPELINE.map(e => e.id);
-  assert(ids.join(',') === 'por_evaluar,riesgos_rup,consorcio,propuesta,radicado,resultado', 'orden de etapas: ' + ids.join(','));
-  assert(expEngine.siguienteEtapa('por_evaluar') === 'riesgos_rup');
-  assert(expEngine.siguienteEtapa('consorcio') === 'propuesta');
-  assert(expEngine.siguienteEtapa('resultado') === null, 'no hay etapa después de la última');
-  assert(expEngine.siguienteEtapa('etapa-inexistente') === null, 'una etapa que no existe no revienta, devuelve null');
-  assert(expEngine.etapaAnterior('resultado') === 'radicado');
-  assert(expEngine.etapaAnterior('por_evaluar') === null, 'no hay etapa antes de la primera');
-  assert(expEngine.etapaAnterior('etapa-inexistente') === null);
+await check('Mis procesos: las 6 etapas del pipeline anterior se migran a los 5 estados sin perder nada del proceso (estado visto/descartado, resumen, consorcio, resultado)', () => {
+  const viejos = { por_evaluar: 'por_revisar', riesgos_rup: 'en_analisis', consorcio: 'en_analisis', propuesta: 'viable', radicado: 'presentada', resultado: 'presentada' };
+  Object.keys(viejos).forEach(v => assert(expEngine.migrarEtapa(v) === viejos[v], v + ' -> ' + viejos[v] + ' (fue ' + expEngine.migrarEtapa(v) + ')'));
+  ['por_revisar', 'en_analisis', 'viable', 'no_viable', 'presentada'].forEach(n => assert(expEngine.migrarEtapa(n) === n, 'un estado nuevo no cambia: ' + n));
+  assert(expEngine.migrarEtapa('algo-raro') === 'por_revisar' && expEngine.migrarEtapa(undefined) === 'por_revisar', 'un valor desconocido cae en "Por revisar", nunca en "Presentada" (no se inventa avance)');
+  const h = {
+    a: { etapa: 'por_evaluar', etapaTs: 5, status: 'visto', ts: 7, snapshot: { entidad: 'A' }, consorcio: ['p1'], resultado: null },
+    b: { etapa: 'resultado', resultado: 'adjudicado', snapshot: { entidad: 'B' } },
+    c: { status: 'descartado', ts: 9 },
+    d: { etapa: 'viable', snapshot: { entidad: 'D' } }
+  };
+  const n = expEngine.migrarHistorialEtapas(h);
+  assert(n === 2, 'solo cambian las etapas viejas (a, b): ' + n);
+  assert(h.a.etapa === 'por_revisar' && h.a.status === 'visto' && h.a.ts === 7 && h.a.snapshot.entidad === 'A' && h.a.consorcio[0] === 'p1' && h.a.etapaTs === 5, 'a conserva todo');
+  assert(h.b.etapa === 'presentada' && h.b.resultado === 'adjudicado' && h.b.snapshot.entidad === 'B', 'b conserva su resultado');
+  assert(!('etapa' in h.c) && h.c.status === 'descartado' && h.d.etapa === 'viable', 'sin etapa y estados nuevos no se tocan');
+  assert(expEngine.migrarHistorialEtapas(h) === 0, 'idempotente: una segunda pasada no cambia nada');
+  assert(expEngine.migrarHistorialEtapas(null) === 0 && expEngine.migrarHistorialEtapas({}) === 0, 'historial vacío o nulo no revienta');
+});
+
+await check('Mis procesos: resumenPipeline cuenta por estado y solo los procesos guardados con un estado válido', () => {
+  const h = { a: { etapa: 'por_revisar' }, b: { etapa: 'por_revisar' }, c: { etapa: 'viable' }, d: { etapa: 'presentada' }, e: { status: 'visto' }, f: { etapa: 'etapa-rara' } };
+  const r = expEngine.resumenPipeline(h);
+  assert(r.total === 4, 'solo cuentan los procesos con estado válido: ' + r.total);
+  assert(r.porEtapa.por_revisar === 2 && r.porEtapa.viable === 1 && r.porEtapa.presentada === 1 && r.porEtapa.en_analisis === 0 && r.porEtapa.no_viable === 0, JSON.stringify(r.porEtapa));
+  assert(expEngine.resumenPipeline(null).total === 0, 'historial vacío no revienta');
 });
 
 await check('PDF-01: con lectura parcial, "Extraer requisitos con IA" no recorta el PDF por páginas (el filtro solo ve el texto ya leído)', () => {
@@ -3485,6 +3515,48 @@ await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su 
   assert(/enContenedoresDeProceso\('click', async function manejarClickEvaluacion/.test(html), 'los botones eval-* deben colgar de ambos contenedores');
 });
 // Reestructuración (2026-10): el menú principal son 4 ítems (+ una zona secundaria), no 7 módulos.
+// Búsqueda en lenguaje natural SIN IA (la versión con LLM se eliminó por costo, ver docs/HISTORIAL.md): un intérprete
+// determinista que llena los mismos filtros de siempre y le dice al usuario qué entendió. Lo que no entiende, lo avisa.
+await check('Búsqueda natural: entiende tipo de obra, departamento, municipio y rango de valor en pesos colombianos, y avisa lo que no entendió', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('const DEPARTAMENTOS_CO'), j = html.indexOf('function getInputs(');
+  assert(i !== -1 && j > i, 'anclas de interpretarBusqueda');
+  const interp = new Function('parseValorUnidad', 'normalizeGeo', html.slice(i, j) + '\nreturn interpretarBusqueda;')(expEngine.parseValorUnidad, Coincidencia.normalizeGeo);
+  const q = t => interp(t);
+  let r = q('Obras civiles en Norte de Santander entre $500 millones y $3.000 millones.');
+  assert(JSON.stringify(r.keywords) === '["obra civil"]' && JSON.stringify(r.geos) === '["Norte de Santander"]' && r.minV === 500e6 && r.maxV === 3000e6 && !r.municipios.length, 'ejemplo del prompt: ' + JSON.stringify(r));
+  r = q('Construcción de infraestructura educativa en Cúcuta hasta $2.000 millones.');
+  assert(JSON.stringify(r.keywords) === '["construcción infraestructura educativa"]' && JSON.stringify(r.municipios) === '["Cúcuta"]' && r.maxV === 2000e6 && r.minV === 0 && !r.geos.length, 'segundo ejemplo: ' + JSON.stringify(r));
+  r = q('pavimentación y alcantarillado en Santander y Norte de Santander');
+  assert(JSON.stringify(r.keywords) === '["pavimentación","alcantarillado"]' && r.geos.length === 2 && r.geos.includes('Santander') && r.geos.includes('Norte de Santander'), '"Santander" dentro de "Norte de Santander" no se cuenta dos veces ni se pierde: ' + JSON.stringify(r));
+  r = q('interventoría vías terciarias desde 1.500 millones');
+  assert(r.minV === 1500e6 && r.maxV === 0 && JSON.stringify(r.keywords) === '["interventoría vía terciaria"]', 'desde: ' + JSON.stringify(r));
+  r = q('acueducto hasta 1,5 mil millones');
+  assert(r.maxV === 1.5e9, '"1,5 mil millones": ' + r.maxV);
+  r = q('colegios en cucuta');
+  assert(JSON.stringify(r.municipios) === '["Cúcuta"]' && JSON.stringify(r.keywords) === '["colegio"]', 'municipio conocido en minúsculas y sin tilde: ' + JSON.stringify(r));
+  r = q('obra en Bogotá');
+  assert(JSON.stringify(r.geos) === "[\"Distrito Capital de Bogotá\"]", "Bogotá: " + JSON.stringify(r.geos));
+  r = q('vías en Valle del Cauca');
+  assert(JSON.stringify(r.geos) === '["Valle del Cauca"]' && JSON.stringify(r.keywords) === '["vía"]', '"Cauca" dentro de "Valle del Cauca" no se cuenta aparte: ' + JSON.stringify(r));
+  r = q('LP-005-2026');
+  assert(r.numProceso === 'LP-005-2026' && !r.keywords.length, 'número de proceso: ' + JSON.stringify(r));
+  r = q('CO1.REQ.10526881');
+  assert(r.numProceso === 'CO1.REQ.10526881', 'referencia SECOP II');
+  // lo que no se entiende se avisa y NO se aplica (nunca se inventa un filtro)
+  r = q('puentes por 2.000 millones');
+  assert(r.minV === 0 && r.maxV === 0 && r.avisos.some(a => /2\.000/.test(a) || /m[ií]nimo|m[aá]ximo/i.test(a)) && JSON.stringify(r.keywords) === '["puente"]', 'monto sin "desde/hasta": ' + JSON.stringify(r));
+  r = q('acueducto hasta 500');
+  assert(r.maxV === 0 && r.avisos.length >= 1, 'un número suelto no es un monto en pesos: ' + JSON.stringify(r));
+  r = q('   ');
+  assert(r.vacio === true && !r.keywords.length && !r.geos.length, 'vacío');
+  assert(JSON.stringify(q('hospitales y canales, edificios').keywords) === '["hospital","canal","edificio"]' && JSON.stringify(q('análisis de suelos').keywords) === '["análisis suelo"]', 'plurales a singular sin dañar palabras como "análisis"');
+  r = q('xyz');
+  assert(JSON.stringify(r.keywords) === '["xyz"]' && !r.geos.length && !r.municipios.length, 'lo desconocido queda como palabra clave, no como lugar');
+  r = q('Entre 3.000 millones y 500 millones obras');
+  assert(r.minV === 500e6 && r.maxV === 3000e6, 'rango en cualquier orden: ' + r.minV + '-' + r.maxV);
+});
+
 await check('Menú: Buscar procesos · Mis procesos · Empresa · Documentos, y "Configuración y ayuda" aparte; sin módulos de PAA, alertas, pipeline, perfil, experiencia ni personal', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const nav = html.slice(html.indexOf('<div class="sidebar-nav" id="bt-nav"'), html.indexOf('<div class="sidebar-foot"'));
@@ -3567,7 +3639,7 @@ await check('F-04: un análisis guardado se puede abrir aunque su proceso ya no 
     d: { ts: 10, fileName: 'd.pdf' },
     e: { ts: 5, fileName: 'e.pdf', proceso: Object.assign({}, snap, { closingRaw: '1961-01-01T00:00:00Z' }) }
   };
-  const historial = { c: { etapa: 'por_evaluar', snapshot: { entidad: 'Gobernación C', objeto: 'Vía', valor: 9, closingRaw: '2026-10-08T00:00:00Z', fuente: 'II', referencia: 'C-1' } } };
+  const historial = { c: { etapa: 'por_revisar', snapshot: { entidad: 'Gobernación C', objeto: 'Vía', valor: 9, closingRaw: '2026-10-08T00:00:00Z', fuente: 'II', referencia: 'C-1' } } };
   const r = expEngine.procesosAnalizadosFueraDeLista(analisis, historial, new Set(['a']), ahora);
   assert(r.map(x => x.item.id).join(',') === 'b,c,d,e', 'ids y orden (más reciente primero, sin el que ya está en la búsqueda): ' + r.map(x => x.item.id));
   assert(r[0].item.entidad === 'Alcaldía A' && r[0].daysLeft === 10 && r[0].guardado.modo === 'snapshot' && r[0].guardado.origen === 'analisis', 'b sale del resumen guardado');

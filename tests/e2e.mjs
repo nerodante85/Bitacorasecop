@@ -276,6 +276,59 @@ await check('Datos de ejemplo: "Análisis de pliegos" avisa que son ficticios y 
   await ctx.close();
 });
 
+await check('Inicio: la frase de búsqueda llena los filtros de Buscar, dice qué entendió y el rango de valor filtra de verdad', async () => {
+  const { ctx, pg } = await abrir();
+  assert(await vistaActiva(pg) === 'view-dashboard', 'se abre en Inicio');
+  const cifras = await pg.evaluate(() => document.querySelectorAll('#view-dashboard .stat-card, #view-dashboard canvas, #view-dashboard svg.chart').length);
+  assert(cifras === 0, 'Inicio no debe tener tarjetas de cifras ni gráficos');
+  await pg.fill('#bt-inicio-q', 'Construcción en Norte de Santander entre $200 millones y $900 millones');
+  await pg.click('#bt-inicio-buscar');
+  await pg.waitForFunction(() => !document.getElementById('view-buscar').hidden);
+  await pg.waitForFunction(() => /Entend/.test(document.getElementById('bt-nl-entendi').textContent));
+  const f = await pg.evaluate(() => ({ geo: document.getElementById('bt-geo').value, min: document.getElementById('bt-min').value, max: document.getElementById('bt-max').value, kw: document.getElementById('bt-kw').value, texto: document.getElementById('bt-nl-entendi').textContent }));
+  assert(f.geo === 'Norte de Santander' && f.min === '200000000' && f.max === '900000000' && f.kw === 'construcción', 'filtros llenos: ' + JSON.stringify(f));
+  assert(/Especialidades: construcción/.test(f.texto) && /Departamento: Norte de Santander/.test(f.texto) && /Valor: desde/.test(f.texto), 'dice qué entendió: ' + f.texto);
+  await pg.waitForFunction(() => document.querySelectorAll('#bt-results .row, #bt-results .empty').length > 0);
+  const valores = await pg.evaluate(() => [...document.querySelectorAll('#bt-results .row')].map(r => { const m = [...r.querySelectorAll('.row-meta span')].find(x => /Valor base/.test(x.textContent)); return m ? m.textContent.replace(/[^0-9]/g, '') : ''; }));
+  assert(valores.every(v => v === '' || (Number(v) >= 200e6 && Number(v) <= 900e6)), 'con el rango puesto no debe haber procesos fuera de él: ' + valores.join(','));
+  // lo que no se entiende se avisa
+  await pg.fill('#bt-nl', 'puentes por 2.000 millones');
+  await pg.click('#bt-search');
+  await pg.waitForFunction(() => /No entend/.test(document.getElementById('bt-nl-entendi').textContent));
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
+await check('Mis procesos: 5 estados; un pipeline guardado con etapas viejas se migra; Guardar desde Buscar y cambiar de estado funcionan', async () => {
+  const ahora = Date.now();
+  const hist = {
+    'VIEJO-1': { etapa: 'por_evaluar', etapaTs: ahora, snapshot: { entidad: 'Alcaldía Vieja', objeto: 'Obra vieja uno', valor: 1000, fuente: 'II' } },
+    'VIEJO-2': { etapa: 'resultado', resultado: 'adjudicado', etapaTs: ahora, snapshot: { entidad: 'Gobernación Vieja', objeto: 'Obra vieja dos', valor: 2000, fuente: 'II' } }
+  };
+  const { ctx, pg } = await abrir({ sembrar: { bitacora_historial: JSON.stringify(hist) } });
+  await pg.click('#bt-nav-procesos');
+  const g = await pg.evaluate(() => [...document.querySelectorAll('#bt-pipeline-board .pipeline-grupo h2')].map(h => h.textContent.trim().replace(/\s+/g, ' ')));
+  assert(JSON.stringify(g) === '["Por revisar 1","Presentada 1"]', 'etapas migradas: ' + JSON.stringify(g));
+  const opc = await pg.evaluate(() => [...document.querySelectorAll('#bt-pipeline-board select')][0].options.length);
+  assert(opc === 5, 'el selector de estado tiene 5 opciones: ' + opc);
+  await pg.selectOption('#bt-pipeline-board [data-pipeline-mover-select-id="VIEJO-1"]', 'viable');
+  const g2 = await pg.evaluate(() => [...document.querySelectorAll('#bt-pipeline-board .pipeline-grupo h2')].map(h => h.textContent.trim().replace(/\s+/g, ' ')));
+  assert(JSON.stringify(g2) === '["Viable 1","Presentada 1"]', 'cambio de estado: ' + JSON.stringify(g2));
+  const guardado = await pg.evaluate(() => JSON.parse(localStorage.getItem('bitacora_historial'))['VIEJO-1'].etapa);
+  assert(guardado === 'viable', 'el estado queda guardado: ' + guardado);
+  // Guardar desde Buscar
+  await pg.click('#bt-nav-buscar');
+  const id = await pg.evaluate(() => document.querySelector('#bt-results .row').dataset.id);
+  await pg.locator('#bt-results .row').first().locator('[data-agregar-pipeline]').click();
+  await pg.click('#bt-nav-procesos');
+  const g3 = await pg.evaluate(() => [...document.querySelectorAll('#bt-pipeline-board .pipeline-grupo h2')].map(h => h.textContent.trim().replace(/\s+/g, ' ')));
+  assert(g3[0] === 'Por revisar 1', 'el proceso guardado entra en "Por revisar": ' + JSON.stringify(g3));
+  await pg.locator('#bt-pipeline-board [data-pipeline-quitar-id="' + id + '"]').click();
+  assert(await pg.evaluate(() => document.querySelectorAll('#bt-pipeline-board [data-pipeline-quitar-id]').length) === 2, 'quitar lo saca de Mis procesos');
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');

@@ -294,6 +294,21 @@
     color: var(--text-heading);
   }
   #bitacora-root .view-header p { margin: 0; font-size: 14px; color: var(--text-muted); max-width: 640px; line-height: 1.5; }
+  /* Buscar: el cuadro de búsqueda natural es la acción principal; "Más filtros" y las herramientas van plegados. */
+  #bitacora-root .buscador-fila { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+  #bitacora-root .buscador-fila input[type="search"] { flex: 1 1 280px; min-width: 0; font-size: 15px; padding: 11px 14px; }
+  #bitacora-root .buscador-fila .btn-primary { flex: 0 0 auto; }
+  #bitacora-root #bt-nl-entendi { margin-top: 8px; }
+  #bitacora-root #bt-inicio-primeros { margin: 14px 0; }
+  #bitacora-root details.mas-filtros { margin-top: 12px; }
+  #bitacora-root details.mas-filtros > summary, #bitacora-root details.herramientas > summary { cursor: pointer; font-weight: 600; font-size: 13.5px; color: var(--accent); padding: 6px 0; }
+  #bitacora-root details.herramientas { margin-top: 18px; }
+  #bitacora-root .herramienta { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+  #bitacora-root .herramienta .titleblock-head h2 { font-size: 15px; }
+  #bitacora-root .inicio-busqueda { display: flex; gap: 10px; flex-wrap: wrap; }
+  #bitacora-root .inicio-busqueda input { flex: 1 1 280px; min-width: 0; font-size: 15px; padding: 11px 14px; }
+  #bitacora-root .inicio-grupos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+  #bitacora-root .inicio-grupo h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--text-muted); }
   /* Empresa: tres paneles (datos, experiencia, personal) dentro de una sola vista, con pestañas internas. */
   #bitacora-root .empresa-panel[hidden] { display: none; }
   #bitacora-root .panel-header { margin-bottom: 16px; }
@@ -645,7 +660,7 @@
      zona sensible con un pseudo-elemento, para no reventar tarjetas con tres etiquetas por fila. */
   @media (pointer: coarse), (max-width: 560px) {
     #bitacora-root .btn-mini, #bitacora-root .btn-primary, #bitacora-root .btn-secondary,
-    #bitacora-root .nav-toggle, #bitacora-root .nav-item, #bitacora-root .field input, #bitacora-root .field select, #bitacora-root .pipeline-card select, #bitacora-root .subtab { min-height: 44px; }
+    #bitacora-root .nav-toggle, #bitacora-root .nav-item, #bitacora-root .field input, #bitacora-root .field select, #bitacora-root .pipeline-card select, #bitacora-root .subtab, #bitacora-root .buscador-fila input, #bitacora-root .inicio-busqueda input { min-height: 44px; }
     #bitacora-root .link-btn, #bitacora-root .tag-tip, #bitacora-root .row-link a, #bitacora-root summary { position: relative; }
     #bitacora-root .link-btn::after, #bitacora-root .tag-tip::after, #bitacora-root .row-link a::after, #bitacora-root summary::after { content: ''; position: absolute; inset: -14px -4px; }
     #bitacora-root input[type=checkbox], #bitacora-root input[type=radio] { width: 24px; height: 24px; }
@@ -874,21 +889,16 @@
     font-size: 12px; letter-spacing: .2px; color: var(--text-muted); text-transform: uppercase;
   }
 
-  /* Pipeline comercial (CRM Kanban): columnas con scroll horizontal, mismo
-     criterio ya usado para tablas anchas (.expeval-table-wrap). */
-  #bitacora-root .pipeline-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; }
-  #bitacora-root .pipeline-col { flex: 0 0 260px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-  #bitacora-root .pipeline-col-head { font-weight: 700; font-size: 12.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .2px; display: flex; justify-content: space-between; }
-  #bitacora-root .pipeline-col-count { background: var(--surface); border-radius: var(--radius-sm); padding: 0 8px; }
+  /* Mis procesos: una sección por estado, tarjetas en una cuadrícula que se acomoda al ancho (sin scroll horizontal). */
+  #bitacora-root .pipeline-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+  #bitacora-root .pipeline-col-count { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 8px; font-size: 13px; color: var(--text-muted); font-weight: 600; }
   #bitacora-root .pipeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
   #bitacora-root .pipeline-card-urgente { border-color: var(--danger); }
-  #bitacora-root .pipeline-card-ent { font-weight: 700; font-size: 13px; }
-  #bitacora-root .pipeline-card-obj { font-size: 12.5px; color: var(--text-muted); }
+  #bitacora-root .pipeline-card-ent { font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
+  #bitacora-root .pipeline-card-obj { font-size: 12.5px; color: var(--text-muted); overflow-wrap: anywhere; }
   #bitacora-root .pipeline-card-meta { font-size: 12px; }
   #bitacora-root .pipeline-card-plazo { font-size: 12px; font-weight: 700; }
   #bitacora-root .pipeline-card-urgente-texto { color: var(--danger); }
-  #bitacora-root .pipeline-consorcio select { width: 100%; margin-top: 4px; }
-  #bitacora-root .pipeline-resultado { display: flex; gap: 6px; }
   #bitacora-root .pipeline-card-acciones { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
   #bitacora-root .pipeline-card-acciones select { flex: 1; min-width: 0; }
   /* Mismo aspecto que los demás selectores de la app (antes salían con el estilo nativo del navegador y
@@ -898,14 +908,9 @@
     color: var(--text); font-family: inherit; font-size: 12.5px; padding: 6px 8px; text-overflow: ellipsis;
   }
   #bitacora-root .pipeline-card select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  #bitacora-root .pipeline-consorcio select { width: 100%; }
-  #bitacora-root .pipeline-consorcio label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 6px 0 4px; }
   /* El selector "Mover a" ocupa su propio renglón (en una tarjeta angosta compartía fila con los botones y
      se cortaba el nombre de la etapa); "◂" y "✕ Quitar" quedan debajo. */
   #bitacora-root .pipeline-card-acciones select { order: -1; flex: 1 1 100%; }
-  @media (max-width: 560px) {
-    #bitacora-root .pipeline-col { flex: 0 0 220px; }
-  }
 
   /* Badge de estado (CUMPLE / NO CUMPLE / NO DETERMINABLE) — mismo
      sistema visual del resto de badges, con símbolo para no depender
@@ -1214,218 +1219,163 @@
         <section class="view" id="view-dashboard" data-view="dashboard" role="region" aria-labelledby="bt-dash-greeting">
           <div class="view-header">
             <h1 id="bt-dash-greeting">Buenos días</h1>
-            <p>Este es el resumen de tu actividad de consultoría. Desde aquí puedes ir directo a lo que necesites hacer.</p>
+            <p>Encuentra procesos de contratación pública y decide rápido a cuáles vale la pena presentarse.</p>
           </div>
 
-          <!-- Auditoría de usabilidad, tercera pasada: una cuenta genuinamente
-               nueva llegaba directo a un Dashboard "sobre tu actividad" con
-               todo en cero, sin ningún "empieza por aquí" -- las tarjetas de
-               acceso rápido de más abajo existen, pero no sugieren ningún
-               orden. Este panel solo se muestra mientras la cuenta esté
-               vacía de verdad (ver esCuentaVacia() en el JS) y desaparece en
-               cuanto hay algo real guardado -- no compite con el resto del
-               Dashboard para quien ya usa la app. -->
-          <div class="titleblock" id="bt-dash-primeros-pasos" hidden>
-            <div class="titleblock-head">
-              <h2>Primeros pasos</h2>
-              <span>Así se prepara la app para analizar tu primer pliego</span>
+          <div class="titleblock" id="bt-inicio-buscador">
+            <div class="titleblock-head"><h2><label for="bt-inicio-q">¿Qué proceso estás buscando?</label></h2></div>
+            <div class="inicio-busqueda">
+              <input id="bt-inicio-q" type="search" autocomplete="off" placeholder="Obras civiles en Norte de Santander entre $500 millones y $3.000 millones">
+              <button type="button" class="btn-primary" id="bt-inicio-buscar">Buscar procesos</button>
             </div>
-            <ol class="primeros-pasos-list">
-              <li><button type="button" class="primeros-pasos-item" data-view="perfil"><span class="primeros-pasos-num">1</span><span><strong>Perfil de la empresa</strong> — carga el RUP o completa tu ficha (clasificación y capacidad financiera).</span></button></li>
-              <li><button type="button" class="primeros-pasos-item" data-view="experiencia"><span class="primeros-pasos-num">2</span><span><strong>Experiencia</strong> — sube la experiencia acreditada de tu empresa (se compara automáticamente contra cada pliego que analices).</span></button></li>
-              <li><button type="button" class="primeros-pasos-item" data-view="personal"><span class="primeros-pasos-num">3</span><span><strong>Personal</strong> — registra al menos un profesional de tu equipo de trabajo.</span></button></li>
-              <li><button type="button" class="primeros-pasos-item" data-view="buscar"><span class="primeros-pasos-num">4</span><span><strong>Buscar procesos</strong> — encuentra licitaciones abiertas; luego analiza el pliego que te interese en "Análisis de pliegos".</span></button></li>
-            </ol>
-            <!-- Auditoría UX/UI (arquitectura de información, hallazgo MEDIO): el orden del
-                 sidebar (Buscar procesos en la posición más prominente, antes de Perfil/
-                 Experiencia/Personal) no coincide con este orden recomendado -- quien hace clic
-                 ahí primero choca con "Analizar pliego" bloqueado. No se reordena el sidebar
-                 (buscar sin perfil completo es un uso válido), solo se aclara aquí que ese orden
-                 es opcional. -->
-            <p class="mt-10 saved-note">Puedes buscar procesos desde ya -- el paso 4 no depende de los anteriores. Solo necesitas completar los pasos 1 a 3 antes de poder <strong>analizar</strong> el pliego de un proceso puntual.</p>
-          </div>
-
-          <div class="stat-grid">
-            <div class="stat-card">
-              <div class="stat-card-label">Perfiles de empresa</div>
-              <div class="stat-card-value" id="bt-dash-perfiles">0</div>
-              <div class="stat-card-note">Guardados en esta cuenta</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-card-label">Pliegos analizados</div>
-              <div class="stat-card-value" id="bt-dash-analisis">0</div>
-              <div class="stat-card-note">Procesos con análisis de documento</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-card-label">Evaluación de experiencia</div>
-              <div class="stat-card-value small" id="bt-dash-experiencia">Sin ejecutar</div>
-              <div class="stat-card-note" id="bt-dash-experiencia-note">Carga tus documentos para evaluarla</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-card-label">Procesos de alta prioridad</div>
-              <div class="stat-card-value" id="bt-dash-alta">0</div>
-              <div class="stat-card-note" id="bt-dash-alta-note">Busca procesos para ver tu shortlist</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-card-label">Pipeline comercial</div>
-              <div class="stat-card-value" id="bt-dash-pipeline">0</div>
-              <div class="stat-card-note" id="bt-dash-pipeline-note">Agrega procesos con "+ Pipeline" para seguirlos</div>
-            </div>
-          </div>
-
-          <div class="titleblock" id="bt-dash-alertas-panel">
-            <div class="titleblock-head">
-              <h2>Alertas</h2>
-              <span>Procesos nuevos según tus alertas guardadas</span>
-            </div>
-            <div class="recent-list" id="bt-dash-alertas"></div>
-          </div>
-
-          <div class="titleblock">
-            <div class="titleblock-head">
-              <h2>Actividad reciente</h2>
-              <span>Últimos procesos que revisaste</span>
-            </div>
-            <div class="recent-list" id="bt-dash-recientes">
-              <div class="empty-inline">Todavía no has revisado ningún proceso. Empieza por "Buscar procesos".</div>
-            </div>
+            <div class="saved-note mt-8">Escribe tipo de obra, lugar y valor con tus palabras; Bitácora llena los filtros por ti y te dice qué entendió.</div>
           </div>
 
           <div class="quick-grid">
             <button class="quick-card" type="button" data-view="buscar">
               <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="20" y1="20" x2="15.4" y2="15.4"/></svg></div>
               <div class="quick-card-title">Buscar procesos</div>
-              <div class="quick-card-desc">Encuentra licitaciones públicas abiertas y da seguimiento a las que te interesan.</div>
+              <div class="quick-card-desc">Encuentra procesos abiertos en SECOP II.</div>
             </button>
-            <button class="quick-card" type="button" data-view="perfil">
-              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg></div>
-              <div class="quick-card-title">Perfil de la empresa</div>
-              <div class="quick-card-desc">Carga el RUP y mantén al día la ficha de clasificación y capacidad financiera.</div>
-            </button>
-            <button class="quick-card" type="button" data-view="experiencia">
-              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8.5 13l2 2 4.5-4.5"/></svg></div>
-              <div class="quick-card-title">Experiencia</div>
-              <div class="quick-card-desc">Carga tu experiencia acreditada -- se compara contra los requisitos de cada pliego que analices.</div>
-            </button>
-            <button class="quick-card" type="button" data-view="personal">
-              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/></svg></div>
-              <div class="quick-card-title">Personal</div>
-              <div class="quick-card-desc">Registra el equipo de trabajo que puede acreditarse frente al personal mínimo de un pliego.</div>
-            </button>
-            <button class="quick-card" type="button" data-view="analisis">
-              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
-              <div class="quick-card-title">Análisis de pliegos</div>
-              <div class="quick-card-desc">Analiza el pliego de un proceso, mira el veredicto detallado y genera tu carta de presentación y paquete de propuesta.</div>
-            </button>
-            <button class="quick-card" type="button" data-view="pipeline">
+            <button class="quick-card" type="button" data-view="procesos">
               <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="10" rx="1"/><rect x="16" y="4" width="5" height="13" rx="1"/></svg></div>
-              <div class="quick-card-title">Pipeline</div>
-              <div class="quick-card-desc">Sigue en qué etapa va cada proceso que decidiste perseguir, desde que lo detectas hasta que se adjudica o se pierde.</div>
+              <div class="quick-card-title">Ver mis procesos</div>
+              <div class="quick-card-desc">Los que guardaste, por estado: de "Por revisar" a "Presentada".</div>
             </button>
+            <button class="quick-card" type="button" data-view="empresa">
+              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg></div>
+              <div class="quick-card-title">Actualizar empresa</div>
+              <div class="quick-card-desc">Datos, experiencia y personal contra los que se compara cada proceso.</div>
+            </button>
+          </div>
+
+          <div class="saved-note" id="bt-inicio-primeros" hidden>Para ver si tu empresa cumple, completa primero <button type="button" class="link-btn" data-ir-a="empresa">Empresa</button> (datos, experiencia y personal). Puedes buscar procesos desde ya.</div>
+
+          <div class="titleblock" id="bt-inicio-actividad">
+            <div class="titleblock-head"><h2>Actividad reciente</h2></div>
+            <div class="inicio-grupos">
+              <div class="inicio-grupo"><h3>Últimos procesos analizados</h3><div class="recent-list" id="bt-inicio-analizados"></div></div>
+              <div class="inicio-grupo"><h3>Próximos a cerrar</h3><div class="recent-list" id="bt-inicio-cierran"></div></div>
+              <div class="inicio-grupo"><h3>Análisis pendientes</h3><div class="recent-list" id="bt-inicio-pendientes"></div></div>
+            </div>
+          </div>
+
+          <div class="titleblock" id="bt-dash-alertas-panel" hidden>
+            <div class="titleblock-head"><h2>Alertas</h2><span>Procesos nuevos según tus alertas guardadas</span></div>
+            <div class="recent-list" id="bt-dash-alertas"></div>
           </div>
         </section>
 
         <section class="view" id="view-buscar" data-view="buscar" role="tabpanel" aria-labelledby="bt-nav-buscar" hidden>
           <div class="view-header">
             <h1>Buscar procesos</h1>
-            <p>Busca licitaciones públicas abiertas en SECOP II y da seguimiento a las que te interesan.</p>
+            <p>Encuentra procesos de contratación pública abiertos y decide rápido si vale la pena presentarse.</p>
           </div>
 
-          <div class="titleblock">
+          <div class="titleblock" id="bt-buscador">
             <div class="titleblock-head">
-              <h2>Filtros de búsqueda</h2>
+              <h2><label for="bt-nl">¿Qué proceso estás buscando?</label></h2>
               <span>Datos abiertos SECOP II · datos.gov.co</span>
             </div>
-            <div class="field-grid">
-              <div class="field full">
-                <label for="bt-proceso">Número de proceso o referencia (búsqueda directa, opcional)</label>
-                <input id="bt-proceso" type="text" placeholder="ej. LP-005-2026, SAMC-05-2026, CO1.REQ.10526881">
-              </div>
-              <!-- Bug real reportado por el usuario (2026-10-01): estos dos campos traían un `value`
-                   fijo desde una versión muy temprana del prototipo (nunca documentado ni tocado en
-                   ninguna ronda de auditoría) -- toda búsqueda nueva, sin que el usuario escribiera
-                   nada, quedaba restringida a esas 4 especialidades y a Norte de Santander. Ahora
-                   empiezan vacíos; el texto de ejemplo queda solo como `placeholder` (gris, no se
-                   envía como filtro real). -->
-              <div class="field full">
-                <label for="bt-kw">Especialidades (separadas por coma)</label>
-                <input id="bt-kw" type="text" placeholder="pavimentación, alcantarillado, obra civil, vías terciarias">
-              </div>
-              <div class="field full">
-                <label for="bt-geo">Cobertura geográfica (departamentos, separados por coma)</label>
+            <div class="buscador-fila">
+              <input id="bt-nl" type="search" autocomplete="off" placeholder="Obras civiles en Norte de Santander entre $500 millones y $3.000 millones">
+              <button class="btn-primary" id="bt-search" type="button">Buscar procesos</button>
+            </div>
+            <div class="saved-note" id="bt-nl-entendi" role="status" aria-live="polite"></div>
+            <div class="field-grid mt-12">
+              <div class="field">
+                <label for="bt-geo">Departamento</label>
                 <input id="bt-geo" type="text" placeholder="Norte de Santander, Santander">
               </div>
-              <div class="field full">
-                <label for="bt-municipio">Municipio (opcional, separados por coma -- aproximado: "Cúcuta" también encuentra "San José de Cúcuta")</label>
+              <div class="field">
+                <label for="bt-municipio">Municipio</label>
                 <input id="bt-municipio" type="text" placeholder="ej. Cúcuta, Ocaña">
               </div>
-              <div class="field-row2 full">
-                <div class="field">
-                  <label for="bt-min">Valor mínimo (COP)</label>
-                  <input id="bt-min" type="number" placeholder="0">
+            </div>
+            <details class="mas-filtros" id="bt-mas-filtros">
+              <summary>Más filtros</summary>
+              <div class="field-grid mt-12">
+                <div class="field full">
+                  <label for="bt-kw">Especialidades (separadas por coma)</label>
+                  <input id="bt-kw" type="text" placeholder="pavimentación, alcantarillado, obra civil, vías terciarias">
+                </div>
+                <div class="field full">
+                  <label for="bt-proceso">Número de proceso o referencia (búsqueda directa; ignora los demás filtros)</label>
+                  <input id="bt-proceso" type="text" placeholder="ej. LP-005-2026, SAMC-05-2026, CO1.REQ.10526881">
+                </div>
+                <div class="field full">
+                  <label for="bt-entidad">Entidad (contiene)</label>
+                  <input id="bt-entidad" type="text" placeholder="ej. Gobernación, INVÍAS, Alcaldía de Cúcuta">
+                </div>
+                <div class="field-row2 full">
+                  <div class="field">
+                    <label for="bt-min">Valor mínimo (COP)</label>
+                    <input id="bt-min" type="number" placeholder="0">
+                  </div>
+                  <div class="field">
+                    <label for="bt-max">Valor máximo (COP)</label>
+                    <input id="bt-max" type="number" placeholder="Sin límite">
+                  </div>
+                </div>
+                <div class="field full">
+                  <div class="saved-note">Se muestran los procesos dentro del rango; si un proceso no reporta valor, se muestra igual (no se oculta por falta de dato).</div>
+                  <div class="saved-note" id="bt-rango-aviso" role="alert" style="color:var(--warning);font-weight:600;" hidden></div>
                 </div>
                 <div class="field">
-                  <label for="bt-max">Valor máximo (COP)</label>
-                  <input id="bt-max" type="number" placeholder="Sin límite">
+                  <label for="bt-cierre">Fecha de cierre</label>
+                  <select id="bt-cierre">
+                    <option value="">Cualquier fecha</option>
+                    <option value="7">Cierra en los próximos 7 días</option>
+                    <option value="15">Cierra en los próximos 15 días</option>
+                    <option value="30">Cierra en los próximos 30 días</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="bt-orden">Ordenar por</label>
+                  <select id="bt-orden">
+                    <option value="prioridad">Prioridad (por defecto)</option>
+                    <option value="cuantia_desc">Cuantía -- mayor a menor</option>
+                    <option value="cierre_asc">Fecha de cierre -- más próxima primero</option>
+                    <option value="reciente">Publicación -- más reciente primero</option>
+                  </select>
                 </div>
               </div>
-              <div class="field full">
-                <div class="saved-note">Este rango orienta la prioridad y el veredicto de cada proceso («Valor de la obra»); no oculta procesos de la lista.</div>
-                <div class="saved-note" id="bt-rango-aviso" role="alert" style="color:var(--warning);font-weight:600;" hidden></div>
-              </div>
-              <div class="field full">
-                <label for="bt-orden">Ordenar por</label>
-                <select id="bt-orden">
-                  <option value="prioridad">Prioridad (por defecto)</option>
-                  <option value="cuantia_desc">Cuantía -- mayor a menor</option>
-                  <option value="cierre_asc">Fecha de cierre -- más próxima primero</option>
-                  <option value="reciente">Publicación -- más reciente primero</option>
-                </select>
-              </div>
-            </div>
-            <div class="actions">
-              <button class="btn-primary" id="bt-search">Aplicar filtros</button>
-              <button class="btn-secondary" id="bt-demo">Ver datos de ejemplo</button>
-            </div>
+            </details>
             <div class="mt-8 saved-note" id="bt-data-freshness" role="status" aria-live="polite"></div>
+            <div class="mt-8"><button class="link-btn" id="bt-demo" type="button">Ver datos de ejemplo</button></div>
           </div>
 
-          <!-- Auditoría de usabilidad, tercera pasada: este panel vivía ANTES
-               de "Filtros de búsqueda" -- lo primero que veía alguien nuevo al
-               entrar a "Buscar procesos" (el acceso rápido más obvio desde el
-               Dashboard) era un aviso de que faltaba completar Experiencia y
-               Personal, dando la impresión de que la búsqueda misma estaba
-               bloqueada (no lo está: solo "Analizar pliego" lo está). Se movió
-               después de los filtros para que la tarea principal de esta
-               vista (buscar) se vea primero. -->
-          <div class="titleblock" id="bt-flujo-panel">
-            <div class="titleblock-head">
-              <h2>Preparación para analizar un pliego</h2>
-              <span>Los pasos 1 y 2 se hacen una sola vez; los pasos 3 y 4 se repiten con cada pliego que analices (marcados con el separador punteado) -- los requisitos de experiencia se extraen automáticamente del Pliego/Estudio Previo de cada proceso, no de un paso aparte</span>
-            </div>
-            <div class="steps" id="bt-flujo-steps">
-              <div class="step" data-step="1"><span class="step-circle">1</span><span class="step-label">Experiencia</span></div>
-              <span class="step-sep"></span>
-              <div class="step" data-step="2"><span class="step-circle">2</span><span class="step-label">Personal</span></div>
-              <span class="step-sep step-sep-group"></span>
-              <div class="step" data-step="3"><span class="step-circle">3</span><span class="step-label">Pliego</span></div>
-              <span class="step-sep"></span>
-              <div class="step" data-step="4"><span class="step-circle">4</span><span class="step-label">Resultado</span></div>
-            </div>
-            <div id="bt-flujo-mensaje"></div>
+          <div id="bt-flujo-mensaje"></div>
+
+          <div id="bt-demo-banner" style="display:none" class="demo-banner">Estás viendo datos de ejemplo — no provienen de SECOP II en vivo. Úsalos solo para ver cómo luce la plataforma.</div>
+
+          <div class="status-row" id="bt-status" style="display:none">
+            <span class="count" id="bt-count"></span>
+            <details class="mas-filtros">
+              <summary>Filtrar estos resultados</summary>
+              <div class="status-toggles">
+                <label class="toggle"><input type="checkbox" id="bt-hide-closed" checked> Ocultar vencidos</label>
+                <label class="toggle"><input type="checkbox" id="bt-hide-old" checked> Solo publicados hace ≤30 días</label>
+                <label class="toggle"><input type="checkbox" id="bt-only-licitacion"> Solo Licitación Pública (Obra pública)</label>
+                <label class="toggle"><input type="checkbox" id="bt-hide-discarded"> Ocultar descartados</label>
+                <label class="toggle"><input type="checkbox" id="bt-hide-nogo"> Ocultar NO-GO (shortlist)</label>
+              </div>
+              <div class="status-toggles" id="bt-estado-toggles"></div>
+              <div class="status-toggles">
+                <button class="link-btn" id="bt-export-csv">Exportar alta prioridad (CSV)</button>
+                <button class="link-btn" id="bt-copy-summary">Copiar resumen</button>
+                <button class="link-btn" id="bt-clear-historial">Borrar historial</button>
+              </div>
+            </details>
           </div>
 
-          <!-- Alertas por criterios guardados: guarda la combinación actual de
-               Especialidades/Departamento/Valor para revisar más tarde cuántos
-               procesos NUEVOS coinciden -- ver "ALERTAS POR CRITERIOS GUARDADOS"
-               en el <script> para el alcance (solo en la app, sin correo). -->
-          <!-- Auditoría UX/UI (arquitectura de información, hallazgo ALTO): "Buscar
-               procesos" apilaba Filtros + este panel + PAA antes de llegar a los
-               resultados -- quien solo quiere buscar tenía que scrollear de más.
-               Colapsado en un <details> nativo (sin JS extra: el contenido sigue
-               presente en el DOM, `renderAlertasList()` no cambia) -- cerrado por
-               defecto para no competir con los filtros/resultados. -->
-          <div class="titleblock" id="bt-alertas-panel">
+          <div id="bt-results"></div>
+
+          <!-- Herramientas secundarias de la búsqueda (no son módulos): alertas guardadas y Plan Anual de
+               Adquisiciones. Cerradas por defecto para no competir con los resultados. -->
+          <details class="titleblock herramientas" id="bt-herramientas">
+            <summary>Más herramientas: alertas guardadas y Plan Anual de Adquisiciones</summary>
+          <div class="herramienta" id="bt-alertas-panel">
             <div class="titleblock-head">
               <h2>Alertas guardadas</h2>
               <span>Guarda esta búsqueda y revisa cuándo aparecen procesos nuevos que coinciden</span>
@@ -1444,17 +1394,7 @@
               <div class="recent-list" id="bt-alertas-list"></div>
             </details>
           </div>
-
-          <!-- Plan Anual de Adquisiciones (PAA): lo que las entidades YA
-               PLANEARON comprar, con frecuencia meses antes de publicar el
-               proceso -- para anticiparse, no solo reaccionar a lo ya
-               abierto. Reutiliza las Especialidades Y la Cobertura
-               geográfica del formulario de arriba -- el dataset del PAA no
-               trae columna de departamento propia, así que el filtro
-               geográfico se aproxima cruzando el nombre de la entidad
-               contra SECOP II (ver `departamentoPorEntidad`/CLAUDE.md,
-               "Fase A -- Plan Anual de Adquisiciones"). -->
-          <div class="titleblock" id="bt-paa-panel">
+          <div class="herramienta" id="bt-paa-panel">
             <div class="titleblock-head">
               <h2>Plan Anual de Adquisiciones (PAA)</h2>
               <span>Anticípate a compras que las entidades ya planearon, antes de que publiquen el proceso -- datos abiertos, Colombia Compra Eficiente</span>
@@ -1469,25 +1409,7 @@
               <div class="recent-list" id="bt-paa-list"></div>
             </details>
           </div>
-
-          <div id="bt-demo-banner" style="display:none" class="demo-banner">Estás viendo datos de ejemplo — no provienen de SECOP II en vivo. Úsalos solo para ver cómo luce la plataforma.</div>
-
-          <div class="status-row" id="bt-status" style="display:none">
-            <span class="count" id="bt-count"></span>
-            <div class="status-toggles">
-              <label class="toggle"><input type="checkbox" id="bt-hide-closed" checked> Ocultar vencidos</label>
-              <label class="toggle"><input type="checkbox" id="bt-hide-old" checked> Solo publicados hace ≤30 días</label>
-              <label class="toggle"><input type="checkbox" id="bt-only-licitacion"> Solo Licitación Pública (Obra pública)</label>
-              <label class="toggle"><input type="checkbox" id="bt-hide-discarded"> Ocultar descartados</label>
-              <label class="toggle"><input type="checkbox" id="bt-hide-nogo"> Ocultar NO-GO (shortlist)</label>
-              <button class="link-btn" id="bt-export-csv">Exportar alta prioridad (CSV)</button>
-              <button class="link-btn" id="bt-copy-summary">Copiar resumen</button>
-              <button class="link-btn" id="bt-clear-historial">Borrar historial</button>
-            </div>
-            <div class="status-toggles" id="bt-estado-toggles"></div>
-          </div>
-
-          <div id="bt-results"></div>
+          </details>
         </section>
 
         <section class="view" id="view-empresa" data-view="empresa" role="tabpanel" aria-labelledby="bt-nav-empresa" hidden>
@@ -2573,6 +2495,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   minInput.addEventListener('input', actualizarAvisoRango);
   maxInput.addEventListener('input', actualizarAvisoRango);
   const ordenEl = document.getElementById('bt-orden');
+  const entidadEl = document.getElementById('bt-entidad');
+  const cierreEl = document.getElementById('bt-cierre');
+  const nlEl = document.getElementById('bt-nl');
+  const nlEntendiEl = document.getElementById('bt-nl-entendi');
   const searchBtn = document.getElementById('bt-search');
   const demoBtn = document.getElementById('bt-demo');
   const alertaNombreEl = document.getElementById('bt-alerta-nombre');
@@ -2674,6 +2600,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     } catch(e){
       historial = {};
     }
+    if (migrarHistorialEtapas(historial)) saveHistorial(); // pipeline de 6 etapas -> 5 estados de "Mis procesos"
   }
 
   async function saveHistorial(){
@@ -2700,19 +2627,37 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     rerender();
   }
 
-  // ── CRM de licitaciones: pipeline comercial (tablero Kanban) ────────────
-  // Reutiliza `historial` (ya existe, ya sincroniza vía app_state -- ver SYNCED_KEYS) en vez de una
-  // clave nueva: cada proceso agregado al pipeline suma `etapa`/`etapaTs`/`resultado`/`consorcio`/
-  // `snapshot` a su entrada de historial, sin tocar `status`/`ts` (visto/descartado), que siguen
-  // funcionando exactamente igual, sean o no parte del pipeline.
+  // ── Mis procesos ────────────────────────────────────────────────────────
+  // Reutiliza `historial` (ya existe, ya sincroniza vía app_state -- ver SYNCED_KEYS) en vez de una clave nueva:
+  // cada proceso guardado suma `etapa`/`etapaTs`/`snapshot` a su entrada, sin tocar `status`/`ts` (visto/descartado).
+  // Antes era un pipeline comercial de 6 etapas con consorcio y adjudicado/perdido (un mini-CRM); ahora son 5
+  // estados simples. `consorcio` y `resultado` guardados antes se CONSERVAN en el dato (no se borra nada), solo
+  // ya no tienen pantalla.
   const ETAPAS_PIPELINE = [
-    { id: 'por_evaluar', label: 'Por evaluar' },
-    { id: 'riesgos_rup', label: 'Análisis de riesgos / RUP' },
-    { id: 'consorcio', label: 'Consorcio' },
-    { id: 'propuesta', label: 'Armado de propuesta' },
-    { id: 'radicado', label: 'Radicado en SECOP' },
-    { id: 'resultado', label: 'Adjudicado / Perdido' },
+    { id: 'por_revisar', label: 'Por revisar' },
+    { id: 'en_analisis', label: 'En análisis' },
+    { id: 'viable', label: 'Viable' },
+    { id: 'no_viable', label: 'No viable' },
+    { id: 'presentada', label: 'Presentada' },
   ];
+  // Etapas del pipeline anterior -> estado equivalente. Un valor desconocido cae en "Por revisar" (el más
+  // conservador): nunca se infiere que un proceso avanzó.
+  const MIGRACION_ETAPAS = { por_evaluar: 'por_revisar', riesgos_rup: 'en_analisis', consorcio: 'en_analisis', propuesta: 'viable', radicado: 'presentada', resultado: 'presentada' };
+  function migrarEtapa(e){
+    if (ETAPAS_PIPELINE.some(x => x.id === e)) return e;
+    return MIGRACION_ETAPAS[e] || 'por_revisar';
+  }
+  // Migra `historial` en el lugar; devuelve cuántas entradas cambió (0 = nada que guardar).
+  function migrarHistorialEtapas(hist){
+    let cambios = 0;
+    Object.keys(hist || {}).forEach(id => {
+      const h = hist[id];
+      if (!h || !h.etapa) return;
+      const nueva = migrarEtapa(h.etapa);
+      if (nueva !== h.etapa){ h.etapa = nueva; cambios++; }
+    });
+    return cambios;
+  }
   function siguienteEtapa(etapaActual){
     const i = ETAPAS_PIPELINE.findIndex(e => e.id === etapaActual);
     return (i === -1 || i >= ETAPAS_PIPELINE.length - 1) ? null : ETAPAS_PIPELINE[i + 1].id;
@@ -2722,32 +2667,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return (i <= 0) ? null : ETAPAS_PIPELINE[i - 1].id;
   }
 
-  // KPIs del pipeline (puro: recibe `historial`). Solo cuentan los procesos con `etapa`. "Radicados" =
-  // los que ya llegaron a "Radicado en SECOP" o a "Adjudicado / Perdido"; la tasa de éxito se calcula
-  // SOLO sobre los que el usuario ya marcó adjudicado o perdido (un resultado pendiente no cuenta ni a
-  // favor ni en contra) y es null sin ninguno -- nunca se inventa un 0%.
+  // Conteo por estado (puro: recibe `historial`). Solo cuentan los procesos guardados con un estado válido.
   function resumenPipeline(hist){
     const porEtapa = {};
     ETAPAS_PIPELINE.forEach(e => { porEtapa[e.id] = 0; });
-    let total = 0, adjudicados = 0, perdidos = 0, valorAdjudicado = 0;
+    let total = 0;
     Object.keys(hist || {}).forEach(id => {
       const h = hist[id];
       if (!h || !h.etapa || !(h.etapa in porEtapa)) return;
       total++;
       porEtapa[h.etapa]++;
-      if (h.etapa === 'resultado' && h.resultado === 'adjudicado'){
-        adjudicados++;
-        const v = Number(h.snapshot && h.snapshot.valor);
-        if (isFinite(v) && v > 0) valorAdjudicado += v;
-      } else if (h.etapa === 'resultado' && h.resultado === 'perdido') perdidos++;
     });
-    const radicados = porEtapa.radicado + porEtapa.resultado;
-    const decididos = adjudicados + perdidos;
-    return {
-      total: total, porEtapa: porEtapa, radicados: radicados, adjudicados: adjudicados, perdidos: perdidos,
-      pendientes: porEtapa.resultado - decididos, valorAdjudicado: valorAdjudicado,
-      tasaExito: decididos > 0 ? Math.round((adjudicados / decididos) * 100) : null
-    };
+    return { total: total, porEtapa: porEtapa };
   }
 
   // `item` es el proceso normalizado ya en memoria (de `scored`/`lastScored`) -- se captura un
@@ -2756,10 +2687,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // "Actividad reciente", que tiene el mismo problema documentado ahí).
   function agregarAPipeline(id, item){
     historial[id] = Object.assign({}, historial[id], {
-      etapa: 'por_evaluar',
+      etapa: 'por_revisar',
       etapaTs: Date.now(),
-      resultado: (historial[id] && historial[id].resultado) || null,
-      consorcio: (historial[id] && historial[id].consorcio) || [],
       snapshot: {
         entidad: item.entidad, objeto: item.objeto, valor: item.valor,
         closingRaw: item.closingRaw, pubRaw: item.pubRaw,
@@ -2772,18 +2701,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (vp && !vp.hidden) renderPipelineView();
   }
 
-  function moverEtapaPipeline(id, nuevaEtapa, resultado){
-    if (!historial[id] || !historial[id].etapa) return;
+  function moverEtapaPipeline(id, nuevaEtapa){
+    if (!historial[id] || !historial[id].etapa || !ETAPAS_PIPELINE.some(e => e.id === nuevaEtapa)) return;
     historial[id].etapa = nuevaEtapa;
     historial[id].etapaTs = Date.now();
-    if (nuevaEtapa === 'resultado') historial[id].resultado = resultado || null;
-    saveHistorial();
-    renderPipelineView();
-  }
-
-  function fijarConsorcioPipeline(id, perfilIds){
-    if (!historial[id] || !historial[id].etapa) return;
-    historial[id].consorcio = perfilIds;
     saveHistorial();
     renderPipelineView();
   }
@@ -2811,47 +2732,45 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return Math.ceil((new Date(closingRaw).getTime() - Date.now()) / 86400000);
   }
 
+  // Resultado global de un proceso YA analizado (null si no hay pliego analizado o no hay empresa para comparar).
+  function veredictoGlobalDeProceso(id){
+    const entry = analisis[id];
+    const s = entry ? procesoPorId(id) : null;
+    if (!entry || !s) return null;
+    let res = null;
+    try { res = evaluarMejor(s.item, s, entry); } catch(e){ res = null; }
+    return res ? etiquetaVeredicto(res.mejor.veredictoGlobal) : null;
+  }
+
   function renderPipelineCardHtml(id, h){
     const sn = h.snapshot || {};
     const dias = diasRestantesDe(sn.closingRaw);
-    const vencePronto = dias !== null && dias <= 3;
+    const vencePronto = dias !== null && dias >= 0 && dias <= 3;
     const plazoTexto = dias === null ? 'Sin fecha de cierre reportada' : (dias < 0 ? 'Venció' : (dias + ' día(s) para el cierre'));
     const entry = analisis[id];
+    const v = veredictoGlobalDeProceso(id);
+    const chip = v ? '<span class="tag eval ' + claseVeredicto(v) + '">' + escapeHtml(v) + '</span>' : '';
     const estadoAnalisis = entry
-      ? (entry.experienciaResultado ? entry.experienciaResultado.resultadoGlobal : '✓ Pliego analizado, experiencia sin evaluar')
-      : 'Sin analizar todavía';
-    const siguiente = siguienteEtapa(h.etapa);
-    const anterior = etapaAnterior(h.etapa);
-    const opcionesMover = ETAPAS_PIPELINE.filter(e => e.id !== h.etapa)
-      .map(e => '<option value="' + e.id + '"' + (e.id === siguiente ? ' selected' : '') + '>' + escapeHtml(e.label) + '</option>').join('');
-    const consorcioHtml = h.etapa === 'consorcio'
-      ? '<div class="pipeline-consorcio"><label for="pipeline-consorcio-' + escapeHtml(id) + '">Empresas participantes</label><select multiple id="pipeline-consorcio-' + escapeHtml(id) + '" data-pipeline-consorcio-id="' + escapeHtml(id) + '" size="' + Math.min(4, Math.max(2, Object.keys(perfiles).length)) + '">' +
-          Object.keys(perfiles).map(pid => '<option value="' + escapeHtml(pid) + '"' + ((h.consorcio || []).indexOf(pid) !== -1 ? ' selected' : '') + '>' + escapeHtml(perfiles[pid].nombre || 'Sin nombre') + '</option>').join('') +
-          '</select></div>'
-      : (h.etapa === 'resultado' || (h.consorcio && h.consorcio.length))
-        ? '<div class="saved-note">Consorcio: ' + ((h.consorcio && h.consorcio.length) ? h.consorcio.map(pid => escapeHtml((perfiles[pid] && perfiles[pid].nombre) || 'Empresa eliminada')).join(', ') : 'ninguna empresa marcada') + '</div>'
-        : '';
-    const resultadoHtml = h.etapa === 'resultado'
-      ? '<div class="pipeline-resultado">' +
-          '<button type="button" class="btn-mini' + (h.resultado === 'adjudicado' ? ' active-visto' : '') + '" data-pipeline-resultado-id="' + escapeHtml(id) + '" data-resultado="adjudicado">✅ Adjudicado</button>' +
-          '<button type="button" class="btn-mini' + (h.resultado === 'perdido' ? ' active-descartado' : '') + '" data-pipeline-resultado-id="' + escapeHtml(id) + '" data-resultado="perdido">❌ Perdido</button>' +
-        '</div>'
-      : '';
+      ? ('Pliego analizado' + (lecturaParcial(entry) ? ' (lectura parcial)' : '') + (v ? '' : ' · sin empresa para comparar'))
+      : 'Pliego sin analizar todavía';
+    const opciones = ETAPAS_PIPELINE.map(e => '<option value="' + e.id + '"' + (e.id === h.etapa ? ' selected' : '') + '>' + escapeHtml(e.label) + '</option>').join('');
+    const safeUrl = sn.url && /^https?:\/\//i.test(sn.url) ? escapeHtml(sn.url) : null;
     return '<div class="pipeline-card' + (vencePronto ? ' pipeline-card-urgente' : '') + '" data-pipeline-card-id="' + escapeHtml(id) + '">' +
-      '<div class="pipeline-card-ent">' + escapeHtml(truncate(sn.entidad || 'Entidad no especificada', 60)) + '</div>' +
-      '<div class="pipeline-card-obj">' + escapeHtml(truncate(sn.objeto || '', 90)) + '</div>' +
+      '<div class="pipeline-card-ent">' + escapeHtml(truncate(sn.entidad || 'Entidad no especificada', 60)) + ' ' + chip + '</div>' +
+      '<div class="pipeline-card-obj">' + escapeHtml(truncate(sn.objeto || '', 140)) + '</div>' +
       '<div class="pipeline-card-meta">' + (sn.valor ? escapeHtml(fmtMoney(sn.valor) || '') + ' · ' : '') + '<span class="tag fuente">SECOP ' + escapeHtml(sn.fuente || '') + '</span></div>' +
       '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' +
       '<div class="saved-note">' + escapeHtml(estadoAnalisis) + '</div>' +
-      consorcioHtml + resultadoHtml +
       '<div class="pipeline-card-acciones">' +
-        (anterior ? '<button type="button" class="link-btn" data-pipeline-mover-id="' + escapeHtml(id) + '" data-etapa="' + anterior + '" title="Mover a la etapa anterior">◂</button>' : '') +
-        '<select aria-label="Mover este proceso a otra etapa" data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opcionesMover + '</select>' +
-        '<button type="button" class="link-btn" data-pipeline-quitar-id="' + escapeHtml(id) + '">✕ Quitar</button>' +
+        '<button type="button" class="btn-mini analizar" data-pipeline-abrir-id="' + escapeHtml(id) + '">' + (entry ? 'Ver análisis' : 'Ver proceso') + '</button>' +
+        '<select aria-label="Estado de este proceso" data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opciones + '</select>' +
+        (safeUrl ? '<a class="link-btn" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+        '<button type="button" class="link-btn" data-pipeline-quitar-id="' + escapeHtml(id) + '">Quitar</button>' +
       '</div>' +
     '</div>';
   }
 
+  // Mis procesos: una sección por estado, en el orden en que avanza una decisión. Los de cierre más próximo primero.
   function renderPipelineView(){
     const boardEl = document.getElementById('bt-pipeline-board');
     const emptyEl = document.getElementById('bt-pipeline-empty');
@@ -2863,25 +2782,24 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return;
     }
     if (emptyEl) emptyEl.hidden = true;
-    boardEl.innerHTML = '<div class="pipeline-board">' + ETAPAS_PIPELINE.map(etapa => {
-      const idsEtapa = ids.filter(id => historial[id].etapa === etapa.id)
-        .sort((a, b) => {
-          const da = diasRestantesDe((historial[a].snapshot || {}).closingRaw);
-          const db = diasRestantesDe((historial[b].snapshot || {}).closingRaw);
-          if (da === null) return 1;
-          if (db === null) return -1;
-          return da - db;
-        });
-      return '<div class="pipeline-col">' +
-        '<div class="pipeline-col-head">' + escapeHtml(etapa.label) + ' <span class="pipeline-col-count">' + idsEtapa.length + '</span></div>' +
-        idsEtapa.map(id => renderPipelineCardHtml(id, historial[id])).join('') +
-        '</div>';
-    }).join('') + '</div>';
+    const orden = (a, b) => {
+      const da = diasRestantesDe((historial[a].snapshot || {}).closingRaw);
+      const db = diasRestantesDe((historial[b].snapshot || {}).closingRaw);
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
+    };
+    boardEl.innerHTML = ETAPAS_PIPELINE.map(etapa => {
+      const idsEtapa = ids.filter(id => historial[id].etapa === etapa.id).sort(orden);
+      if (!idsEtapa.length) return '';
+      return '<section class="titleblock pipeline-grupo" aria-label="' + escapeHtml(etapa.label) + '">' +
+        '<div class="titleblock-head"><h2>' + escapeHtml(etapa.label) + ' <span class="pipeline-col-count">' + idsEtapa.length + '</span></h2></div>' +
+        '<div class="pipeline-lista">' + idsEtapa.map(id => renderPipelineCardHtml(id, historial[id])).join('') + '</div>' +
+        '</section>';
+    }).join('');
   }
 
-  // Delegado único para el tablero del pipeline (mover de etapa, quitar, consorcio,
-  // adjudicado/perdido) -- mismo patrón que el delegado grande de resultsEl, pero en su propio
-  // contenedor porque el tablero vive en una vista separada.
+  // Delegado único para Mis procesos (abrir, cambiar de estado, quitar).
   const pipelineBoardEl = document.getElementById('bt-pipeline-board');
   if (pipelineBoardEl){
     pipelineBoardEl.addEventListener('click', function(e){
@@ -2890,29 +2808,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         quitarDePipeline(quitarBtn.getAttribute('data-pipeline-quitar-id'));
         return;
       }
-      const anteriorBtn = e.target.closest('[data-pipeline-mover-id]');
-      if (anteriorBtn){
-        moverEtapaPipeline(anteriorBtn.getAttribute('data-pipeline-mover-id'), anteriorBtn.getAttribute('data-etapa'));
-        return;
-      }
-      const resultadoBtn = e.target.closest('[data-pipeline-resultado-id]');
-      if (resultadoBtn){
-        moverEtapaPipeline(resultadoBtn.getAttribute('data-pipeline-resultado-id'), 'resultado', resultadoBtn.getAttribute('data-resultado'));
-        return;
-      }
+      const abrirBtn = e.target.closest('[data-pipeline-abrir-id]');
+      if (abrirBtn) abrirAnalisis(abrirBtn.getAttribute('data-pipeline-abrir-id'));
     });
     pipelineBoardEl.addEventListener('change', function(e){
       const moverSelect = e.target.closest('[data-pipeline-mover-select-id]');
-      if (moverSelect){
-        moverEtapaPipeline(moverSelect.getAttribute('data-pipeline-mover-select-id'), moverSelect.value);
-        return;
-      }
-      const consorcioSelect = e.target.closest('[data-pipeline-consorcio-id]');
-      if (consorcioSelect){
-        const ids = Array.from(consorcioSelect.selectedOptions).map(o => o.value);
-        fijarConsorcioPipeline(consorcioSelect.getAttribute('data-pipeline-consorcio-id'), ids);
-        return;
-      }
+      if (moverSelect) moverEtapaPipeline(moverSelect.getAttribute('data-pipeline-mover-select-id'), moverSelect.value);
     });
   }
 
@@ -3436,6 +3337,25 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return (minV > 0 && maxV > 0 && minV > maxV)
       ? 'El valor mínimo es mayor que el máximo: con ese rango todos los procesos quedarían fuera de tu perfil.'
       : null;
+  }
+
+  // Filtros de "Buscar procesos" que sí filtran (puros, para poder probarlos). Un valor ausente no esconde un proceso:
+  // no se descarta una oportunidad por falta de dato. En cambio "cierra en N días" exige una fecha confiable.
+  function cumpleRangoValor(valor, minV, maxV){
+    const v = Number(valor);
+    if (valor == null || !isFinite(v) || v <= 0) return true;
+    return (!minV || v >= minV) && (!maxV || v <= maxV);
+  }
+  function coincideEntidad(entidad, texto){
+    const palabras = normalizeGeo(texto).split(' ').filter(w => w.length >= 2);
+    if (!palabras.length) return true;
+    const e = ' ' + normalizeGeo(entidad) + ' ';
+    return palabras.every(w => e.indexOf(w) !== -1);
+  }
+  function cierraEnDias(daysLeft, limite){
+    const n = Number(limite);
+    if (!n) return true;
+    return daysLeft != null && daysLeft >= 0 && daysLeft <= n;
   }
 
   async function savePersonal(){
@@ -4211,13 +4131,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       perfilesCargados: perfilesCargados,
       listo: experienciaCargada && perfilesCargados
     };
-  }
-
-  function mensajeFlujoFaltante(flujo){
-    const falta = [];
-    if (!flujo.experienciaCargada) falta.push('cargar la experiencia acreditada de tu empresa');
-    if (!flujo.perfilesCargados) falta.push('registrar al menos un perfil profesional en "Personal"');
-    return 'Para analizar el pliego primero debes ' + falta.join(' y ') + '.';
   }
 
   // ==========================================================================
@@ -7609,9 +7522,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         };
       });
   }
-  // Nombres claros en vez de la jerga "GO / NO-GO / REVISAR".
+  // Resultado global: siempre con su nombre canónico y su texto (nunca solo color). La explicación en lenguaje
+  // llano vive en descripcionVeredicto (se muestra en la nota de la etiqueta y en la ayuda).
+  const VEREDICTOS = ['GO', 'REVISAR', 'NO-GO', 'NO DETERMINABLE'];
   function etiquetaVeredicto(v){
-    return v === 'GO' ? 'Cumple lo revisado' : (v === 'NO-GO' ? 'No cumple' : 'Falta información');
+    return VEREDICTOS.indexOf(v) !== -1 ? v : 'NO DETERMINABLE'; // un valor desconocido jamás se muestra como GO
+  }
+  function descripcionVeredicto(v){
+    return v === 'GO' ? 'No se identificaron incumplimientos determinantes con la información disponible. Es orientativo: confirma con el pliego oficial.'
+      : v === 'NO-GO' ? 'Existe al menos un requisito crítico que aparentemente la empresa no cumple.'
+      : v === 'REVISAR' ? 'Hay aspectos relevantes que requieren validación humana antes de decidir.'
+      : 'No hay evidencia suficiente para establecer el cumplimiento. Nunca se interpreta como "cumple".';
+  }
+  function claseVeredicto(v){
+    return v === 'GO' ? 'eval-go' : v === 'NO-GO' ? 'eval-nogo' : v === 'REVISAR' ? 'eval-revisar' : 'eval-nd';
   }
   // Una línea visible con el motivo del veredicto (antes: solo en un tooltip, con la primera razón).
   function lineaMotivoVeredicto(gates, veredicto, conPliego){
@@ -7620,6 +7544,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (veredicto === 'NO-GO') return 'No cumple: ' + fail.join(', ') + '. Revisa si el requisito se puede subsanar o si hay un consorcio que lo cubra.';
     if (veredicto === 'GO') return 'Sin incumplimientos en los puntos evaluados.';
     if (!conPliego) return 'Evaluación preliminar: analiza el pliego de este proceso para saber si cumples.';
+    if (veredicto === 'NO DETERMINABLE') return 'No hay evidencia suficiente para saber si se cumple' + (pend.length ? ' (' + pend.join(', ') + ')' : '') + '. No se interpreta como "cumple".';
     return 'Falta confirmar: ' + (pend.length ? pend.join(', ') : 'puntos marcados como "revisar"') + '.';
   }
   function textoCoberturaLectura(entry){
@@ -7866,8 +7791,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   function evalChipHtml(res){
     if (!res) return '';
-    const v = res.mejor.veredicto;
-    const cls = v === 'GO' ? 'eval-go' : v === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
+    const v = etiquetaVeredicto(res.mejor.veredictoGlobal);
+    // Antes de analizar el pliego no hay nada que rotular (sería "NO DETERMINABLE" en todas las tarjetas).
+    if (!res.mejor.conPliego && v === 'NO DETERMINABLE') return '';
+    const cls = claseVeredicto(v);
     const primeraRazon = (res.mejor.gates.filter(g => g.estado === 'fail')[0] ||
                           res.mejor.gates.filter(g => g.estado === 'revisar')[0] ||
                           res.mejor.gates.filter(g => g.estado === 'nd')[0] || {}).detalle || '';
@@ -7875,11 +7802,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // para el fix de "tag-tip" en móvil): `res.mejor.perfil` se escapaba
     // aquí Y otra vez con el resto de `t` más abajo -- un nombre de
     // empresa con "&"/"<" habría salido doblemente escapado ("&amp;amp;").
-    const t = 'Cumplimiento estimado: ' + (res.porPerfil.length > 1 ? 'mejor de ' + res.porPerfil.length + ' perfiles (' + res.mejor.perfil + '). ' : '') + primeraRazon;
+    const t = descripcionVeredicto(v) + ' ' + (res.porPerfil.length > 1 ? 'mejor de ' + res.porPerfil.length + ' perfiles (' + res.mejor.perfil + '). ' : '') + primeraRazon;
     // Mismo problema de "title" que .tag.priority (ver comentario en
     // render()): tap-to-reveal vía tag-tip/data-tip para que también
     // funcione en pantalla táctil, no solo con hover de mouse.
-    return '<span class="tag eval ' + cls + ' tag-tip" tabindex="0" role="button" aria-expanded="false" title="' + escapeHtml(t) + '" data-tip="' + escapeHtml(t) + '">' + escapeHtml(etiquetaVeredicto(v)) + (res.mejor.conPliego ? '' : ' ·') + '</span>';
+    return '<span class="tag eval ' + cls + ' tag-tip" tabindex="0" role="button" aria-expanded="false" title="' + escapeHtml(t) + '" data-tip="' + escapeHtml(t) + '">' + escapeHtml(v) + (res.mejor.conPliego ? '' : ' ·') + '</span>';
   }
 
   // Un párrafo: "de un vistazo", para que quien decide si presentarse no tenga
@@ -9735,6 +9662,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // aplicado al departamento para no repetir el falso positivo de
       // "Santander de Quilichao" (punto 6 de "Cosas aprendidas por las malas").
       if (municipios && municipios.length) paso('mun', 'municipio (' + municipios.join(', ') + ')', s => municipios.some(m => matchesMunicipio(s.item.ciudad, m)));
+      // Valor, entidad y fecha de cierre: filtros del usuario (no de fábrica: nacen vacíos). Un proceso sin valor
+      // reportado no se oculta por el rango (ver cumpleRangoValor).
+      if (minV || maxV) paso('valor', 'valor (' + (minV ? 'desde ' + fmtMoney(minV) : '') + (minV && maxV ? ' ' : '') + (maxV ? 'hasta ' + fmtMoney(maxV) : '') + ')', s => cumpleRangoValor(s.item.valor, minV, maxV));
+      const entidadTxt = entidadEl ? entidadEl.value.trim() : '';
+      if (entidadTxt) paso('entidad', 'entidad ("' + entidadTxt + '")', s => coincideEntidad(s.item.entidad, entidadTxt));
+      const cierreDias = cierreEl ? Number(cierreEl.value) : 0;
+      if (cierreDias) paso('cierre', 'fecha de cierre (próximos ' + cierreDias + ' días)', s => cierraEnDias(s.daysLeft, cierreDias));
 
       if (hideClosed) paso('cerrados', '"Ocultar vencidos"', s => s.daysLeft === null || s.daysLeft >= 0);
       // "Solo publicados hace ≤30 días": si no se sabe la fecha de publicación, se
@@ -9896,9 +9830,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const analysisEntry = analisis[it.id];
     if (analysisEntry) analysisEntry.id = it.id; // backfill para análisis guardados antes de este cambio
     const analysisHtml = !enAnalisis ? '' : (analysisEntry ? renderAnalysisHtml(analysisEntry, it, s) : renderSinPliegoHtml(it, s));
-    const analizarLabel = !flujoListoParaPliego
-      ? '🔒 Analizar pliego (completa Experiencia y Personal)'
-      : (analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)');
+    // Sin bloqueo: se puede analizar un pliego aunque falten datos de la empresa; lo que falte sale como NO DETERMINABLE
+    // y el análisis dice qué dato falta (nunca se rellena con un "cumple").
+    const analizarLabel = analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)';
 
     // F-04: proceso reabierto desde el análisis guardado (ya no sale en la búsqueda en pantalla).
     let guardadoHtml = '';
@@ -9921,7 +9855,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // exista un análisis (una vez hay uno -- de cualquiera de los dos orígenes -- "↻ Volver a
     // analizar" lo reemplaza; el Estudio Previo sigue disponible como SOPORTE del análisis ya
     // hecho, dentro de la tarjeta, ver renderEstudioPrevioUploadHtml).
-    const epBtnHtml = (flujoListoParaPliego && !analysisEntry)
+    const epBtnHtml = !analysisEntry
       ? '<button class="btn-mini analizar-ep" data-action="analizar-ep" data-id="' + escapeHtml(it.id) + '">📋 Analizar Estudio Previo</button>' +
         '<input type="file" aria-label="Seleccionar el PDF o Word del Estudio Previo para analizarlo" accept=".pdf,.docx" data-analyze-ep-id="' + escapeHtml(it.id) + '" style="display:none">'
       : '';
@@ -9930,12 +9864,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // repetir el desorden que ya se limpió en "Buscar procesos"); si ya está, una etiqueta
     // pequeña con la etapa actual en vez de un quinto botón.
     const pipelineBtnHtml = (hist && hist.etapa)
-      ? '<button type="button" class="link-btn" data-ir-pipeline="' + escapeHtml(it.id) + '">📌 ' + escapeHtml((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa) + '</button>'
-      : '<button type="button" class="link-btn" data-agregar-pipeline="' + escapeHtml(it.id) + '">+ Pipeline</button>';
+      ? '<button type="button" class="link-btn" data-ir-pipeline="' + escapeHtml(it.id) + '" title="Está en Mis procesos">✓ Guardado · ' + escapeHtml((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa) + '</button>'
+      : '<button type="button" class="btn-mini" data-agregar-pipeline="' + escapeHtml(it.id) + '">Guardar</button>';
     const gestionHtml =
       '<button class="btn-mini' + (isVisto ? ' active-visto' : '') + '" data-action="visto" data-id="' + escapeHtml(it.id) + '">' + (isVisto ? '✓ Visto' : 'Marcar visto') + '</button>' +
       '<button class="btn-mini' + (isDescartado ? ' active-descartado' : '') + '" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : '✕ Descartar') + '</button>';
-    const irAnalisisLabel = analysisEntry ? 'Ver análisis del pliego →' : 'Analizar pliego →';
+    const irAnalisisLabel = analysisEntry ? 'Ver análisis →' : 'Ver proceso →';
     const actionsHtml = enAnalisis
       ? '<div class="row-actions">' +
           gestionHtml +
@@ -9946,9 +9880,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         '<input type="file" aria-label="Seleccionar el PDF del pliego para analizarlo" accept="application/pdf" data-analyze-id="' + escapeHtml(it.id) + '" style="display:none">' +
         '<div class="analysis-slot">' + analysisHtml + '</div>'
       : '<div class="row-actions">' +
-          gestionHtml +
           '<button type="button" class="btn-mini analizar" data-ir-analisis="' + escapeHtml(it.id) + '">' + irAnalisisLabel + '</button>' +
           pipelineBtnHtml +
+          '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
         '</div>';
 
     return '<div class="row ' + s.tier + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
@@ -9977,7 +9911,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         (it.referencia ? '<span><b>Referencia:</b> ' + escapeHtml(it.referencia) + '</span>' : '') +
       '</div>' +
       (enAnalisis && s.evaluacion
-        ? '<div class="tarjeta-veredicto saved-note"><b>' + escapeHtml(etiquetaVeredicto(s.evaluacion.mejor.veredicto)) + ':</b> ' + escapeHtml(lineaMotivoVeredicto(s.evaluacion.mejor.gates, s.evaluacion.mejor.veredicto, s.evaluacion.mejor.conPliego)) +
+        ? '<div class="tarjeta-veredicto saved-note"><b>' + escapeHtml(etiquetaVeredicto(s.evaluacion.mejor.veredictoGlobal)) + ':</b> ' + escapeHtml(lineaMotivoVeredicto(s.evaluacion.mejor.gates, s.evaluacion.mejor.veredictoGlobal, s.evaluacion.mejor.conPliego)) +
             ' · ' + escapeHtml(textoCoberturaLectura(analysisEntry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>'
         : '') +
       guardadoHtml +
@@ -10053,6 +9987,114 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function showError(msg){
     statusEl.style.display = 'none';
     resultsEl.innerHTML = '<div class="error"><strong>NO SE PUDO CONSULTAR SECOP II</strong>' + msg + ' Puedes usar "Ver datos de ejemplo" mientras tanto.</div>';
+  }
+
+  // ── Búsqueda en lenguaje natural (SIN IA) ───────────────────────────────
+  // Interpreta una frase como "Obras civiles en Norte de Santander entre $500 millones y $3.000 millones" y llena los
+  // MISMOS filtros de siempre (especialidades, departamento, municipio, valor). Es determinista: sin IA, sin costo, sin red
+  // (la versión con LLM se eliminó por costo, ver docs/HISTORIAL.md). Lo que no entiende no se aplica: se devuelve en
+  // `avisos` para decírselo al usuario. Los nombres de departamento son los que usa el dataset de SECOP II.
+  const DEPARTAMENTOS_CO = [
+    { n: 'Amazonas', a: ['amazonas'] }, { n: 'Antioquia', a: ['antioquia'] }, { n: 'Arauca', a: ['arauca'] }, { n: 'Atlántico', a: ['atlantico'] },
+    { n: 'Distrito Capital de Bogotá', a: ['distrito capital de bogota', 'distrito capital', 'bogota d c', 'bogota dc', 'bogota'] },
+    { n: 'Bolívar', a: ['bolivar'] }, { n: 'Boyacá', a: ['boyaca'] }, { n: 'Caldas', a: ['caldas'] }, { n: 'Caquetá', a: ['caqueta'] }, { n: 'Casanare', a: ['casanare'] },
+    { n: 'Cauca', a: ['cauca'] }, { n: 'Cesar', a: ['cesar'] }, { n: 'Chocó', a: ['choco'] }, { n: 'Córdoba', a: ['cordoba'] }, { n: 'Cundinamarca', a: ['cundinamarca'] },
+    { n: 'Guainía', a: ['guainia'] }, { n: 'Guaviare', a: ['guaviare'] }, { n: 'Huila', a: ['huila'] }, { n: 'La Guajira', a: ['la guajira', 'guajira'] },
+    { n: 'Magdalena', a: ['magdalena'] }, { n: 'Meta', a: ['meta'] }, { n: 'Nariño', a: ['narino'] }, { n: 'Norte de Santander', a: ['norte de santander'] },
+    { n: 'Putumayo', a: ['putumayo'] }, { n: 'Quindío', a: ['quindio'] }, { n: 'Risaralda', a: ['risaralda'] },
+    { n: 'San Andrés, Providencia y Santa Catalina', a: ['san andres providencia y santa catalina', 'san andres y providencia', 'san andres'] },
+    { n: 'Santander', a: ['santander'] }, { n: 'Sucre', a: ['sucre'] }, { n: 'Tolima', a: ['tolima'] }, { n: 'Valle del Cauca', a: ['valle del cauca'] },
+    { n: 'Vaupés', a: ['vaupes'] }, { n: 'Vichada', a: ['vichada'] }
+  ];
+  // Municipios frecuentes (el resto se reconoce si se escribe con mayúscula tras "en"). Con su nombre oficial y tilde.
+  const MUNICIPIOS_CONOCIDOS = ['Cúcuta', 'Ocaña', 'Pamplona', 'Villa del Rosario', 'Los Patios', 'Tibú', 'El Zulia', 'Sardinata', 'Chinácota', 'Ábrego', 'Convención',
+    'Medellín', 'Cali', 'Barranquilla', 'Cartagena', 'Bucaramanga', 'Floridablanca', 'Girón', 'Piedecuesta', 'Barrancabermeja', 'Santa Marta', 'Valledupar', 'Montería', 'Sincelejo',
+    'Neiva', 'Ibagué', 'Villavicencio', 'Pasto', 'Popayán', 'Manizales', 'Pereira', 'Armenia', 'Tunja', 'Yopal', 'Arauca', 'Riohacha'];
+  const PALABRAS_RELLENO_BUSQUEDA = new Set(['en', 'de', 'del', 'la', 'el', 'los', 'las', 'un', 'una', 'unos', 'unas', 'por', 'con', 'para', 'que', 'al', 'a', 'entre', 'hasta', 'desde',
+    'busco', 'buscar', 'busca', 'quiero', 'necesito', 'encuentra', 'encontrar', 'muestrame', 'dame', 'procesos', 'proceso', 'licitacion', 'licitaciones', 'contratacion', 'contrataciones',
+    'abierto', 'abiertos', 'abierta', 'abiertas', 'vigente', 'vigentes', 'valor', 'cuantia', 'presupuesto', 'monto', 'municipio', 'ciudad', 'departamento']);
+  // Plural -> singular simple: la coincidencia del buscador es por subcadena, así que "obra civil" encuentra tanto "obras
+  // civiles" como "obra civil" (y no al revés). "civiles" -> "civil", "colegios" -> "colegio", "análisis" no cambia.
+  function singularizar(w){
+    if (w.length <= 3) return w;
+    if (/(ales|eles|iles|oles|ules)$/.test(w)) return w.slice(0, -2);
+    if (/[aeoáéóí]s$/.test(w)) return w.slice(0, -1);
+    return w;
+  }
+  function interpretarBusqueda(texto){
+    const out = { keywords: [], geos: [], municipios: [], minV: 0, maxV: 0, numProceso: '', avisos: [], vacio: false };
+    let w = String(texto == null ? '' : texto).replace(/\s+/g, ' ').trim();
+    if (!w){ out.vacio = true; return out; }
+    // Mismo largo que el original (letra por letra): los índices de `f` valen para `w`.
+    const plegar = x => x.replace(/[\s\S]/g, ch => { const n = ch.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); return n.length === 1 ? n : ch.toLowerCase(); });
+    const blanquear = (i, largo) => { w = w.slice(0, i) + ' '.repeat(largo) + w.slice(i + largo); };
+
+    // 1) Número de proceso o referencia: manda sobre todo lo demás (igual que el campo "Número de proceso").
+    const mProc = w.match(/\bCO1\.[A-Za-z]+\.\d+\b/i) || w.match(/\b[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,6}){1,3}-\d{4}\b/);
+    if (mProc){ out.numProceso = mProc[0].toUpperCase(); return out; }
+
+    // 2) Valor. Solo se acepta un monto en pesos de al menos $1.000.000 (un "500" suelto no es un monto).
+    const MONTO = '\\$?\\s*\\d[\\d.,]*(?:\\s*(?:mil\\s+millones|millones?|billones?))?';
+    const monto = snip => { const v = parseValorUnidad(String(snip).replace(/[.,\s]+$/, '')); return (v && v.unidad === 'COP' && v.valor >= 1e6) ? v.valor : null; };
+    const aplicar = (re, fn) => { let m; re.lastIndex = 0; const hallazgos = []; while ((m = re.exec(w)) !== null) hallazgos.push({ m: m, i: m.index, len: m[0].length }); hallazgos.forEach(h => { fn(h.m); blanquear(h.i, h.len); }); };
+    aplicar(new RegExp('entre\\s+(' + MONTO + ')\\s+y\\s+(' + MONTO + ')', 'ig'), m => {
+      const a = monto(m[1]), b = monto(m[2]);
+      if (a == null || b == null) out.avisos.push('No entendí el rango de valor "' + m[0].trim() + '": escríbelo en pesos, por ejemplo "entre $500 millones y $3.000 millones".');
+      else { out.minV = Math.min(a, b); out.maxV = Math.max(a, b); }
+    });
+    aplicar(new RegExp('(hasta|m[aá]ximo|menos\\s+de|no\\s+m[aá]s\\s+de|inferior\\s+a|por\\s+debajo\\s+de|tope\\s+de|desde|m[ií]nimo|m[aá]s\\s+de|mayor\\s+(?:a|que)|superior\\s+a|por\\s+encima\\s+de|a\\s+partir\\s+de)\\s+(' + MONTO + ')', 'ig'), m => {
+      const v = monto(m[2]);
+      const esMax = /^(hasta|m[aá]ximo|menos|no|inferior|por\s+debajo|tope)/i.test(m[1]);
+      if (v == null) out.avisos.push('No entendí el valor "' + m[2].trim() + '": escríbelo en pesos, por ejemplo "hasta $2.000 millones".');
+      else if (esMax) out.maxV = v; else out.minV = v;
+    });
+    aplicar(new RegExp(MONTO, 'ig'), m => {
+      const v = monto(m[0]);
+      if (v != null) out.avisos.push('No entendí si ' + m[0].trim() + ' es un valor mínimo o máximo: usa "desde" o "hasta".');
+    });
+
+    // 3) Departamentos (el más largo primero, así "Santander" no se cuenta dentro de "Norte de Santander").
+    const aliases = [];
+    DEPARTAMENTOS_CO.forEach(d => d.a.forEach(a => aliases.push({ n: d.n, a: a, tipo: 'dep' })));
+    MUNICIPIOS_CONOCIDOS.forEach(n => aliases.push({ n: n, a: plegar(n), tipo: 'mun' }));
+    aliases.sort((x, y) => y.a.length - x.a.length);
+    aliases.forEach(al => {
+      const re = new RegExp('(?<![a-z])' + al.a.replace(/ /g, '[ ,.]+') + '(?![a-z])', 'g');
+      const f = plegar(w);
+      let m;
+      const hallazgos = [];
+      while ((m = re.exec(f)) !== null) hallazgos.push({ i: m.index, len: m[0].length });
+      if (!hallazgos.length) return;
+      const lista = al.tipo === 'dep' ? out.geos : out.municipios;
+      if (lista.indexOf(al.n) === -1) lista.push(al.n);
+      hallazgos.forEach(h => blanquear(h.i, h.len));
+    });
+    // Otros municipios: nombre propio (con mayúscula) tras "en". Tras quitar departamentos, lo que queda es un lugar.
+    const reLugar = /\ben\s+(?:(?:el\s+municipio|la\s+ciudad)\s+(?:de\s+)?)?([A-ZÁÉÍÓÚÑ][\wáéíóúñü]*(?:\s+(?:(?:de|del|la|los|las|el)\s+)?[A-ZÁÉÍÓÚÑ][\wáéíóúñü]*)*)/g;
+    let ml;
+    const lugares = [];
+    while ((ml = reLugar.exec(w)) !== null){ if (!/^(Colombia)$/i.test(ml[1])) lugares.push({ i: ml.index, len: ml[0].length, n: ml[1] }); }
+    lugares.forEach(l => { if (out.municipios.indexOf(l.n) === -1) out.municipios.push(l.n); blanquear(l.i, l.len); });
+
+    // 4) Lo que queda son las especialidades: frases separadas por coma / "y" / "o", sin palabras de relleno.
+    const frases = [];
+    let actual = [];
+    const cerrar = () => { if (actual.length) frases.push(actual.join(' ')); actual = []; };
+    w.split(/(,|;)/).forEach(trozo => {
+      if (trozo === ',' || trozo === ';'){ cerrar(); return; }
+      trozo.split(/\s+/).filter(Boolean).forEach(tok => {
+        const limpio = tok.replace(/^[.:()"“”¿?¡!]+|[.:()"“”¿?¡!]+$/g, '');
+        if (!limpio) return;
+        const f = plegar(limpio);
+        if (f === 'y' || f === 'o' || f === 'e' || f === 'u'){ cerrar(); return; }
+        if (PALABRAS_RELLENO_BUSQUEDA.has(f)) return;
+        actual.push(singularizar(limpio.toLowerCase()));
+      });
+      cerrar();
+    });
+    frases.forEach(f => { if (f.length >= 3 && out.keywords.indexOf(f) === -1) out.keywords.push(f); });
+    out.keywords = out.keywords.slice(0, 8);
+    return out;
   }
 
   function getInputs(){
@@ -10793,7 +10835,36 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return L.join('\n');
   }
 
-  searchBtn.addEventListener('click', runSearch);
+  // Búsqueda natural: la frase llena los filtros de siempre y se muestra qué se entendió. Solo se vuelve a interpretar si el
+  // texto cambió desde la última vez, para no pisar los ajustes manuales hechos después a los filtros.
+  let nlAplicado = null;
+  function aplicarBusquedaNatural(){
+    if (!nlEl) return;
+    const texto = nlEl.value.trim();
+    if (!texto || texto === nlAplicado) return;
+    nlAplicado = texto;
+    const r = interpretarBusqueda(texto);
+    kwInput.value = r.keywords.join(', ');
+    geoInput.value = r.geos.join(', ');
+    if (municipioInput) municipioInput.value = r.municipios.join(', ');
+    minInput.value = r.minV ? String(r.minV) : '';
+    maxInput.value = r.maxV ? String(r.maxV) : '';
+    if (procesoInput) procesoInput.value = r.numProceso || '';
+    if (entidadEl) entidadEl.value = '';
+    if (cierreEl) cierreEl.value = '';
+    actualizarAvisoRango();
+    if (!nlEntendiEl) return;
+    const partes = [];
+    if (r.numProceso) partes.push('Proceso: ' + r.numProceso + ' (ignora los demás filtros)');
+    if (r.keywords.length) partes.push('Especialidades: ' + r.keywords.join(', '));
+    if (r.geos.length) partes.push('Departamento: ' + r.geos.join(', '));
+    if (r.municipios.length) partes.push('Municipio: ' + r.municipios.join(', '));
+    if (r.minV || r.maxV) partes.push('Valor: ' + (r.minV ? 'desde ' + fmtMoney(r.minV) : '') + (r.minV && r.maxV ? ' ' : '') + (r.maxV ? 'hasta ' + fmtMoney(r.maxV) : ''));
+    nlEntendiEl.textContent = (partes.length ? 'Entendí → ' + partes.join(' · ') + '.' : 'No identifiqué filtros en esa frase: se busca sin filtros.') + (r.avisos.length ? ' ⚠ ' + r.avisos.join(' ') : '');
+  }
+  searchBtn.addEventListener('click', () => { aplicarBusquedaNatural(); runSearch(); });
+  document.querySelectorAll('#bt-buscador input').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); searchBtn.click(); } }));
+  if (cierreEl) cierreEl.addEventListener('change', () => rerender());
   if (procesoInput) procesoInput.addEventListener('keydown', function(e){ if (e.key === 'Enter') runSearch(); });
   demoBtn.addEventListener('click', loadDemo);
   if (paaBuscarBtn) paaBuscarBtn.addEventListener('click', runBuscarPAA);
@@ -11748,6 +11819,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (k === 'kw') kwInput.value = '';
       else if (k === 'geo') geoInput.value = '';
       else if (k === 'mun' && municipioInput) municipioInput.value = '';
+      else if (k === 'valor'){ minInput.value = ''; maxInput.value = ''; }
+      else if (k === 'entidad' && entidadEl) entidadEl.value = '';
+      else if (k === 'cierre' && cierreEl) cierreEl.value = '';
       else if (k === 'cerrados') hideClosedEl.checked = false;
       else if (k === '30d') hideOldEl.checked = false;
       else if (k === 'licitacion') onlyLicitacionEl.checked = false;
@@ -11937,25 +12011,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (action === 'visto' || action === 'descartar'){
         toggleStatus(id, action === 'visto' ? 'visto' : 'descartado');
       } else if (action === 'analizar'){
-        const flujo = estadoFlujoPliego();
-        if (!flujo.listo){
-          const slot = actionBtn.closest('.row').querySelector('.analysis-slot');
-          slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) +
-            ' <button class="link-btn" data-ir-a="' + (!flujo.experienciaCargada ? 'experiencia' : 'personal') + '">Ir a ' +
-            (!flujo.experienciaCargada ? 'Experiencia' : 'Personal') + '</button></div>';
-          return;
-        }
         const input = actionBtn.closest('.row').querySelector('input[type=file][data-analyze-id]');
         if (input) input.click();
       } else if (action === 'analizar-ep'){
-        const flujo = estadoFlujoPliego();
-        if (!flujo.listo){
-          const slot = actionBtn.closest('.row').querySelector('.analysis-slot');
-          slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) +
-            ' <button class="link-btn" data-ir-a="' + (!flujo.experienciaCargada ? 'experiencia' : 'personal') + '">Ir a ' +
-            (!flujo.experienciaCargada ? 'Experiencia' : 'Personal') + '</button></div>';
-          return;
-        }
         const input = actionBtn.closest('.row').querySelector('input[type=file][data-analyze-ep-id]');
         if (input) input.click();
       }
@@ -12253,11 +12311,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     input.value = '';
     if (!file) return;
     const slot = input.closest('.row').querySelector('.analysis-slot');
-    const flujo = estadoFlujoPliego();
-    if (!flujo.listo){
-      slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) + '</div>';
-      return;
-    }
     pendingPliegoFiles[id] = file;
     const kb = Math.round(file.size / 1024);
     slot.innerHTML = '<div class="analysis-block">' +
@@ -12279,11 +12332,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     input.value = '';
     if (!file) return;
     const slot = input.closest('.row').querySelector('.analysis-slot');
-    const flujo = estadoFlujoPliego();
-    if (!flujo.listo){
-      slot.innerHTML = '<div class="analysis-block analysis-warn">' + escapeHtml(mensajeFlujoFaltante(flujo)) + '</div>';
-      return;
-    }
     pendingPliegoFiles[id] = file;
     esSoloEPPendiente[id] = true;
     const kb = Math.round(file.size / 1024);
@@ -12434,37 +12482,21 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
   }
 
-  // Indicador de los 5 pasos del flujo principal (Experiencia → Análisis →
-  // Perfiles → Pliego → Resultado), en la parte de arriba de "Buscar
-  // procesos" -- se recalcula cada vez que se entra a esa vista, igual que
-  // el dashboard. "Pliego" y "Resultado" se marcan según si YA hay al menos
-  // un pliego cargado/analizado, respectivamente (son por tarjeta, no un
-  // paso único; aquí solo informan si el usuario ya usó esa parte del flujo).
+  // Aviso compacto (no bloquea nada) de qué datos de la empresa faltan para comparar un proceso. Sin ellos se puede
+  // buscar y analizar igual: lo que falte saldrá como NO DETERMINABLE (nunca como "cumple"). Se recalcula al entrar a Buscar.
   function renderFlujoStepper(){
-    const stepsEl = document.getElementById('bt-flujo-steps');
     const msgEl = document.getElementById('bt-flujo-mensaje');
-    if (!stepsEl || !msgEl) return;
+    if (!msgEl) return;
     const flujo = estadoFlujoPliego();
-    const hayPliegoAnalizado = Object.keys(analisis).length > 0;
-    const estados = {
-      1: flujo.experienciaCargada ? 'is-done' : 'is-active',
-      2: flujo.perfilesCargados ? 'is-done' : (flujo.experienciaCargada ? 'is-active' : ''),
-      3: hayPliegoAnalizado ? 'is-done' : (flujo.listo ? 'is-active' : ''),
-      4: hayPliegoAnalizado ? 'is-done' : ''
-    };
-    Object.keys(estados).forEach(n => {
-      const el = stepsEl.querySelector('.step[data-step="' + n + '"]');
-      if (el) el.className = 'step' + (estados[n] ? ' ' + estados[n] : '');
-    });
-    if (flujo.listo){
-      msgEl.innerHTML = '<div class="flujo-msg listo">✓ Ya puedes analizar cualquier pliego: elige un proceso en "Buscar procesos", pulsa "Analizar pliego →" y súbelo en "Análisis de pliegos".' +
-        (hayPliegoAnalizado ? ' Puedes repetirlo con cuantos procesos quieras.' : '') + '</div>';
-    } else {
-      const siguienteVista = !flujo.experienciaCargada ? 'experiencia' : 'personal';
-      const siguienteLabel = siguienteVista === 'experiencia' ? 'Ir a Experiencia' : 'Ir a Personal';
-      msgEl.innerHTML = '<div class="flujo-msg pendiente"><span>' + escapeHtml(mensajeFlujoFaltante(flujo)) + '</span>' +
-        '<button class="btn-secondary" data-ir-a-flujo="' + siguienteVista + '">' + siguienteLabel + '</button></div>';
-    }
+    const hayEmpresa = Object.keys(perfiles || {}).length > 0;
+    const falta = [];
+    if (!hayEmpresa) falta.push({ txt: 'los datos de tu empresa', vista: 'perfil' });
+    if (!flujo.experienciaCargada) falta.push({ txt: 'tu experiencia acreditada', vista: 'experiencia' });
+    if (!flujo.perfilesCargados) falta.push({ txt: 'tu personal', vista: 'personal' });
+    if (!falta.length){ msgEl.innerHTML = ''; return; }
+    msgEl.innerHTML = '<div class="flujo-msg pendiente"><span>Para comparar un proceso contra tu empresa falta cargar ' + falta.map(f => f.txt).join(', ') +
+      '. Puedes buscar y analizar igual: lo que falte saldrá como NO DETERMINABLE.</span>' +
+      '<button class="btn-secondary" data-ir-a-flujo="' + falta[0].vista + '">Completar Empresa</button></div>';
   }
 
   document.querySelectorAll('#bt-nav .nav-item, #bt-brand-home, .quick-card[data-view], .primeros-pasos-item[data-view]').forEach(btn => {
@@ -12676,10 +12708,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // procesos", no en el Inicio).
   function renderDashAlertas(){
     if (!dashAlertasEl) return;
-    if (!alertas.length){
-      dashAlertasEl.innerHTML = '<div class="empty-inline">No tienes alertas guardadas. Ve a "Buscar procesos", aplica unos filtros y guárdalos como alerta.</div>';
-      return;
-    }
+    const panelAl = document.getElementById('bt-dash-alertas-panel');
+    if (panelAl) panelAl.hidden = !alertas.length; // las alertas son una herramienta secundaria: sin alertas, no ocupan lugar en Inicio
+    if (!alertas.length){ dashAlertasEl.innerHTML = ''; return; }
     dashAlertasEl.innerHTML = alertas.map(a =>
       '<div class="recent-item">' +
         '<div class="recent-item-body">' +
@@ -12707,98 +12738,72 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       Object.keys(historial || {}).length === 0;
   }
 
+  // Inicio: sin cifras ni gráficos. Tres listas cortas que salen de lo que el usuario ya hizo (nunca se inventa nada).
+  function actividadReciente(analisisMap, historialMap, ahoraMs){
+    const dias = raw => {
+      if (!raw) return null;
+      const d = new Date(raw), y = d.getFullYear();
+      if (isNaN(d.getTime()) || y < 2015 || y > 2035) return null;
+      return Math.ceil((d.getTime() - ahoraMs) / 86400000);
+    };
+    const guardados = Object.keys(historialMap || {}).filter(id => historialMap[id] && historialMap[id].etapa).map(id => ({ id: id, h: historialMap[id] }));
+    const analizados = Object.keys(analisisMap || {}).map(id => ({ id: id, ts: (analisisMap[id] && analisisMap[id].ts) || 0 })).sort((a, b) => b.ts - a.ts).slice(0, 5).map(x => x.id);
+    // Próximos a cerrar: guardados que siguen en juego (ni "No viable" ni "Presentada"), con cierre en los próximos 14 días.
+    const cierran = guardados
+      .filter(x => x.h.etapa !== 'no_viable' && x.h.etapa !== 'presentada')
+      .map(x => ({ id: x.id, dias: dias((x.h.snapshot || {}).closingRaw) }))
+      .filter(x => x.dias !== null && x.dias >= 0 && x.dias <= 14)
+      .sort((a, b) => a.dias - b.dias).slice(0, 5);
+    // Análisis pendientes: guardados por revisar o en análisis a los que todavía no se les ha analizado el pliego, y los analizados en parte.
+    const pendientes = guardados
+      .filter(x => (x.h.etapa === 'por_revisar' || x.h.etapa === 'en_analisis') && !(analisisMap || {})[x.id])
+      .map(x => ({ id: x.id, motivo: 'Pliego sin analizar' }))
+      .concat(Object.keys(analisisMap || {}).filter(id => lecturaParcial(analisisMap[id])).map(id => ({ id: id, motivo: 'Lectura parcial del pliego' })))
+      .slice(0, 5);
+    return { analizados: analizados, cierran: cierran, pendientes: pendientes };
+  }
+
   function actualizarDashboard(){
     const greetEl = document.getElementById('bt-dash-greeting');
     if (greetEl) greetEl.textContent = saludoSegunHora();
+    const primerosEl = document.getElementById('bt-inicio-primeros');
+    if (primerosEl) primerosEl.hidden = !esCuentaVacia();
 
-    const primerosPasosEl = document.getElementById('bt-dash-primeros-pasos');
-    if (primerosPasosEl) primerosPasosEl.hidden = !esCuentaVacia();
-
-    const perfilesEl = document.getElementById('bt-dash-perfiles');
-    if (perfilesEl) perfilesEl.textContent = Object.keys(perfiles || {}).length;
-
-    const analisisEl = document.getElementById('bt-dash-analisis');
-    if (analisisEl) analisisEl.textContent = Object.keys(analisis || {}).length;
-
-    // Ya no hay UN resultado global de experiencia -- cada proceso analizado
-    // tiene el suyo propio (ver "Experiencia requerida"). El resumen del
-    // Dashboard cuenta cuántos procesos ya la tienen evaluada, y cuántos de
-    // esos CUMPLEN, en vez de un único veredicto.
-    const expEl = document.getElementById('bt-dash-experiencia');
-    const expNoteEl = document.getElementById('bt-dash-experiencia-note');
-    if (expEl){
-      if (!expevalContratos){
-        expEl.textContent = 'Sin cargar';
-        if (expNoteEl) expNoteEl.textContent = 'Carga tu experiencia acreditada para poder evaluarla contra cada pliego';
-      } else {
-        const evaluados = Object.values(analisis || {}).filter(e => e && e.experienciaResultado);
-        if (!evaluados.length){
-          expEl.textContent = String(expevalContratos.contratos.length);
-          if (expNoteEl) expNoteEl.textContent = 'contrato(s) acreditado(s) -- analiza un pliego para evaluar el cumplimiento';
-        } else {
-          // Auditoría UX/UI para ingenieros civiles: "0 CUMPLE" a secas, sin
-          // contexto, se leía como una nota reprobatoria -- incluso cuando
-          // la causa real era falta de datos (NO DETERMINABLE), no un
-          // incumplimiento real. Se muestra como fracción ("X de Y") y se
-          // remite al detalle en vez de dejar el número solo.
-          const cumplen = evaluados.filter(e => e.experienciaResultado.resultadoGlobal === 'CUMPLE').length;
-          expEl.textContent = String(evaluados.length);
-          if (expNoteEl) expNoteEl.textContent = 'proceso(s) con experiencia evaluada -- ' + cumplen + ' de ' + evaluados.length + ' cumple(n) del todo (revisa el detalle en cada proceso)';
-        }
-      }
-    }
-
-    const altaEl = document.getElementById('bt-dash-alta');
-    const altaNoteEl = document.getElementById('bt-dash-alta-note');
-    if (altaEl){
-      const nAlta = (lastScored || []).filter(s => s.tier === 'alta').length;
-      altaEl.textContent = nAlta;
-      if (altaNoteEl) altaNoteEl.textContent = (lastScored && lastScored.length)
-        ? 'De ' + lastScored.length + ' proceso(s) en tu última búsqueda'
-        : 'Busca procesos para ver tu shortlist';
-    }
-
-    const pipeEl = document.getElementById('bt-dash-pipeline');
-    const pipeNoteEl = document.getElementById('bt-dash-pipeline-note');
-    if (pipeEl){
-      const r = resumenPipeline(historial);
-      pipeEl.textContent = r.total;
-      if (pipeNoteEl){
-        if (!r.total) pipeNoteEl.textContent = 'Agrega procesos con "+ Pipeline" para seguirlos';
-        else {
-          const partes = [r.radicados + ' radicado(s)'];
-          if (r.tasaExito !== null) partes.push(r.adjudicados + ' adjudicado(s) de ' + (r.adjudicados + r.perdidos) + ' resueltos (' + r.tasaExito + '%)');
-          else if (r.pendientes > 0) partes.push(r.pendientes + ' resultado(s) por marcar');
-          pipeNoteEl.textContent = partes.join(' · ');
-        }
-      }
-    }
-
-    const recEl = document.getElementById('bt-dash-recientes');
-    if (recEl){
-      const entradas = Object.keys(historial || {})
-        .map(id => Object.assign({ id: id }, historial[id]))
-        .sort((a, b) => (b.ts || 0) - (a.ts || 0))
-        .slice(0, 6);
-      if (!entradas.length){
-        recEl.innerHTML = '<div class="empty-inline">Todavía no has revisado ningún proceso. Empieza por "Buscar procesos".</div>';
-      } else {
-        recEl.innerHTML = entradas.map(h => {
-          // Se enriquece con la última búsqueda en pantalla si el proceso sigue
-          // ahí; si no (búsqueda distinta, o recién abierta la página), se
-          // muestra igual con lo mínimo -- nunca se inventa un título.
-          const s = (lastScored || []).find(x => x.item && x.item.id === h.id);
-          const titulo = s ? ((s.item.entidad || 'Proceso') + ' — ' + truncate(s.item.objeto || '', 70)) : ('Proceso ' + h.id);
-          const estadoTxt = h.status === 'visto' ? 'Visto' : 'Descartado';
-          const veredicto = (s && s.evaluacion) ? ' · ' + s.evaluacion.mejor.veredicto : '';
-          return '<div class="recent-item"><div class="recent-item-body"><div class="recent-item-title">' + escapeHtml(titulo) + '</div>' +
-            '<div class="recent-item-sub">' + estadoTxt + escapeHtml(veredicto) + '</div></div></div>';
-        }).join('');
-      }
-    }
-
+    const act = actividadReciente(analisis, historial, Date.now());
+    const titulo = id => {
+      const s = procesoPorId(id);
+      if (s && s.item) return (s.item.entidad || 'Proceso') + ' — ' + truncate(s.item.objeto || '', 70);
+      const sn = historial[id] && historial[id].snapshot;
+      if (sn) return (sn.entidad || 'Proceso') + ' — ' + truncate(sn.objeto || '', 70);
+      return 'Proceso ' + id;
+    };
+    const fila = (id, sub, chip) => '<div class="recent-item"><div class="recent-item-body"><div class="recent-item-title">' + escapeHtml(titulo(id)) + '</div>' +
+      '<div class="recent-item-sub">' + escapeHtml(sub) + '</div></div>' + (chip || '') +
+      ' <button type="button" class="link-btn" data-pipeline-abrir-id="' + escapeHtml(id) + '">Abrir</button></div>';
+    const lista = (el, filas, vacio) => { if (el) el.innerHTML = filas.length ? filas.join('') : '<div class="empty-inline">' + vacio + '</div>'; };
+    lista(document.getElementById('bt-inicio-analizados'), act.analizados.map(id => {
+      const v = veredictoGlobalDeProceso(id);
+      return fila(id, textoCoberturaLectura(analisis[id]), v ? ' <span class="tag eval ' + claseVeredicto(v) + '">' + escapeHtml(v) + '</span>' : '');
+    }), 'Todavía no has analizado ningún pliego.');
+    lista(document.getElementById('bt-inicio-cierran'), act.cierran.map(x => fila(x.id, x.dias === 0 ? 'Cierra hoy' : 'Cierra en ' + x.dias + ' día(s)')), 'Ninguno de tus procesos guardados cierra en los próximos 14 días.');
+    lista(document.getElementById('bt-inicio-pendientes'), act.pendientes.map(x => fila(x.id, x.motivo)), 'No tienes análisis pendientes.');
     renderDashAlertas();
   }
+  const inicioQEl = document.getElementById('bt-inicio-q');
+  function buscarDesdeInicio(){
+    const t = inicioQEl ? inicioQEl.value.trim() : '';
+    if (nlEl) nlEl.value = t;
+    mostrarVista('buscar');
+    if (t) searchBtn.click();
+  }
+  const inicioBtnEl = document.getElementById('bt-inicio-buscar');
+  if (inicioBtnEl) inicioBtnEl.addEventListener('click', buscarDesdeInicio);
+  if (inicioQEl) inicioQEl.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); buscarDesdeInicio(); } });
+  const inicioActividadEl = document.getElementById('bt-inicio-actividad');
+  if (inicioActividadEl) inicioActividadEl.addEventListener('click', e => {
+    const ab = e.target.closest('[data-pipeline-abrir-id]');
+    if (ab) abrirAnalisis(ab.getAttribute('data-pipeline-abrir-id'));
+  });
 
   // Restaura en pantalla la evaluación de experiencia guardada (si había Excel
   // cargados de una sesión anterior), una vez que appReady haya resuelto.
