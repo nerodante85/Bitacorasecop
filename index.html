@@ -7571,7 +7571,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     while ((m = re.exec(t))){
       const antes = t.slice(Math.max(0, m.index - 30), m.index).toLowerCase();
       const despues = t.slice(m.index + m[0].length, m.index + m[0].length + 16).toLowerCase();
-      if (/(?:decreto|ley|resoluci[oó]n|numeral|anexo|art[ií]culo|art\.|cap[ií]tulo|literal|secci[oó]n|p[aá]gina|p[aá]g\.?|formato|cl[aá]usula|ap[eé]ndice|n[°º]|n[uú]mero|no\.|nit)\s*(?:de\s+)?$/.test(antes)) continue;
+      if (/(?:decreto|ley|resoluci[oó]n|numeral|nota|notas|anexo|art[ií]culo|art\.|cap[ií]tulo|literal|secci[oó]n|p[aá]gina|p[aá]g\.?|formato|cl[aá]usula|ap[eé]ndice|n[°º]|n[uú]mero|no\.|nit)\s*(?:de\s+)?$/.test(antes)) continue;
       if (/^(?:19|20)\d{2}$/.test(m[0]) && !/^\s*(?:smmlv|smlmv|salarios?|millones?|mil\s+millones|pesos|cop)/.test(despues)) continue; // año suelto
       const valor = parseNumCO(m[0]);
       if (valor == null) continue;
@@ -7615,7 +7615,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       while ((m = re.exec(w.ventana))){ if (!propias.test(m[0])){ corte = m.index; break; } }
       if (corte === -1) return w;
       const recorte = w.ventana.slice(0, corte);
-      if (!cifrasCandidatas(recorte).length) return w;
+      if (!cifrasCandidatas(recorte).some(c => c.conOperador)) return w; // un corte sin operador no basta para elegir una cifra
       return Object.assign({}, w, { ventana: recorte, raw: (w.etiqueta + recorte).trim() });
     });
     let primeroNoClaro = null;
@@ -10190,7 +10190,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         saveAnalisis(sc.item.id);
       }
     });
-    const todosParaContar = scored;
     scored = scored.slice(0, limiteLista);
 
     statusEl.style.display = 'flex';
@@ -10323,7 +10322,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       dato('Duración', it.duracion ? escapeHtml(it.duracion) : '') +
     '</dl>';
 
-    return '<div class="row ' + s.tier + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
+    return '<div class="row' + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
       venceAlertHtml +
       '<div class="row-head"><div class="row-ent">' + escapeHtml(it.entidad) + '</div>' +
         // Auditoría UX/UI: la tarjeta muestra dos "semáforos" (GO/REVISAR/

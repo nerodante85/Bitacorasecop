@@ -1980,6 +1980,17 @@ await check('Estudio Previo LP-008-2026: indicadores listados seguidos -> cada u
   assert(umbral('Índice de liquidez 1,2 y 1,5', ETQ_LIQ).valor === null, 'dos cifras reales de LA MISMA etiqueta siguen ambiguas');
 });
 
+await check('Corte por indicador vecino: una referencia de nota ("Ver nota 1") dentro del corte NO se lee como umbral, y sin operador en el corte se conserva la ambigüedad (antes del arreglo leía 1 en vez de 1,2)', () => {
+  const a = umbral('Índice de liquidez (Ver nota 1) respecto del patrimonio mayor o igual a 1,2', ETQ_LIQ);
+  assert(a && a.valor === 1.2, 'la nota 1 no es el umbral: ' + JSON.stringify(a));
+  const b = umbral('Índice de liquidez según nota 2 capital de trabajo ≥ 1,5', ETQ_LIQ);
+  assert(b && b.valor === 1.5, 'la nota 2 no es el umbral: ' + JSON.stringify(b));
+  const d = umbral('Índice de liquidez (Ver nota 1)', ETQ_LIQ);
+  assert(d === null || d.valor === null, 'una nota sola no es un umbral (leer 1 daría un CUMPLE falso): ' + JSON.stringify(d));
+  const c = umbral('Índice de liquidez 1,2 Índice de endeudamiento 0,7', ETQ_LIQ);
+  assert(c && c.valor === null, 'sin operador el corte no basta para elegir una cifra (queda ambiguo): ' + JSON.stringify(c));
+});
+
 await check('MC-005: varias cifras sin operador que desempate -> ambiguo (no se elige); con operador o cifras iguales, sí; controles positivos', () => {
   assert(umbral('Índice de liquidez 1,2 y 1,5', ETQ_LIQ).valor === null, 'dos cifras distintas sin operador: ambiguo');
   assert(umbral('Índice de liquidez 1,2 y mayor o igual a 1,5', ETQ_LIQ).valor === 1.5, 'con un solo operador, ese decide');
