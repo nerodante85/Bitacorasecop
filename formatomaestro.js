@@ -153,6 +153,9 @@
       const cargos = [...new Set(parts.map(p => texto(p.CARGO_PROFESIONAL)).filter(Boolean))];
       const formas = [...new Set(parts.map(p => texto(p.FORMA_EJECUCION)).filter(Boolean))];
       const figura = parts.map(p => texto(p.NOMBRE_FIGURA)).find(Boolean) || '';
+      // ¿Está en el RUP? 'si' si alguna participación lo dice; 'no' solo si TODAS dicen que no; sin dato = '' (nunca se asume).
+      const rup = parts.map(p => normTexto(p.EN_RUP));
+      const enRup = rup.indexOf('SI') !== -1 ? 'si' : (rup.length && rup.every(x => x === 'NO') ? 'no' : '');
       if (!numeroReal) sinNumero++;
       if (valorNominal == null || valorNominal <= 0) sinValor++;
       if (!ejecucion && !fin) sinFechaFin++;
@@ -183,7 +186,7 @@
         formatoMaestro: {
           idContrato: idContrato, estado: texto(c.ESTADO), especialidad: esp || null, actividad: act || null,
           sujetos: parts.map(p => nombreDe(texto(p.ID_SUJETO))), cargos: cargos, formas: formas, figura: figura || null,
-          unspsc: unspscDe(idContrato), cantidades: cantidadesDe(idContrato), alertasOrigen: null
+          unspsc: unspscDe(idContrato), cantidades: cantidadesDe(idContrato), enRup: enRup, alertasOrigen: null
         }
       });
       if (ejecucion) {

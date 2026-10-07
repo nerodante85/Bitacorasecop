@@ -4099,5 +4099,55 @@ await check('EU-008: el contrato importado del Formato Maestro lleva sus UNSPSC 
   assert(c && c.formatoMaestro.unspsc[0] === '72141001', 'el importador debe conservar los códigos del contrato');
 });
 
+// ---- ¿El contrato está en el RUP? (columna EN_RUP del Formato Maestro): avisa, no bloquea ----
+function contratosConRup(estados) {
+  const cs = expEngine.parsearExcelExperiencia(fakeWorkbook(
+    ['Objeto', 'Fecha de terminación'],
+    estados.map((e, i) => ['Construcción de puentes vehiculares tramo ' + (i + 1), '2024-03-15'])
+  )).contratos;
+  cs.forEach((c, i) => { c.formatoMaestro = { enRup: estados[i] }; });
+  return cs;
+}
+const FILA_RUP = filaIA({ min_contratos: 2, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: false, codigos_unspsc: [] });
+
+await check('RR-001: el importador lee EN_RUP de las participaciones (Sí / No / sin dato; si hay varias, Sí gana)', () => {
+  const d = fmDatos();
+  d.participaciones.forEach(p => { p.EN_RUP = ''; });
+  const base = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: false }).contratos;
+  assert(base.every(c => c.formatoMaestro.enRup === ''), 'sin dato debe quedar vacío, no "no"');
+  const p1 = d.participaciones.find(p => p.ID_SUJETO === 'S-001' && p.ID_CONTRATO === 'C-0001'); p1.EN_RUP = 'Sí';
+  const p2 = d.participaciones.find(p => p.ID_SUJETO === 'S-001' && p.ID_CONTRATO === 'C-0005'); p2.EN_RUP = 'No';
+  const r = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: false }).contratos;
+  assert(r.find(c => c.formatoMaestro.idContrato === 'C-0001').formatoMaestro.enRup === 'si', 'Sí -> si');
+  assert(r.find(c => c.formatoMaestro.idContrato === 'C-0005').formatoMaestro.enRup === 'no', 'No -> no');
+  // Dos participantes del mismo contrato: 'no' solo si TODOS dicen que no; un 'no' junto a un vacío no afirma nada.
+  const parts1 = d.participaciones.filter(p => p.ID_CONTRATO === 'C-0001');
+  assert(parts1.length >= 2, 'el contrato C-0001 debe tener dos participantes en los datos de prueba');
+  parts1[0].EN_RUP = 'No'; parts1[1].EN_RUP = '';
+  const mezcla = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: true }).contratos.find(c => c.formatoMaestro.idContrato === 'C-0001');
+  assert(mezcla.formatoMaestro.enRup === '', 'un No y un vacío -> sin dato, no "no": ' + mezcla.formatoMaestro.enRup);
+  parts1[1].EN_RUP = 'Sí';
+  assert(FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: true }).contratos.find(c => c.formatoMaestro.idContrato === 'C-0001').formatoMaestro.enRup === 'si', 'No + Sí -> si');
+});
+
+await check('RR-002: si un contrato que acredita NO está en el RUP, el resultado sigue igual pero la justificación lo avisa', () => {
+  const r = evaluarFilaIA(FILA_RUP, contratosConRup(['si', 'no']));
+  assert(r.resultado === 'CUMPLE', 'no bloquea: ' + r.resultado + ' -- ' + r.justificacion);
+  assert(/no (est[aá]n?|aparece[n]?) en (el|tu) RUP/i.test(r.justificacion), 'debe avisar: ' + r.justificacion);
+});
+
+await check('RR-003: sin dato de RUP, o con todos en el RUP, no se agrega ningún aviso (no se inventa)', () => {
+  for (const est of [['si', 'si'], ['', ''], [undefined, 'si']]) {
+    const r = evaluarFilaIA(FILA_RUP, contratosConRup(est));
+    assert(!/RUP/.test(r.justificacion), JSON.stringify(est) + ' no debía mencionar el RUP: ' + r.justificacion);
+  }
+});
+
+await check('RR-004: si TODOS los contratos que acreditan están fuera del RUP, el aviso lo dice con más fuerza', () => {
+  const r = evaluarFilaIA(FILA_RUP, contratosConRup(['no', 'no']));
+  assert(r.resultado === 'CUMPLE', 'sigue sin bloquear: ' + r.resultado);
+  assert(/ninguno|todos/i.test(r.justificacion) && /RUP/.test(r.justificacion), r.justificacion);
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
