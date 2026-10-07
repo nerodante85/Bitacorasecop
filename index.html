@@ -1106,6 +1106,10 @@
      estimada") -- una fila editable por contrato. Grid de 3 columnas + botón
      eliminar, que colapsa a 1 columna en mobile (ver @media 560px más abajo)
      para no desbordar -- mismo criterio ya aplicado al nav. */
+  /* Importador del Formato Maestro (Empresa › Experiencia). */
+  #bitacora-root .fm-panel { border: 1px solid var(--accent); border-radius: var(--radius-md); padding: 14px 16px; margin: 12px 0; background: var(--surface); overflow-wrap: anywhere; min-width: 0; }
+  #bitacora-root .fm-panel[hidden] { display: none; }
+  #bitacora-root .fm-avisos { margin: 6px 0 0; padding-left: 18px; font-size: 13px; overflow-wrap: anywhere; }
   /* Capacidad Residual (Empresa › Datos): resumen, alertas y tarjeta por contrato. */
   #bitacora-root .cr-seccion { margin-top: 22px; }
   #bitacora-root .cr-cabecera { border: none; margin: 0 0 10px; padding-bottom: 0; }
@@ -1677,6 +1681,20 @@
               </div>
               <input type="file" accept=".xlsx,.xls,.csv,.pdf,.docx" id="bt-expeval-exp-file" aria-label="Seleccionar el archivo de experiencia del proponente (Excel, PDF o Word)" hidden>
               <div class="mt-8 saved-note" id="bt-expeval-exp-status">Sin cargar.</div>
+              <div class="fm-panel" id="bt-fm-panel" hidden>
+                <div class="field-label-row">Formato Maestro de Experiencia detectado</div>
+                <p class="saved-note" id="bt-fm-intro"></p>
+                <div class="field">
+                  <label for="bt-fm-sujeto">¿A quién corresponde la experiencia de esta empresa?</label>
+                  <select id="bt-fm-sujeto"></select>
+                </div>
+                <div class="field"><label class="field-check" for="bt-fm-vinculadas"><input type="checkbox" id="bt-fm-vinculadas" checked> Incluir la experiencia de las personas vinculadas a esta empresa</label></div>
+                <div class="saved-note" id="bt-fm-preview" role="status"></div>
+                <div class="actions">
+                  <button type="button" class="btn-primary" id="bt-fm-importar">Importar a esta empresa</button>
+                  <button type="button" class="link-btn" id="bt-fm-cancelar">Cancelar</button>
+                </div>
+              </div>
               <details class="expeval-review">
                 <summary>Ver ejemplo de formato aceptado</summary>
                 <p class="my-8 saved-note">En Excel, cualquier encabezado parecido a estos sirve (por ejemplo "Objeto" o "Cliente" también se reconocen) -- no hace falta copiar los nombres exactos. En PDF o Word sin tabla se extrae solo el texto completo, el valor (si hay una cifra clara) y hasta 2 fechas.</p>
@@ -1949,6 +1967,7 @@
 <script src="lectura.js"></script>
 <script src="evaluacion.js"></script>
 <script src="coincidencia.js"></script>
+<script src="formatomaestro.js"></script>
 <script>
 // Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
 const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII } = Coincidencia;
@@ -11410,6 +11429,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function etiquetaFuenteArchivo(fuente){
     if (fuente === 'docx' || fuente === 'docx-texto') return 'Word';
     if (fuente === 'pdf') return 'PDF';
+    if (fuente === 'formato-maestro') return 'Formato Maestro';
     return 'Excel';
   }
 
@@ -11483,7 +11503,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         })() +
         (conColumnas ? ' Revisa abajo qué columna se usó para cada campo antes de continuar.' : ' Revisa abajo cada contrato detectado antes de continuar.') +
         '</div>';
-      html += conColumnas
+      html += c.fuente === 'formato-maestro'
+        ? renderContratosFormatoMaestro(c, propio.meta)
+        : conColumnas
         ? renderColumnasDetectadas('Experiencia del proponente' + sufijoHojas, c.headers, c.cols, ETIQUETAS_CONTRATO, c.contratos.length, CAMPOS_ESENCIALES_CONTRATO)
         : renderContratosDetectadosTexto(c.contratos, etiquetaFuenteArchivo(c.fuente));
       expevalExpStatusEl.textContent = (propio.meta && propio.meta.expFile ? propio.meta.expFile + ' · ' : '') + c.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';
@@ -11521,6 +11543,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const XLSX = await loadXlsxLib();
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: 'array', cellNF: true }); // cellNF: conserva el formato de cada celda (para reconocer las fechas)
+      if (FormatoMaestro.esFormatoMaestro(wb.SheetNames)) return prepararFormatoMaestro(XLSX, wb, file);
+      ocultarPanelFormatoMaestro();
       const parsed = parsearExcelExperiencia(wb);
       if (!parsed.contratos.length){
         expevalExpStatusEl.textContent = 'Se leyó el archivo pero no se reconocieron filas de contratos. Revisa que tenga encabezados y al menos una fila de datos.';
@@ -11532,6 +11556,107 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     } catch(err){
       expevalExpStatusEl.textContent = 'No se pudo leer el Excel (' + (err && err.message ? err.message : 'error') + ').';
     }
+  }
+
+  // ── Formato Maestro de Experiencia (formatomaestro.js) ──
+  // El libro se lee con las hojas SUJETOS / CONTRATOS / PARTICIPACIONES (y UNSPSC / CANTIDADES si existen). Primero se
+  // pregunta a qué sujeto corresponde esta empresa (y si se suman las personas vinculadas) y luego se importa: los
+  // contratos entran al motor de experiencia y los que están en ejecución pasan a "Capacidad Residual".
+  let fmPendiente = null; // { datos, nombreArchivo }
+  const fmEl = id => document.getElementById(id);
+  function ocultarPanelFormatoMaestro(){
+    fmPendiente = null;
+    const panel = fmEl('bt-fm-panel'); if (panel) panel.hidden = true;
+  }
+  function opcionesFM(){
+    const sel = fmEl('bt-fm-sujeto'), chk = fmEl('bt-fm-vinculadas');
+    return { sujetoId: sel ? sel.value : '', incluirVinculadas: !!(chk && chk.checked && !chk.disabled) };
+  }
+  function actualizarVistaPreviaFM(){
+    if (!fmPendiente) return;
+    const sel = fmEl('bt-fm-sujeto'), chk = fmEl('bt-fm-vinculadas'), prev = fmEl('bt-fm-preview');
+    const vinc = fmPendiente.datos.sujetos.filter(x => x.cuentaPara === sel.value && x.id !== sel.value);
+    chk.disabled = vinc.length === 0;
+    const etiq = chk.closest('label');
+    if (etiq) etiq.lastChild.textContent = vinc.length ? ' Incluir la experiencia de las personas vinculadas a esta empresa (' + vinc.map(v => v.nombre).join(', ') + ')' : ' Incluir personas vinculadas (este sujeto no tiene ninguna en CUENTA_PARA)';
+    const r = FormatoMaestro.importar(fmPendiente.datos, opcionesFM());
+    const acreditan = r.contratos.filter(c => !c.enEjecucion).length;
+    prev.innerHTML = r.resumen
+      ? '<b>' + r.contratos.length + '</b> contrato(s): ' + acreditan + ' para acreditar experiencia y ' + r.enEjecucion.length + ' en ejecución (pasan a Capacidad Residual).' +
+        (r.avisos.length ? '<ul class="fm-avisos">' + r.avisos.map(a => '<li>' + escapeHtml(a) + '</li>').join('') + '</ul>' : '')
+      : escapeHtml(r.avisos[0] || '');
+  }
+  function prepararFormatoMaestro(XLSX, wb, file){
+    const hojas = {};
+    wb.SheetNames.forEach(n => {
+      const k = n.trim().toUpperCase();
+      if (['SUJETOS', 'CONTRATOS', 'PARTICIPACIONES', 'UNSPSC', 'CANTIDADES'].indexOf(k) !== -1) hojas[k] = XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: '', raw: true });
+    });
+    const datos = FormatoMaestro.leer(hojas);
+    if (datos.errores.length){
+      expevalExpStatusEl.textContent = 'El archivo parece del Formato Maestro pero no se pudo leer: ' + datos.errores.join(' ');
+      return;
+    }
+    fmPendiente = { datos: datos, nombreArchivo: file.name };
+    const sel = fmEl('bt-fm-sujeto');
+    sel.innerHTML = datos.sujetos.map(x => '<option value="' + escapeHtml(x.id) + '">' + escapeHtml(x.nombre + ' (' + x.tipo + ')') + '</option>').join('');
+    const nombrePerfil = (perfiles[perfilActivoId] && perfiles[perfilActivoId].nombre) || '';
+    const sugerido = FormatoMaestro.sujetoSugerido(datos.sujetos, nombrePerfil) || (datos.sujetos.find(x => x.tipo === 'Empresa') || datos.sujetos[0]).id;
+    sel.value = sugerido;
+    fmEl('bt-fm-intro').textContent = file.name + ': ' + datos.sujetos.length + ' sujeto(s), ' + datos.contratos.length + ' contrato(s) y ' + datos.participaciones.length + ' participación(es).';
+    fmEl('bt-fm-panel').hidden = false;
+    expevalExpStatusEl.textContent = 'Formato Maestro leído: elige a quién corresponde esta empresa y pulsa "Importar".';
+    actualizarVistaPreviaFM();
+  }
+  // Contratos en ejecución importados -> perfil.contratosEnEjecucion (sin repetir los que ya estaban, por id o por número).
+  function agregarEnEjecucionImportados(lista){
+    if (!lista.length || !perfilActivoId || !perfiles[perfilActivoId]) return 0;
+    const destino = Array.isArray(perfiles[perfilActivoId].contratosEnEjecucion) ? perfiles[perfilActivoId].contratosEnEjecucion : (perfiles[perfilActivoId].contratosEnEjecucion = []);
+    let n = 0;
+    lista.forEach(c => {
+      if (destino.some(x => x.id === c.id || (c.numero && x.numero && x.numero === c.numero))) return;
+      destino.push(c); n++;
+    });
+    if (n){
+      marcarCapacidadActualizada();
+      perfil = perfiles[perfilActivoId];
+      renderContratosEjecucion();
+      persistirPerfiles();
+    }
+    return n;
+  }
+  function importarFormatoMaestro(){
+    if (!fmPendiente) return;
+    const r = FormatoMaestro.importar(fmPendiente.datos, opcionesFM());
+    if (!r.contratos.length){ fmEl('bt-fm-preview').textContent = 'Ese sujeto no tiene contratos en la hoja PARTICIPACIONES.'; return; }
+    const parsed = { headers: [], cols: {}, contratos: r.contratos, nHojas: 1, omitidos: null, fuente: 'formato-maestro' };
+    const nombre = fmPendiente.nombreArchivo;
+    if (!guardarExperienciaDelPerfil(parsed, nombre, { formatoMaestro: { sujeto: r.resumen.sujeto, vinculados: r.resumen.vinculados, avisos: r.avisos } })) return;
+    const agregados = agregarEnEjecucionImportados(r.enEjecucion);
+    ocultarPanelFormatoMaestro();
+    expevalExpStatusEl.textContent = nombre + ' · ' + r.contratos.length + ' contrato(s) importado(s) del Formato Maestro' + (agregados ? ' y ' + agregados + ' contrato(s) en ejecución agregado(s) a Capacidad Residual' : '') + '.';
+  }
+  (function(){
+    const sel = fmEl('bt-fm-sujeto'), chk = fmEl('bt-fm-vinculadas'), ok = fmEl('bt-fm-importar'), no = fmEl('bt-fm-cancelar');
+    if (sel) sel.addEventListener('change', actualizarVistaPreviaFM);
+    if (chk) chk.addEventListener('change', actualizarVistaPreviaFM);
+    if (ok) ok.addEventListener('click', importarFormatoMaestro);
+    if (no) no.addEventListener('click', () => { ocultarPanelFormatoMaestro(); expevalExpStatusEl.textContent = 'Importación cancelada.'; });
+  })();
+  // Revisión de lo importado del Formato Maestro (tiene columnas propias, a diferencia del texto libre de un PDF).
+  function renderContratosFormatoMaestro(c, meta){
+    const fm = (meta && meta.formatoMaestro) || {};
+    const filas = c.contratos.map((ct, i) => '<tr><td>' + (i + 1) + '</td>' +
+      '<td>' + escapeHtml(ct.formatoMaestro ? ct.formatoMaestro.idContrato : '') + '</td>' +
+      '<td>' + escapeHtml(truncate(ct.objeto || '', 160)) + '</td>' +
+      '<td>' + escapeHtml(truncate(ct.contratante || '—', 60)) + '</td>' +
+      '<td>' + (ct.valor != null ? ct.valor.toLocaleString('es-CO') : '—') + '</td>' +
+      '<td>' + (ct.participacion ? escapeHtml(ct.participacion.raw) : '—') + '</td>' +
+      '<td>' + escapeHtml(ct.enEjecucion ? 'En ejecución' : (ct.fechaFin || '—')) + '</td></tr>').join('');
+    const avisos = (fm.avisos || []).length ? '<ul class="fm-avisos">' + fm.avisos.map(a => '<li>' + escapeHtml(a) + '</li>').join('') + '</ul>' : '';
+    return '<details class="expeval-review" open><summary>Revisar lo importado: Formato Maestro de ' + escapeHtml(fm.sujeto || 'la empresa') + ' -- ' + c.contratos.length + ' contrato(s)</summary>' +
+      ((fm.vinculados || []).length ? '<p class="my-8 saved-note">Incluye la experiencia de: ' + fm.vinculados.map(escapeHtml).join(', ') + '.</p>' : '') + avisos +
+      '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>#</th><th>ID</th><th>Objeto</th><th>Entidad</th><th>Valor del contrato</th><th>Participación</th><th>Terminación</th></tr></thead><tbody>' + filas + '</tbody></table></div></details>';
   }
 
   // Experiencia del proponente en PDF. A diferencia de un requisito (que

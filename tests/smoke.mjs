@@ -26,6 +26,7 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 // Reglas compartidas (coincidencia.js): el mismo archivo que carga el navegador y copia daily-digest.
 const Coincidencia = (await import(pathToFileURL(path.join(ROOT, 'coincidencia.js')).href)).default;
 const Evaluacion = (await import(pathToFileURL(path.join(ROOT, 'evaluacion.js')).href)).default;
+const FormatoMaestro = (await import(pathToFileURL(path.join(ROOT, 'formatomaestro.js')).href)).default;
 const HTML_PATH = path.join(ROOT, 'index.html');
 const html = readFileSync(HTML_PATH, 'utf8');
 
@@ -3937,6 +3938,108 @@ await check('Despliegue: cada script propio sale sellado con ?v=<commit> en el i
   } finally {
     execFileSync('bash', ['-c', 'rm -rf tests/_sello_tmp'], { cwd: ROOT });
   }
+});
+
+// ---- Formato Maestro de Experiencia: importador (formatomaestro.js) -----------------------------
+const FM_SUJETOS = [
+  { ID_SUJETO: 'S-001', TIPO: 'Empresa', NOMBRE: 'CONSTRUCTORA EJEMPLO S.A.S.', DOCUMENTO: '900', CUENTA_PARA: '' },
+  { ID_SUJETO: 'S-002', TIPO: 'Persona natural', NOMBRE: 'María Ejemplo Pérez', DOCUMENTO: '1', CUENTA_PARA: 'S-001' },
+  { ID_SUJETO: 'S-003', TIPO: 'Empresa', NOMBRE: 'INGENIERÍA DE MUESTRA LTDA.', DOCUMENTO: '902', CUENTA_PARA: '' }];
+const FM_CONTRATOS = [
+  { ID_CONTRATO: 'C-0001', NUMERO_CONTRATO: '001/2015', ENTIDAD: 'Alcaldía de Ejemplo', TIPO_CLIENTE: 'Público', OBJETO: 'Construcción de aula y batería sanitaria', ESPECIALIDAD: 'Edificaciones educativas', TIPO_ACTIVIDAD: 'Construcción', FECHA_INICIO: 42009, FECHA_TERMINACION: '2015-03-03', ESTADO: 'Terminado', VALOR_CONTRATO: '1.000.000.000' },
+  { ID_CONTRATO: 'C-0002', NUMERO_CONTRATO: 'S/N', ENTIDAD: 'Gobernación de Ejemplo', OBJETO: 'Mantenimiento de vía terciaria', ESTADO: 'Liquidado', FECHA_TERMINACION: '30/09/2019', VALOR_CONTRATO: 520000000 },
+  { ID_CONTRATO: 'C-0003', NUMERO_CONTRATO: 'X-3', ENTIDAD: 'Alcaldía B', OBJETO: 'Obra en consorcio sin porcentaje', ESTADO: 'Terminado', FECHA_TERMINACION: '2018-05-05', VALOR_CONTRATO: 700000000 },
+  { ID_CONTRATO: 'C-0004', NUMERO_CONTRATO: 'GG-4215', ENTIDAD: 'Empresa de Gas', TIPO_CLIENTE: 'Privado', OBJETO: 'Traslado de tubería en ejecución', ESTADO: 'En ejecución', FECHA_INICIO: '2021-10-07', VALOR_CONTRATO: 422642613, VALOR_EJECUTADO: 150000000, SOPORTE: 'Acta de inicio' },
+  { ID_CONTRATO: 'C-0005', NUMERO_CONTRATO: 'Z-5', ENTIDAD: 'Alcaldía C', OBJETO: 'Contrato sin fecha de terminación', ESTADO: 'Terminado', VALOR_CONTRATO: 100000000 }];
+const FM_PARTICIPACIONES = [
+  { ID_CONTRATO: 'C-0001', ID_SUJETO: 'S-001', FORMA_EJECUCION: 'Unión temporal', NOMBRE_FIGURA: 'UT Ejemplo', PORCENTAJE: 0.9 },
+  { ID_CONTRATO: 'C-0001', ID_SUJETO: 'S-002', FORMA_EJECUCION: 'Unión temporal', NOMBRE_FIGURA: 'UT Ejemplo', PORCENTAJE: '10%', CARGO_PROFESIONAL: 'Contratista' },
+  { ID_CONTRATO: 'C-0002', ID_SUJETO: 'S-001', FORMA_EJECUCION: 'Individual' },
+  { ID_CONTRATO: 'C-0003', ID_SUJETO: 'S-001', FORMA_EJECUCION: 'Consorcio' },
+  { ID_CONTRATO: 'C-0004', ID_SUJETO: 'S-003', FORMA_EJECUCION: 'Individual', PORCENTAJE: 1 },
+  { ID_CONTRATO: 'C-0005', ID_SUJETO: 'S-001', FORMA_EJECUCION: 'Individual', PORCENTAJE: 1 },
+  { ID_CONTRATO: 'C-9999', ID_SUJETO: 'S-001', FORMA_EJECUCION: 'Individual', PORCENTAJE: 1 }];
+const fmDatos = () => FormatoMaestro.leer({ SUJETOS: FM_SUJETOS, CONTRATOS: FM_CONTRATOS, PARTICIPACIONES: FM_PARTICIPACIONES });
+
+await check('FM-001: se reconoce el Formato Maestro por sus hojas (sin importar mayúsculas ni tildes) y avisa qué hoja falta', () => {
+  assert(FormatoMaestro.esFormatoMaestro(['LEEME', 'sujetos', 'Contratos', 'PARTICIPACIONES', 'LISTAS']), 'debe reconocerlo');
+  assert(!FormatoMaestro.esFormatoMaestro(['Hoja1', 'Hoja2']) && !FormatoMaestro.esFormatoMaestro(['CONTRATOS', 'SUJETOS']), 'un Excel antiguo no es el formato');
+  const d = FormatoMaestro.leer({ SUJETOS: FM_SUJETOS, CONTRATOS: FM_CONTRATOS });
+  assert(d.errores.length === 1 && /PARTICIPACIONES/.test(d.errores[0]), 'errores: ' + JSON.stringify(d.errores));
+});
+
+await check('FM-002: fechas (serie de Excel, ISO, día/mes/año) y porcentajes (0,9 / "10%" / 45) se leen; lo dudoso queda en null', () => {
+  assert(FormatoMaestro.fechaISO(42009) === '2015-01-05' && FormatoMaestro.fechaISO('2015-03-03') === '2015-03-03' && FormatoMaestro.fechaISO('30/09/2019') === '2019-09-30', 'fechas válidas');
+  assert(FormatoMaestro.fechaISO(5) === null && FormatoMaestro.fechaISO('En Ejecución') === null && FormatoMaestro.fechaISO('31/13/2019') === null && FormatoMaestro.fechaISO('') === null, 'fechas dudosas -> null');
+  assert(FormatoMaestro.porcentaje(0.9) === 0.9 && FormatoMaestro.porcentaje('10%') === 0.1 && FormatoMaestro.porcentaje(45) === 0.45 && FormatoMaestro.porcentaje(0) === null && FormatoMaestro.porcentaje(150) === null, 'porcentajes');
+});
+
+await check('FM-003: las personas vinculadas (CUENTA_PARA) se suman al mismo contrato: UNA entrada con 100 %, no dos contratos; sin vincular solo su parte', () => {
+  const d = fmDatos();
+  const con = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: true });
+  const c1 = con.contratos.find(c => c.formatoMaestro.idContrato === 'C-0001');
+  assert(c1.participacion.valor === 100 && c1.valor === 1000000000, 'con vinculadas: ' + JSON.stringify(c1.participacion));
+  assert(con.contratos.filter(c => c.formatoMaestro.idContrato === 'C-0001').length === 1, 'el mismo contrato no se cuenta dos veces');
+  assert(c1.formatoMaestro.sujetos.length === 2 && c1.formatoMaestro.cargos[0] === 'Contratista', 'quién participó y con qué cargo');
+  const sin = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: false }).contratos.find(c => c.formatoMaestro.idContrato === 'C-0001');
+  assert(sin.participacion.valor === 90, 'sin vinculadas solo su 90 %: ' + JSON.stringify(sin.participacion));
+});
+
+await check('FM-004: forma del contrato importado: valor nominal, fechas ISO, número S/N -> null, objeto y entidad; individual sin % = 100 %', () => {
+  const r = FormatoMaestro.importar(fmDatos(), { sujetoId: 'S-001', incluirVinculadas: true });
+  const c1 = r.contratos.find(c => c.formatoMaestro.idContrato === 'C-0001'), c2 = r.contratos.find(c => c.formatoMaestro.idContrato === 'C-0002');
+  assert(c1.valor === 1000000000 && c1.valorAjustado === false && c1.fechaInicio === '2015-01-05' && c1.fechaFin === '2015-03-03' && c1.numeroContrato === '001/2015', JSON.stringify(c1));
+  assert(c1.contratante === 'Alcaldía de Ejemplo' && /aula/.test(c1.objeto) && c1.actividades === 'Edificaciones educativas · Construcción', 'texto');
+  assert(c2.numeroContrato === null && c2.participacion.valor === 100 && c2.fechaFin === '2019-09-30' && c2.valor === 520000000, 'S/N, individual y fecha d/m/a: ' + JSON.stringify(c2));
+});
+
+await check('FM-005: consorcio sin porcentaje -> sin valor (no se afirma una cuantía) y se avisa; sin fecha de terminación se avisa', () => {
+  const r = FormatoMaestro.importar(fmDatos(), { sujetoId: 'S-001', incluirVinculadas: true });
+  const c3 = r.contratos.find(c => c.formatoMaestro.idContrato === 'C-0003');
+  assert(c3.valor === null && c3.participacion === null, 'consorcio sin %: ' + JSON.stringify([c3.valor, c3.participacion]));
+  assert(r.avisos.some(a => /sin porcentaje/.test(a)) && r.avisos.some(a => /sin fecha de terminación/.test(a)), 'avisos: ' + r.avisos.join(' | '));
+  assert(r.avisos.some(a => /no está en la hoja CONTRATOS/.test(a)) && !r.contratos.some(c => c.formatoMaestro.idContrato === 'C-9999'), 'participación huérfana omitida y avisada');
+});
+
+await check('FM-006: contratos en ejecución no acreditan experiencia y pasan a Capacidad Residual con su valor ejecutado', () => {
+  const r = FormatoMaestro.importar(fmDatos(), { sujetoId: 'S-003', incluirVinculadas: false });
+  assert(r.contratos.length === 1 && r.contratos[0].enEjecucion === true, 'enEjecucion: ' + JSON.stringify(r.contratos.map(c => c.enEjecucion)));
+  assert(r.enEjecucion.length === 1, 'un contrato en ejecución para la capacidad');
+  const e = r.enEjecucion[0];
+  assert(e.estado === 'en_ejecucion' && e.tipoCliente === 'privado' && e.valorActual === '422642613' && e.valorEjecutado === '150000000' && e.soporte === 'Acta de inicio' && e.consorcio === false, JSON.stringify(e));
+  const susp = FormatoMaestro.importar(FormatoMaestro.leer({ SUJETOS: FM_SUJETOS, PARTICIPACIONES: [{ ID_CONTRATO: 'C-0009', ID_SUJETO: 'S-001', FORMA_EJECUCION: 'Individual', PORCENTAJE: 1 }], CONTRATOS: [{ ID_CONTRATO: 'C-0009', OBJETO: 'x', ESTADO: 'Suspendido', VALOR_CONTRATO: 5 }] }), { sujetoId: 'S-001' });
+  assert(susp.contratos[0].enEjecucion === true && susp.enEjecucion[0].estado === 'suspendido', 'un contrato suspendido tampoco acredita');
+});
+
+await check('FM-007: porcentajes que suman más de 100 % se topan en 100 % y se avisan; un sujeto inexistente no importa nada', () => {
+  const d = FormatoMaestro.leer({ SUJETOS: FM_SUJETOS, CONTRATOS: [FM_CONTRATOS[0]], PARTICIPACIONES: [{ ID_CONTRATO: 'C-0001', ID_SUJETO: 'S-001', FORMA_EJECUCION: 'Consorcio', PORCENTAJE: 0.7 }, { ID_CONTRATO: 'C-0001', ID_SUJETO: 'S-002', FORMA_EJECUCION: 'Consorcio', PORCENTAJE: 0.6 }] });
+  const r = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: true });
+  assert(r.contratos[0].participacion.valor === 100 && r.avisos.some(a => /suman más de 100/.test(a)), JSON.stringify(r.avisos));
+  const nada = FormatoMaestro.importar(d, { sujetoId: 'S-999' });
+  assert(nada.contratos.length === 0 && nada.avisos.length === 1, 'sujeto inexistente');
+});
+
+await check('FM-008: el sujeto sugerido sale del nombre de la empresa (ignora "S.A.S.", "Ltda" y palabras genéricas)', () => {
+  assert(FormatoMaestro.sujetoSugerido(fmDatos().sujetos, 'Constructora Ejemplo SAS') === 'S-001', 'S-001');
+  assert(FormatoMaestro.sujetoSugerido(fmDatos().sujetos, 'Ingeniería de Muestra') === 'S-003', 'S-003');
+  assert(FormatoMaestro.sujetoSugerido(fmDatos().sujetos, 'Otra Empresa Cualquiera') === null, 'sin coincidencia no se adivina');
+});
+
+await check('FM-009: un contrato importado con participación se pondera en el motor de experiencia (90 % de $1.000 M no llega a $950 M; con la persona vinculada, 100 %, sí)', () => {
+  const d = fmDatos();
+  const req = expEngine.construirRequisitoDesdeTexto('Experiencia específica en construcción de aula y batería sanitaria, mínimo 1 contrato, valor mínimo $950.000.000 pesos, obligatorio.', 0, {});
+  const sin = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: false }).contratos;
+  const con = FormatoMaestro.importar(d, { sujetoId: 'S-001', incluirVinculadas: true }).contratos;
+  const rSin = expEngine.evaluarExperienciaCompleta(sin, [req]).resultados[0].resultado;
+  const rCon = expEngine.evaluarExperienciaCompleta(con, [req]).resultados[0].resultado;
+  assert(rCon === 'CUMPLE' && rSin !== 'CUMPLE', 'con vinculadas ' + rCon + ' / sin vinculadas ' + rSin);
+});
+
+await check('FM-010: el importador está cargado en index.html antes del script principal y publicado por pages.yml', () => {
+  assert(/<script src="formatomaestro\.js"><\/script>/.test(html), 'index.html debe cargar formatomaestro.js');
+  assert(html.indexOf('<script src="formatomaestro.js">') < html.indexOf('FormatoMaestro.esFormatoMaestro('), 'debe cargarse antes de usarlo');
+  const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
+  assert(/cp index\.html [^\n]*formatomaestro\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro/.test(yml), 'pages.yml debe copiar y sellar formatomaestro.js');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

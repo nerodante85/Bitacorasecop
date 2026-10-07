@@ -29,6 +29,7 @@ sincronización, Edge Functions de IA y correo).
   - `lectura.js` (`window.Lectura`): lectura de documentos por tandas con tres lectores (texto, OCR, IA); sin DOM.
   - `evaluacion.js` (`window.Evaluacion.crear(deps)`): motor del veredicto GO / REVISAR / NO-GO; recibe un `ctx` explícito
     `{minV, maxV, perfilesProfesionales, perfiles}`; sin DOM ni globales.
+  - `formatomaestro.js` (`window.FormatoMaestro`): importador del Formato Maestro de Experiencia (ver más abajo); sin DOM ni librería de Excel.
   - `coincidencia.js` (`window.Coincidencia`): reglas de coincidencia de procesos. **Una copia idéntica** vive en
     `supabase/functions/daily-digest/coincidencia.js` (una prueba falla si difieren; sincroniza con
     `cp coincidencia.js supabase/functions/daily-digest/`).
@@ -57,7 +58,7 @@ sincronización, Edge Functions de IA y correo).
   completa (CO, E, CT, CF: Fase 2, pendiente de la fuente oficial). Lógica pura en `evaluacion.js` (`validarContratoEjecucion`, `contratosDuplicados`, `resumenCapacidadResidual` con estados
   completa/preliminar/no_calculable, `comparacionCapacidadResidual`). En el análisis, `capacidadResidualAnalisisHtml` muestra exigida vs empresa con fuente y página; la misma regla del gate
   "Capacidad K residual". `extraerKResidualUmbral` devuelve `conflicto` si el documento trae montos distintos (nunca elige uno). Detalle en `auditoria/CAPACIDAD-RESIDUAL-FASE1.md`.
-- **Formato Maestro de Experiencia** (diseño, 2026-10): plantilla en `plantillas/Formato_Maestro_Experiencia_BitacoraSECOP_v1.xlsx` (sujetos, contratos únicos, participaciones, UNSPSC, cantidades, listas y SMMLV con fórmulas). La app todavía **no** lo importa (Fase 3); sigue leyendo los Excel antiguos. Diseño y auditoría en `auditoria/FORMATO-MAESTRO-EXPERIENCIA-FASE*.md`.
+- **Formato Maestro de Experiencia** (diseño, 2026-10): plantilla en `plantillas/Formato_Maestro_Experiencia_BitacoraSECOP_v1.xlsx` (sujetos, contratos únicos, participaciones, UNSPSC, cantidades, listas y SMMLV con fórmulas). La app lo **importa** (`formatomaestro.js`, `window.FormatoMaestro`, puro y sin DOM): `cargarExcelExperiencia` lo detecta por las hojas SUJETOS/CONTRATOS/PARTICIPACIONES, pregunta a qué sujeto corresponde la empresa (y si se suman las personas de `CUENTA_PARA`) y entonces `importarFormatoMaestro` guarda los contratos en el motor de experiencia (valor NOMINAL + participación; el motor pondera) y pasa los que están `En ejecución`/`Suspendido` a Capacidad Residual. No usa las columnas calculadas del libro (un archivo recién generado no trae valores de fórmula). Un contrato con varios participantes del mismo destino entra UNA vez (suma de porcentajes); consorcio sin porcentaje entra sin valor. Los Excel antiguos se siguen leyendo como antes. Diseño y auditoría en `auditoria/FORMATO-MAESTRO-EXPERIENCIA-FASE*.md`.
 - **Documentos**: `inventarioDocumentos` (puro) lista lo cargado; no guarda archivos nuevos (RUP/RUT/hojas de vida no se conservan como archivo).
 - **SECOP I fue retirado por completo** (2026-10, decisión del usuario): ni búsqueda ni adjudicaciones; solo SECOP II. Decisión abierta: texto jurídico de privacidad.
 - **Datos**: dataset SECOP II `p6dx-8zbt` (Buscar procesos y adjudicaciones), PAA `9sue-ezhx`. Todo vía Socrata (datos.gov.co) con `X-App-Token`.

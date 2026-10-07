@@ -499,6 +499,48 @@ await check('Capacidad Residual (empresa): estado de confianza, contrato en cons
   await ctx.close();
 });
 
+await check('Formato Maestro: se detecta al cargar el libro, sugiere el sujeto por el nombre de la empresa, importa los contratos y manda los que están en ejecución a Capacidad Residual', async () => {
+  const sem = { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Constructora Ejemplo S.A.S.', nit: '900', k: '', kResidual: 'K residual = 5.000.000.000', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']) };
+  const { ctx, pg } = await abrir({ sembrar: sem });
+  await pg.click('#bt-nav-empresa'); await pg.click('#bt-empresa-tab-experiencia');
+  const archivo = join(RAIZ, 'plantillas', 'Formato_Maestro_Experiencia_BitacoraSECOP_v1.xlsx');
+  await pg.setInputFiles('#bt-expeval-exp-file', archivo);
+  await pg.waitForSelector('#bt-fm-panel:not([hidden])');
+  const p = await pg.evaluate(() => ({ sujeto: document.getElementById('bt-fm-sujeto').selectedOptions[0].textContent, vinc: document.getElementById('bt-fm-vinculadas').checked, prev: document.getElementById('bt-fm-preview').textContent, estado: document.getElementById('bt-expeval-exp-status').textContent }));
+  assert(/CONSTRUCTORA EJEMPLO/.test(p.sujeto), 'sugiere el sujeto por nombre: ' + p.sujeto);
+  assert(/2 contrato\(s\): 2 para acreditar experiencia y 0 en ejecución/.test(p.prev), 'vista previa (con la persona vinculada): ' + p.prev);
+  assert(/Formato Maestro leído/.test(p.estado), 'estado: ' + p.estado);
+  // quitar a las personas vinculadas no cambia el número de contratos, pero sí la participación del primero
+  await pg.click('#bt-fm-importar');
+  await pg.waitForFunction(() => document.getElementById('bt-fm-panel').hidden === true);
+  const rev = await pg.evaluate(() => ({ estado: document.getElementById('bt-expeval-exp-status').textContent, filas: [...document.querySelectorAll('#bt-expeval-review .expeval-table tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim())), aviso: (document.querySelector('#bt-expeval-review .account-notice') || {}).textContent }));
+  assert(/2 contrato\(s\) importado\(s\) del Formato Maestro/.test(rev.estado), 'estado tras importar: ' + rev.estado);
+  assert(rev.filas.length === 2 && rev.filas[0][1] === 'C-0001' && /100/.test(rev.filas[0][5]), 'tabla de revisión: ' + JSON.stringify(rev.filas));
+  // el motor guarda los contratos importados para esta empresa
+  const guardados = await pg.evaluate(() => { const d = JSON.parse(localStorage.getItem('bitacora_experiencia_evaluacion') || '{}'); const c = (((d.porPerfil || {}).p1 || {}).contratos || {}); return { fuente: c.fuente, n: (c.contratos || []).length, valor: c.contratos && c.contratos[0] && c.contratos[0].valor }; });
+  assert(guardados.fuente === 'formato-maestro' && guardados.n === 2 && guardados.valor === 163147838, 'guardado: ' + JSON.stringify(guardados));
+  // ahora el sujeto con un contrato en ejecución -> Capacidad Residual
+  await pg.setInputFiles('#bt-expeval-exp-file', archivo);
+  await pg.waitForSelector('#bt-fm-panel:not([hidden])');
+  await pg.selectOption('#bt-fm-sujeto', 'S-003');
+  assert(/1 contrato\(s\): 0 para acreditar experiencia y 1 en ejecución/.test(await pg.textContent('#bt-fm-preview')), 'vista previa del sujeto con contrato en ejecución');
+  await pg.click('#bt-fm-importar');
+  await pg.waitForFunction(() => /1 contrato\(s\) en ejecución agregado\(s\) a Capacidad Residual/.test(document.getElementById('bt-expeval-exp-status').textContent));
+  await pg.click('#bt-empresa-tab-perfil');
+  const cr = await pg.evaluate(() => ({ numeros: [...document.querySelectorAll('#bt-contratos-ejecucion-list [data-contrato-campo="numero"]')].map(i => i.value), hero: (document.querySelector('#bt-capacidad-estimada-out .cr-hero') || {}).textContent }));
+  assert(cr.numeros.indexOf('GG-4215-2020') !== -1, 'el contrato en ejecución llegó a Capacidad Residual: ' + JSON.stringify(cr));
+  // importar de nuevo no duplica
+  await pg.click('#bt-empresa-tab-experiencia');
+  await pg.setInputFiles('#bt-expeval-exp-file', archivo);
+  await pg.waitForSelector('#bt-fm-panel:not([hidden])');
+  await pg.selectOption('#bt-fm-sujeto', 'S-003');
+  await pg.click('#bt-fm-importar');
+  await pg.waitForFunction(() => document.getElementById('bt-fm-panel').hidden === true);
+  assert(await pg.evaluate(() => document.querySelectorAll('#bt-contratos-ejecucion-list .contrato-row').length) === 1, 're-importar no duplica el contrato en ejecución');
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');

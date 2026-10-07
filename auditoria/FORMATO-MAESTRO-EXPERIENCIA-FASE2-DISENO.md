@@ -112,9 +112,16 @@ Bloquean al escribir: fechas fuera de rango, valores negativos o con texto, porc
 
 Probado: se cargó un libro con datos defectuosos y todas las alertas aparecieron; los ejemplos reales dan cero errores de fórmula (recalculado con LibreOffice).
 
-## 7. Cómo alimentará al motor (Fase 3, no implementada)
+## 7. Cómo alimenta al motor (importador, implementado)
 
-El importador de la app leerá este formato en lugar de adivinar columnas: `CONTRATOS`+`PARTICIPACIONES` reemplazan el arreglo plano de contratos (hoy `{objeto, contratante, valor, fechaFin, …}`), el porcentaje deja de ser un texto interpretado y los contratos `En ejecución` pasan directo a la Capacidad Residual. Los códigos UNSPSC y las cantidades habilitan requisitos que hoy no se pueden evaluar. Hasta entonces la app sigue leyendo los Excel antiguos como hoy.
+`formatomaestro.js` lee el libro (sin usar las columnas calculadas, porque un archivo recién generado no trae valores de fórmula) y la pantalla Empresa › Experiencia lo detecta por sus hojas. Flujo: se elige a qué sujeto corresponde la empresa (sugerido por el nombre) y si se suman las personas vinculadas (`CUENTA_PARA`); al importar:
+
+- `CONTRATOS` + `PARTICIPACIONES` pasan al motor de experiencia con el valor NOMINAL del contrato y el porcentaje de participación (el motor pondera). Un contrato con varios participantes del mismo destino entra **una sola vez** con la suma de sus porcentajes, para que "mínimo N contratos" no lo cuente dos veces.
+- Un consorcio o unión temporal **sin porcentaje** entra sin valor (no se afirma una cuantía); "Individual" sin porcentaje vale 100 %.
+- Los contratos `En ejecución` y `Suspendido` no acreditan experiencia y pasan a `Capacidad Residual` (sin repetir los ya registrados).
+- UNSPSC, cantidades, especialidad y cargos quedan guardados en cada contrato para futuras reglas; el motor actual aún no los usa.
+
+Los Excel antiguos se siguen leyendo como antes.
 
 ## 8. Riesgos y decisiones pendientes
 
