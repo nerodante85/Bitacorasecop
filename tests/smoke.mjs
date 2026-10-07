@@ -156,8 +156,7 @@ await check('todo host https:// usado en el código aparece en la política CSP'
   // test dejaría de ignorarlo automáticamente.
   const NAVIGATION_ONLY_HOSTS = new Set([
     'community.secop.gov.co',    // enlaces "Abrir expediente"/"Buscar en SECOP II" + dato de ejemplo urlproceso
-    'www.colombiacompra.gov.co', // enlace de respaldo "Buscar en SECOP I"
-    'dev.socrata.com',           // mencionado solo en un comentario (cómo conseguir un App Token), no se usa en ningún fetch()
+        'dev.socrata.com',           // mencionado solo en un comentario (cómo conseguir un App Token), no se usa en ningún fetch()
   ]);
   const cspMatch = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/);
   assert(cspMatch, 'no se encontró el <meta> de Content-Security-Policy');
@@ -367,7 +366,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2249,22 +2248,6 @@ await check('IA-008: requisitos jurídicos/garantías/otros y categorías ausent
 
 // ---- Auditoría TR-001..TR-003: adjudicaciones y sugerencia de oferta -------------
 const adjII = (valorAdj, precioBase, extra) => Object.assign({ fuente: 'II', objeto: 'Obra', referencia: 'R' + valorAdj, adjudicatario: 'X', valorAdj, precioBase, fecha: '2024-01-01' }, extra || {});
-const adjI = (valorAdj, extra) => Object.assign({ fuente: 'I', objeto: 'Obra', referencia: 'P' + valorAdj, adjudicatario: 'X', valorAdj, precioBase: null, fecha: '2019-01-01' }, extra || {});
-
-await check('TR-001: SECOP I nunca aporta un descuento (su "presupuesto" es el valor del contrato): 29 filas SECOP I no dan sugerencia', () => {
-  const lista = []; for (let i = 0; i < 29; i++) lista.push(adjI(1000 + i, { precioBase: 1000 + i })); // aunque llegara un precioBase, SECOP I se ignora
-  assert(expEngine.descuentoComparable(lista[0]) === null, 'SECOP I no debe dar descuento');
-  const r = expEngine.sugerenciaOfertaEconomica(lista, 610000000);
-  assert(r.aplica === false && /SECOP I no cuentan/.test(r.motivo), 'se esperaba aplica:false, fue ' + JSON.stringify(r));
-});
-
-await check('TR-001: con ambas fuentes la sugerencia usa SOLO SECOP II (los SECOP I no cambian el resultado)', () => {
-  const ii = [adjII(90, 100), adjII(80, 100), adjII(95, 100)];
-  const solo = expEngine.sugerenciaOfertaEconomica(ii, 1000);
-  const mixto = expEngine.sugerenciaOfertaEconomica(ii.concat([adjI(500), adjI(600), adjI(700)]), 1000);
-  assert(solo.aplica && mixto.aplica && mixto.muestra === 3, 'muestra ' + mixto.muestra);
-  assert(mixto.competitivo.valor === solo.competitivo.valor && mixto.agresivo.valor === solo.agresivo.valor, 'SECOP I contaminó la sugerencia');
-});
 
 await check('TR-002: filas duplicadas (mismo uid/clave) cuentan una sola vez para el mínimo de 3 comparables', () => {
   const dup = [adjII(90, 100, { clave: 'II|a' }), adjII(90, 100, { clave: 'II|a' }), adjII(90, 100, { clave: 'II|a' }), adjII(80, 100, { clave: 'II|b' })];
@@ -2272,112 +2255,25 @@ await check('TR-002: filas duplicadas (mismo uid/clave) cuentan una sola vez par
   assert(dedup.length === 2, 'se esperaban 2 únicas, fueron ' + dedup.length);
   assert(expEngine.sugerenciaOfertaEconomica(dedup, 1000).aplica === false, '2 únicas no alcanzan el mínimo de 3');
   assert(expEngine.sugerenciaOfertaEconomica(dup, 1000).aplica === true, 'control: sin deduplicar, 4 filas repetidas engañaban al mínimo');
-  const conFuentes = Object.assign([adjII(1, 2, { clave: 'k' })], { fuentes: { II: { ok: true }, I: { ok: false, error: 'x' } } });
-  assert(expEngine.deduplicarAdjudicaciones(conFuentes).fuentes.I.ok === false, 'debe conservar el estado por fuente');
+  const conFuentes = Object.assign([adjII(1, 2, { clave: 'k' })], { fuentes: { II: { ok: true } } });
+  assert(expEngine.deduplicarAdjudicaciones(conFuentes).fuentes.II.ok === true, 'debe conservar el estado por fuente');
   const mismaClave = expEngine.deduplicarAdjudicaciones([adjII(50, 100, { clave: 'z' }), adjII(70, 100, { clave: 'z' })]);
   assert(mismaClave.length === 1 && mismaClave[0].valorAdj === 70, 'conserva la de mayor valor');
 });
 
 await check('TR-003: si SECOP II falló no hay sugerencia y se dice por qué; el aviso nombra la fuente caída', () => {
-  const lista = Object.assign([adjII(90, 100), adjII(80, 100), adjII(95, 100)], { fuentes: { II: { ok: false, error: 'HTTP 503' }, I: { ok: true } } });
+  const lista = Object.assign([adjII(90, 100), adjII(80, 100), adjII(95, 100)], { fuentes: { II: { ok: false, error: 'HTTP 503' } } });
   const r = expEngine.sugerenciaOfertaEconomica(lista, 1000);
   assert(r.aplica === false && /No se pudo consultar SECOP II \(HTTP 503\)/.test(r.motivo), 'motivo: ' + r.motivo);
-  const ok = Object.assign([adjII(90, 100), adjII(80, 100), adjII(95, 100)], { fuentes: { II: { ok: true }, I: { ok: false, error: 'timeout' } } });
-  assert(expEngine.sugerenciaOfertaEconomica(ok, 1000).aplica === true, 'si solo cayó SECOP I la sugerencia sigue');
 });
-await check('TR-003: con ambas fuentes caídas no se dice "no se encontraron procesos": se muestra el aviso por fuente', () => {
+await check('TR-003: con la fuente caída no se dice "no se encontraron procesos": se muestra el aviso por fuente', () => {
   const src = readFileSync(HTML_PATH, 'utf8');
   const i = src.indexOf('function renderAdjudicacionesHtml(lista){');
   const cuerpo = src.slice(i, i + 700);
   assert(/avisoFuentesHtml\(lista\.fuentes\)/.test(cuerpo) && /!lista\.length && lista\.fuentes/.test(cuerpo), 'renderAdjudicacionesHtml debe mostrar el aviso antes del mensaje de vacío');
 });
 
-// ---- Auditoría SI-001 / SI-002: consulta de SECOP I por entidad -------------------
-const coincideInvias = n => /invias/i.test(n.normalize('NFD').replace(/[̀-ͯ]/g, ''));
-function fetchSimulado(baseDeDatos, registro) {
-  return async (p) => {
-    registro.push(p);
-    // SI-001 (índice de respaldo): a diferencia del `$q` de abajo, que simula el límite de una
-    // MUESTRA reciente con `.slice(0, limit)` ANTES de filtrar (así una entidad que solo aparece
-    // más allá de esa ventana queda fuera, como en la vida real), `$group` simula una agregación
-    // real de Socrata: recorre TODA la base, sin ese recorte.
-    if (p['$group']){
-      const q = (p['$q'] || '').toLowerCase();
-      const cuenta = new Map();
-      baseDeDatos.forEach(r => {
-        if (q && !(r.nombre_entidad + ' ' + (r.objeto || '')).toLowerCase().includes(q)) return;
-        cuenta.set(r.nombre_entidad, (cuenta.get(r.nombre_entidad) || 0) + 1);
-      });
-      return Array.from(cuenta.entries()).sort((a, b) => b[1] - a[1]).slice(0, Number(p['$limit']) || 30)
-        .map(([nombre_entidad, n]) => ({ nombre_entidad, n: String(n) }));
-    }
-    if (p['$q']) return baseDeDatos.slice(0, Number(p['$limit'])).filter(r => (r.nombre_entidad + ' ' + (r.objeto || '')).toLowerCase().includes(p['$q']));
-    const m = /nombre_entidad='(.*)'/.exec(p['$where']);
-    const todas = baseDeDatos.filter(r => r.nombre_entidad === m[1].replace(/''/g, "'"));
-    return todas.slice(Number(p['$offset']), Number(p['$offset']) + Number(p['$limit']));
-  };
-}
-
-await check('SI-001: se resuelve el nombre EXACTO y se piden todas sus filas por $where con paginación (antes: 1 de 987)', async () => {
-  const base = [];
-  for (let i = 0; i < 987; i++) base.push({ uid: 'u' + i, nombre_entidad: 'INSTITUTO NACIONAL DE VÍAS (INVIAS)', objeto: 'invias vias' });
-  for (let i = 0; i < 300; i++) base.push({ uid: 'x' + i, nombre_entidad: 'OTRA ENTIDAD', objeto: 'invias vias' });
-  const reg = [];
-  const r = await expEngine.consultarSecopIPorEntidad('invias', coincideInvias, fetchSimulado(base, reg));
-  assert(r.nombres.length === 1 && /INVIAS/.test(r.nombres[0]), 'nombres: ' + JSON.stringify(r.nombres));
-  assert(r.filas.length === 800, 'se esperaban 800 (tope de 2 páginas), fueron ' + r.filas.length);
-  assert(r.filas.every(f => f.nombre_entidad === r.nombres[0]), 'todas las filas deben ser de la entidad');
-  assert(reg.some(p => p['$where'] && p['$offset'] === '400'), 'debe paginar con $offset');
-});
-
-await check('SI-001: si la búsqueda por la ancla completa no encuentra la entidad, prueba cada palabra', async () => {
-  const base = [{ uid: '1', nombre_entidad: 'INSTITUTO NACIONAL DE VÍAS (INVIAS)', objeto: 'invias' }];
-  const reg = [];
-  const r = await expEngine.consultarSecopIPorEntidad('instituto nacional', coincideInvias, fetchSimulado(base, reg), ['instituto', 'nacional', 'invias']);
-  assert(r.filas.length === 1, 'se esperaba 1 fila, fueron ' + r.filas.length + ' con consultas ' + JSON.stringify(reg.map(p => p['$q'])));
-  const sinNada = await expEngine.consultarSecopIPorEntidad('zzzz', coincideInvias, fetchSimulado(base, []));
-  assert(sinNada.filas.length === 0 && sinNada.nombres.length === 0, 'sin entidad no inventa filas');
-});
-
-await check('SI-001: un apóstrofo en el nombre de la entidad se escapa en el $where', async () => {
-  const base = [{ uid: '1', nombre_entidad: "D'ANGELO INVIAS", objeto: 'invias' }];
-  const reg = [];
-  const r = await expEngine.consultarSecopIPorEntidad('invias', coincideInvias, fetchSimulado(base, reg));
-  assert(r.filas.length === 1 && reg.some(p => (p['$where'] || '').includes("D''ANGELO")), 'no escapó el apóstrofo: ' + JSON.stringify(reg));
-});
-
-await check('SI-001: si la entidad no aparece en la muestra reciente (una entidad grande, con muchas dependencias que comparten palabras, puede no caer en las últimas 400 filas subidas del término buscado -- caso real: Alcaldía de Medellín), el índice de respaldo por $group la encuentra en TODA la tabla', async () => {
-  const coincideMedellin = n => /medellin/i.test(n.normalize('NFD').replace(/[̀-ͯ]/g, ''));
-  const base = [];
-  // 500 filas de OTRAS entidades ocupan toda la "muestra reciente" (los primeros 400 que
-  // simula fetchSimulado con $q) -- ninguna menciona Medellín, así que el camino rápido
-  // no encuentra nada, igual que con la entidad real.
-  for (let i = 0; i < 500; i++) base.push({ uid: 'o' + i, nombre_entidad: 'OTRA ENTIDAD', objeto: 'obra generica' });
-  for (let i = 0; i < 12; i++) base.push({ uid: 'm' + i, nombre_entidad: 'ANTIOQUIA - ALCALDÍA MUNICIPIO DE MEDELLÍN', objeto: 'obra en medellin' });
-  const reg = [];
-  const r = await expEngine.consultarSecopIPorEntidad('medellin', coincideMedellin, fetchSimulado(base, reg));
-  assert(r.nombres.length === 1 && /MEDELL[IÍ]N/.test(r.nombres[0]), 'debe resolver por el índice de respaldo: ' + JSON.stringify(r.nombres));
-  assert(r.filas.length === 12, 'debe traer las 12 filas reales de la entidad, fueron ' + r.filas.length);
-  assert(reg.some(p => p['$group']), 'debe haber intentado la consulta agrupada de respaldo tras fallar la muestra rápida');
-});
-
-await check('SI-001: cuando la muestra reciente ya resuelve el nombre, NO se intenta el índice de respaldo (evita el costo extra de agregar sobre 6,4M de filas)', async () => {
-  const base = [];
-  for (let i = 0; i < 5; i++) base.push({ uid: 'i' + i, nombre_entidad: 'INSTITUTO NACIONAL DE VÍAS (INVIAS)', objeto: 'invias vias' });
-  const reg = [];
-  await expEngine.consultarSecopIPorEntidad('invias', coincideInvias, fetchSimulado(base, reg));
-  assert(!reg.some(p => p['$group']), 'no debería haberse intentado el índice de respaldo: ' + JSON.stringify(reg));
-});
-
-await check('SI-002: un fallo transitorio se reintenta una vez; un fallo persistente se propaga (y TR-003 lo avisa)', async () => {
-  let n = 0;
-  const v = await expEngine.conReintento(async () => { n++; if (n === 1) throw new Error('timeout'); return 'ok'; }, 2);
-  assert(v === 'ok' && n === 2, 'debía reintentar: n=' + n);
-  let m = 0, err = null;
-  try { await expEngine.conReintento(async () => { m++; throw new Error('503'); }, 2); } catch (e) { err = e; }
-  assert(err && err.message === '503' && m === 2, 'debía propagar tras 2 intentos: m=' + m);
-});
-
+// ---- Coincidencia estricta de nombres de entidad ---------------------------------
 await check('SI-001: la coincidencia estricta distingue "Norte de Santander" de "Santander" y acepta el nombre real de INVIAS', () => {
   const g = expEngine.prepararBusquedaPorNombre('Gobernación de Norte de Santander');
   assert(g.coincideEstricta('NORTE DE SANTANDER - GOBERNACIÓN') === true, 'debe aceptar la propia');
@@ -2391,7 +2287,7 @@ await check('SI-001: la coincidencia estricta distingue "Norte de Santander" de 
 // ---- Auditoría TR-007/008 y UX-001..005 -------------------------------------------
 await check('TR-007/TR-008: el pie de fuente dice dataset, fecha y modo; la demo se declara ficticia y el snapshot, no actual', () => {
   const vivo = expEngine.pieFuenteDatos('vivo', '2026-09-26T10:00:00.000Z', '2026-09-03');
-  assert(/p6dx-8zbt/.test(vivo) && /f789-7hwg/.test(vivo) && /2026-09-26T10:00/.test(vivo) && /en vivo/.test(vivo), 'vivo: ' + vivo);
+  assert(/p6dx-8zbt/.test(vivo) && !/f789-7hwg/.test(vivo) && /2026-09-26T10:00/.test(vivo) && /en vivo/.test(vivo), 'vivo: ' + vivo);
   const snap = expEngine.pieFuenteDatos('snapshot', null, '2026-09-03');
   assert(/SNAPSHOT DE RESPALDO del 2026-09-03/.test(snap) && /no son datos actuales/.test(snap), 'snapshot: ' + snap);
   const demo = expEngine.pieFuenteDatos('demo', null, '2026-09-03');

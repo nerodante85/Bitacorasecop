@@ -53,9 +53,8 @@ sincronización, Edge Functions de IA y correo).
 - **Búsqueda natural sin IA**: `interpretarBusqueda` llena los filtros y `#bt-nl-entendi` dice qué entendió; lo que no entiende va a `avisos`. Valor, entidad
   y fecha de cierre **sí filtran** (`cumpleRangoValor`, `coincideEntidad`, `cierraEnDias`); un proceso sin valor no se oculta por el rango.
 - **Documentos**: `inventarioDocumentos` (puro) lista lo cargado; no guarda archivos nuevos (RUP/RUT/hojas de vida no se conservan como archivo).
-- Decisiones abiertas: SECOP I sigue solo en adjudicaciones (no en la búsqueda); texto jurídico de privacidad pendiente.
-- **Datos**: dataset SECOP II `p6dx-8zbt` (Buscar procesos), SECOP I `f789-7hwg` (solo en "Ver adjudicaciones de esta entidad"),
-  PAA `9sue-ezhx`. Todo vía Socrata (datos.gov.co) con `X-App-Token`.
+- **SECOP I fue retirado por completo** (2026-10, decisión del usuario): ni búsqueda ni adjudicaciones; solo SECOP II. Decisión abierta: texto jurídico de privacidad.
+- **Datos**: dataset SECOP II `p6dx-8zbt` (Buscar procesos y adjudicaciones), PAA `9sue-ezhx`. Todo vía Socrata (datos.gov.co) con `X-App-Token`.
 - **Persistencia**: `window.storage.get/set` (shim sobre `localStorage` con prefijo `bitacora_`; con cuenta conectada, sincroniza a
   Supabase). Claves sincronizadas (`SYNCED_KEYS`): historial, perfiles_empresa, perfil_activo_id, perfiles_activos,
   perfil_empresa (legado), analisis_pliegos, experiencia_evaluacion, perfiles_profesionales, personal_activo_id, ultima_vista,
@@ -95,7 +94,7 @@ sincronización, Edge Functions de IA y correo).
 6. **Veredicto** (`evaluarProceso`): gates → GO solo si todo está en verde y hay pliego leído; cualquier gate `nd`/`revisar`
    da REVISAR; un `fail` da NO-GO. Lectura parcial siempre se avisa.
 7. Extras: Alertas guardadas (+ correo diario), PAA, Pipeline Kanban (reutiliza `historial`), sugerencia de oferta económica,
-   adjudicaciones de la entidad (SECOP I+II), documentos de propuesta (carta, hojas de vida, paquete) como **plantillas
+   adjudicaciones de la entidad (SECOP II), documentos de propuesta (carta, hojas de vida, paquete) como **plantillas
    orientativas**.
 
 ### IA: la IA extrae, el motor decide
@@ -134,7 +133,7 @@ sincronización, Edge Functions de IA y correo).
   (aun así puede pedir login: se muestra la Referencia como respaldo).
 - Los filtros de fábrica no deben esconder procesos: Especialidades y Cobertura nacen **vacíos**; "Solo Licitación Pública" nace
   desmarcado; "Número de proceso" ignora los demás filtros (y se avisa).
-- Con `$limit` se avisa si hay más resultados. SECOP I (6,4 M de filas) solo se usa para adjudicaciones, no en la búsqueda.
+- Con `$limit` se avisa si hay más resultados. SECOP I se retiró (no se consulta).
 
 **Documentos**
 - RUP: códigos UNSPSC como `NN NN NN NN : DESCRIPCIÓN`; indicadores `ETIQUETA : valor` con pdf.js; el RUP **no** trae capacidad

@@ -41,10 +41,7 @@ analiza el pliego de condiciones de un proceso puntual.
   estimado, fortalezas, debilidades, riesgos) además del semáforo GO / NO-GO
   / REVISAR.
 - **Ver adjudicaciones de esta entidad** (dentro de "Evaluación"): historial
-  de contratos adjudicados por la entidad, combinando SECOP II y SECOP I
-  (SECOP I amplía el historial más atrás de 2021, ya que es casi todo
-  archivo histórico y no oportunidades abiertas — por eso no se usa en
-  "Buscar procesos"). Incluye una sugerencia de oferta económica (escenarios
+  de contratos adjudicados por la entidad en SECOP II. Incluye una sugerencia de oferta económica (escenarios
   conservador/competitivo/agresivo) calculada a partir de ese mismo
   historial — pura aritmética transparente, sin IA.
 - **Generar carta de presentación de la oferta** (dentro de "Evaluación", por
