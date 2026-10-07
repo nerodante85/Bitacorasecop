@@ -366,7 +366,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -405,7 +405,8 @@ function extractExperienceEngine() {
     fmtMoney: globalThis.fmtMoney, truncate: globalThis.truncate, palabrasClaveDe: eng.palabrasClaveDe,
     PALABRAS_GENERICAS_OBRA: eng.PALABRAS_GENERICAS_OBRA, esTokenNumerico: eng.esTokenNumerico, normHeader: eng.normHeader,
     compararIndiceConUmbral: eng.compararIndiceConUmbral, gatesCompletitudIA: eng.gatesCompletitudIA,
-    lecturaParcial: eng.lecturaParcial, experienciaGateDetalle: eng.experienciaGateDetalle, matrizCapacidad: eng.matrizCapacidad
+    lecturaParcial: eng.lecturaParcial, experienciaGateDetalle: eng.experienciaGateDetalle, matrizCapacidad: eng.matrizCapacidad, parseNumCO: globalThis.parseNumCO,
+    saldoDeContrato: eng.saldoDeContrato, participacionDeContrato: eng.participacionDeContrato
   }));
   return eng;
 }
@@ -2271,6 +2272,104 @@ await check('TR-003: con la fuente caída no se dice "no se encontraron procesos
   const i = src.indexOf('function renderAdjudicacionesHtml(lista){');
   const cuerpo = src.slice(i, i + 700);
   assert(/avisoFuentesHtml\(lista\.fuentes\)/.test(cuerpo) && /!lista\.length && lista\.fuentes/.test(cuerpo), 'renderAdjudicacionesHtml debe mostrar el aviso antes del mensaje de vacío');
+});
+
+// ---- Capacidad Residual de la empresa (Fase 1) ----------------------------------------
+const HOY_CR = new Date('2026-10-07T00:00:00').getTime();
+const ctoCR = (extra) => Object.assign({ id: 'c1', nombre: 'Vía Cúcuta', numero: 'LP-01', entidad: 'Alcaldía', tipoCliente: 'publico', valorInicial: '1.000.000.000', valorActual: '1.000.000.000',
+  valorEjecutado: '400.000.000', saldo: '600.000.000', fechaInicio: '2026-01-10', fechaFin: '2027-01-10', estado: 'en_ejecucion', consorcio: false, participacion: '', soporte: 'Contrato 01' }, extra || {});
+const cceCR = (kTxt, contratos) => expEngine.capacidadContractualEstimada({ kResidual: kTxt, contratosEnEjecucion: contratos });
+
+await check('CR-001: el saldo se declara o se deriva (valor - ejecutado); un 0 declarado no se reemplaza', () => {
+  assert(expEngine.saldoDeContrato({ saldo: '600.000.000' }).origen === 'declarado', 'declarado');
+  const d = expEngine.saldoDeContrato({ valorActual: '1.000.000.000', valorEjecutado: '400.000.000' });
+  assert(d.saldo === 600000000 && d.origen === 'derivado', 'derivado: ' + JSON.stringify(d));
+  assert(expEngine.saldoDeContrato({ saldo: '0', valorActual: '1.000.000.000', valorEjecutado: '400.000.000' }).saldo === 0, 'el 0 es un valor real, no se deriva');
+  assert(expEngine.saldoDeContrato({}).saldo === null, 'sin datos no inventa saldo');
+});
+
+await check('CR-002: el SCE solo descuenta la participación de la empresa en un consorcio/UT; sin porcentaje válido descuenta el 100 %', () => {
+  const plano = expEngine.calcularSCE([ctoCR()], HOY_CR).sce;
+  const ut = expEngine.calcularSCE([ctoCR({ consorcio: true, participacion: '40' })], HOY_CR).sce;
+  const sinP = expEngine.calcularSCE([ctoCR({ consorcio: true, participacion: '' })], HOY_CR).sce;
+  const mala = expEngine.calcularSCE([ctoCR({ consorcio: true, participacion: '150' })], HOY_CR).sce;
+  assert(Math.abs(ut - plano * 0.4) < 1, 'al 40 %: ' + ut + ' vs ' + plano);
+  assert(sinP === plano && mala === plano, 'sin porcentaje válido, 100 %');
+  const der = expEngine.calcularSCE([ctoCR({ saldo: '', valorEjecutado: '400.000.000' })], HOY_CR);
+  assert(der.incompletos === 0 && der.sce > 0, 'un saldo derivado cuenta como completo');
+});
+
+await check('CR-003: validaciones de un contrato (negativos, fechas imposibles, vencido, saldo mayor, participación, soporte)', () => {
+  const tipos = c => expEngine.validarContratoEjecucion(c, HOY_CR).map(a => a.tipo);
+  assert(tipos(ctoCR()).length === 0, 'un contrato sano no da alertas: ' + tipos(ctoCR()));
+  assert(tipos(ctoCR({ valorEjecutado: '-5' })).includes('negativo'), 'negativo');
+  assert(tipos(ctoCR({ fechaInicio: '2027-05-01', fechaFin: '2027-01-10' })).includes('fecha'), 'inicio posterior al fin');
+  assert(tipos(ctoCR({ fechaFin: '2026-31-99' })).includes('fecha'), 'fecha imposible');
+  assert(tipos(ctoCR({ fechaFin: '2026-06-01' })).includes('vencido'), 'terminado registrado como activo');
+  assert(!tipos(ctoCR({ fechaFin: '2026-06-01', estado: 'otro' })).includes('vencido'), 'solo se avisa si figura en ejecución');
+  assert(tipos(ctoCR({ saldo: '2.000.000.000' })).includes('saldo_mayor'), 'saldo mayor al valor');
+  assert(tipos(ctoCR({ saldo: '100.000.000' })).includes('inconsistente'), 'ejecutado + saldo no cuadra');
+  assert(tipos(ctoCR({ consorcio: true, participacion: '120' })).includes('participacion'), 'participación > 100');
+  assert(tipos(ctoCR({ consorcio: true, participacion: '' })).includes('sin_participacion'), 'participación no registrada');
+  assert(tipos(ctoCR({ estado: 'suspendido' })).includes('suspendido'), 'suspendido');
+  assert(tipos(ctoCR({ saldo: '', valorEjecutado: '', valorActual: '' , valorInicial: '' })).includes('sin_saldo'), 'sin saldo');
+  const sop = expEngine.validarContratoEjecucion(ctoCR({ soporte: '' }), HOY_CR).find(a => a.tipo === 'sin_soporte');
+  assert(sop && sop.afecta === false, 'el soporte pendiente avisa pero no vuelve preliminar el cálculo');
+});
+
+await check('CR-004: contratos duplicados (mismo número y entidad, o mismo nombre, entidad y valor)', () => {
+  const a = ctoCR({ id: 'a' }), b = ctoCR({ id: 'b' }), c = ctoCR({ id: 'c', numero: 'LP-99', nombre: 'Otra obra', valorInicial: '5.000.000.000' });
+  const d = expEngine.contratosDuplicados([a, b, c]);
+  assert(d.length === 1 && d[0].id === 'b' && d[0].otro === 'a', JSON.stringify(d));
+  assert(expEngine.contratosDuplicados([a, c]).length === 0, 'distintos no se marcan');
+});
+
+await check('CR-005: estado de confianza -- no calculable sin K en pesos; completa solo sin pendientes; preliminar con incompletos o alertas', () => {
+  const r0 = expEngine.resumenCapacidadResidual(null, [], { hoyMs: HOY_CR });
+  assert(r0.estado === 'no_calculable' && /Falta declarar/.test(r0.motivo), JSON.stringify(r0));
+  const ok = expEngine.resumenCapacidadResidual(cceCR('K residual = 12.000.000.000', [ctoCR()]), [ctoCR()], { hoyMs: HOY_CR });
+  assert(ok.estado === 'completa' && ok.disponible > 0 && ok.k === 12000000000, JSON.stringify(ok));
+  const inc = [ctoCR({ saldo: '', valorEjecutado: '', valorActual: '', valorInicial: '' })];
+  assert(expEngine.resumenCapacidadResidual(cceCR('K residual = 12.000.000.000', inc), inc, { hoyMs: HOY_CR }).estado === 'preliminar', 'incompletos -> preliminar');
+  const ut = [ctoCR({ consorcio: true, participacion: '' })];
+  assert(expEngine.resumenCapacidadResidual(cceCR('K residual = 12.000.000.000', ut), ut, { hoyMs: HOY_CR }).estado === 'preliminar', 'participación no registrada -> preliminar');
+  const dup = [ctoCR({ id: 'a' }), ctoCR({ id: 'b' })];
+  assert(expEngine.resumenCapacidadResidual(cceCR('K residual = 12.000.000.000', dup), dup, { hoyMs: HOY_CR }).alertas.some(x => x.tipo === 'duplicado'), 'duplicado');
+  const viejo = expEngine.resumenCapacidadResidual(cceCR('K residual = 12.000.000.000', []), [], { hoyMs: HOY_CR, actualizadaISO: '2025-01-01' });
+  assert(viejo.estado === 'preliminar' && viejo.alertas.some(x => x.tipo === 'desactualizada'), 'más de un año sin actualizar');
+  const sinSoporte = [ctoCR({ soporte: '' })];
+  assert(expEngine.resumenCapacidadResidual(cceCR('K residual = 12.000.000.000', sinSoporte), sinSoporte, { hoyMs: HOY_CR }).estado === 'completa', 'solo falta soporte: sigue completa');
+  assert(/aún no lo recalcula/.test(ok.nota), 'siempre aclara que K es declarada');
+});
+
+await check('CR-006: comparación K exigida vs K empresa -- cumple con margen, no cumple con faltante, sin dato, conflicto, unidades distintas', () => {
+  const emp = { valor: 12000000000, unidad: 'COP' };
+  const cumple = expEngine.comparacionCapacidadResidual({ valor: 9000000000, unidad: 'COP', raw: 'K residual 9.000 millones' }, emp);
+  assert(cumple.estado === 'cumple' && cumple.margen === 3000000000 && cumple.etiqueta === 'APARENTEMENTE CUMPLE', JSON.stringify(cumple));
+  const no = expEngine.comparacionCapacidadResidual({ valor: 15000000000, unidad: 'COP' }, emp);
+  assert(no.estado === 'no_cumple' && no.margen === -3000000000, JSON.stringify(no));
+  assert(expEngine.comparacionCapacidadResidual({ valor: 12000000000, unidad: 'COP' }, emp).estado === 'cumple', 'igual cumple (>=)');
+  const sd = expEngine.comparacionCapacidadResidual(null, emp);
+  assert(sd.estado === 'sin_dato' && /No se identificó de forma confiable/.test(sd.motivo) && sd.requerida === null, 'sin dato no inventa K');
+  const cf = expEngine.comparacionCapacidadResidual({ valor: null, conflicto: true, raw: 'Se encontraron valores diferentes' }, emp);
+  assert(cf.estado === 'nd' && cf.conflicto === true, 'conflicto');
+  assert(expEngine.comparacionCapacidadResidual({ valor: 9000, unidad: 'SMMLV' }, emp).estado === 'nd', 'SMMLV vs pesos no se compara');
+  assert(expEngine.comparacionCapacidadResidual({ valor: 9000000000, unidad: 'COP' }, null).estado === 'nd', 'sin K de la empresa');
+  const rel = expEngine.comparacionCapacidadResidual({ valor: null, unidad: 'COP', relativo: { factor: 1.5 }, baseValor: null }, emp, { valorProceso: 6000000000 });
+  assert(rel.estado === 'cumple' && rel.requerida.valor === 9000000000, 'relativo: 1,5 x 6.000 millones = 9.000 millones');
+  assert(expEngine.comparacionCapacidadResidual({ valor: null, unidad: 'COP', relativo: { factor: 1.5 } }, emp).estado === 'nd', 'relativo sin valor del proceso');
+  assert(expEngine.comparacionCapacidadResidual({ valor: 9000000000, unidad: 'COP' }, emp, { incompletos: 2 }).estado === 'nd', 'cumple con contratos incompletos no se afirma');
+  assert(expEngine.comparacionCapacidadResidual({ valor: 15000000000, unidad: 'COP' }, emp, { incompletos: 2 }).estado === 'no_cumple', 'un no cumple se mantiene aunque falten datos (faltar solo baja la K)');
+});
+
+await check('CR-007: dos montos distintos de capacidad residual en el documento son un conflicto (nunca se elige uno); el mismo monto repetido no', () => {
+  const dos = expEngine.extraerKResidualUmbral('El oferente deberá acreditar capacidad residual de contratación mínima de $9.000.000.000.\n\nANEXO 4. La capacidad residual de contratación exigida es de $12.000.000.000.');
+  assert(dos && dos.conflicto === true && dos.valor === null && dos.valores.length === 2, JSON.stringify(dos));
+  assert(expEngine.comparacionCapacidadResidual(dos, { valor: 20000000000, unidad: 'COP' }).estado === 'nd', 'con conflicto no se afirma cumple');
+  const igual = expEngine.extraerKResidualUmbral('Capacidad residual de contratación mínima de $9.000.000.000.\n\nSe recuerda que la capacidad residual de contratación mínima es de $9.000.000.000.');
+  assert(igual && igual.valor === 9000000000 && !igual.conflicto, 'mismo monto repetido: ' + JSON.stringify(igual));
+  const uno = expEngine.extraerKResidualUmbral('Capacidad residual de contratación mínima de $9.000.000.000.');
+  assert(uno && uno.valor === 9000000000 && !uno.conflicto, 'una sola mención');
 });
 
 // ---- Coincidencia estricta de nombres de entidad ---------------------------------
