@@ -5876,6 +5876,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   //    inventa que se cumplió.
   function evaluarRequisito(req, contratos, hoy){
     hoy = hoy || new Date();
+    const exigeUnspsc = !!(req.codigosUnspsc && req.codigosUnspsc.length);
     const candidatos = (req.tipo === 'general' || req.tipo === 'especifica')
       ? contratos.filter(c => c.tipo === req.tipo || c.tipo === 'no-clasificado')
       : contratos.slice();
@@ -5891,10 +5892,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // débil, nunca decide CUMPLE por sí solo.
       const totalPorPalabras = req.palabrasDistintivas.length > 0 && distMatch.length === req.palabrasDistintivas.length;
       const motivoActividad = totalPorPalabras ? actividadNoCoincide(req.palabrasClave || [], texto) : null;
-      const coincidenciaTotal = totalPorPalabras && !motivoActividad;
-      const coincidenciaParcial = distMatch.length > 0 && !coincidenciaTotal;
-      return { contrato: c, distMatch: distMatch, genMatch: genMatch, coincidenciaTotal: coincidenciaTotal, coincidenciaParcial: coincidenciaParcial, relevante: coincidenciaTotal, motivoActividad: motivoActividad };
+      let coincidenciaTotal = totalPorPalabras && !motivoActividad;
+      // Clasificación UNSPSC exigida: el contrato solo acredita si, además del objeto, trae un código de la misma
+      // clase. Sin palabras distintivas en el requisito, la clasificación es el único criterio de relevancia.
+      const unspsc = exigeUnspsc ? estadoUnspscDeContrato(c, req.codigosUnspsc) : null;
+      const objetoCoincide = coincidenciaTotal;
+      if (exigeUnspsc){
+        if (!req.palabrasDistintivas.length) coincidenciaTotal = unspsc === 'coincide';
+        else coincidenciaTotal = coincidenciaTotal && unspsc === 'coincide';
+      }
+      const coincidenciaParcial = distMatch.length > 0 && !coincidenciaTotal && !(exigeUnspsc && objetoCoincide);
+      return { contrato: c, distMatch: distMatch, genMatch: genMatch, coincidenciaTotal: coincidenciaTotal, coincidenciaParcial: coincidenciaParcial, relevante: coincidenciaTotal, motivoActividad: motivoActividad, unspsc: unspsc, objetoCoincide: objetoCoincide };
     });
+    const sinCodigoUnspsc = exigeUnspsc ? relevancia.filter(r => (req.palabrasDistintivas.length ? r.objetoCoincide : true) && r.unspsc === 'sin-codigo').length : 0;
+    const otroCodigoUnspsc = exigeUnspsc ? relevancia.filter(r => (req.palabrasDistintivas.length ? r.objetoCoincide : true) && r.unspsc === 'no-coincide').length : 0;
     const relevantes = relevancia.filter(r => r.relevante).map(r => r.contrato);
     const parciales = relevancia.filter(r => r.coincidenciaParcial);
     const soloGenericos = relevancia.filter(r => !r.relevante && !r.coincidenciaParcial && r.genMatch.length > 0);
@@ -6084,6 +6095,23 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     } else {
       resultado = 'NO DETERMINABLE';
       justificacion = 'Hay contratos con coincidencia total de palabras distintivas, pero falta información en el Excel/PDF/Word para confirmar el criterio numérico exigido. ' + faltantes.join(' ');
+    }
+
+    // Clasificación UNSPSC exigida: lo que se pudo y no se pudo comprobar. Un contrato sin códigos puede ser el que
+    // falte para completar el mínimo, así que un NO CUMPLE pasa a NO DETERMINABLE (nunca se afirma lo que no se midió).
+    if (exigeUnspsc){
+      const nota = 'Clasificación UNSPSC exigida: ' + req.codigosUnspsc.join(', ') + ' (se compara por clase, 6 dígitos). ' +
+        relevantes.length + ' contrato(s) con objeto y código coincidentes' +
+        (otroCodigoUnspsc ? '; ' + otroCodigoUnspsc + ' con objeto afín pero otro código (no acreditan)' : '') +
+        (sinCodigoUnspsc ? '; ' + sinCodigoUnspsc + ' sin ningún código UNSPSC cargado (no se pueden contar)' : '') + '.';
+      if (sinCodigoUnspsc){
+        if (resultado === 'NO CUMPLE'){
+          resultado = 'NO DETERMINABLE';
+          justificacion = 'No se puede afirmar el incumplimiento: ' + sinCodigoUnspsc + ' contrato(s) con objeto afín no traen códigos UNSPSC y podrían acreditarlo. ' + justificacion;
+        }
+        faltantes.push('Cargar los códigos UNSPSC de esos contratos (hoja UNSPSC del Formato Maestro) o confirmarlos a mano.');
+      }
+      justificacion += ' ' + nota;
     }
 
     // Si TODOS los contratos relevantes con fecha confiable quedaron fuera de la
@@ -7350,6 +7378,24 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return out;
   }
 
+  // UNSPSC en la experiencia. El pliego puede exigir que el contrato acreditado esté clasificado en ciertos
+  // códigos; la comparación es por CLASE (primeros 6 dígitos, el mismo nivel del gate del RUP).
+  // 'coincide' | 'no-coincide' | 'sin-codigo' (el contrato no trae ningún código: no se puede afirmar nada).
+  function unspscExigidosDeFila(fila){
+    const validos = [], noComparables = [];
+    ((fila && fila.codigos_unspsc) || []).forEach(c => {
+      const d = String(c).replace(/\D/g, '');
+      if (d.length === 6 || d.length === 8){ const k = d.slice(0, 6); if (validos.indexOf(k) === -1) validos.push(k); }
+      else if (d.length) noComparables.push(String(c).trim());
+    });
+    return { validos: validos, noComparables: noComparables };
+  }
+  function estadoUnspscDeContrato(c, exigidos){
+    const codigos = ((c && c.formatoMaestro && c.formatoMaestro.unspsc) || []).map(x => String(x).replace(/\D/g, '').slice(0, 6)).filter(x => x.length === 6);
+    if (!codigos.length) return 'sin-codigo';
+    return exigidos.some(e => codigos.indexOf(e) !== -1) ? 'coincide' : 'no-coincide';
+  }
+
   // Fila de experiencia de la IA -> el mismo `requisito` que construye
   // construirRequisitoDesdeTexto (el que ya consume evaluarExperienciaCompleta).
   // Los campos numéricos vienen de la IA (no se re-extraen por regex de la descripción);
@@ -7391,6 +7437,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Valor relativo al presupuesto oficial: no hay cifra absoluta que comparar.
     if (fila.valor_minimo_pct_presupuesto != null && !req.minValor){
       req.condicionNoVerificable = req.condicionNoVerificable || (fila.valor_minimo_pct_presupuesto + '% del presupuesto oficial');
+    }
+    // Clasificación UNSPSC exigida al contrato acreditado (se compara por clase, 6 dígitos). Un código que
+    // no se puede comparar (menos de 6 dígitos: segmento/familia) bloquea el CUMPLE automático: no se adivina.
+    const codsUnspsc = unspscExigidosDeFila(fila);
+    req.codigosUnspsc = codsUnspsc.validos;
+    if (codsUnspsc.noComparables.length){
+      req.condicionNoVerificable = req.condicionNoVerificable || ('clasificación UNSPSC ' + codsUnspsc.noComparables.join(', ') + ' (el sistema solo compara códigos de 6 u 8 dígitos)');
     }
     req.fuente = fila.documento || 'Pliego de Condiciones';
     req.pagina = fila.paginaCorregida || fila.pagina || null;
