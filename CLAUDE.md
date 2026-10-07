@@ -52,6 +52,11 @@ sincronización, Edge Functions de IA y correo).
   Una fila IA con cita sin verificar es NO DETERMINABLE; "Analizar pliego" ya no se bloquea por datos de empresa incompletos (sale NO DETERMINABLE y se avisa).
 - **Búsqueda natural sin IA**: `interpretarBusqueda` llena los filtros y `#bt-nl-entendi` dice qué entendió; lo que no entiende va a `avisos`. Valor, entidad
   y fecha de cierre **sí filtran** (`cumpleRangoValor`, `coincideEntidad`, `cierraEnDias`); un proceso sin valor no se oculta por el rango.
+- **Capacidad Residual (Fase 1, 2026-10)**: en `empresa › Datos`, sección "Capacidad Residual" (`#bt-capacidad-estimada-out` + lista de contratos en ejecución). La K sigue siendo la que la empresa
+  **declara** (`kResidual`); la app descuenta el SCE (`calcularSCE`, con porcentaje de participación en consorcio/UT y saldo derivado de valor − ejecutado) y NO recalcula K con la metodología
+  completa (CO, E, CT, CF: Fase 2, pendiente de la fuente oficial). Lógica pura en `evaluacion.js` (`validarContratoEjecucion`, `contratosDuplicados`, `resumenCapacidadResidual` con estados
+  completa/preliminar/no_calculable, `comparacionCapacidadResidual`). En el análisis, `capacidadResidualAnalisisHtml` muestra exigida vs empresa con fuente y página; la misma regla del gate
+  "Capacidad K residual". `extraerKResidualUmbral` devuelve `conflicto` si el documento trae montos distintos (nunca elige uno). Detalle en `auditoria/CAPACIDAD-RESIDUAL-FASE1.md`.
 - **Documentos**: `inventarioDocumentos` (puro) lista lo cargado; no guarda archivos nuevos (RUP/RUT/hojas de vida no se conservan como archivo).
 - **SECOP I fue retirado por completo** (2026-10, decisión del usuario): ni búsqueda ni adjudicaciones; solo SECOP II. Decisión abierta: texto jurídico de privacidad.
 - **Datos**: dataset SECOP II `p6dx-8zbt` (Buscar procesos y adjudicaciones), PAA `9sue-ezhx`. Todo vía Socrata (datos.gov.co) con `X-App-Token`.

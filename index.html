@@ -1106,12 +1106,36 @@
      estimada") -- una fila editable por contrato. Grid de 3 columnas + botón
      eliminar, que colapsa a 1 columna en mobile (ver @media 560px más abajo)
      para no desbordar -- mismo criterio ya aplicado al nav. */
-  #bitacora-root .contrato-row {
-    display: grid; grid-template-columns: 2fr 1.3fr 1fr auto; gap: 10px; align-items: end;
-    padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-    background: var(--surface); margin-bottom: 10px;
-  }
-  #bitacora-root .contrato-row .field { margin-bottom: 0; }
+  /* Capacidad Residual (Empresa › Datos): resumen, alertas y tarjeta por contrato. */
+  #bitacora-root .cr-seccion { margin-top: 22px; }
+  #bitacora-root .cr-cabecera { border: none; margin: 0 0 10px; padding-bottom: 0; }
+  #bitacora-root .cr-cabecera h2 { font-size: 14.5px; }
+  #bitacora-root .cr-subtitulo { font-size: 14px; margin: 18px 0 6px; }
+  #bitacora-root .cr-hero { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px 16px; margin: 12px 0; background: var(--surface); overflow-wrap: anywhere; }
+  #bitacora-root .cr-hero.cr-completa { border-color: var(--success-border); background: var(--success-bg); }
+  #bitacora-root .cr-hero.cr-preliminar { border-color: var(--warning-border); background: var(--warning-bg); }
+  #bitacora-root .cr-hero.cr-no_calculable { border-color: var(--danger-border); background: var(--danger-bg); }
+  #bitacora-root .cr-hero-label { font-size: 12px; color: var(--text-muted); }
+  #bitacora-root .cr-hero-valor { font-size: 26px; font-weight: 600; margin: 2px 0 6px; }
+  #bitacora-root .cr-hero-estado { font-weight: 600; font-size: 13px; }
+  #bitacora-root .cr-hero-meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  #bitacora-root .cr-alertas { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+  #bitacora-root .cr-alertas li { font-size: 13px; padding: 8px 10px; border: 1px solid var(--warning-border); background: var(--warning-bg); border-radius: var(--radius-sm); overflow-wrap: anywhere; }
+  #bitacora-root .cr-alertas li.cr-error { border-color: var(--danger-border); background: var(--danger-bg); }
+  #bitacora-root .cr-alertas li.cr-info { border-color: var(--border); background: var(--surface); }
+  #bitacora-root .cr-tabla-wrap { overflow-x: auto; }
+  #bitacora-root .cr-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #bitacora-root .cr-tabla th, #bitacora-root .cr-tabla td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
+  #bitacora-root .cr-comparacion { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; margin: 8px 0; }
+  #bitacora-root .cr-comparacion > div { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); overflow-wrap: anywhere; }
+  #bitacora-root .cr-comparacion .cr-etiqueta { font-size: 12px; color: var(--text-muted); }
+  #bitacora-root .cr-comparacion .cr-cifra { font-size: 18px; font-weight: 600; }
+  #bitacora-root .contrato-row { display: block; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); margin-bottom: 10px; }
+  #bitacora-root .contrato-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 10px; align-items: end; }
+  #bitacora-root .contrato-grid .field { margin-bottom: 0; min-width: 0; }
+  #bitacora-root .contrato-grid .field-check { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  #bitacora-root .contrato-row-pie { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 8px; }
+  #bitacora-root .contrato-row-titulo { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
   #bitacora-root .contrato-row-del { white-space: nowrap; }
 
 
@@ -1202,7 +1226,6 @@
     #bitacora-root .sidebar-foot { display: none; }
     #bitacora-root .wrap { padding: 20px 14px 32px; }
     #bitacora-root .view-header h1 { font-size: 22px; }
-    #bitacora-root .contrato-row { grid-template-columns: 1fr; }
   }
 </style>
 
@@ -1595,23 +1618,20 @@
             </div>
             <div class="mt-8 saved-note">Este perfil ya NO incluye experiencia general/específica — eso se carga en "Experiencia" y se compara automáticamente contra cada pliego que analices. El RUP tampoco se usa aquí para inferir experiencia. Los datos de NIT/representante/contacto se usan solo para generar la carta de presentación (ver "Evaluación") — ningún dato sale de tu navegador salvo que actives cuenta/sincronización.</div>
 
-            <!-- Auditoría UX/UI (arquitectura de información, hallazgo MEDIO): esta calculadora
-                 se sentía pegada al final del formulario de la empresa (RUP, K, NIT, contacto) en
-                 vez de una herramienta aparte -- colapsada en un <details> nativo por el mismo
-                 patrón que Alertas/PAA en "Buscar procesos" (cerrado por defecto, el contenido
-                 sigue en el DOM tal cual, ningún id/lógica cambia). -->
-            <div class="titleblock-head" style="border:none;margin:22px 0 10px;padding-bottom:0;">
-              <h2 style="font-size:14.5px;">Capacidad contractual estimada</h2>
-              <span>Registra los contratos de obra que esta empresa tiene actualmente en ejecución, para descontar su saldo pendiente del K residual declarado arriba</span>
-            </div>
-            <details>
-              <summary style="cursor:pointer;">Mostrar / registrar contratos en ejecución</summary>
+            <section class="cr-seccion" aria-labelledby="bt-cr-titulo">
+              <div class="titleblock-head cr-cabecera">
+                <h2 id="bt-cr-titulo">Capacidad Residual</h2>
+                <span>El K que declaras arriba, menos lo que ya tienes comprometido en obras en ejecución</span>
+              </div>
+              <p class="saved-note">La Capacidad Residual permite estimar el valor de obra que la empresa puede asumir teniendo en cuenta su capacidad de organización, experiencia, capacidad financiera, capacidad técnica y los saldos de contratos que actualmente tiene en ejecución.</p>
+              <div id="bt-capacidad-estimada-out"></div>
+              <h3 class="cr-subtitulo">Contratos actualmente en ejecución</h3>
+              <p class="saved-note">Registra aquí los contratos de obra que actualmente se encuentran en ejecución. Esta información afecta directamente el cálculo de tu Capacidad Residual. No hace falta subir archivos: indica el nombre del documento que los soporta.</p>
               <div class="mt-12" id="bt-contratos-ejecucion-list"></div>
               <div class="actions" style="margin-top:0;">
-                <button type="button" class="btn-secondary" id="bt-contrato-nuevo">+ Agregar contrato en ejecución</button>
+                <button type="button" class="btn-secondary" id="bt-contrato-nuevo">+ Agregar contrato</button>
               </div>
-              <div id="bt-capacidad-estimada-out"></div>
-            </details>
+            </section>
           </div>
         </div>
 
@@ -3074,7 +3094,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // eliminarContratoEjecucion/actualizarCampoContrato, con su propio
       // autoguardado) -- si "Guardar perfil" reconstruyera el objeto sin este
       // campo, los borraría en silencio cada vez que se guardan rup/k/kResidual.
-      contratosEnEjecucion: Array.isArray(anterior.contratosEnEjecucion) ? anterior.contratosEnEjecucion : []
+      contratosEnEjecucion: Array.isArray(anterior.contratosEnEjecucion) ? anterior.contratosEnEjecucion : [],
+      capacidadActualizada: (getCampo(perfilKResidualEl) !== (anterior.kResidual || '')) ? hoyISO() : (anterior.capacidadActualizada || '')
     };
     perfil = perfiles[perfilActivoId];
     renderPerfilSelect();
@@ -3218,7 +3239,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // que faltan: la capacidad real podría ser menor.
     let incompletos = 0;
     (contratos || []).forEach(c => {
-      const saldo = parseNumCO(c.saldo);
+      const saldo = saldoDeContrato(c).saldo;
       const finMs = c.fechaFin ? new Date(c.fechaFin + 'T00:00:00').getTime() : NaN;
       if (!saldo || saldo <= 0 || isNaN(finMs)){
         incompletos++;
@@ -3231,11 +3252,36 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         return;
       }
       const factor = diasRestantes > 360 ? (360 / diasRestantes) : 1;
-      const aportado = saldo * factor;
+      // Consorcio / unión temporal: solo cuenta la parte que le toca a la empresa. Sin porcentaje válido
+      // se descuenta el 100 % (lo más prudente) y la validación lo avisa.
+      const part = participacionDeContrato(c);
+      const aportado = saldo * factor * (part != null ? part / 100 : 1);
       sce += aportado;
-      detalle.push(Object.assign({}, c, { incluido: true, diasRestantes: diasRestantes, factor: factor, aportado: aportado }));
+      detalle.push(Object.assign({}, c, { incluido: true, saldoUsado: saldo, diasRestantes: diasRestantes, factor: factor, participacionAplicada: part, aportado: aportado }));
     });
     return { sce: sce, detalle: detalle, incompletos: incompletos };
+  }
+
+  // Número opcional de un campo de contrato ('' o ausente -> null; 0 es un valor real).
+  function numOptCO(v){
+    if (v == null || String(v).trim() === '') return null;
+    const n = parseNumCO(v);
+    return (typeof n === 'number' && !isNaN(n)) ? n : null;
+  }
+  // Saldo pendiente de un contrato: el declarado; si falta, valor (actual o inicial) menos lo ejecutado.
+  function saldoDeContrato(c){
+    const declarado = numOptCO(c.saldo);
+    if (declarado != null && declarado > 0) return { saldo: declarado, origen: 'declarado' };
+    const base = numOptCO(c.valorActual) != null ? numOptCO(c.valorActual) : numOptCO(c.valorInicial);
+    const ejec = numOptCO(c.valorEjecutado);
+    if (declarado == null && base != null && ejec != null && base - ejec > 0) return { saldo: base - ejec, origen: 'derivado' };
+    return { saldo: declarado, origen: declarado != null ? 'declarado' : null };
+  }
+  // Participación válida (0 < p <= 100) de un contrato en consorcio/unión temporal; null si no aplica o no es válida.
+  function participacionDeContrato(c){
+    if (!c.consorcio) return null;
+    const p = numOptCO(c.participacion);
+    return (p != null && p > 0 && p <= 100) ? p : null;
   }
 
   // Capacidad disponible estimada = K residual declarado (COP) menos el SCE
@@ -3259,50 +3305,99 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // campo, actualizarCampoContrato() actualiza el modelo y SOLO refresca el
   // resumen de abajo (renderCapacidadEstimada), nunca esta lista, para no
   // perder el foco/cursor del input a mitad de escritura.
+  function opcionesSelect(mapa, actual){
+    return Object.keys(mapa).map(k => '<option value="' + k + '"' + (k === actual ? ' selected' : '') + '>' + escapeHtml(mapa[k]) + '</option>').join('');
+  }
   function renderContratosEjecucion(){
     if (!contratosListEl) return;
     const contratos = (perfil && perfil.contratosEnEjecucion) || [];
-    contratosListEl.innerHTML = contratos.length ? contratos.map(c =>
-      '<div class="contrato-row" data-contrato-id="' + escapeHtml(c.id) + '">' +
-        '<div class="field"><label for="contrato-' + escapeHtml(c.id) + '-entidad">Entidad / objeto (opcional)</label>' +
-          '<input type="text" id="contrato-' + escapeHtml(c.id) + '-entidad" data-contrato-campo="entidad" value="' + escapeHtml(c.entidad || '') + '" placeholder="ej. Alcaldía de Cúcuta — pavimentación vía..."></div>' +
-        '<div class="field"><label for="contrato-' + escapeHtml(c.id) + '-saldo">Saldo pendiente por ejecutar</label>' +
-          '<input type="text" inputmode="decimal" id="contrato-' + escapeHtml(c.id) + '-saldo" data-contrato-campo="saldo" value="' + escapeHtml(c.saldo || '') + '" placeholder="ej. 850.000.000"></div>' +
-        '<div class="field"><label for="contrato-' + escapeHtml(c.id) + '-fechaFin">Fecha de terminación</label>' +
-          '<input type="date" id="contrato-' + escapeHtml(c.id) + '-fechaFin" data-contrato-campo="fechaFin" value="' + escapeHtml(c.fechaFin || '') + '"></div>' +
-        '<button type="button" class="link-btn contrato-row-del" data-contrato-eliminar="' + escapeHtml(c.id) + '">Eliminar</button>' +
-      '</div>'
-    ).join('') : '<div class="empty-inline">Sin contratos en ejecución registrados — si no agregas ninguno, tu capacidad disponible es tu K residual declarado tal cual.</div>';
+    const TIPOS = TIPOS_CLIENTE, ESTADOS = ESTADOS_CONTRATO;
+    contratosListEl.innerHTML = contratos.length ? contratos.map((c, i) => {
+      const id = escapeHtml(c.id);
+      const txt = (campo, etiqueta, ph, tipo, modo) => '<div class="field"><label for="contrato-' + id + '-' + campo + '">' + etiqueta + '</label>' +
+        '<input type="' + (tipo || 'text') + '"' + (modo ? ' inputmode="' + modo + '"' : '') + ' id="contrato-' + id + '-' + campo + '" data-contrato-campo="' + campo + '" value="' + escapeHtml(c[campo] || '') + '"' + (ph ? ' placeholder="' + escapeHtml(ph) + '"' : '') + '></div>';
+      const sel = (campo, etiqueta, mapa, actual) => '<div class="field"><label for="contrato-' + id + '-' + campo + '">' + etiqueta + '</label>' +
+        '<select id="contrato-' + id + '-' + campo + '" data-contrato-campo="' + campo + '">' + opcionesSelect(mapa, actual) + '</select></div>';
+      return '<div class="contrato-row" data-contrato-id="' + id + '">' +
+        '<div class="contrato-row-titulo">Contrato ' + (i + 1) + (c.nombre ? ' — ' + escapeHtml(c.nombre) : '') + '</div>' +
+        '<div class="contrato-grid mt-8">' +
+          txt('nombre', 'Nombre del contrato', 'ej. Pavimentación vía Cúcuta – Tibú') +
+          txt('numero', 'Número del contrato', 'ej. LP-012-2025') +
+          txt('entidad', 'Entidad contratante', 'ej. Alcaldía de Cúcuta') +
+          sel('tipoCliente', 'Tipo de cliente', TIPOS, c.tipoCliente || 'publico') +
+          sel('estado', 'Estado', ESTADOS, c.estado || 'en_ejecucion') +
+          txt('valorInicial', 'Valor inicial', 'ej. 1.000.000.000', 'text', 'decimal') +
+          txt('valorActual', 'Valor actual (con adiciones)', 'ej. 1.200.000.000', 'text', 'decimal') +
+          txt('valorEjecutado', 'Valor ejecutado', 'ej. 400.000.000', 'text', 'decimal') +
+          txt('saldo', 'Saldo pendiente por ejecutar', 'ej. 850.000.000 (o déjalo vacío si pones valor y ejecutado)', 'text', 'decimal') +
+          txt('fechaInicio', 'Fecha de inicio', '', 'date') +
+          txt('fechaFin', 'Fecha de terminación', '', 'date') +
+          '<div class="field"><label class="field-check" for="contrato-' + id + '-consorcio"><input type="checkbox" id="contrato-' + id + '-consorcio" data-contrato-campo="consorcio"' + (c.consorcio ? ' checked' : '') + '> Se ejecuta en consorcio o unión temporal</label></div>' +
+          (c.consorcio ? txt('participacion', 'Tu porcentaje de participación (%)', 'ej. 40', 'text', 'decimal') : '') +
+          txt('soporte', 'Documento soporte', 'ej. Contrato LP-012-2025 firmado') +
+        '</div>' +
+        '<div class="contrato-row-pie"><span class="saved-note">El plazo se calcula con las fechas de inicio y terminación.</span>' +
+        '<button type="button" class="link-btn contrato-row-del" data-contrato-eliminar="' + id + '">Eliminar este contrato</button></div>' +
+      '</div>';
+    }).join('') : '<div class="empty-inline">Sin contratos en ejecución registrados — si no agregas ninguno, tu capacidad disponible es tu K residual declarado tal cual.</div>';
     renderCapacidadEstimada();
   }
 
+  const CR_GLIFO = { completa: '🟢', preliminar: '🟡', no_calculable: '🔴' };
+  function fechaCorta(iso){
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+  }
+  function hoyISO(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  // Resumen vivo de la capacidad de la empresa en edición. La lista de contratos NO se redibuja aquí
+  // (se perdería el foco al escribir): solo este bloque.
   function renderCapacidadEstimada(){
     if (!capacidadEstimadaOutEl) return;
+    const contratos = (perfil && perfil.contratosEnEjecucion) || [];
     const cce = capacidadContractualEstimada(perfil || {});
-    if (!cce){
-      capacidadEstimadaOutEl.innerHTML = '<div class="mt-10 saved-note">Para estimar tu capacidad disponible, declara arriba la "Capacidad K residual" en pesos (ej. "K residual = 1.200.000.000") — no se puede calcular si está en SMMLV o vacía.</div>';
-      return;
+    const r = resumenCapacidadResidual(cce, contratos, { actualizadaISO: perfil && perfil.capacidadActualizada });
+    const money = v => fmtMoney(Math.round(v)) || String(Math.round(v));
+    const hero = '<div class="cr-hero cr-' + r.estado + '" role="status"><div class="cr-hero-label">Tu Capacidad Residual</div>' +
+      '<div class="cr-hero-valor">' + (r.disponible != null ? money(r.disponible) : '—') + '</div>' +
+      '<div class="cr-hero-estado"><span aria-hidden="true">' + CR_GLIFO[r.estado] + '</span> ' + escapeHtml(r.etiqueta) + '</div>' +
+      '<div class="saved-note">' + escapeHtml(r.motivo) + '</div>' +
+      '<div class="cr-hero-meta">' + (perfil && perfil.capacidadActualizada ? 'Última actualización: ' + fechaCorta(perfil.capacidadActualizada) + ' · ' : '') +
+        '<button type="button" class="link-btn" id="bt-cr-confirmar">Confirmar que está al día</button></div></div>';
+    const alertas = r.alertas.length
+      ? '<ul class="cr-alertas" aria-label="Alertas de capacidad residual">' + r.alertas.map(a => '<li class="' + (a.nivel === 'error' ? 'cr-error' : (a.afecta ? '' : 'cr-info')) + '"><span aria-hidden="true">' + (a.nivel === 'error' ? '✕' : '⚠') + '</span> ' + escapeHtml(a.mensaje) + '</li>').join('') + '</ul>'
+      : '';
+    let detalle = '';
+    if (cce){
+      const filas = (cce.detalle || []).map(d => '<tr><td>' + escapeHtml(d.nombre || d.numero || d.entidad || 'Contrato') + '</td><td>' + (d.incluido ? money(d.saldoUsado) : '—') + '</td><td>' +
+        (d.incluido ? (d.factor < 1 ? 'Sí (prorrateo 12 meses: ×' + d.factor.toFixed(2) + ')' : 'No (≤ 12 meses)') : '—') + '</td><td>' + (d.incluido ? (d.participacionAplicada != null ? d.participacionAplicada + ' %' : '100 %') : '—') + '</td><td>' +
+        (d.incluido ? money(d.aportado) : escapeHtml(d.motivo || '')) + '</td></tr>').join('');
+      detalle = '<details class="analysis-fold"><summary>Ver cómo se calculó</summary>' +
+        '<div class="cr-tabla-wrap"><table class="cr-tabla"><tbody>' +
+          '<tr><th scope="row">K residual declarado</th><td>' + money(cce.kResidualDeclarado) + '</td></tr>' +
+          '<tr><th scope="row">Menos: saldos de contratos en ejecución (SCE)</th><td>' + money(cce.sce) + '</td></tr>' +
+          '<tr><th scope="row">Capacidad disponible (K − SCE)</th><td>' + money(cce.disponible) + '</td></tr></tbody></table></div>' +
+        (filas ? '<div class="cr-tabla-wrap mt-8"><table class="cr-tabla"><thead><tr><th scope="col">Contrato</th><th scope="col">Saldo</th><th scope="col">¿Prorrateado?</th><th scope="col">Participación</th><th scope="col">Se descuenta</th></tr></thead><tbody>' + filas + '</tbody></table></div>' : '') +
+        '<div class="analysis-disclaimer">SCE = suma de los saldos pendientes de tus contratos vigentes, prorrateados linealmente a 12 meses (360 días) cuando el plazo restante supera ese plazo (Ley 1682 de 2013 / Decreto 791 de 2014); en un consorcio o unión temporal solo cuenta tu porcentaje de participación. ' + escapeHtml(r.nota) + ' Es una estimación orientativa: no reemplaza la verificación que hace la entidad en cada proceso.</div></details>';
+    } else {
+      detalle = '<div class="analysis-disclaimer">' + escapeHtml(r.nota) + '</div>';
     }
-    if (cce.sinContratos){
-      capacidadEstimadaOutEl.innerHTML = '<div class="mt-10 saved-note">Sin contratos en ejecución registrados: tu capacidad disponible es tu K residual declarado, ' + (fmtMoney(cce.disponible) || cce.disponible) + '.</div>';
-      return;
-    }
-    capacidadEstimadaOutEl.innerHTML =
-      '<div class="stat-grid" style="margin-top:12px;margin-bottom:10px;">' +
-        '<div class="stat-card"><div class="stat-card-label">K residual declarado</div><div class="stat-card-value small">' + (fmtMoney(cce.kResidualDeclarado) || cce.kResidualDeclarado) + '</div></div>' +
-        '<div class="stat-card"><div class="stat-card-label">Comprometido (SCE estimado)</div><div class="stat-card-value small oferta-competitivo">' + (fmtMoney(Math.round(cce.sce)) || Math.round(cce.sce)) + '</div></div>' +
-        '<div class="stat-card"><div class="stat-card-label">Capacidad disponible (estimada)</div><div class="stat-card-value small ' + (cce.disponible < 0 ? 'oferta-agresivo' : 'oferta-conservador') + '">' + (fmtMoney(Math.round(cce.disponible)) || Math.round(cce.disponible)) + '</div></div>' +
-      '</div>' +
-      (cce.incompletos ? '<div class="saved-note" role="status" style="color:var(--warning);">⚠ ' + cce.incompletos + ' contrato(s) en ejecución no tienen saldo o fecha de terminación válida y NO se descontaron: tu capacidad real puede ser menor. Complétalos o elimina las filas vacías; mientras tanto la evaluación no dará un "cumple" por capacidad.</div>' : '') +
-      (cce.disponible < 0 ? '<div class="saved-note" style="color:var(--danger);">Tus contratos en ejecución superan tu K residual declarado — revisa antes de ofertar a un proceso nuevo.</div>' : '') +
-      '<div class="analysis-disclaimer">SCE = suma de los saldos pendientes de tus contratos vigentes, prorrateados linealmente a 12 meses (360 días) cuando el plazo restante de ejecución supera ese plazo — regla de la Ley 1682 de 2013 / Decreto 791 de 2014. Es una estimación orientativa a partir de lo que declaras aquí: NO reemplaza el cálculo certificado de tu Capacidad Residual de Contratación (que en Colombia también depende de tus índices de experiencia, capacidad financiera, técnica y organizacional inscritos en el RUP).</div>';
+    capacidadEstimadaOutEl.innerHTML = hero + alertas + detalle;
+  }
+
+  function marcarCapacidadActualizada(){
+    if (!perfilActivoId || !perfiles[perfilActivoId]) return;
+    perfiles[perfilActivoId].capacidadActualizada = hoyISO();
   }
 
   function agregarContratoEjecucion(){
     if (!perfilActivoId || !perfiles[perfilActivoId]) return;
     if (!Array.isArray(perfiles[perfilActivoId].contratosEnEjecucion)) perfiles[perfilActivoId].contratosEnEjecucion = [];
     const id = 'ce' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    perfiles[perfilActivoId].contratosEnEjecucion.push({ id: id, entidad: '', saldo: '', fechaFin: '' });
+    perfiles[perfilActivoId].contratosEnEjecucion.push({ id: id, nombre: '', numero: '', entidad: '', tipoCliente: 'publico', estado: 'en_ejecucion', valorInicial: '', valorActual: '', valorEjecutado: '', saldo: '', fechaInicio: '', fechaFin: '', consorcio: false, participacion: '', soporte: '' });
+    marcarCapacidadActualizada();
     perfil = perfiles[perfilActivoId];
     renderContratosEjecucion();
     persistirPerfiles();
@@ -3311,6 +3406,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function eliminarContratoEjecucion(id){
     if (!perfilActivoId || !perfiles[perfilActivoId]) return;
     perfiles[perfilActivoId].contratosEnEjecucion = (perfiles[perfilActivoId].contratosEnEjecucion || []).filter(c => c.id !== id);
+    marcarCapacidadActualizada();
     perfil = perfiles[perfilActivoId];
     renderContratosEjecucion();
     persistirPerfiles();
@@ -3325,8 +3421,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const c = (perfiles[perfilActivoId].contratosEnEjecucion || []).find(x => x.id === id);
     if (!c) return;
     c[campo] = valor;
+    marcarCapacidadActualizada();
     perfil = perfiles[perfilActivoId];
-    renderCapacidadEstimada();
+    if (campo === 'consorcio') renderContratosEjecucion(); // muestra u oculta el campo de participación
+    else renderCapacidadEstimada();
     clearTimeout(_contratoDebounce[id]);
     _contratoDebounce[id] = setTimeout(persistirPerfiles, 400);
   }
@@ -7453,7 +7551,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // antes "1,5 veces" se leía $1,5 y "100%" se leía $100. Devuelve
   // { valor, unidad, raw } (monto) | { valor:null, relativo:{factor}, baseValor } |
   // { valor:null, motivo } | null.
-  function extraerKResidualUmbral(t){
+  function extraerKResidualUmbralPrimero(t){
     const ventanas = ventanasDeEtiqueta(t, 'k\\s*residual|capacidad\\s+residual(?:\\s+de\\s+contrataci[óo]n)?|capacidad\\s+m[áa]xima\\s+de\\s+contrataci[óo]n', 170);
     let primeroNoClaro = null;
     const mult = c => /^\s*mil\s+millones/.test(c.despues) ? 1e9 : (/^\s*mill[oó]n/.test(c.despues) ? 1e6 : 1);
@@ -7481,6 +7579,29 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       primeroNoClaro = primeroNoClaro || { valor: null, unidad: 'COP', raw: w.raw, motivo: 'El pliego no da una cifra clara de capacidad residual (solo referencias a otras secciones o normas).' };
     }
     return primeroNoClaro;
+  }
+
+  // Si el documento menciona montos DISTINTOS de capacidad residual (p. ej. el pliego dice una cifra
+  // y el anexo otra), no se elige una: queda en conflicto (NO DETERMINABLE) con los valores a la vista.
+  // Un monto repetido igual, o el mismo en pesos y SMMLV dentro de una misma frase, no es conflicto.
+  function extraerKResidualUmbral(t){
+    const primero = extraerKResidualUmbralPrimero(t);
+    if (!primero || primero.valor == null || primero.relativo) return primero;
+    const ventanas = ventanasDeEtiqueta(t, 'k\\s*residual|capacidad\\s+residual(?:\\s+de\\s+contrataci[óo]n)?|capacidad\\s+m[áa]xima\\s+de\\s+contrataci[óo]n', 170);
+    const mult = c => /^\s*mil\s+millones/.test(c.despues) ? 1e9 : (/^\s*mill[oó]n/.test(c.despues) ? 1e6 : 1);
+    const esMonto = c => c.valor >= 1e6 || /^\s*(?:smmlv|smlmv|salarios?|mil\s+millones|millones?|mill[oó]n|pesos|cop)/.test(c.despues) || /\$\s*$/.test(c.antes);
+    const vistos = new Map();
+    ventanas.forEach(w => {
+      if (w.niega) return;
+      const m = cifrasCandidatas(w.ventana).find(c => !c.veces && !c.pct && esMonto(c));
+      if (!m) return;
+      const unidad = /^\s*(?:smmlv|smlmv|salarios?)/.test(m.despues) ? 'SMMLV' : 'COP';
+      const v = m.valor * mult(m);
+      vistos.set(unidad + '|' + v, { valor: v, unidad: unidad });
+    });
+    if (vistos.size < 2) return primero;
+    const lista = Array.from(vistos.values()).map(x => (x.unidad === 'COP' ? '$' : '') + Number(x.valor).toLocaleString('es-CO') + (x.unidad === 'COP' ? '' : ' ' + x.unidad));
+    return { valor: null, unidad: 'COP', conflicto: true, valores: lista, raw: 'Se encontraron valores diferentes de Capacidad Residual en el documento (' + lista.join(' · ') + '): confirma en el pliego y en sus adendas cuál aplica.' };
   }
 
   // Formatea el resultado de extraerKResidualUmbral() para mostrarlo -- es un OBJETO
@@ -7866,11 +7987,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // entra por `deps` y por el `ctx` de cada llamada). Aquí solo se le inyectan las piezas de la página.
   const { gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, compsDe,
           codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, evaluarContraPerfiles,
-          veredictoGlobal, resumenViabilidad, alertasAnalisis, explicacionVeredicto } = Evaluacion.crear({
+          veredictoGlobal, resumenViabilidad, alertasAnalisis, explicacionVeredicto,
+          validarContratoEjecucion, contratosDuplicados, resumenCapacidadResidual, comparacionCapacidadResidual,
+          TIPOS_CLIENTE, ESTADOS_CONTRATO } = Evaluacion.crear({
     fmtMoney: fmtMoney, truncate: truncate, palabrasClaveDe: palabrasClaveDe, PALABRAS_GENERICAS_OBRA: PALABRAS_GENERICAS_OBRA,
     esTokenNumerico: esTokenNumerico, normHeader: normHeader, compararIndiceConUmbral: compararIndiceConUmbral,
     gatesCompletitudIA: gatesCompletitudIA, lecturaParcial: lecturaParcial, experienciaGateDetalle: experienciaGateDetalle,
-    matrizCapacidad: matrizCapacidad
+    matrizCapacidad: matrizCapacidad, parseNumCO: parseNumCO, saldoDeContrato: saldoDeContrato, participacionDeContrato: participacionDeContrato
   });
 
   // Envoltorio para la interfaz: arma el contexto desde la pantalla y el estado global y llama al
@@ -9291,8 +9414,49 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       : '<div class="matriz-vacia">Todavía no hay requisitos para mostrar: ' + (entry.requisitosIA ? 'la lectura no encontró requisitos habilitantes (confírmalo en el documento).' : 'extrae los requisitos del documento.') + '</div>';
     return '<div class="analysis-resumen">' + hero + siguientePaso +
       '<div class="analisis-seccion"><h3>Resumen de viabilidad</h3>' + tabViab + '</div>' +
+      '<div class="analisis-seccion"><h3>Capacidad Residual</h3>' + capacidadResidualAnalisisHtml(entry, evalParaCompat, filas) + '</div>' +
       '<div class="analisis-seccion"><h3>Alertas</h3>' + alertasHtml + '</div>' +
       '<div class="analisis-seccion"><h3>Matriz de requisitos</h3>' + matrizHtml + '</div></div>';
+  }
+
+  // Capacidad Residual en el análisis de UN proceso: lo que EXIGE el proceso, lo que tiene la empresa y la
+  // comparación, sin mezclar ambos. Misma regla que el gate "Capacidad K residual" (comparacionCapacidadResidual).
+  function fuenteKResidualDe(entry, filas){
+    const fila = (filas || []).find(f => /residual/i.test(f.requisito) && !/vs valor/i.test(f.requisito));
+    let documento = fila && fila.evidencia ? fila.evidencia.documento : (entry.esSoloEP ? 'Estudio Previo' : 'Pliego de Condiciones');
+    let pagina = fila && fila.evidencia ? fila.evidencia.pagina : null;
+    const cita = fila && fila.evidencia ? fila.evidencia.cita : '';
+    if (!pagina && cita){
+      const esEP = /estudio/i.test(documento) && entry.estudioPrevioText;
+      const texto = esEP ? entry.estudioPrevioText : textoPliegoDe(entry);
+      const offsets = esEP ? entry.estudioPrevioPaginaOffsets : entry.paginaOffsets;
+      const idx = texto && cita ? texto.indexOf(cita.slice(0, 60)) : -1;
+      if (idx !== -1 && offsets && offsets.length) pagina = paginaDeOffset(offsets, idx);
+    }
+    return { documento: documento, pagina: pagina, cita: cita };
+  }
+  function capacidadResidualAnalisisHtml(entry, evalParaCompat, filas){
+    const m = evalParaCompat.mejor;
+    const p = perfiles[m.perfilId] || null;
+    const ex = Object.assign({}, entry.exigencias || {}, entry.exigenciasIA || {});
+    const item = (typeof procesoPorId === 'function') ? procesoPorId(entry.id) : null;
+    const mat = p ? matrizCapacidad(p) : null;
+    const incompletos = (mat && mat.capacidadEstimada && mat.capacidadEstimada.incompletos) || 0;
+    const cmp = comparacionCapacidadResidual(ex.kResidual || null, mat ? mat.kResidual : null, { valorProceso: item && item.valor, incompletos: incompletos });
+    const cls = { cumple: 'estado-cumple', no_cumple: 'estado-nocumple', nd: 'estado-nd', sin_dato: 'estado-nd' }[cmp.estado];
+    const glifo = { cumple: '🟢', no_cumple: '🔴', nd: '🟡', sin_dato: '🟡' }[cmp.estado];
+    const fmt = (v, u) => (u === 'COP' ? (fmtMoney(v) || String(v)) : Number(v).toLocaleString('es-CO') + ' ' + u);
+    const req = cmp.requerida ? '<div class="cr-cifra">' + escapeHtml(fmt(cmp.requerida.valor, cmp.requerida.unidad)) + '</div>' + (cmp.requerida.nota ? '<div class="saved-note">' + escapeHtml(cmp.requerida.nota) + '</div>' : '') : '<div class="cr-cifra">—</div>';
+    const emp = mat && mat.kResidual ? '<div class="cr-cifra">' + escapeHtml(fmt(mat.kResidual.valor, mat.kResidual.unidad)) + '</div><div class="saved-note">' + escapeHtml(mat.capacidadEstimada && !mat.capacidadEstimada.sinContratos ? 'K declarado menos tus contratos en ejecución' : 'K residual declarado') + ' · ' + escapeHtml(m.perfil || '') + '</div>' : '<div class="cr-cifra">—</div><div class="saved-note">Sin K residual declarado en pesos.</div>';
+    const src = (cmp.requerida || cmp.conflicto) ? fuenteKResidualDe(entry, filas) : null;
+    const fuente = src ? '<div class="saved-note">Fuente: ' + escapeHtml(src.documento) + ' · Página: ' + escapeHtml(src.pagina ? String(src.pagina) : 'no identificada') + (src.cita ? ' · «' + escapeHtml(truncate(src.cita, 160)) + '»' : '') + '</div>' : '';
+    const conflictoVals = cmp.conflicto && ex.kResidual && ex.kResidual.valores ? '<div class="saved-note" role="alert">⚠ Valores encontrados: ' + ex.kResidual.valores.map(escapeHtml).join(' · ') + '. Revisa el documento y sus adendas.</div>' : '';
+    const resumen = p ? resumenCapacidadResidual(capacidadContractualEstimada(p), p.contratosEnEjecucion || [], { actualizadaISO: p.capacidadActualizada }) : null;
+    const prelim = (cmp.estado === 'cumple' && resumen && resumen.estado === 'preliminar') ? '<div class="saved-note" role="status">⚠ El cálculo de tu empresa es preliminar: ' + escapeHtml(resumen.motivo) + ' Revísalo en Empresa › Capacidad Residual.</div>' : '';
+    return '<div class="cr-comparacion"><div><div class="cr-etiqueta">Requerida por el proceso</div>' + req + '</div><div><div class="cr-etiqueta">Capacidad de tu empresa</div>' + emp + '</div>' +
+      '<div><div class="cr-etiqueta">Resultado</div><div><span class="expeval-badge ' + cls + '"><span aria-hidden="true">' + glifo + '</span> ' + escapeHtml(cmp.etiqueta) + '</span></div></div></div>' +
+      '<div class="saved-note">' + escapeHtml(cmp.motivo) + '</div>' + conflictoVals + fuente + prelim +
+      '<div class="analysis-disclaimer">Comparación orientativa: la K que exige la entidad se verifica en el proceso con su propia metodología y tus documentos oficiales. Confírmala en el pliego antes de decidir.</div>';
   }
 
   // Panel de evidencia: de dónde salió cada conclusión, sin salir de la pantalla de análisis.
@@ -11143,22 +11307,32 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const el = e.target.closest('[data-contrato-campo]');
       const row = el && el.closest('[data-contrato-id]');
       if (!el || !row) return;
+      if (el.type === 'checkbox') return; // lo maneja 'change'
       actualizarCampoContrato(row.getAttribute('data-contrato-id'), el.getAttribute('data-contrato-campo'), el.value);
     });
     // 'change' cubre <input type="date"> en navegadores donde 'input' no
     // dispara hasta perder el foco -- si ya se guardó vía 'input', esto solo
     // reasigna el mismo valor (inocuo).
     contratosListEl.addEventListener('change', (e) => {
-      const el = e.target.closest('[data-contrato-campo="fechaFin"]');
+      const el = e.target.closest('[data-contrato-campo]');
       const row = el && el.closest('[data-contrato-id]');
       if (!el || !row) return;
-      actualizarCampoContrato(row.getAttribute('data-contrato-id'), 'fechaFin', el.value);
+      const campo = el.getAttribute('data-contrato-campo');
+      if (el.type === 'checkbox') actualizarCampoContrato(row.getAttribute('data-contrato-id'), campo, el.checked);
+      else if (campo === 'fechaFin' || campo === 'fechaInicio' || el.tagName === 'SELECT') actualizarCampoContrato(row.getAttribute('data-contrato-id'), campo, el.value);
     });
     contratosListEl.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-contrato-eliminar]');
       if (btn) eliminarContratoEjecucion(btn.getAttribute('data-contrato-eliminar'));
     });
   }
+  if (capacidadEstimadaOutEl) capacidadEstimadaOutEl.addEventListener('click', (e) => {
+    if (!e.target.closest('#bt-cr-confirmar')) return;
+    marcarCapacidadActualizada();
+    perfil = perfiles[perfilActivoId] || perfil;
+    renderCapacidadEstimada();
+    persistirPerfiles();
+  });
   if (personalSaveBtn) personalSaveBtn.addEventListener('click', savePersonal);
   if (personalNuevoBtn) personalNuevoBtn.addEventListener('click', nuevoPersonal);
   if (personalEliminarBtn) personalEliminarBtn.addEventListener('click', eliminarPersonal);

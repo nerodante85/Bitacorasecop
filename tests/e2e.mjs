@@ -438,6 +438,67 @@ await check('Sin pliego: el proceso se abre con NO DETERMINABLE (no hay evidenci
   await ctx.close();
 });
 
+await check('Capacidad Residual (análisis): muestra lo que exige el proceso, lo que tiene la empresa, el resultado y la fuente con su página; nunca los mezcla', async () => {
+  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
+  await abrirAnalisisSembrado(pg);
+  const b = await pg.evaluate(() => { const c = document.querySelector('#bt-analisis-out .cr-comparacion'); return c ? { cajas: [...c.children].map(x => x.textContent.replace(/\s+/g, ' ').trim()), nota: c.parentElement.textContent } : null; });
+  assert(b && b.cajas.length === 3, 'debe existir el bloque de comparación');
+  assert(/Requerida por el proceso.*\$5\.000\.000\.000/.test(b.cajas[0]), 'requerida: ' + b.cajas[0]);
+  assert(/Capacidad de tu empresa.*\$3\.000\.000\.000/.test(b.cajas[1]), 'empresa: ' + b.cajas[1]);
+  assert(/NO CUMPLE/.test(b.cajas[2]), 'resultado: ' + b.cajas[2]);
+  assert(/es menor que la exigida en \$2\.000\.000\.000/.test(b.nota), 'faltante: ' + b.nota);
+  assert(/Fuente: Pliego de Condiciones · Página: 3/.test(b.nota), 'fuente y página: ' + b.nota);
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
+await check('Capacidad Residual (análisis): si la empresa supera la exigida, aparentemente cumple y muestra el margen; sin K exigida dice que no la identificó y no inventa una', async () => {
+  const rico = Object.assign(empresaAn(), { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa A', nit: '900', k: 'Liquidez = 2,0\nEndeudamiento = 0,4', kResidual: 'K residual = 8.000.000.000', rup: '' } }) });
+  let { ctx, pg } = await abrir({ sembrar: Object.assign(rico, { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
+  await abrirAnalisisSembrado(pg);
+  const t = await pg.evaluate(() => document.querySelector('#bt-analisis-out .cr-comparacion').parentElement.textContent.replace(/\s+/g, ' '));
+  assert(/APARENTEMENTE CUMPLE/.test(t) && /supera la exigida por el proceso en \$3\.000\.000\.000/.test(t), 'cumple con margen: ' + t);
+  await ctx.close();
+  const sinK = analisisSembrado({ exigenciasIA: {}, requisitosIA: { avisos: [], filas: [] } });
+  ({ ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(sinK) }) }));
+  await abrirAnalisisSembrado(pg);
+  const t2 = await pg.evaluate(() => document.querySelector('#bt-analisis-out .cr-comparacion').parentElement.textContent.replace(/\s+/g, ' '));
+  assert(/No se identificó de forma confiable un requisito de Capacidad Residual K/.test(t2) && !/APARENTEMENTE CUMPLE/.test(t2), 'sin K exigida: ' + t2);
+  await ctx.close();
+});
+
+await check('Capacidad Residual (empresa): estado de confianza, contrato en consorcio con participación, validaciones y "cómo se calculó"', async () => {
+  const sem = { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa A', nit: '900', k: '', kResidual: 'K residual = 12.000.000.000', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']) };
+  const { ctx, pg } = await abrir({ sembrar: sem });
+  await pg.click('#bt-nav-empresa');
+  const hero = () => pg.evaluate(() => { const h = document.querySelector('#bt-capacidad-estimada-out .cr-hero'); return h ? h.textContent.replace(/\s+/g, ' ').trim() : ''; });
+  let h = await hero();
+  assert(/Tu Capacidad Residual\s*\$12\.000\.000\.000/.test(h) && /Información completa/.test(h), 'sin contratos y con K: ' + h);
+  await pg.click('#bt-contrato-nuevo');
+  const f = (campo, v) => pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="' + campo + '"]', v);
+  await f('nombre', 'Vía Cúcuta'); await f('valorInicial', '1.000.000.000'); await f('valorActual', '1.000.000.000'); await f('valorEjecutado', '400.000.000'); await f('saldo', '600.000.000');
+  const fin = new Date(Date.now() + 200 * 864e5).toISOString().slice(0, 10);
+  await pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="fechaFin"]', fin);
+  h = await hero();
+  assert(/\$11\.400\.000\.000/.test(h), 'K - saldo: ' + h);
+  await pg.check('#bt-contratos-ejecucion-list [data-contrato-campo="consorcio"]');
+  h = await hero();
+  assert(/Cálculo preliminar/.test(h), 'consorcio sin participación -> preliminar: ' + h);
+  assert(await pg.evaluate(() => /participación/i.test(document.querySelector('#bt-capacidad-estimada-out .cr-alertas').textContent)), 'avisa la participación no registrada');
+  await pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="participacion"]', '40');
+  h = await hero();
+  assert(/\$11\.760\.000\.000/.test(h), 'al 40 %: 12.000 - 240 = 11.760 millones: ' + h);
+  await pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="participacion"]', '150');
+  assert(await pg.evaluate(() => /entre 0 y 100/.test(document.querySelector('#bt-capacidad-estimada-out .cr-alertas').textContent)), 'participación > 100 es un error visible');
+  await pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="participacion"]', '40');
+  await pg.locator('#bt-capacidad-estimada-out summary').click();
+  const det = await pg.evaluate(() => document.querySelector('#bt-capacidad-estimada-out details').textContent.replace(/\s+/g, ' '));
+  assert(/K residual declarado\s*\$12\.000\.000\.000/.test(det) && /Participación/.test(det) && /40 %/.test(det), 'detalle del cálculo: ' + det);
+  assert(await pg.evaluate(() => /Última actualización: \d{2}\/\d{2}\/\d{4}/.test(document.querySelector('#bt-capacidad-estimada-out .cr-hero').textContent)), 'muestra la última actualización');
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');

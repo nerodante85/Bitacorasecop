@@ -8,7 +8,7 @@
 
   function crear(deps) {
     const { fmtMoney, truncate, palabrasClaveDe, esTokenNumerico, normHeader, compararIndiceConUmbral,
-            gatesCompletitudIA, lecturaParcial, experienciaGateDetalle, matrizCapacidad } = deps;
+            gatesCompletitudIA, lecturaParcial, experienciaGateDetalle, matrizCapacidad, parseNumCO, saldoDeContrato, participacionDeContrato } = deps;
     const PALABRAS_GENERICAS_OBRA = deps.PALABRAS_GENERICAS_OBRA;
 
   // ---- Auditoría de pre-lanzamiento: cuándo puede aparecer un GO -------------------
@@ -384,7 +384,143 @@
   }
 
 
+  // ---- Capacidad Residual de la empresa (Fase 1) -------------------------------------
+  // Validaciones de los contratos en ejecución, estado de confianza del cálculo y comparación
+  // contra la K que exige un proceso. Todo puro: la UI solo dibuja lo que esto devuelve.
+  // IMPORTANTE: la K de la empresa sigue siendo la que ella DECLARA (menos el SCE); la metodología
+  // completa (CO, E, CT, CF) llega en la Fase 2, por eso el estado más alto es "completa" respecto
+  // de lo que la app puede verificar, nunca "certificada".
+  const TIPOS_CLIENTE = { publico: 'Público', privado: 'Privado', concesionario: 'Concesionario', otro: 'Otro' };
+  const ESTADOS_CONTRATO = { en_ejecucion: 'En ejecución', suspendido: 'Suspendido', otro: 'Otro' };
+
+  function numOpt(v){
+    if (v == null || String(v).trim() === '') return null;
+    const n = parseNumCO(v);
+    return (typeof n === 'number' && !isNaN(n)) ? n : null;
+  }
+  function fechaMs(f){
+    if (!f) return NaN;
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(f)) ? new Date(f + 'T00:00:00').getTime() : NaN;
+  }
+  function nombreContrato(c){ return c.nombre || c.numero || c.entidad || 'Contrato sin nombre'; }
+
+  // Cada problema: { nivel: 'error'|'aviso', afecta: bool (si deja el cálculo en "preliminar"), tipo, mensaje }.
+  function validarContratoEjecucion(c, hoyMs){
+    hoyMs = hoyMs == null ? Date.now() : hoyMs;
+    const out = [];
+    const nom = nombreContrato(c);
+    const add = (nivel, afecta, tipo, mensaje) => out.push({ nivel: nivel, afecta: afecta, tipo: tipo, mensaje: nom + ': ' + mensaje });
+    const num = k => numOpt(c[k]);
+    [['valorInicial', 'el valor inicial'], ['valorActual', 'el valor actual'], ['valorEjecutado', 'el valor ejecutado'], ['saldo', 'el saldo pendiente']].forEach(par => {
+      const n = num(par[0]);
+      if (n != null && n < 0) add('error', true, 'negativo', par[1] + ' no puede ser negativo.');
+    });
+    const ini = fechaMs(c.fechaInicio), fin = fechaMs(c.fechaFin);
+    if (c.fechaInicio && isNaN(ini)) add('error', true, 'fecha', 'la fecha de inicio no es válida.');
+    if (c.fechaFin && isNaN(fin)) add('error', true, 'fecha', 'la fecha de terminación no es válida.');
+    if (!isNaN(ini) && !isNaN(fin) && ini > fin) add('error', true, 'fecha', 'la fecha de inicio es posterior a la de terminación.');
+    const estado = c.estado || 'en_ejecucion';
+    if (!isNaN(fin) && Math.ceil((fin - hoyMs) / 86400000) <= 0 && estado === 'en_ejecucion') add('aviso', true, 'vencido', 'figura "en ejecución" pero su fecha de terminación ya pasó; si terminó, elimínalo; si sigue, actualiza la fecha.');
+    if (estado === 'suspendido') add('aviso', true, 'suspendido', 'está suspendido: se cuenta su saldo como comprometido; confirma con tu asesor si debe incluirse.');
+    if (estado === 'otro') add('aviso', true, 'estado', 'tiene un estado distinto de "en ejecución": revisa si debe contarse.');
+    const { saldo, origen } = saldoDeContrato(c);
+    if (saldo == null || saldo <= 0) add('aviso', true, 'sin_saldo', 'no tiene saldo pendiente informado (ni valor y valor ejecutado para calcularlo): no se descuenta.');
+    const tope = num('valorActual') != null ? num('valorActual') : num('valorInicial');
+    if (saldo != null && tope != null && saldo > tope * 1.0001) add('aviso', true, 'saldo_mayor', 'el saldo pendiente supera el valor del contrato; revisa o documenta la adición que lo justifique.');
+    const ejec = num('valorEjecutado');
+    if (origen === 'declarado' && saldo != null && tope != null && ejec != null && Math.abs((ejec + saldo) - tope) > Math.max(1, tope * 0.01)) {
+      add('aviso', true, 'inconsistente', 'valor ejecutado + saldo no coincide con el valor del contrato (revisa las cifras).');
+    }
+    if (c.consorcio){
+      const pRaw = numOpt(c.participacion);
+      if (pRaw == null) add('aviso', true, 'sin_participacion', 'es en consorcio o unión temporal y no tiene porcentaje de participación: se descuenta el 100 % del saldo hasta que lo indiques.');
+      else if (pRaw > 100 || pRaw <= 0) add('error', true, 'participacion', 'el porcentaje de participación debe estar entre 0 y 100.');
+    }
+    if (!String(c.soporte || '').trim()) add('aviso', false, 'sin_soporte', 'falta indicar el documento que soporta este contrato (contrato, certificación o acta).');
+    return out;
+  }
+
+  // Contratos que parecen el mismo: igual número + entidad, o igual nombre + entidad + valor inicial.
+  function contratosDuplicados(contratos){
+    const norm = x => normHeader(String(x || ''));
+    const vistos = new Map(), dup = [];
+    (contratos || []).forEach(c => {
+      const claves = [];
+      if (norm(c.numero) && norm(c.entidad)) claves.push('n|' + norm(c.numero) + '|' + norm(c.entidad));
+      if (norm(c.nombre) && norm(c.entidad) && numOpt(c.valorInicial) != null) claves.push('v|' + norm(c.nombre) + '|' + norm(c.entidad) + '|' + numOpt(c.valorInicial));
+      claves.some(k => {
+        if (vistos.has(k)){ dup.push({ id: c.id, otro: vistos.get(k) }); return true; }
+        return false;
+      });
+      claves.forEach(k => { if (!vistos.has(k)) vistos.set(k, c.id); });
+    });
+    return dup;
+  }
+
+  // Estado de confianza del cálculo de la capacidad disponible.
+  // cce: salida de capacidadContractualEstimada(perfil) (o null si la K no está declarada en pesos).
+  // opciones: { hoyMs, actualizadaISO }.
+  function resumenCapacidadResidual(cce, contratos, opciones){
+    opciones = opciones || {};
+    const hoyMs = opciones.hoyMs == null ? Date.now() : opciones.hoyMs;
+    contratos = contratos || [];
+    const alertas = [];
+    contratos.forEach(c => validarContratoEjecucion(c, hoyMs).forEach(a => alertas.push(a)));
+    contratosDuplicados(contratos).forEach(d => {
+      const c = contratos.find(x => x.id === d.id) || {};
+      alertas.push({ nivel: 'aviso', afecta: true, tipo: 'duplicado', mensaje: nombreContrato(c) + ': parece repetido (mismo número o mismo nombre, entidad y valor): se descontaría dos veces.' });
+    });
+    const act = fechaMs(opciones.actualizadaISO);
+    if (!isNaN(act) && (hoyMs - act) / 86400000 > 365) alertas.push({ nivel: 'aviso', afecta: true, tipo: 'desactualizada', mensaje: 'La capacidad lleva más de un año sin actualizarse: confirma que el K declarado y los contratos siguen vigentes.' });
+    const nota = 'El K lo declaras tú (por ejemplo, de la certificación de tu RUP); la app descuenta tus contratos en ejecución y aún no lo recalcula con la metodología completa (organización, experiencia, capacidad técnica y financiera).';
+    if (!cce){
+      return { estado: 'no_calculable', etiqueta: 'No calculable', k: null, sce: null, disponible: null, alertas: alertas, nota: nota,
+        motivo: 'Falta declarar la Capacidad K residual en pesos (por ejemplo "K residual = 1.200.000.000"): no se puede calcular lo que te queda disponible.' };
+    }
+    const incompletos = cce.incompletos || 0;
+    const afectan = alertas.filter(a => a.afecta);
+    const preliminar = incompletos > 0 || afectan.length > 0;
+    const motivos = [];
+    if (incompletos > 0) motivos.push(incompletos + ' contrato(s) sin saldo o fecha de terminación válida');
+    const otras = afectan.length - (incompletos > 0 ? 0 : 0);
+    if (afectan.length) motivos.push(afectan.length + ' alerta(s) por revisar');
+    return { estado: preliminar ? 'preliminar' : 'completa', etiqueta: preliminar ? 'Cálculo preliminar' : 'Información completa',
+      k: cce.kResidualDeclarado, sce: cce.sce, disponible: cce.disponible, alertas: alertas, nota: nota,
+      motivo: preliminar ? 'Hay información pendiente: ' + motivos.join(' y ') + '.' : 'Toda la información que la app puede verificar está registrada.' };
+  }
+
+  // K exigida por el proceso vs K de la empresa. exigida: salida de extraerKResidualUmbral (o de la IA) o null.
+  // kEmpresa: { valor, unidad } (la disponible estimada si hay contratos). Nunca inventa una K: sin dato claro es 'sin_dato'/'nd'.
+  function comparacionCapacidadResidual(exigida, kEmpresa, opciones){
+    opciones = opciones || {};
+    const fmt = (n, u) => (u === 'COP' ? '$' : '') + Number(n).toLocaleString('es-CO') + (u === 'COP' ? '' : ' ' + u);
+    const base = { etiquetas: { cumple: 'APARENTEMENTE CUMPLE', no_cumple: 'NO CUMPLE', nd: 'NO SE PUEDE DETERMINAR', sin_dato: 'NO SE IDENTIFICÓ' } };
+    const res = (estado, extra) => Object.assign({ estado: estado, etiqueta: base.etiquetas[estado], requerida: null, empresa: kEmpresa || null, margen: null, motivo: '', conflicto: false }, extra || {});
+    if (!exigida) return res('sin_dato', { motivo: 'No se identificó de forma confiable un requisito de Capacidad Residual K en los documentos analizados.' });
+    if (exigida.conflicto) return res('nd', { conflicto: true, motivo: exigida.raw || 'Se encontraron valores diferentes de Capacidad Residual: revisa los documentos.' });
+    let requerida = null;
+    if (exigida.relativo){
+      const baseV = exigida.baseValor != null ? exigida.baseValor : opciones.valorProceso;
+      if (!baseV) return res('nd', { motivo: 'El pliego la exige como ' + exigida.relativo.factor + ' veces el presupuesto oficial, pero no se conoce el valor del proceso.' });
+      requerida = { valor: baseV * exigida.relativo.factor, unidad: 'COP', nota: exigida.relativo.factor + ' veces el presupuesto oficial (' + fmt(baseV, 'COP') + ')' };
+    } else if (exigida.valor == null){
+      return res('nd', { motivo: exigida.motivo || 'El pliego menciona la capacidad residual pero sin una cifra clara.' });
+    } else {
+      requerida = { valor: exigida.valor, unidad: exigida.unidad || 'COP', nota: '' };
+    }
+    requerida.texto = fmt(requerida.valor, requerida.unidad);
+    if (!kEmpresa || kEmpresa.valor == null) return res('nd', { requerida: requerida, motivo: 'Tu empresa no tiene una Capacidad K residual declarada: no se puede comparar.' });
+    if (kEmpresa.unidad !== requerida.unidad) return res('nd', { requerida: requerida, motivo: 'La exigencia está en ' + requerida.unidad + ' y la capacidad de tu empresa en ' + kEmpresa.unidad + ': no se comparan directamente, revísalo a mano.' });
+    const margen = kEmpresa.valor - requerida.valor;
+    if (margen < 0) return res('no_cumple', { requerida: requerida, margen: margen, motivo: 'Tu capacidad (' + fmt(kEmpresa.valor, kEmpresa.unidad) + ') es menor que la exigida en ' + fmt(-margen, kEmpresa.unidad) + '.' });
+    if ((opciones.incompletos || 0) > 0) return res('nd', { requerida: requerida, margen: margen, motivo: 'Tu capacidad declarada alcanza, pero ' + opciones.incompletos + ' contrato(s) en ejecución están incompletos y no se descontaron: la capacidad real puede ser menor.' });
+    return res('cumple', { requerida: requerida, margen: margen, motivo: 'Tu capacidad supera la exigida por el proceso en ' + fmt(margen, kEmpresa.unidad) + '.' });
+  }
+
     return {
+      validarContratoEjecucion: validarContratoEjecucion, contratosDuplicados: contratosDuplicados, resumenCapacidadResidual: resumenCapacidadResidual,
+      comparacionCapacidadResidual: comparacionCapacidadResidual,
+      TIPOS_CLIENTE: TIPOS_CLIENTE, ESTADOS_CONTRATO: ESTADOS_CONTRATO,
       gateCapacidadVsValor: gateCapacidadVsValor, ajustarGatesPorContratosIncompletos: ajustarGatesPorContratosIncompletos,
       gateLecturaParcial: gateLecturaParcial, decidirVeredicto: decidirVeredicto, veredictoGlobal: veredictoGlobal,
       resumenViabilidad: resumenViabilidad, alertasAnalisis: alertasAnalisis, explicacionVeredicto: explicacionVeredicto, estadoDeArea: estadoDeArea, compsDe: compsDe,

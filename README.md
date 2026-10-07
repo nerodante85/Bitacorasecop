@@ -40,6 +40,10 @@ analiza el pliego de condiciones de un proceso puntual.
   requisitos habilitantes y muestra un resumen de compatibilidad (%
   estimado, fortalezas, debilidades, riesgos) además del semáforo GO / NO-GO
   / REVISAR.
+- **Capacidad Residual** (en "Empresa › Datos"): registra tus contratos en ejecución (valores, fechas,
+  participación en consorcio o unión temporal) y la app calcula lo que te queda disponible de tu K residual
+  declarada, con alertas y un "Ver cómo se calculó". Al analizar un proceso compara la K que exige con la tuya,
+  con el margen y la página del documento donde aparece. Es una estimación orientativa, no una certificación.
 - **Ver adjudicaciones de esta entidad** (dentro de "Evaluación"): historial
   de contratos adjudicados por la entidad en SECOP II. Incluye una sugerencia de oferta económica (escenarios
   conservador/competitivo/agresivo) calculada a partir de ese mismo
