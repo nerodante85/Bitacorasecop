@@ -36,8 +36,24 @@ sincronización, Edge Functions de IA y correo).
     (jsDelivr) y supabase-js 2.116.0 se cargan con **SRI**; si subes una versión, recalcula el hash.
 - Otros archivos del sitio: `404.html`, `privacidad.html`, `snapshot.json` (respaldo de procesos si falla la consulta en vivo),
   `sitemap.xml`.
-- **Vistas** (`VISTAS`): dashboard, buscar, analisis ("Análisis de pliegos": tarjeta completa del proceso elegido; la lista de Buscar solo trae lo esencial + botón `data-ir-analisis`; `tarjetaProcesoHtml(s, listo, 'lista'|'analisis')`, listeners en ambos contenedores vía `enContenedoresDeProceso`; incluye, fusionado desde la antigua pantalla "Evaluación y documentos", `evalSeccionesHtml`: recomendación, veredicto por empresa con carta/paquete, informe y adjudicaciones + oferta; sin pliego, `renderSinPliegoHtml`; una `ultima_vista` guardada como `evaluacion` abre `analisis`), perfil, experiencia, personal, pipeline.
-  Todas viven en el DOM; `mostrarVista()` alterna `hidden`. En ≤560 px el nav es un menú desplegable.
+- **Vistas y menú** (reestructuración 2026-10, ver `auditoria/REESTRUCTURACION-2026-10-AUDITORIA-Y-PLAN.md`): el menú son 4 ítems —
+  **Buscar procesos · Mis procesos · Empresa · Documentos**— más "Configuración y ayuda" (zona secundaria: cuenta, respaldo, cómo leer un
+  resultado). La marca abre **Inicio** (`dashboard`: buscador, 3 accesos, actividad reciente; sin cifras). `analisis` es el detalle de UN proceso
+  (sin ítem de menú; `vistaOrigenAnalisis` decide qué ítem queda marcado). `perfil/experiencia/personal` son paneles con pestañas dentro de
+  `empresa` (mismos ids de DOM). `ALIAS_VISTAS` (`pipeline→procesos`, `evaluacion→analisis`) mantiene vivas las últimas vistas guardadas.
+  `mostrarVista(nombre)` acepta cualquiera de los nombres; el foco pasa al `h1` del contenedor.
+- **Mis procesos** reemplaza el pipeline: 5 estados (`ETAPAS_PIPELINE`: por_revisar, en_analisis, viable, no_viable, presentada) en `historial[id].etapa`;
+  `migrarHistorialEtapas` lleva las 6 etapas viejas a los 5 estados al cargar (conserva `consorcio`/`resultado` en el dato, sin pantalla).
+- **Resultado global** con 4 nombres: `GO · REVISAR · NO-GO · NO DETERMINABLE`. `decidirVeredicto` (3 valores) no cambia; `veredictoGlobal` (evaluacion.js) agrega
+  NO DETERMINABLE cuando no hay evidencia de ningún requisito (sin pliego, o solo gates administrativos en verde). Nunca mostrar `veredicto` crudo: usar
+  `etiquetaVeredicto(res.mejor.veredictoGlobal)`.
+- **Pantalla de análisis** (`resultadoAnalisisHtml`): resultado + explicación → `resumenViabilidad` (5 áreas) → `alertasAnalisis` → matriz
+  (`matrizRequisitos`: filas IA o gates del motor) con filtro y panel lateral de evidencia (`abrirEvidencia`). Las 3 funciones puras viven en `evaluacion.js`.
+  Una fila IA con cita sin verificar es NO DETERMINABLE; "Analizar pliego" ya no se bloquea por datos de empresa incompletos (sale NO DETERMINABLE y se avisa).
+- **Búsqueda natural sin IA**: `interpretarBusqueda` llena los filtros y `#bt-nl-entendi` dice qué entendió; lo que no entiende va a `avisos`. Valor, entidad
+  y fecha de cierre **sí filtran** (`cumpleRangoValor`, `coincideEntidad`, `cierraEnDias`); un proceso sin valor no se oculta por el rango.
+- **Documentos**: `inventarioDocumentos` (puro) lista lo cargado; no guarda archivos nuevos (RUP/RUT/hojas de vida no se conservan como archivo).
+- Decisiones abiertas: SECOP I sigue solo en adjudicaciones (no en la búsqueda); texto jurídico de privacidad pendiente.
 - **Datos**: dataset SECOP II `p6dx-8zbt` (Buscar procesos), SECOP I `f789-7hwg` (solo en "Ver adjudicaciones de esta entidad"),
   PAA `9sue-ezhx`. Todo vía Socrata (datos.gov.co) con `X-App-Token`.
 - **Persistencia**: `window.storage.get/set` (shim sobre `localStorage` con prefijo `bitacora_`; con cuenta conectada, sincroniza a
@@ -144,8 +160,8 @@ sincronización, Edge Functions de IA y correo).
   **falla en local si no hay salida a internet; en CI debe pasar**), el motor de experiencia/veredicto ejecutado de verdad con
   Excel sintéticos, lectura, red flags, IA, Edge Functions (lógica pura), accesibilidad, contraste y tarjeta. Extrae funciones de
   `index.html` por anclas de texto; si renombras una función, actualiza la lista.
-- `node tests/e2e.mjs` (F-07): flujos reales en un navegador (Buscar → Análisis de pliegos, foco del teclado, menú móvil, descargas,
-  análisis guardados, aviso de datos de ejemplo/respaldo). Sirve el repo en local y **aborta toda red externa** (la app cae al
+- `node tests/e2e.mjs` (F-07): flujos reales en un navegador (menú, Inicio → búsqueda natural, Mis procesos, análisis sembrado con matriz y
+  panel de evidencia, foco del teclado, menú móvil, descargas, análisis guardados, aviso de datos de ejemplo/respaldo). Sirve el repo en local y **aborta toda red externa** (la app cae al
   snapshot: determinista). Necesita Playwright solo para esto: en CI `npm install --no-save --no-package-lock --ignore-scripts
   playwright-core@1.56.1` + el Chrome del runner; en el sandbox `PLAYWRIGHT_NODE_MODULES=/opt/node-tools/node_modules
   CHROME_PATH=/opt/pw-browsers/chromium node tests/e2e.mjs`. smoke.mjs mira el código; e2e comprueba que el flujo FUNCIONA (con averías

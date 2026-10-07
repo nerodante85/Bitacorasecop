@@ -99,7 +99,7 @@ await check('todo getElementById(\'...\') referenciado existe como id="..." en e
 await check('las funciones clave del flujo (experiencia → personal → pliego → resultado) existen', () => {
   const REQUIRED = [
     'escapeHtml', 'mostrarVista', 'runSearch', 'render',
-    'estadoFlujoPliego', 'mensajeFlujoFaltante', 'renderFlujoStepper',
+    'estadoFlujoPliego', 'renderFlujoStepper',
     'evaluarProceso', 'evaluarMejor', 'gatePersonalRequerido',
     'resumenCompatibilidad', 'renderCompatibilidadHtml',
     'parsearExcelExperiencia', 'evaluarExperienciaCompleta',
@@ -367,7 +367,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, calcularViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, conReintento, nombresExactosDeMuestra, consultarSecopIPorEntidad, calcularSCE, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2077,6 +2077,28 @@ await check('Regla del veredicto: fail -> NO-GO; revisar o nd -> REVISAR; sin pl
   assert(expEngine.decidirVeredicto(TODO_OK.concat([{ estado: 'fail' }, { estado: 'nd' }]), false) === 'NO-GO', 'un fail domina aunque no haya pliego');
 });
 
+// Reestructuración (2026-10): el resultado GLOBAL también puede ser NO DETERMINABLE ("no hay evidencia
+// suficiente"), sin tocar GO/REVISAR/NO-GO. `decidirVeredicto` queda intacto; `veredictoGlobal` es la capa de
+// presentación. Casos 1-4 del prompt de reestructuración.
+await check('Veredicto global, caso 1: todo cumple y hay pliego leído -> GO', () => {
+  assert(expEngine.veredictoGlobal(TODO_OK, true) === 'GO', 'todo en verde con pliego es GO');
+});
+await check('Veredicto global, caso 2: un requisito crítico que no se cumple -> NO-GO (aunque falte información en otros)', () => {
+  assert(expEngine.veredictoGlobal(TODO_OK.concat([{ nombre: 'Capacidad K residual', estado: 'fail' }]), true) === 'NO-GO', 'fail');
+  assert(expEngine.veredictoGlobal([{ nombre: 'Experiencia', estado: 'nd' }, { nombre: 'Capacidad K residual', estado: 'fail' }], false) === 'NO-GO', 'un fail domina aunque no haya pliego ni evidencia');
+});
+await check('Veredicto global, caso 3: hay evidencia pero un punto queda pendiente -> REVISAR', () => {
+  assert(expEngine.veredictoGlobal(TODO_OK.concat([{ nombre: 'Personal / equipo de trabajo', estado: 'nd' }]), true) === 'REVISAR', 'un pendiente con otros requisitos en verde');
+  assert(expEngine.veredictoGlobal([okGate('Presentación de oferta'), { nombre: 'Capacidad vs valor', estado: 'revisar' }, { nombre: 'Experiencia', estado: 'nd' }], true) === 'REVISAR', 'un "revisar" es evidencia de que hay algo que mirar: no se esconde tras NO DETERMINABLE');
+});
+await check('Veredicto global, caso 4: sin evidencia de ningún requisito -> NO DETERMINABLE, nunca GO ni un REVISAR que insinúe avance', () => {
+  assert(expEngine.veredictoGlobal([], true) === 'NO DETERMINABLE', 'sin gates');
+  assert(expEngine.veredictoGlobal(TODO_OK, false) === 'NO DETERMINABLE', 'sin pliego analizado no hay evidencia de requisitos');
+  const soloAdmin = [okGate('Estado del proceso'), okGate('Presentación de oferta'), okGate('Valor de la obra'), { nombre: 'Experiencia', estado: 'nd' }, { nombre: 'Capacidad K residual', estado: 'nd' }];
+  assert(expEngine.veredictoGlobal(soloAdmin, true) === 'NO DETERMINABLE', 'fechas y valor "ok" no son evidencia de cumplimiento de los requisitos');
+  assert(expEngine.decidirVeredicto(soloAdmin, true) === 'REVISAR', 'control: el motor interno sigue diciendo REVISAR (sin cambios)');
+});
+
 await check('MC-014: contratos en ejecución sin saldo o sin fecha NO se ignoran en silencio: se cuentan como incompletos', () => {
   const hoy = new Date('2026-06-01T00:00:00').getTime();
   const r = expEngine.calcularSCE([{ saldo: '', fechaFin: '2027-01-01' }, { saldo: '1.500.000.000', fechaFin: '' }], hoy);
@@ -2324,14 +2346,20 @@ await check('TR-007/TR-008: el pie de fuente dice dataset, fecha y modo; la demo
   assert(/EJEMPLO FICTICIOS/.test(demo) && !/p6dx-8zbt/.test(demo), 'demo: ' + demo);
 });
 
-await check('UX-003: nombres claros del veredicto y una línea visible con el motivo (gate fallido y acción, o lo que falta confirmar)', () => {
-  assert(expEngine.etiquetaVeredicto('GO') === 'Cumple lo revisado' && expEngine.etiquetaVeredicto('NO-GO') === 'No cumple' && expEngine.etiquetaVeredicto('REVISAR') === 'Falta información', 'etiquetas');
+await check('UX-003 (revisado en la reestructuración): el resultado se muestra con sus 4 nombres canónicos (GO, REVISAR, NO-GO, NO DETERMINABLE), nunca solo con color, y cada uno trae su explicación en lenguaje llano y una línea con el motivo', () => {
+  ['GO', 'REVISAR', 'NO-GO', 'NO DETERMINABLE'].forEach(v => assert(expEngine.etiquetaVeredicto(v) === v, 'etiqueta ' + v));
+  assert(expEngine.etiquetaVeredicto('algo raro') === 'NO DETERMINABLE' && expEngine.etiquetaVeredicto(undefined) === 'NO DETERMINABLE', 'un valor desconocido nunca se muestra como GO');
+  assert(/no se identificaron incumplimientos determinantes/i.test(expEngine.descripcionVeredicto("GO")) && /validación humana|valid/i.test(expEngine.descripcionVeredicto('REVISAR')) && /no cumple/i.test(expEngine.descripcionVeredicto('NO-GO')) && /no hay evidencia suficiente/i.test(expEngine.descripcionVeredicto('NO DETERMINABLE')), 'descripciones');
+  assert(expEngine.claseVeredicto('GO') === 'eval-go' && expEngine.claseVeredicto('NO-GO') === 'eval-nogo' && expEngine.claseVeredicto('REVISAR') === 'eval-revisar' && expEngine.claseVeredicto('NO DETERMINABLE') === 'eval-nd', 'clases');
   const gates = [{ nombre: 'Índice de liquidez', estado: 'fail' }, { nombre: 'Experiencia', estado: 'nd' }, { nombre: 'Valor', estado: 'ok' }];
   const no = expEngine.lineaMotivoVeredicto(gates, 'NO-GO', true);
   assert(/Índice de liquidez/.test(no) && !/Experiencia/.test(no) && /subsanar|consorcio/.test(no), 'NO-GO: ' + no);
   const rev = expEngine.lineaMotivoVeredicto(gates.slice(1), 'REVISAR', true);
   assert(/Falta confirmar: Experiencia/.test(rev), 'REVISAR: ' + rev);
   assert(/analiza el pliego/i.test(expEngine.lineaMotivoVeredicto([], 'REVISAR', false)), 'sin pliego');
+  const nd = expEngine.lineaMotivoVeredicto([{ nombre: 'Experiencia', estado: 'nd' }], 'NO DETERMINABLE', true);
+  assert(/no hay evidencia suficiente/i.test(nd) && /Experiencia/.test(nd) && /nunca|no se interpreta/i.test(nd), 'NO DETERMINABLE con pliego: ' + nd);
+  assert(/analiza el pliego/i.test(expEngine.lineaMotivoVeredicto([], 'NO DETERMINABLE', false)), 'NO DETERMINABLE sin pliego');
 });
 
 await check('UX-004: la cobertura de lectura se muestra junto al veredicto (parcial o completa)', () => {
@@ -2633,6 +2661,22 @@ await check('avisoRangoValor: avisa solo cuando el mínimo supera al máximo y a
   assert(a(900, 100) !== null, 'min > max avisa');
   assert(a(100, 900) === null && a(500, 500) === null, 'rango válido no avisa');
   assert(a(0, 100) === null && a(900, 0) === null && a(0, 0) === null, 'sin un extremo definido no avisa');
+});
+await check('Filtros de Buscar: el valor, la entidad y la fecha de cierre filtran de verdad; un dato ausente no esconde el proceso (valor) o lo excluye solo cuando se pide certeza (cierre)', () => {
+  const v = expEngine.cumpleRangoValor;
+  assert(v(1000, 0, 0) === true, 'sin rango todo pasa');
+  assert(v(400e6, 500e6, 3000e6) === false && v(3500e6, 500e6, 3000e6) === false, 'fuera del rango se oculta');
+  assert(v(500e6, 500e6, 3000e6) === true && v(3000e6, 500e6, 3000e6) === true, 'los extremos pertenecen al rango');
+  assert(v(400e6, 0, 3000e6) === true && v(4000e6, 0, 3000e6) === false && v(4000e6, 500e6, 0) === true && v(100e6, 500e6, 0) === false, 'solo mínimo / solo máximo');
+  assert(v(null, 500e6, 3000e6) === true && v(undefined, 500e6, 3000e6) === true && v(0, 500e6, 3000e6) === true && v('abc', 500e6, 3000e6) === true, 'sin valor (o inválido) no se oculta: no se descarta una oportunidad por falta de dato');
+  const e = expEngine.coincideEntidad;
+  assert(e('GOBERNACIÓN DE NORTE DE SANTANDER', 'gobernacion') === true && e('Alcaldía de San José de Cúcuta', 'alcaldia cucuta') === true, 'sin tildes ni mayúsculas, por palabras');
+  assert(e('INSTITUTO NACIONAL DE VÍAS - INVÍAS', 'invias') === true && e('Alcaldía de Ocaña', 'cucuta') === false && e('', 'alcaldia') === false, 'no coincide / entidad vacía');
+  assert(e('Cualquiera', '') === true && e('Cualquiera', '   ') === true, 'sin texto no filtra');
+  const c = expEngine.cierraEnDias;
+  assert(c(5, 7) === true && c(7, 7) === true && c(0, 7) === true && c(8, 7) === false && c(-1, 7) === false, 'ventana de cierre (un vencido no cuenta)');
+  assert(c(null, 7) === false, 'con el filtro puesto, un proceso sin fecha de cierre confiable no se muestra como "cierra pronto"');
+  assert(c(null, 0) === true && c(null, '') === true && c(500, 0) === true, 'sin filtro todo pasa');
 });
 await check('Entradas: el campo de años no se guarda si es inválido y el rango muestra su aviso (cableado en index.html)', () => {
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -2973,34 +3017,42 @@ await check('OPS-001: pages.yml despliega solo detrás de las pruebas y de la va
 // las únicas piezas puras del nuevo módulo -- agregarAPipeline/moverEtapaPipeline/
 // quitarDePipeline mutan `historial` (estado global) y llaman a saveHistorial()/rerender() (DOM
 // real), fuera de lo que este arnés extrae sin DOM; se prueban en el navegador (ver CLAUDE.md).
-await check('Pipeline: resumenPipeline cuenta por etapa y la tasa de éxito solo sobre adjudicados/perdidos (null sin ninguno)', () => {
-  const h = {
-    a: { etapa: 'por_evaluar' }, b: { etapa: 'propuesta' }, c: { etapa: 'radicado' },
-    d: { etapa: 'resultado', resultado: 'adjudicado', snapshot: { valor: 500000000 } },
-    e: { etapa: 'resultado', resultado: 'perdido' }, f: { etapa: 'resultado', resultado: null },
-    g: { status: 'visto' }, h: { etapa: 'etapa-rara' }
-  };
-  const r = expEngine.resumenPipeline(h);
-  assert(r.total === 6, 'solo cuentan los procesos con etapa válida: ' + r.total);
-  assert(r.radicados === 4, 'radicado + resultado: ' + r.radicados);
-  assert(r.adjudicados === 1 && r.perdidos === 1 && r.pendientes === 1, JSON.stringify(r));
-  assert(r.tasaExito === 50 && r.valorAdjudicado === 500000000, 'tasa/valor: ' + r.tasaExito + '/' + r.valorAdjudicado);
-  const vacio = expEngine.resumenPipeline({ x: { etapa: 'resultado', resultado: null } });
-  assert(vacio.tasaExito === null, 'sin resultados marcados no se inventa un 0%');
-  assert(expEngine.resumenPipeline(null).total === 0, 'historial vacío no revienta');
+await check('Mis procesos: 5 estados (Por revisar, En análisis, Viable, No viable, Presentada) en ese orden; siguiente/anterior devuelven null en los extremos', () => {
+  assert(Array.isArray(expEngine.ETAPAS_PIPELINE) && expEngine.ETAPAS_PIPELINE.length === 5, 'deben ser 5 estados, no el pipeline de 6 etapas');
+  const ids = expEngine.ETAPAS_PIPELINE.map(e => e.id);
+  assert(ids.join(',') === 'por_revisar,en_analisis,viable,no_viable,presentada', 'orden de estados: ' + ids.join(','));
+  assert(expEngine.ETAPAS_PIPELINE.map(e => e.label).join('|') === 'Por revisar|En análisis|Viable|No viable|Presentada', 'etiquetas visibles');
+  assert(expEngine.siguienteEtapa('por_revisar') === 'en_analisis' && expEngine.siguienteEtapa('presentada') === null, 'siguiente');
+  assert(expEngine.etapaAnterior('presentada') === 'no_viable' && expEngine.etapaAnterior('por_revisar') === null, 'anterior');
+  assert(expEngine.siguienteEtapa('inexistente') === null && expEngine.etapaAnterior('inexistente') === null, 'un estado que no existe no revienta');
 });
 
-await check('Pipeline: siguienteEtapa/etapaAnterior recorren ETAPAS_PIPELINE en orden, null en los extremos', () => {
-  assert(Array.isArray(expEngine.ETAPAS_PIPELINE) && expEngine.ETAPAS_PIPELINE.length === 6, 'ETAPAS_PIPELINE debe tener las 6 etapas');
-  const ids = expEngine.ETAPAS_PIPELINE.map(e => e.id);
-  assert(ids.join(',') === 'por_evaluar,riesgos_rup,consorcio,propuesta,radicado,resultado', 'orden de etapas: ' + ids.join(','));
-  assert(expEngine.siguienteEtapa('por_evaluar') === 'riesgos_rup');
-  assert(expEngine.siguienteEtapa('consorcio') === 'propuesta');
-  assert(expEngine.siguienteEtapa('resultado') === null, 'no hay etapa después de la última');
-  assert(expEngine.siguienteEtapa('etapa-inexistente') === null, 'una etapa que no existe no revienta, devuelve null');
-  assert(expEngine.etapaAnterior('resultado') === 'radicado');
-  assert(expEngine.etapaAnterior('por_evaluar') === null, 'no hay etapa antes de la primera');
-  assert(expEngine.etapaAnterior('etapa-inexistente') === null);
+await check('Mis procesos: las 6 etapas del pipeline anterior se migran a los 5 estados sin perder nada del proceso (estado visto/descartado, resumen, consorcio, resultado)', () => {
+  const viejos = { por_evaluar: 'por_revisar', riesgos_rup: 'en_analisis', consorcio: 'en_analisis', propuesta: 'viable', radicado: 'presentada', resultado: 'presentada' };
+  Object.keys(viejos).forEach(v => assert(expEngine.migrarEtapa(v) === viejos[v], v + ' -> ' + viejos[v] + ' (fue ' + expEngine.migrarEtapa(v) + ')'));
+  ['por_revisar', 'en_analisis', 'viable', 'no_viable', 'presentada'].forEach(n => assert(expEngine.migrarEtapa(n) === n, 'un estado nuevo no cambia: ' + n));
+  assert(expEngine.migrarEtapa('algo-raro') === 'por_revisar' && expEngine.migrarEtapa(undefined) === 'por_revisar', 'un valor desconocido cae en "Por revisar", nunca en "Presentada" (no se inventa avance)');
+  const h = {
+    a: { etapa: 'por_evaluar', etapaTs: 5, status: 'visto', ts: 7, snapshot: { entidad: 'A' }, consorcio: ['p1'], resultado: null },
+    b: { etapa: 'resultado', resultado: 'adjudicado', snapshot: { entidad: 'B' } },
+    c: { status: 'descartado', ts: 9 },
+    d: { etapa: 'viable', snapshot: { entidad: 'D' } }
+  };
+  const n = expEngine.migrarHistorialEtapas(h);
+  assert(n === 2, 'solo cambian las etapas viejas (a, b): ' + n);
+  assert(h.a.etapa === 'por_revisar' && h.a.status === 'visto' && h.a.ts === 7 && h.a.snapshot.entidad === 'A' && h.a.consorcio[0] === 'p1' && h.a.etapaTs === 5, 'a conserva todo');
+  assert(h.b.etapa === 'presentada' && h.b.resultado === 'adjudicado' && h.b.snapshot.entidad === 'B', 'b conserva su resultado');
+  assert(!('etapa' in h.c) && h.c.status === 'descartado' && h.d.etapa === 'viable', 'sin etapa y estados nuevos no se tocan');
+  assert(expEngine.migrarHistorialEtapas(h) === 0, 'idempotente: una segunda pasada no cambia nada');
+  assert(expEngine.migrarHistorialEtapas(null) === 0 && expEngine.migrarHistorialEtapas({}) === 0, 'historial vacío o nulo no revienta');
+});
+
+await check('Mis procesos: resumenPipeline cuenta por estado y solo los procesos guardados con un estado válido', () => {
+  const h = { a: { etapa: 'por_revisar' }, b: { etapa: 'por_revisar' }, c: { etapa: 'viable' }, d: { etapa: 'presentada' }, e: { status: 'visto' }, f: { etapa: 'etapa-rara' } };
+  const r = expEngine.resumenPipeline(h);
+  assert(r.total === 4, 'solo cuentan los procesos con estado válido: ' + r.total);
+  assert(r.porEtapa.por_revisar === 2 && r.porEtapa.viable === 1 && r.porEtapa.presentada === 1 && r.porEtapa.en_analisis === 0 && r.porEtapa.no_viable === 0, JSON.stringify(r.porEtapa));
+  assert(expEngine.resumenPipeline(null).total === 0, 'historial vacío no revienta');
 });
 
 await check('PDF-01: con lectura parcial, "Extraer requisitos con IA" no recorta el PDF por páginas (el filtro solo ve el texto ya leído)', () => {
@@ -3432,8 +3484,9 @@ await check('Interfaz: hay un landmark <main> que envuelve las vistas (lector de
 });
 await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el análisis del pliego vive en la vista "Análisis de pliegos"', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
-  assert(/id="view-analisis"/.test(html) && /id="bt-nav-analisis"/.test(html) && /id="bt-analisis-out"/.test(html), 'falta la vista/nav/contenedor de análisis');
-  assert(/const VISTAS = \['dashboard', 'buscar', 'analisis'/.test(html), 'VISTAS debe incluir analisis');
+  assert(/id="view-analisis"/.test(html) && /id="bt-analisis-out"/.test(html), 'falta la vista/contenedor de análisis');
+  assert(!/id="bt-nav-analisis"/.test(html), 'el análisis es el detalle de UN proceso: no tiene ítem propio en el menú');
+  assert(/const VISTAS_PRINCIPALES = \['dashboard', 'buscar', 'analisis'/.test(html), 'las vistas principales deben incluir analisis');
   const i = html.indexOf('function tarjetaProcesoHtml');
   assert(i !== -1, 'falta tarjetaProcesoHtml');
   const fn = html.slice(i, html.indexOf('function truncate(', i));
@@ -3448,8 +3501,8 @@ await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su 
   for (const viejo of ['id="view-evaluacion"', 'id="bt-nav-evaluacion"', 'id="bt-eval-run"', 'id="bt-eval-select"', 'function runEvaluacion', 'function poblarEvalSelect', 'data-view="evaluacion"']) {
     assert(!html.includes(viejo), 'quedó rastro de la pantalla Evaluación: ' + viejo);
   }
-  assert(!/const VISTAS = \[[^\]]*'evaluacion'/.test(html), 'VISTAS no debe incluir evaluacion');
-  assert(/if \(nombre === 'evaluacion'\) nombre = 'analisis'/.test(html), 'una "última vista" guardada como evaluacion debe abrir analisis');
+  assert(!/const VISTAS_PRINCIPALES = \[[^\]]*'evaluacion'/.test(html), 'las vistas no deben incluir evaluacion');
+  assert(/const ALIAS_VISTAS = \{ evaluacion: 'analisis', pipeline: 'procesos' \}/.test(html), 'una "última vista" guardada como evaluacion debe abrir analisis (y pipeline, procesos)');
   const i = html.indexOf('function evalSeccionesHtml');
   assert(i !== -1, 'falta evalSeccionesHtml');
   const fn = html.slice(i, i + 6000);
@@ -3461,6 +3514,189 @@ await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su 
   assert(/const mostrarEmpresas = varias \|\| !entry/.test(fn) && /mostrarEmpresas \? res\.porPerfil\.map\(bloquePerfil\)/.test(fn), 'sin pliego analizado (y con una sola empresa) la carta y el paquete por empresa deben seguir ofreciéndose');
   assert(/enContenedoresDeProceso\('click', async function manejarClickEvaluacion/.test(html), 'los botones eval-* deben colgar de ambos contenedores');
 });
+// Reestructuración (2026-10): el menú principal son 4 ítems (+ una zona secundaria), no 7 módulos.
+// Casos 5 y 6 del prompt de reestructuración: una cita falsa no produce CUMPLE; un documento parcial se declara.
+await check('Caso 5 (cita falsa): una exigencia con cita inventada no se usa: el gate queda sin valor (nd), el área NO DETERMINABLE y el resultado global nunca es GO', () => {
+  const fila = { categoria: 'capacidad_financiera', indicador: 'liquidez', operador: '>=', valor_indicador: 0.5, naturaleza: 'habilitante', pagina: 1, confianza: 'alta',
+    cita_textual: 'El índice de liquidez debe ser mayor o igual a 0,5 según lo dispuesto por esta entidad' };
+  const v = expEngine.verificarFilaIA(fila, IA_TEXTO, IA_OFFSETS);
+  assert(v.verificada === false, 'la cita inventada no se verifica: ' + JSON.stringify(v));
+  fila.verificada = false; fila.motivoVerificacion = v.motivo;
+  assert(expEngine.filaIAConfiable(fila) === false, 'una fila sin verificar no es confiable');
+  const ex = expEngine.exigenciasDesdeIA([fila]);
+  assert(ex.liquidez && ex.liquidez.valor === null && ex.liquidez.conflicto === true, 'el umbral inventado (0,5) NO llega al motor: ' + JSON.stringify(ex.liquidez));
+  const cmp = expEngine.compararIndiceConUmbral('Índice de liquidez', ex.liquidez, 2.0, '>=', true);
+  assert(cmp.estado === 'nd', 'con la exigencia sin verificar, aunque la empresa tenga 2,0 el gate es nd, no ok: ' + JSON.stringify(cmp));
+  const gates = [okGate('Presentación de oferta'), { nombre: 'Índice de liquidez', estado: cmp.estado, detalle: cmp.detalle }];
+  assert(expEngine.veredictoGlobal(gates, true) === 'NO DETERMINABLE', 'global: NO DETERMINABLE, nunca GO');
+  const area = expEngine.resumenViabilidad(gates, { hayPliego: true }).find(a => a.clave === 'financiera');
+  assert(area.estado === 'NO DETERMINABLE', 'área: ' + area.estado);
+  // control positivo: la misma exigencia con la cita verificada sí se usa
+  const buena = Object.assign({}, fila, { verificada: true, motivoVerificacion: null });
+  assert(expEngine.exigenciasDesdeIA([buena]).liquidez.valor === 0.5 && expEngine.compararIndiceConUmbral('Índice de liquidez', expEngine.exigenciasDesdeIA([buena]).liquidez, 2.0, '>=', true).estado === 'ok', 'control positivo: con cita verificada y 2,0 >= 0,5, ok');
+});
+await check('Caso 6 (documento parcial): leído 15 de 76 páginas -> gate nd, alerta de análisis parcial y nunca GO', () => {
+  const lp = expEngine.lecturaParcial({ pagesRead: 15, numPages: 76, viaOcr: true });
+  assert(lp && lp.pagesRead === 15 && lp.numPages === 76, 'lecturaParcial');
+  const g = expEngine.gateLecturaParcial(lp);
+  const gates = TODO_OK.concat([Object.assign({ nombre: 'Lectura del pliego' }, g)]);
+  assert(expEngine.veredictoGlobal(gates, true) !== 'GO', 'con lectura parcial nunca GO');
+  const al = expEngine.alertasAnalisis(gates, { hayPliego: true, lecturaParcial: lp });
+  assert(al.some(a => /El análisis es parcial: se leyeron 15 de 76/.test(a.texto)), 'se declara: ' + JSON.stringify(al));
+  assert(expEngine.textoCoberturaLectura({ pagesRead: 15, numPages: 76 }) === 'Leído: 15/76 págs (parcial)', 'cobertura junto al resultado');
+  assert(expEngine.lecturaParcial({ pagesRead: 76, numPages: 76 }) === null, 'control: lectura completa no es parcial');
+});
+
+// Búsqueda en lenguaje natural SIN IA (la versión con LLM se eliminó por costo, ver docs/HISTORIAL.md): un intérprete
+// determinista que llena los mismos filtros de siempre y le dice al usuario qué entendió. Lo que no entiende, lo avisa.
+// Pantalla de análisis: resumen de viabilidad por área, alertas importantes y la explicación del resultado.
+// Todo sale de los gates del motor (nunca de la IA) y el resultado nunca es "CUMPLE" sin evidencia.
+const gk = (nombre, estado, detalle) => ({ nombre, estado, detalle: detalle || nombre + ' ' + estado });
+await check('Resumen de viabilidad: 5 áreas (Experiencia, Capacidad financiera, Capacidad residual, Personal, Garantías) con CUMPLE / NO CUMPLE / REVISAR / NO DETERMINABLE', () => {
+  const area = (r, clave) => r.find(a => a.clave === clave);
+  let r = expEngine.resumenViabilidad([gk('Experiencia', 'ok'), gk('Índice de liquidez', 'ok'), gk('Índice de endeudamiento', 'ok'), gk('Capacidad vs valor', 'ok'), gk('Capacidad K residual', 'ok'), gk('Personal / equipo de trabajo', 'ok')], { hayPliego: true });
+  assert(JSON.stringify(r.map(a => a.nombre)) === JSON.stringify(['Experiencia', 'Capacidad financiera', 'Capacidad residual', 'Personal', 'Garantías']), 'las 5 áreas en orden');
+  assert(['experiencia', 'financiera', 'residual', 'personal'].every(c => area(r, c).estado === 'CUMPLE'), 'todo en verde: CUMPLE');
+  assert(area(r, 'garantias').estado === 'NO DETERMINABLE', 'las garantías nunca salen CUMPLE solas: la app no tiene datos de pólizas de la empresa');
+  r = expEngine.resumenViabilidad([gk('Experiencia', 'ok'), gk('Capacidad K residual', 'fail'), gk('Capacidad vs valor', 'ok')], { hayPliego: true });
+  assert(area(r, 'residual').estado === 'NO CUMPLE' && /Capacidad K residual/.test(area(r, 'residual').motivo), 'un fail domina el área');
+  r = expEngine.resumenViabilidad([gk('Índice de liquidez', 'ok'), gk('Índice de endeudamiento', 'nd')], { hayPliego: true });
+  assert(area(r, 'financiera').estado === 'REVISAR', 'una parte en verde y otra sin dato: REVISAR (evidencia parcial)');
+  r = expEngine.resumenViabilidad([gk('Índice de liquidez', 'nd'), gk('Índice de endeudamiento', 'nd')], { hayPliego: true });
+  assert(area(r, 'financiera').estado === 'NO DETERMINABLE', 'todo sin dato: NO DETERMINABLE');
+  r = expEngine.resumenViabilidad([gk('Personal / equipo de trabajo', 'revisar')], { hayPliego: true });
+  assert(area(r, 'personal').estado === 'REVISAR', 'revisar');
+  r = expEngine.resumenViabilidad([gk('Experiencia', 'ok')], { hayPliego: true });
+  assert(area(r, 'personal').estado === 'NO DETERMINABLE' && /confirm|no se encontr/i.test(area(r, 'personal').motivo), 'un área sin ningún gate NO se da por cumplida: se dice que no se encontró');
+  r = expEngine.resumenViabilidad([gk('Experiencia', 'ok'), gk('Índice de liquidez', 'ok'), gk('Capacidad vs valor', 'ok')], { hayPliego: false });
+  assert(area(r, 'experiencia').estado === 'NO DETERMINABLE' && area(r, 'financiera').estado === 'NO DETERMINABLE' && /pliego/i.test(area(r, 'experiencia').motivo), 'sin pliego analizado ninguna exigencia del pliego se da por cumplida');
+  r = expEngine.resumenViabilidad([], { hayPliego: true, redFlags: [{ severidad: 'alta', mensaje: 'Garantía de cumplimiento 5% por debajo del mínimo' }] });
+  assert(area(r, 'garantias').estado === 'REVISAR' && /Garantía de cumplimiento/.test(area(r, 'garantias').motivo), 'una alerta de garantías pasa el área a REVISAR');
+  r = expEngine.resumenViabilidad([], { hayPliego: true, redFlags: [{ severidad: 'baja', mensaje: 'x' }] });
+  assert(area(r, 'garantias').estado === 'NO DETERMINABLE', 'una alerta baja (criterio de proporcionalidad) no mueve el área');
+});
+
+await check('Alertas del análisis: solo lo importante (críticas en rojo, a revisar en amarillo), con el análisis parcial siempre avisado y sin ruido cuando todo está en verde', () => {
+  const al = (gates, op) => expEngine.alertasAnalisis(gates, Object.assign({ hayPliego: true }, op || {}));
+  assert(al([gk('Experiencia', 'ok'), gk('Capacidad vs valor', 'ok')]).length === 0, 'todo en verde y lectura completa: ninguna alerta (no se llena de información irrelevante)');
+  let r = al([gk('Capacidad K residual', 'fail', 'Pliego: ≥ $5.000M · tu perfil: $2.000M'), gk('Experiencia', 'nd')]);
+  assert(r[0].nivel === 'critica' && /Capacidad K residual/.test(r[0].texto) && /5\.000M/.test(r[0].texto), 'un fail es crítica y trae el dato');
+  assert(r.some(a => a.nivel === 'revisar' && /Experiencia/.test(a.texto)), 'lo que no se pudo determinar es "revisar"');
+  r = al([gk('Experiencia', 'nd'), gk('Capacidad K residual', 'fail', 'x')], { lecturaParcial: { pagesRead: 1, numPages: 9 } });
+  assert(r[0].nivel === 'critica' && r[r.length - 1].nivel === 'revisar', 'las críticas van primero, aunque haya avisos de lectura');
+  r = al([gk('Experiencia', 'ok')], { lecturaParcial: { pagesRead: 15, numPages: 76 } });
+  assert(r.length === 1 && r[0].nivel === 'revisar' && /parcial/i.test(r[0].texto) && /15 de 76/.test(r[0].texto), 'el análisis parcial se avisa con las páginas: ' + JSON.stringify(r));
+  r = al([gk('Experiencia', 'ok')], { nSinVerificar: 3, tablasNoLeidas: 2, conflictos: 1, inyeccion: 1 });
+  const t = r.map(a => a.texto).join(' | ');
+  assert(/3 requisito/.test(t) && /tabla/i.test(t) && /adenda|conflicto/i.test(t) && /dirigido a una IA|instrucciones/i.test(t), 'citas sin verificar, tablas sin leer, conflicto y texto dirigido a la IA: ' + t);
+  r = al([gk('Experiencia', 'ok')], { faltanDatosEmpresa: ['tu experiencia acreditada', 'tu personal'] });
+  assert(r.length === 1 && /Faltan datos de la empresa/.test(r[0].texto) && /experiencia/.test(r[0].texto), 'faltan datos de la empresa');
+  r = al([gk('Lectura del pliego', 'nd', 'Solo 15 de 76'), gk('Requisitos por verificar a mano', 'nd', 'x'), gk('Completitud de la lectura', 'nd', 'y'), gk('Experiencia', 'ok')]);
+  assert(r.filter(a => /Lectura del pliego|Requisitos por verificar|Completitud/.test(a.texto) && /No se pudo determinar/.test(a.texto)).length === 0, 'los gates "meta" no se repiten como "no se pudo determinar" (tienen su propia alerta)');
+  const muchas = al(Array.from({ length: 12 }, (_, i) => gk('Req ' + i, 'fail', 'detalle ' + i)));
+  assert(muchas.length <= 9 && /más/.test(muchas[muchas.length - 1].texto), 'tope de alertas visibles con un "y N más": ' + muchas.length);
+  r = al([gk('Estado del proceso', 'fail', 'Está "Cancelado": ya no admite ofertas.')]);
+  assert(r[0].nivel === 'critica' && /Cancelado/.test(r[0].texto), 'un proceso que ya no admite ofertas es crítico');
+});
+
+await check('Explicación del resultado: una frase por resultado, sin prometer un GO que no existe', () => {
+  const ex = expEngine.explicacionVeredicto;
+  assert(/No se identificaron incumplimientos determinantes/.test(ex('GO', [gk('Experiencia', 'ok')], { hayPliego: true })), 'GO');
+  const rev = ex('REVISAR', [gk('Experiencia', 'ok'), gk('Personal / equipo de trabajo', 'nd'), gk('Capacidad vs valor', 'revisar')], { hayPliego: true });
+  assert(/Se identificaron 2 aspectos que requieren revisión antes de decidir la participación/.test(rev), 'REVISAR con 2 aspectos: ' + rev);
+  assert(/Se identificó 1 aspecto que requiere revisión/.test(ex('REVISAR', [gk('Personal / equipo de trabajo', 'nd')], { hayPliego: true })), 'singular');
+  const no = ex('NO-GO', [gk('Capacidad K residual', 'fail'), gk('Índice de liquidez', 'fail')], { hayPliego: true });
+  assert(/2 requisito\(s\) crítico\(s\)/.test(no) && /Capacidad K residual/.test(no) && /Índice de liquidez/.test(no), 'NO-GO nombra lo que no cumple: ' + no);
+  const nd = ex('NO DETERMINABLE', [gk('Experiencia', 'nd')], { hayPliego: true });
+  assert(/No hay evidencia suficiente/.test(nd) && /Experiencia/.test(nd), 'NO DETERMINABLE con pliego: ' + nd);
+  assert(/Analiza el pliego/.test(ex('NO DETERMINABLE', [], { hayPliego: false })), 'NO DETERMINABLE sin pliego');
+});
+
+await check('Búsqueda natural: entiende tipo de obra, departamento, municipio y rango de valor en pesos colombianos, y avisa lo que no entendió', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('const DEPARTAMENTOS_CO'), j = html.indexOf('function getInputs(');
+  assert(i !== -1 && j > i, 'anclas de interpretarBusqueda');
+  const interp = new Function('parseValorUnidad', 'normalizeGeo', html.slice(i, j) + '\nreturn interpretarBusqueda;')(expEngine.parseValorUnidad, Coincidencia.normalizeGeo);
+  const q = t => interp(t);
+  let r = q('Obras civiles en Norte de Santander entre $500 millones y $3.000 millones.');
+  assert(JSON.stringify(r.keywords) === '["obra civil"]' && JSON.stringify(r.geos) === '["Norte de Santander"]' && r.minV === 500e6 && r.maxV === 3000e6 && !r.municipios.length, 'ejemplo del prompt: ' + JSON.stringify(r));
+  r = q('Construcción de infraestructura educativa en Cúcuta hasta $2.000 millones.');
+  assert(JSON.stringify(r.keywords) === '["construcción infraestructura educativa"]' && JSON.stringify(r.municipios) === '["Cúcuta"]' && r.maxV === 2000e6 && r.minV === 0 && !r.geos.length, 'segundo ejemplo: ' + JSON.stringify(r));
+  r = q('pavimentación y alcantarillado en Santander y Norte de Santander');
+  assert(JSON.stringify(r.keywords) === '["pavimentación","alcantarillado"]' && r.geos.length === 2 && r.geos.includes('Santander') && r.geos.includes('Norte de Santander'), '"Santander" dentro de "Norte de Santander" no se cuenta dos veces ni se pierde: ' + JSON.stringify(r));
+  r = q('interventoría vías terciarias desde 1.500 millones');
+  assert(r.minV === 1500e6 && r.maxV === 0 && JSON.stringify(r.keywords) === '["interventoría vía terciaria"]', 'desde: ' + JSON.stringify(r));
+  r = q('acueducto hasta 1,5 mil millones');
+  assert(r.maxV === 1.5e9, '"1,5 mil millones": ' + r.maxV);
+  r = q('colegios en cucuta');
+  assert(JSON.stringify(r.municipios) === '["Cúcuta"]' && JSON.stringify(r.keywords) === '["colegio"]', 'municipio conocido en minúsculas y sin tilde: ' + JSON.stringify(r));
+  r = q('obra en Bogotá');
+  assert(JSON.stringify(r.geos) === "[\"Distrito Capital de Bogotá\"]", "Bogotá: " + JSON.stringify(r.geos));
+  r = q('vías en Valle del Cauca');
+  assert(JSON.stringify(r.geos) === '["Valle del Cauca"]' && JSON.stringify(r.keywords) === '["vía"]', '"Cauca" dentro de "Valle del Cauca" no se cuenta aparte: ' + JSON.stringify(r));
+  r = q('LP-005-2026');
+  assert(r.numProceso === 'LP-005-2026' && !r.keywords.length, 'número de proceso: ' + JSON.stringify(r));
+  r = q('CO1.REQ.10526881');
+  assert(r.numProceso === 'CO1.REQ.10526881', 'referencia SECOP II');
+  // lo que no se entiende se avisa y NO se aplica (nunca se inventa un filtro)
+  r = q('puentes por 2.000 millones');
+  assert(r.minV === 0 && r.maxV === 0 && r.avisos.some(a => /2\.000/.test(a) || /m[ií]nimo|m[aá]ximo/i.test(a)) && JSON.stringify(r.keywords) === '["puente"]', 'monto sin "desde/hasta": ' + JSON.stringify(r));
+  r = q('acueducto hasta 500');
+  assert(r.maxV === 0 && r.avisos.length >= 1, 'un número suelto no es un monto en pesos: ' + JSON.stringify(r));
+  r = q('   ');
+  assert(r.vacio === true && !r.keywords.length && !r.geos.length, 'vacío');
+  assert(JSON.stringify(q('hospitales y canales, edificios').keywords) === '["hospital","canal","edificio"]' && JSON.stringify(q('análisis de suelos').keywords) === '["análisis suelo"]', 'plurales a singular sin dañar palabras como "análisis"');
+  r = q('xyz');
+  assert(JSON.stringify(r.keywords) === '["xyz"]' && !r.geos.length && !r.municipios.length, 'lo desconocido queda como palabra clave, no como lugar');
+  r = q('Entre 3.000 millones y 500 millones obras');
+  assert(r.minV === 500e6 && r.maxV === 3000e6, 'rango en cualquier orden: ' + r.minV + '-' + r.maxV);
+});
+
+await check('Menú: Buscar procesos · Mis procesos · Empresa · Documentos, y "Configuración y ayuda" aparte; sin módulos de PAA, alertas, pipeline, perfil, experiencia ni personal', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const nav = html.slice(html.indexOf('<div class="sidebar-nav" id="bt-nav"'), html.indexOf('<div class="sidebar-foot"'));
+  const items = [...nav.matchAll(/<button class="nav-item([^"]*)"[^>]*data-view="([a-z]+)"[^>]*aria-label="([^"]+)"/g)].map(m => ({ secundario: /nav-item-secondary/.test(m[1]), vista: m[2], etiqueta: m[3] }));
+  const principales = items.filter(i => !i.secundario);
+  assert(JSON.stringify(principales.map(i => i.etiqueta)) === JSON.stringify(['Buscar procesos', 'Mis procesos', 'Empresa', 'Documentos']), 'el menú principal debe ser exactamente Buscar procesos, Mis procesos, Empresa, Documentos; fue ' + JSON.stringify(principales.map(i => i.etiqueta)));
+  const secundarios = items.filter(i => i.secundario);
+  assert(secundarios.length === 1 && secundarios[0].etiqueta === 'Configuración y ayuda', 'la zona secundaria es solo "Configuración y ayuda"');
+  for (const prohibido of ['PAA', 'Plan Anual', 'Alertas', 'Pipeline', 'Perfil de la empresa', 'Personal', 'Dashboard', 'Histórico', 'Calculadora', 'Plantillas']) {
+    assert(!items.some(i => i.etiqueta.includes(prohibido)), 'el menú no debe tener "' + prohibido + '"');
+  }
+  assert(/id="bt-brand-home"[^>]*data-view="dashboard"/.test(html), 'la marca lleva a Inicio (Inicio no es un ítem del menú)');
+});
+await check('Vistas: Empresa agrupa Datos/Experiencia/Personal con pestañas; los nombres viejos (pipeline, evaluacion, perfil...) siguen abriendo algo; todo id referenciado por ARIA existe', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  for (const v of ['perfil', 'experiencia', 'personal']) {
+    assert(new RegExp('class="empresa-panel" id="view-' + v + '"').test(html), 'el panel ' + v + ' debe vivir dentro de Empresa');
+    assert(html.includes('id="bt-empresa-tab-' + v + '"'), 'falta la pestaña ' + v);
+  }
+  assert(!/id="view-pipeline"/.test(html) && /id="view-procesos"/.test(html), 'Pipeline pasó a ser "Mis procesos" (view-procesos)');
+  assert(/const VISTAS_EMPRESA = \['perfil', 'experiencia', 'personal'\]/.test(html), 'VISTAS_EMPRESA');
+  const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]));
+  const roto = [];
+  for (const m of html.matchAll(/\s(aria-controls|aria-labelledby)="([^"]+)"/g)) {
+    if (!ids.has(m[2]) && !/['"+]/.test(m[2])) roto.push(m[1] + '=' + m[2]);
+  }
+  assert(!roto.length, 'referencias ARIA a ids que no existen: ' + roto.join(', '));
+});
+await check('Documentos: el inventario dice qué hay cargado sin inventar (RUP/RUT, experiencia con su archivo, personal, pliegos con lectura parcial)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('function inventarioDocumentos('), j = html.indexOf('function renderDocumentosView(');
+  assert(i !== -1 && j > i, 'anclas de inventarioDocumentos');
+  const inventario = new Function('lecturaParcial', html.slice(i, j) + '\nreturn inventarioDocumentos;')(expEngine.lecturaParcial);
+  const inv = inventario(
+    { a: { nombre: 'Constructora A', rup: '72101507', k: '', kResidual: '', nit: '' }, b: { nombre: '', rup: '', k: '', kResidual: '', nit: '900.1-2' } },
+    { a: { contratos: { contratos: [{}, {}, {}] }, meta: { expFile: 'experiencia.xlsx', omitidos: { total: 1 } } } },
+    { p1: { nombre: 'Ana', cargo: 'Directora', formacion: 'Ing. civil', anos: '10 años' }, p2: { nombre: 'Luis', cargo: '', formacion: '', anos: '' } },
+    { x1: { fileName: 'pliego.pdf', pagesRead: 15, numPages: 76, ts: 5, proceso: { objeto: 'Pavimentación', entidad: 'Alcaldía' } }, x2: { fileName: 'otro.pdf', pagesRead: 10, numPages: 10, ts: 9, textoLiberado: true } });
+  assert(inv.empresa.length === 2 && inv.empresa[0].rup === true && inv.empresa[0].rut === false, 'empresa A: RUP sí, RUT no');
+  assert(inv.empresa[1].nombre === 'Empresa sin nombre' && inv.empresa[1].rup === false && inv.empresa[1].rut === true, 'empresa B: sin nombre, RUT sí, RUP no (sin inventar)');
+  assert(inv.experiencia.length === 1 && inv.experiencia[0].archivo === 'experiencia.xlsx' && inv.experiencia[0].contratos === 3, 'experiencia con archivo y número de contratos');
+  assert(inv.personal[0].completo === true && inv.personal[1].completo === false && inv.personal[1].cargo === null, 'personal completo / incompleto');
+  assert(inv.procesos[0].id === 'x2' && inv.procesos[0].parcial === false && inv.procesos[0].textoLiberado === true, 'más reciente primero; lectura completa; texto liberado se avisa');
+  assert(inv.procesos[1].parcial === true && inv.procesos[1].paginasLeidas === 15 && inv.procesos[1].paginas === 76 && inv.procesos[1].titulo === 'Pavimentación', 'una lectura de 15 de 76 páginas se marca parcial');
+});
 await check('Fusión: ningún texto manda a "Buscar procesos" para subir/analizar el pliego (ahora es "Análisis de pliegos")', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const viejos = [
@@ -3470,7 +3706,7 @@ await check('Fusión: ningún texto manda a "Buscar procesos" para subir/analiza
     'dentro del análisis de este pliego.', 'En "Evaluación" ves'
   ].filter(t => t !== 'dentro del análisis de este pliego.');
   for (const t of viejos) assert(!html.includes(t), 'texto obsoleto: ' + t);
-  assert(/Ver el detalle completo en "Análisis de pliegos"/.test(html), 'el gate de experiencia debe remitir a Análisis de pliegos');
+  assert(/Ver el detalle completo en "Análisis del proceso"/.test(html), 'el gate de experiencia debe remitir a Análisis del proceso');
 });
 await check('F-03: "Análisis de pliegos" avisa cuando los datos son de ejemplo o de respaldo (y calla cuando son en vivo)', () => {
   const demo = expEngine.avisoFuenteDatos('demo', '2026-09-03');
@@ -3498,7 +3734,7 @@ await check('F-04: un análisis guardado se puede abrir aunque su proceso ya no 
     d: { ts: 10, fileName: 'd.pdf' },
     e: { ts: 5, fileName: 'e.pdf', proceso: Object.assign({}, snap, { closingRaw: '1961-01-01T00:00:00Z' }) }
   };
-  const historial = { c: { etapa: 'por_evaluar', snapshot: { entidad: 'Gobernación C', objeto: 'Vía', valor: 9, closingRaw: '2026-10-08T00:00:00Z', fuente: 'II', referencia: 'C-1' } } };
+  const historial = { c: { etapa: 'por_revisar', snapshot: { entidad: 'Gobernación C', objeto: 'Vía', valor: 9, closingRaw: '2026-10-08T00:00:00Z', fuente: 'II', referencia: 'C-1' } } };
   const r = expEngine.procesosAnalizadosFueraDeLista(analisis, historial, new Set(['a']), ahora);
   assert(r.map(x => x.item.id).join(',') === 'b,c,d,e', 'ids y orden (más reciente primero, sin el que ya está en la búsqueda): ' + r.map(x => x.item.id));
   assert(r[0].item.entidad === 'Alcaldía A' && r[0].daysLeft === 10 && r[0].guardado.modo === 'snapshot' && r[0].guardado.origen === 'analisis', 'b sale del resumen guardado');
