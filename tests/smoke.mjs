@@ -3515,8 +3515,103 @@ await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su 
   assert(/enContenedoresDeProceso\('click', async function manejarClickEvaluacion/.test(html), 'los botones eval-* deben colgar de ambos contenedores');
 });
 // Reestructuración (2026-10): el menú principal son 4 ítems (+ una zona secundaria), no 7 módulos.
+// Casos 5 y 6 del prompt de reestructuración: una cita falsa no produce CUMPLE; un documento parcial se declara.
+await check('Caso 5 (cita falsa): una exigencia con cita inventada no se usa: el gate queda sin valor (nd), el área NO DETERMINABLE y el resultado global nunca es GO', () => {
+  const fila = { categoria: 'capacidad_financiera', indicador: 'liquidez', operador: '>=', valor_indicador: 0.5, naturaleza: 'habilitante', pagina: 1, confianza: 'alta',
+    cita_textual: 'El índice de liquidez debe ser mayor o igual a 0,5 según lo dispuesto por esta entidad' };
+  const v = expEngine.verificarFilaIA(fila, IA_TEXTO, IA_OFFSETS);
+  assert(v.verificada === false, 'la cita inventada no se verifica: ' + JSON.stringify(v));
+  fila.verificada = false; fila.motivoVerificacion = v.motivo;
+  assert(expEngine.filaIAConfiable(fila) === false, 'una fila sin verificar no es confiable');
+  const ex = expEngine.exigenciasDesdeIA([fila]);
+  assert(ex.liquidez && ex.liquidez.valor === null && ex.liquidez.conflicto === true, 'el umbral inventado (0,5) NO llega al motor: ' + JSON.stringify(ex.liquidez));
+  const cmp = expEngine.compararIndiceConUmbral('Índice de liquidez', ex.liquidez, 2.0, '>=', true);
+  assert(cmp.estado === 'nd', 'con la exigencia sin verificar, aunque la empresa tenga 2,0 el gate es nd, no ok: ' + JSON.stringify(cmp));
+  const gates = [okGate('Presentación de oferta'), { nombre: 'Índice de liquidez', estado: cmp.estado, detalle: cmp.detalle }];
+  assert(expEngine.veredictoGlobal(gates, true) === 'NO DETERMINABLE', 'global: NO DETERMINABLE, nunca GO');
+  const area = expEngine.resumenViabilidad(gates, { hayPliego: true }).find(a => a.clave === 'financiera');
+  assert(area.estado === 'NO DETERMINABLE', 'área: ' + area.estado);
+  // control positivo: la misma exigencia con la cita verificada sí se usa
+  const buena = Object.assign({}, fila, { verificada: true, motivoVerificacion: null });
+  assert(expEngine.exigenciasDesdeIA([buena]).liquidez.valor === 0.5 && expEngine.compararIndiceConUmbral('Índice de liquidez', expEngine.exigenciasDesdeIA([buena]).liquidez, 2.0, '>=', true).estado === 'ok', 'control positivo: con cita verificada y 2,0 >= 0,5, ok');
+});
+await check('Caso 6 (documento parcial): leído 15 de 76 páginas -> gate nd, alerta de análisis parcial y nunca GO', () => {
+  const lp = expEngine.lecturaParcial({ pagesRead: 15, numPages: 76, viaOcr: true });
+  assert(lp && lp.pagesRead === 15 && lp.numPages === 76, 'lecturaParcial');
+  const g = expEngine.gateLecturaParcial(lp);
+  const gates = TODO_OK.concat([Object.assign({ nombre: 'Lectura del pliego' }, g)]);
+  assert(expEngine.veredictoGlobal(gates, true) !== 'GO', 'con lectura parcial nunca GO');
+  const al = expEngine.alertasAnalisis(gates, { hayPliego: true, lecturaParcial: lp });
+  assert(al.some(a => /El análisis es parcial: se leyeron 15 de 76/.test(a.texto)), 'se declara: ' + JSON.stringify(al));
+  assert(expEngine.textoCoberturaLectura({ pagesRead: 15, numPages: 76 }) === 'Leído: 15/76 págs (parcial)', 'cobertura junto al resultado');
+  assert(expEngine.lecturaParcial({ pagesRead: 76, numPages: 76 }) === null, 'control: lectura completa no es parcial');
+});
+
 // Búsqueda en lenguaje natural SIN IA (la versión con LLM se eliminó por costo, ver docs/HISTORIAL.md): un intérprete
 // determinista que llena los mismos filtros de siempre y le dice al usuario qué entendió. Lo que no entiende, lo avisa.
+// Pantalla de análisis: resumen de viabilidad por área, alertas importantes y la explicación del resultado.
+// Todo sale de los gates del motor (nunca de la IA) y el resultado nunca es "CUMPLE" sin evidencia.
+const gk = (nombre, estado, detalle) => ({ nombre, estado, detalle: detalle || nombre + ' ' + estado });
+await check('Resumen de viabilidad: 5 áreas (Experiencia, Capacidad financiera, Capacidad residual, Personal, Garantías) con CUMPLE / NO CUMPLE / REVISAR / NO DETERMINABLE', () => {
+  const area = (r, clave) => r.find(a => a.clave === clave);
+  let r = expEngine.resumenViabilidad([gk('Experiencia', 'ok'), gk('Índice de liquidez', 'ok'), gk('Índice de endeudamiento', 'ok'), gk('Capacidad vs valor', 'ok'), gk('Capacidad K residual', 'ok'), gk('Personal / equipo de trabajo', 'ok')], { hayPliego: true });
+  assert(JSON.stringify(r.map(a => a.nombre)) === JSON.stringify(['Experiencia', 'Capacidad financiera', 'Capacidad residual', 'Personal', 'Garantías']), 'las 5 áreas en orden');
+  assert(['experiencia', 'financiera', 'residual', 'personal'].every(c => area(r, c).estado === 'CUMPLE'), 'todo en verde: CUMPLE');
+  assert(area(r, 'garantias').estado === 'NO DETERMINABLE', 'las garantías nunca salen CUMPLE solas: la app no tiene datos de pólizas de la empresa');
+  r = expEngine.resumenViabilidad([gk('Experiencia', 'ok'), gk('Capacidad K residual', 'fail'), gk('Capacidad vs valor', 'ok')], { hayPliego: true });
+  assert(area(r, 'residual').estado === 'NO CUMPLE' && /Capacidad K residual/.test(area(r, 'residual').motivo), 'un fail domina el área');
+  r = expEngine.resumenViabilidad([gk('Índice de liquidez', 'ok'), gk('Índice de endeudamiento', 'nd')], { hayPliego: true });
+  assert(area(r, 'financiera').estado === 'REVISAR', 'una parte en verde y otra sin dato: REVISAR (evidencia parcial)');
+  r = expEngine.resumenViabilidad([gk('Índice de liquidez', 'nd'), gk('Índice de endeudamiento', 'nd')], { hayPliego: true });
+  assert(area(r, 'financiera').estado === 'NO DETERMINABLE', 'todo sin dato: NO DETERMINABLE');
+  r = expEngine.resumenViabilidad([gk('Personal / equipo de trabajo', 'revisar')], { hayPliego: true });
+  assert(area(r, 'personal').estado === 'REVISAR', 'revisar');
+  r = expEngine.resumenViabilidad([gk('Experiencia', 'ok')], { hayPliego: true });
+  assert(area(r, 'personal').estado === 'NO DETERMINABLE' && /confirm|no se encontr/i.test(area(r, 'personal').motivo), 'un área sin ningún gate NO se da por cumplida: se dice que no se encontró');
+  r = expEngine.resumenViabilidad([gk('Experiencia', 'ok'), gk('Índice de liquidez', 'ok'), gk('Capacidad vs valor', 'ok')], { hayPliego: false });
+  assert(area(r, 'experiencia').estado === 'NO DETERMINABLE' && area(r, 'financiera').estado === 'NO DETERMINABLE' && /pliego/i.test(area(r, 'experiencia').motivo), 'sin pliego analizado ninguna exigencia del pliego se da por cumplida');
+  r = expEngine.resumenViabilidad([], { hayPliego: true, redFlags: [{ severidad: 'alta', mensaje: 'Garantía de cumplimiento 5% por debajo del mínimo' }] });
+  assert(area(r, 'garantias').estado === 'REVISAR' && /Garantía de cumplimiento/.test(area(r, 'garantias').motivo), 'una alerta de garantías pasa el área a REVISAR');
+  r = expEngine.resumenViabilidad([], { hayPliego: true, redFlags: [{ severidad: 'baja', mensaje: 'x' }] });
+  assert(area(r, 'garantias').estado === 'NO DETERMINABLE', 'una alerta baja (criterio de proporcionalidad) no mueve el área');
+});
+
+await check('Alertas del análisis: solo lo importante (críticas en rojo, a revisar en amarillo), con el análisis parcial siempre avisado y sin ruido cuando todo está en verde', () => {
+  const al = (gates, op) => expEngine.alertasAnalisis(gates, Object.assign({ hayPliego: true }, op || {}));
+  assert(al([gk('Experiencia', 'ok'), gk('Capacidad vs valor', 'ok')]).length === 0, 'todo en verde y lectura completa: ninguna alerta (no se llena de información irrelevante)');
+  let r = al([gk('Capacidad K residual', 'fail', 'Pliego: ≥ $5.000M · tu perfil: $2.000M'), gk('Experiencia', 'nd')]);
+  assert(r[0].nivel === 'critica' && /Capacidad K residual/.test(r[0].texto) && /5\.000M/.test(r[0].texto), 'un fail es crítica y trae el dato');
+  assert(r.some(a => a.nivel === 'revisar' && /Experiencia/.test(a.texto)), 'lo que no se pudo determinar es "revisar"');
+  r = al([gk('Experiencia', 'nd'), gk('Capacidad K residual', 'fail', 'x')], { lecturaParcial: { pagesRead: 1, numPages: 9 } });
+  assert(r[0].nivel === 'critica' && r[r.length - 1].nivel === 'revisar', 'las críticas van primero, aunque haya avisos de lectura');
+  r = al([gk('Experiencia', 'ok')], { lecturaParcial: { pagesRead: 15, numPages: 76 } });
+  assert(r.length === 1 && r[0].nivel === 'revisar' && /parcial/i.test(r[0].texto) && /15 de 76/.test(r[0].texto), 'el análisis parcial se avisa con las páginas: ' + JSON.stringify(r));
+  r = al([gk('Experiencia', 'ok')], { nSinVerificar: 3, tablasNoLeidas: 2, conflictos: 1, inyeccion: 1 });
+  const t = r.map(a => a.texto).join(' | ');
+  assert(/3 requisito/.test(t) && /tabla/i.test(t) && /adenda|conflicto/i.test(t) && /dirigido a una IA|instrucciones/i.test(t), 'citas sin verificar, tablas sin leer, conflicto y texto dirigido a la IA: ' + t);
+  r = al([gk('Experiencia', 'ok')], { faltanDatosEmpresa: ['tu experiencia acreditada', 'tu personal'] });
+  assert(r.length === 1 && /Faltan datos de la empresa/.test(r[0].texto) && /experiencia/.test(r[0].texto), 'faltan datos de la empresa');
+  r = al([gk('Lectura del pliego', 'nd', 'Solo 15 de 76'), gk('Requisitos por verificar a mano', 'nd', 'x'), gk('Completitud de la lectura', 'nd', 'y'), gk('Experiencia', 'ok')]);
+  assert(r.filter(a => /Lectura del pliego|Requisitos por verificar|Completitud/.test(a.texto) && /No se pudo determinar/.test(a.texto)).length === 0, 'los gates "meta" no se repiten como "no se pudo determinar" (tienen su propia alerta)');
+  const muchas = al(Array.from({ length: 12 }, (_, i) => gk('Req ' + i, 'fail', 'detalle ' + i)));
+  assert(muchas.length <= 9 && /más/.test(muchas[muchas.length - 1].texto), 'tope de alertas visibles con un "y N más": ' + muchas.length);
+  r = al([gk('Estado del proceso', 'fail', 'Está "Cancelado": ya no admite ofertas.')]);
+  assert(r[0].nivel === 'critica' && /Cancelado/.test(r[0].texto), 'un proceso que ya no admite ofertas es crítico');
+});
+
+await check('Explicación del resultado: una frase por resultado, sin prometer un GO que no existe', () => {
+  const ex = expEngine.explicacionVeredicto;
+  assert(/No se identificaron incumplimientos determinantes/.test(ex('GO', [gk('Experiencia', 'ok')], { hayPliego: true })), 'GO');
+  const rev = ex('REVISAR', [gk('Experiencia', 'ok'), gk('Personal / equipo de trabajo', 'nd'), gk('Capacidad vs valor', 'revisar')], { hayPliego: true });
+  assert(/Se identificaron 2 aspectos que requieren revisión antes de decidir la participación/.test(rev), 'REVISAR con 2 aspectos: ' + rev);
+  assert(/Se identificó 1 aspecto que requiere revisión/.test(ex('REVISAR', [gk('Personal / equipo de trabajo', 'nd')], { hayPliego: true })), 'singular');
+  const no = ex('NO-GO', [gk('Capacidad K residual', 'fail'), gk('Índice de liquidez', 'fail')], { hayPliego: true });
+  assert(/2 requisito\(s\) crítico\(s\)/.test(no) && /Capacidad K residual/.test(no) && /Índice de liquidez/.test(no), 'NO-GO nombra lo que no cumple: ' + no);
+  const nd = ex('NO DETERMINABLE', [gk('Experiencia', 'nd')], { hayPliego: true });
+  assert(/No hay evidencia suficiente/.test(nd) && /Experiencia/.test(nd), 'NO DETERMINABLE con pliego: ' + nd);
+  assert(/Analiza el pliego/.test(ex('NO DETERMINABLE', [], { hayPliego: false })), 'NO DETERMINABLE sin pliego');
+});
+
 await check('Búsqueda natural: entiende tipo de obra, departamento, municipio y rango de valor en pesos colombianos, y avisa lo que no entendió', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('const DEPARTAMENTOS_CO'), j = html.indexOf('function getInputs(');
@@ -3611,7 +3706,7 @@ await check('Fusión: ningún texto manda a "Buscar procesos" para subir/analiza
     'dentro del análisis de este pliego.', 'En "Evaluación" ves'
   ].filter(t => t !== 'dentro del análisis de este pliego.');
   for (const t of viejos) assert(!html.includes(t), 'texto obsoleto: ' + t);
-  assert(/Ver el detalle completo en "Análisis de pliegos"/.test(html), 'el gate de experiencia debe remitir a Análisis de pliegos');
+  assert(/Ver el detalle completo en "Análisis del proceso"/.test(html), 'el gate de experiencia debe remitir a Análisis del proceso');
 });
 await check('F-03: "Análisis de pliegos" avisa cuando los datos son de ejemplo o de respaldo (y calla cuando son en vivo)', () => {
   const demo = expEngine.avisoFuenteDatos('demo', '2026-09-03');

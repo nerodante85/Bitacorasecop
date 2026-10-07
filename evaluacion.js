@@ -82,6 +82,101 @@
   }
 
 
+  // ── Pantalla de análisis: resumen de viabilidad, alertas y explicación ──────────────────────
+  // Todo se deriva de los gates del motor (nunca de la IA). Regla de oro: lo que no se pudo comprobar es
+  // NO DETERMINABLE, jamás "cumple".
+  const AREAS_VIABILIDAD = [
+    { clave: 'experiencia', nombre: 'Experiencia', gates: ['Experiencia'], que: 'la experiencia que exige el pliego' },
+    { clave: 'financiera', nombre: 'Capacidad financiera', gates: ['Índice de liquidez', 'Índice de endeudamiento', 'Razón de cobertura', 'Patrimonio', 'Capital de trabajo'], que: 'los indicadores financieros' },
+    { clave: 'residual', nombre: 'Capacidad residual', gates: ['Capacidad K residual', 'Capacidad vs valor'], que: 'la capacidad residual' },
+    { clave: 'personal', nombre: 'Personal', gates: ['Personal / equipo de trabajo'], que: 'el personal mínimo' },
+    { clave: 'garantias', nombre: 'Garantías', gates: [], que: 'las garantías' }
+  ];
+  // Gates que describen el estado de la lectura o del proceso, no un requisito: tienen su propia alerta.
+  const GATES_META = ['Lectura del pliego', 'Requisitos por verificar a mano', 'Completitud de la lectura', 'Requisitos habilitantes'];
+
+  // Una parte en verde y otra sin dato es evidencia parcial (REVISAR); solo "sin dato" es NO DETERMINABLE.
+  function estadoDeArea(estados){
+    if (!estados.length) return 'NO DETERMINABLE';
+    if (estados.indexOf('fail') !== -1) return 'NO CUMPLE';
+    if (estados.indexOf('revisar') !== -1) return 'REVISAR';
+    const nOk = estados.filter(e => e === 'ok').length;
+    if (nOk && nOk < estados.length) return 'REVISAR';
+    return nOk ? 'CUMPLE' : 'NO DETERMINABLE';
+  }
+
+  // opciones: { hayPliego, redFlags }. Devuelve [{ clave, nombre, estado, motivo, gates }].
+  function resumenViabilidad(gates, opciones){
+    const op = opciones || {};
+    const hayPliego = op.hayPliego !== false;
+    return AREAS_VIABILIDAD.map(a => {
+      if (a.clave === 'garantias'){
+        const flags = (op.redFlags || []).filter(f => f && (f.severidad === 'alta' || f.severidad === 'media'));
+        return flags.length
+          ? { clave: a.clave, nombre: a.nombre, estado: 'REVISAR', motivo: flags.length + ' alerta(s): ' + (flags[0].mensaje || 'garantía por debajo del mínimo legal') + '.', gates: [] }
+          : { clave: a.clave, nombre: a.nombre, estado: 'NO DETERMINABLE', motivo: 'Bitácora no compara las garantías con tu empresa: confirma montos y pólizas en el pliego.', gates: [] };
+      }
+      const delArea = (gates || []).filter(g => a.gates.indexOf(g.nombre) !== -1);
+      // Sin pliego analizado ninguna exigencia del pliego se da por cumplida; la capacidad frente al valor del proceso sí se puede medir.
+      if (!hayPliego && a.clave !== 'residual')
+        return { clave: a.clave, nombre: a.nombre, estado: 'NO DETERMINABLE', motivo: 'Analiza el pliego de este proceso para evaluar ' + a.que + '.', gates: [] };
+      const estado = estadoDeArea(delArea.map(g => g.estado));
+      const nombresDe = est => delArea.filter(g => g.estado === est).map(g => g.nombre);
+      let motivo;
+      if (!delArea.length) motivo = 'No se encontró ' + a.que + ' en el texto leído: confírmalo en el pliego.';
+      else if (estado === 'NO CUMPLE') motivo = 'No cumple: ' + nombresDe('fail').join(', ') + '.';
+      else if (estado === 'REVISAR') motivo = 'Por validar: ' + nombresDe('revisar').concat(nombresDe('nd')).join(', ') + '.';
+      else if (estado === 'CUMPLE') motivo = 'Cumple lo evaluado (' + delArea.map(g => g.nombre).join(', ') + ').';
+      else motivo = 'Sin dato suficiente: ' + nombresDe('nd').join(', ') + '.';
+      return { clave: a.clave, nombre: a.nombre, estado: estado, motivo: motivo, gates: delArea.map(g => g.nombre) };
+    });
+  }
+
+  // Solo lo importante: críticas (algo aparentemente no se cumple) y "a revisar". Tope de 8 visibles.
+  // opciones: { hayPliego, lecturaParcial:{pagesRead,numPages}, nSinVerificar, tablasNoLeidas, conflictos, inyeccion, redFlags, faltanDatosEmpresa:[] }
+  function alertasAnalisis(gates, opciones){
+    const op = opciones || {};
+    const criticas = [], revisar = [];
+    const corto = t => { t = String(t || ''); return t.length > 220 ? t.slice(0, 220) + '…' : t; };
+    (gates || []).filter(g => g.estado === 'fail').forEach(g => criticas.push({ nivel: 'critica', texto: g.nombre + ': ' + corto(g.detalle) }));
+    if (op.lecturaParcial) revisar.push({ nivel: 'revisar', texto: 'El análisis es parcial: se leyeron ' + op.lecturaParcial.pagesRead + ' de ' + op.lecturaParcial.numPages + ' páginas del documento; los requisitos de las páginas sin leer no se evaluaron.' });
+    if (op.inyeccion) revisar.push({ nivel: 'revisar', texto: 'El PDF contiene texto dirigido a una IA (instrucciones ocultas): ninguna fila cuenta para decidir hasta que la confirmes a mano.' });
+    if (op.tablasNoLeidas) revisar.push({ nivel: 'revisar', texto: 'Posible tabla no leída en ' + op.tablasNoLeidas + ' página(s): su contenido no se pudo interpretar como texto.' });
+    if (op.nSinVerificar) revisar.push({ nivel: 'revisar', texto: op.nSinVerificar + ' requisito(s) con cita sin verificar contra el PDF: no cuentan para decidir hasta que los confirmes.' });
+    if (op.conflictos) revisar.push({ nivel: 'revisar', texto: op.conflictos + ' requisito(s) con valores distintos entre el pliego y una adenda (conflicto): confirma cuál está vigente.' });
+    if (op.faltanDatosEmpresa && op.faltanDatosEmpresa.length) revisar.push({ nivel: 'revisar', texto: 'Faltan datos de la empresa: ' + op.faltanDatosEmpresa.join(', ') + '. Esos requisitos no se pueden comparar.' });
+    (gates || []).filter(g => g.estado === 'revisar' && GATES_META.indexOf(g.nombre) === -1).forEach(g => revisar.push({ nivel: 'revisar', texto: g.nombre + ': ' + corto(g.detalle) }));
+    const nd = (gates || []).filter(g => g.estado === 'nd' && GATES_META.indexOf(g.nombre) === -1 && GATES_ADMINISTRATIVOS.indexOf(g.nombre) === -1).map(g => g.nombre);
+    if (nd.length) revisar.push({ nivel: 'revisar', texto: 'No se pudo determinar: ' + nd.join(', ') + ' (falta información o evidencia verificada).' });
+    ((op.redFlags || []).filter(f => f && (f.severidad === 'alta' || f.severidad === 'media'))).forEach(f => revisar.push({ nivel: 'revisar', texto: 'Garantías: ' + corto(f.mensaje) }));
+    const todas = [];
+    criticas.concat(revisar).forEach(a => { if (!todas.some(x => x.texto === a.texto)) todas.push(a); });
+    if (todas.length > 8){
+      const resto = todas.length - 8;
+      return todas.slice(0, 8).concat([{ nivel: 'revisar', texto: 'y ' + resto + ' más: abre el detalle del análisis.' }]);
+    }
+    return todas;
+  }
+
+  // Una frase que dice qué significa el resultado y por qué (sin prometer un GO que no existe).
+  function explicacionVeredicto(veredicto, gates, opciones){
+    const op = opciones || {};
+    const reales = (gates || []).filter(g => GATES_ADMINISTRATIVOS.indexOf(g.nombre) === -1 || g.estado === 'fail');
+    const nombres = est => reales.filter(g => g.estado === est).map(g => g.nombre);
+    if (veredicto === 'GO') return 'No se identificaron incumplimientos determinantes con la información disponible.';
+    if (veredicto === 'NO-GO'){
+      const f = nombres('fail');
+      return 'Se identificó ' + f.length + ' requisito(s) crítico(s) que aparentemente la empresa no cumple: ' + f.join(', ') + '.';
+    }
+    const pend = nombres('revisar').concat(nombres('nd')).filter(n => GATES_META.indexOf(n) === -1);
+    if (veredicto === 'REVISAR'){
+      const n = pend.length || 1;
+      return n === 1 ? 'Se identificó 1 aspecto que requiere revisión antes de decidir la participación.'
+        : 'Se identificaron ' + n + ' aspectos que requieren revisión antes de decidir la participación.';
+    }
+    return 'No hay evidencia suficiente para establecer el cumplimiento' + (op.hayPliego === false ? '. Analiza el pliego de este proceso.' : (pend.length ? ': ' + pend.join(', ') + '.' : '.'));
+  }
+
   // Normaliza un entry (nuevo o del esquema viejo de un solo comp) a una lista de comps.
   function compsDe(entry){
     if (entry && Array.isArray(entry.comps)) return entry.comps;
@@ -291,7 +386,8 @@
 
     return {
       gateCapacidadVsValor: gateCapacidadVsValor, ajustarGatesPorContratosIncompletos: ajustarGatesPorContratosIncompletos,
-      gateLecturaParcial: gateLecturaParcial, decidirVeredicto: decidirVeredicto, veredictoGlobal: veredictoGlobal, compsDe: compsDe,
+      gateLecturaParcial: gateLecturaParcial, decidirVeredicto: decidirVeredicto, veredictoGlobal: veredictoGlobal,
+      resumenViabilidad: resumenViabilidad, alertasAnalisis: alertasAnalisis, explicacionVeredicto: explicacionVeredicto, estadoDeArea: estadoDeArea, compsDe: compsDe,
       codigosExigidosEnPliego: codigosExigidosEnPliego, gatePersonalRequerido: gatePersonalRequerido,
       evaluarProceso: evaluarProceso, evaluarContraPerfiles: evaluarContraPerfiles
     };

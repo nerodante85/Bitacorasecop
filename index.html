@@ -294,6 +294,58 @@
     color: var(--text-heading);
   }
   #bitacora-root .view-header p { margin: 0; font-size: 14px; color: var(--text-muted); max-width: 640px; line-height: 1.5; }
+  /* Análisis: resultado global, resumen de viabilidad, alertas, matriz y panel de evidencia. */
+  #bitacora-root .resultado-global { border: 1px solid currentColor; border-radius: var(--radius-md); padding: 16px 18px; margin: 0 0 14px; }
+  #bitacora-root .resultado-global.eval-go { background: var(--success-bg); }
+  #bitacora-root .resultado-global.eval-nogo { background: var(--danger-bg); }
+  #bitacora-root .resultado-global.eval-revisar { background: var(--warning-bg); }
+  #bitacora-root .resultado-global.eval-nd { background: var(--neutral-bg); }
+  #bitacora-root .resultado-nombre { font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 30px; line-height: 1.1; letter-spacing: -0.01em; }
+  #bitacora-root .resultado-expl { color: var(--text); font-size: 15px; margin-top: 6px; overflow-wrap: anywhere; }
+  #bitacora-root .resultado-meta { color: var(--text-muted); font-size: 12.5px; margin-top: 8px; }
+  #bitacora-root .analisis-seccion { margin: 18px 0 8px; }
+  #bitacora-root .analisis-seccion > h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; letter-spacing: .02em; color: var(--text-muted); text-transform: none; }
+  #bitacora-root .estado-cumple { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+  #bitacora-root .estado-nocumple { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
+  #bitacora-root .estado-revisar { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
+  #bitacora-root .estado-nd { background: var(--neutral-bg); color: var(--neutral); border-color: var(--neutral-border); }
+  #bitacora-root .viabilidad-tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+  #bitacora-root .viabilidad-tabla th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  #bitacora-root .viabilidad-tabla td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
+  #bitacora-root .viabilidad-tabla td:first-child { font-weight: 600; white-space: nowrap; }
+  @media (max-width: 560px) {
+    #bitacora-root .viabilidad-tabla, #bitacora-root .viabilidad-tabla tbody, #bitacora-root .viabilidad-tabla tr, #bitacora-root .viabilidad-tabla td { display: block; }
+    #bitacora-root .viabilidad-tabla thead { display: none; }
+    #bitacora-root .viabilidad-tabla tr { padding: 8px 0; border-bottom: 1px solid var(--border); }
+    #bitacora-root .viabilidad-tabla td { border: 0; padding: 2px 8px; }
+    #bitacora-root .viabilidad-tabla td:first-child { white-space: normal; }
+  }
+  #bitacora-root .alertas-analisis { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  #bitacora-root .alerta-item { display: flex; gap: 10px; align-items: flex-start; border: 1px solid; border-radius: var(--radius-sm); padding: 9px 12px; font-size: 14px; overflow-wrap: anywhere; }
+  #bitacora-root .alerta-item.critica { background: var(--danger-bg); border-color: var(--danger-border); }
+  #bitacora-root .alerta-item.revisar { background: var(--warning-bg); border-color: var(--warning-border); }
+  #bitacora-root .alerta-nivel { font-weight: 700; font-size: 12px; white-space: nowrap; padding-top: 1px; }
+  #bitacora-root .alerta-item.critica .alerta-nivel { color: var(--danger); }
+  #bitacora-root .alerta-item.revisar .alerta-nivel { color: var(--warning); }
+  #bitacora-root .matriz-filtros { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+  #bitacora-root .matriz-filtro { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted); border-radius: var(--radius-sm); padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  #bitacora-root .matriz-filtro[aria-pressed="true"] { background: var(--accent-button); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  #bitacora-root .matriz-tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  #bitacora-root .matriz-tabla th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  #bitacora-root .matriz-tabla td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
+  #bitacora-root .matriz-tabla tr[hidden] { display: none; }
+  #bitacora-root .matriz-vacia { color: var(--text-muted); font-size: 14px; padding: 10px 0; }
+  #bitacora-root .evidencia-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 60; display: flex; justify-content: flex-end; }
+  #bitacora-root .evidencia-backdrop[hidden] { display: none; }
+  #bitacora-root .evidencia-panel { width: min(520px, 100vw); height: 100%; overflow-y: auto; background: var(--surface); border-left: 1px solid var(--border-strong); padding: 20px 22px 28px; box-shadow: var(--shadow-md); }
+  #bitacora-root .evidencia-panel h2 { margin: 0 34px 14px 0; font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 20px; }
+  #bitacora-root .evidencia-cerrar { position: absolute; top: 12px; right: 14px; }
+  #bitacora-root .evidencia-dl { margin: 0; display: grid; gap: 12px; }
+  #bitacora-root .evidencia-dl dt { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 3px; }
+  #bitacora-root .evidencia-dl dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+  #bitacora-root .evidencia-cita { margin: 0; padding: 10px 12px; border-left: 3px solid var(--accent-button); background: var(--bg); font-size: 13.5px; white-space: pre-wrap; }
+  #bitacora-root .evidencia-pagina { margin-top: 10px; max-height: 320px; overflow: auto; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #bitacora-root .evidencia-pagina mark { background: var(--accent-soft); color: var(--accent); }
   /* Buscar: el cuadro de búsqueda natural es la acción principal; "Más filtros" y las herramientas van plegados. */
   #bitacora-root .buscador-fila { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
   #bitacora-root .buscador-fila input[type="search"] { flex: 1 1 280px; min-width: 0; font-size: 15px; padding: 11px 14px; }
@@ -1087,7 +1139,7 @@
      fila de solo íconos (title/aria-label como nombre accesible) -- mejor
      que desbordar, pero obligaba a adivinar qué ícono tocar sin conocer
      la app. Después se probó agregar el nombre solo al ítem activo -- se
-     revirtió: incluso un solo nombre ("Perfil de la empresa") desbordaba
+     revirtió: incluso un solo nombre ("Empresa") desbordaba
      93px a 375px real (mismo método de medición que los bugs de abajo:
      sidebar.scrollWidth - sidebar.clientWidth). El menú desplegable evita
      el problema de raíz: el panel abierto no compite por ancho con nada,
@@ -1566,10 +1618,10 @@
         <div class="empresa-panel" id="view-experiencia" data-view="experiencia" role="tabpanel" aria-labelledby="bt-empresa-tab-experiencia" hidden>
           <div class="view-header panel-header">
             <h2>Experiencia</h2>
-            <p>Carga la experiencia acreditada de tu empresa. Si vas a participar en consorcio o unión temporal, cada empresa carga su propio archivo aquí -- al evaluar un pliego se suman los contratos de las empresas marcadas para comparar (ver "Perfil de la empresa"). Los requisitos que exige cada proceso se extraen automáticamente del Pliego de Condiciones y/o Estudio Previo al analizar ese pliego, en "Análisis de pliegos" -- ya no hace falta preparar una matriz aparte.</p>
+            <p>Carga la experiencia acreditada de tu empresa. Si vas a participar en consorcio o unión temporal, cada empresa carga su propio archivo aquí -- al evaluar un pliego se suman los contratos de las empresas marcadas para comparar (ver "Empresa"). Los requisitos que exige cada proceso se extraen automáticamente del Pliego de Condiciones y/o Estudio Previo al analizar ese pliego, en "Análisis del proceso" -- ya no hace falta preparar una matriz aparte.</p>
           </div>
 
-          <div class="empty" id="bt-exp-sin-perfiles" hidden>Todavía no tienes ninguna empresa guardada. Ve a "Perfil de la empresa" y crea al menos una antes de cargar su experiencia. <button type="button" class="link-btn" data-ir-a="perfil">Ir a Perfil de la empresa</button></div>
+          <div class="empty" id="bt-exp-sin-perfiles" hidden>Todavía no tienes ninguna empresa guardada. Ve a "Empresa" y crea al menos una antes de cargar su experiencia. <button type="button" class="link-btn" data-ir-a="perfil">Ir a Perfil de la empresa</button></div>
 
           <div class="titleblock" id="bt-exp-perfil-panel">
             <div class="titleblock-head">
@@ -1592,7 +1644,7 @@
           <div class="titleblock" id="bt-expeval-panel">
             <div class="titleblock-head">
               <h2>Experiencia acreditada de tu empresa</h2>
-              <span>Se compara, requisito por requisito, contra lo que exija el Pliego/Estudio Previo de cada proceso que analices en "Análisis de pliegos"</span>
+              <span>Se compara, requisito por requisito, contra lo que exija el Pliego/Estudio Previo de cada proceso que analices en "Análisis del proceso"</span>
             </div>
 
             <div class="expeval-uploads">
@@ -1619,7 +1671,7 @@
               <button class="link-btn" id="bt-expeval-clear" style="display:none">Borrar lo cargado</button>
             </div>
           </div>
-          <div class="saved-note" id="bt-expeval-siguiente-paso" hidden>Ya cargaste tu experiencia. Siguiente paso: ve a "Personal" para registrar el equipo de trabajo, y después a "Buscar procesos" para elegir un proceso y a "Análisis de pliegos" para analizar su pliego -- ahí se extraen los requisitos y se evalúa el cumplimiento.</div>
+          <div class="saved-note" id="bt-expeval-siguiente-paso" hidden>Ya cargaste tu experiencia. Siguiente paso: ve a "Personal" para registrar el equipo de trabajo, y después a "Buscar procesos" para elegir un proceso y a "Análisis del proceso" para analizar su pliego -- ahí se extraen los requisitos y se evalúa el cumplimiento.</div>
         </div>
 
         <div class="empresa-panel" id="view-personal" data-view="personal" role="tabpanel" aria-labelledby="bt-empresa-tab-personal" hidden>
@@ -1686,14 +1738,14 @@
               <div class="empty-inline">Todavía no has registrado ningún perfil profesional.</div>
             </div>
           </div>
-          <div class="saved-note" id="bt-personal-siguiente-paso" hidden>Siguiente paso: ve a "Buscar procesos", elige un proceso y analiza su pliego en "Análisis de pliegos" — ahí verás cuándo está todo listo.</div>
+          <div class="saved-note" id="bt-personal-siguiente-paso" hidden>Siguiente paso: ve a "Buscar procesos", elige un proceso y analiza su pliego en "Análisis del proceso" — ahí verás cuándo está todo listo.</div>
         </div>
         </section>
 
         <section class="view" id="view-analisis" data-view="analisis" role="region" aria-labelledby="bt-analisis-titulo" hidden>
           <div class="view-header">
-            <h1 id="bt-analisis-titulo">Análisis de pliegos</h1>
-            <p>Aquí analizas el pliego (o el Estudio Previo) del proceso que elijas en "Buscar procesos": veredicto, requisitos, experiencia, cronograma y riesgos; la comparación por empresa, la carta y el paquete de propuesta, y las adjudicaciones históricas de la entidad con una sugerencia de oferta. La lista de procesos se queda solo con lo esencial.</p>
+            <h1 id="bt-analisis-titulo">Análisis del proceso</h1>
+            <p>El resultado, el resumen de viabilidad, las alertas y la matriz de requisitos de un proceso. Analiza su Pliego de Condiciones (o el Estudio Previo) para compararlo con tu empresa.</p>
           </div>
           <div class="demo-banner" id="bt-analisis-fuente" style="display:none" role="status"></div>
           <div class="empty" id="bt-analisis-empty">Todavía no hay procesos para analizar. Ve a "Buscar procesos", aplica una búsqueda y usa "Analizar pliego →" en el proceso que te interese. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
@@ -1774,15 +1826,20 @@
           <p data-help-view="buscar">Fuente: conjunto de datos abiertos "Procesos de Contratación — SECOP II" (datos.gov.co, dataset p6dx-8zbt). Esta página consulta el dataset en vivo cada vez que le das a "Aplicar filtros" (una petición por cada palabra clave de Especialidades, o por el número de proceso si lo llenaste). Si por algún motivo la consulta en vivo falla (sin conexión, límites de la API pública, etc.), se muestra automáticamente un snapshot de respaldo y te lo avisa arriba. La prioridad es un puntaje orientativo por coincidencia de palabras clave, cobertura geográfica y cercanía del plazo — no reemplaza la lectura del pliego. Verifica siempre el expediente completo en SECOP II antes de decidir.</p>
           <p data-help-view="buscar">Si llenas "Número de proceso o referencia", esa búsqueda manda: encuentra el proceso aunque no coincida con las Especialidades, el Departamento, ni con "Ocultar vencidos" / "≤30 días" / "Solo Licitación Pública" / estado / descartados — para no ocultar por accidente el proceso puntual que buscas. Vacía esa casilla para volver a la búsqueda por filtros.</p>
           <p data-help-view="dashboard">El historial de procesos revisados, los perfiles de empresa, los análisis de pliegos y la evaluación de experiencia se guardan en tu cuenta y persisten entre sesiones; no son visibles para otros usuarios.</p>
-          <p data-help-view="perfil">En "Perfil de la empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y, orientativamente, los indicadores financieros — revísalos antes de guardar. El RUP ya NO se usa para inferir experiencia general ni específica; eso vive aparte, en "Experiencia".</p>
+          <p data-help-view="perfil">En "Empresa" puedes cargar el certificado del RUP (PDF): se autocompletan los códigos UNSPSC de clasificación y, orientativamente, los indicadores financieros — revísalos antes de guardar. El RUP ya NO se usa para inferir experiencia general ni específica; eso vive aparte, en "Experiencia".</p>
           <p data-help-view="buscar">El análisis de pliegos PDF es una ayuda de lectura rápida por palabras clave (no interpreta el documento) — súbelo tú mismo desde SECOP II, ya que la herramienta no puede descargarlo automáticamente por restricciones de la plataforma. Compara el texto del pliego contra cada perfil que hayas marcado en "Comparar en el análisis de pliegos" (RUP/clasificador y Capacidad K), empresa por empresa; el requisito de experiencia que detecta en el texto se muestra igual, pero si lo cumples o no sale de "Experiencia", no de este perfil. Desde el resultado puedes descargar o copiar un informe detallado.</p>
           <p data-help-view="buscar">Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto, más el resultado de la evaluación de experiencia si ya la corriste; esto también es orientativo. Los procesos revisados que vencen en 3 días o menos se resaltan en rojo. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.</p>
           <p data-help-view="buscar">Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes). Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados, más el resultado de "Experiencia" (CUMPLE/NO CUMPLE/NO DETERMINABLE), que es el mismo para cualquier perfil comparado. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist.</p>
-          <p data-help-view="analisis">En "Análisis de pliegos" ves, junto al análisis del pliego, una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), el veredicto por empresa cuando comparas varias, y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.</p>
+          <p data-help-view="analisis">En "Análisis del proceso" ves, junto al análisis del pliego, una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), el veredicto por empresa cuando comparas varias, y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.</p>
           <p data-help-view="buscar">"Buscar procesos" solo consulta SECOP II — SECOP I es casi todo histórico (contratos ya cerrados) desde que los procesos nuevos migraron a SECOP II en 2021, así que no aporta oportunidades abiertas reales. Sí se usa en "Ver adjudicaciones de esta entidad", para ampliar el historial de contratación más atrás de lo que cubre SECOP II.</p>
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- Panel lateral de evidencia: de dónde salió cada conclusión (requisito, exigencia, fuente, página, cita, dato de la empresa). -->
+  <div class="evidencia-backdrop" id="bt-evidencia-backdrop" hidden>
+    <aside class="evidencia-panel" id="bt-evidencia-panel" role="dialog" aria-modal="true" aria-labelledby="bt-evidencia-titulo"></aside>
   </div>
 
   <!-- Modal de cuenta (Supabase, opcional) -- oculto por defecto (`hidden`) y
@@ -7772,7 +7829,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // El motor del veredicto GO/NO-GO vive en evaluacion.js (sin DOM ni estado global: lo que necesita
   // entra por `deps` y por el `ctx` de cada llamada). Aquí solo se le inyectan las piezas de la página.
   const { gateCapacidadVsValor, ajustarGatesPorContratosIncompletos, gateLecturaParcial, decidirVeredicto, compsDe,
-          codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, evaluarContraPerfiles } = Evaluacion.crear({
+          codigosExigidosEnPliego, gatePersonalRequerido, evaluarProceso, evaluarContraPerfiles,
+          veredictoGlobal, resumenViabilidad, alertasAnalisis, explicacionVeredicto } = Evaluacion.crear({
     fmtMoney: fmtMoney, truncate: truncate, palabrasClaveDe: palabrasClaveDe, PALABRAS_GENERICAS_OBRA: PALABRAS_GENERICAS_OBRA,
     esTokenNumerico: esTokenNumerico, normHeader: normHeader, compararIndiceConUmbral: compararIndiceConUmbral,
     gatesCompletitudIA: gatesCompletitudIA, lecturaParcial: lecturaParcial, experienciaGateDetalle: experienciaGateDetalle,
@@ -7828,7 +7886,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // ahí buscaba un botón que no existe en esa pantalla. Apunta ahora a
     // "Buscar procesos", que es donde sí vive ese control.
     return !m.conPliego
-      ? 'Evaluación preliminar, sin pliego analizado. Ve a "Análisis de pliegos" y sube/analiza el PDF del pliego de este proceso para saber con certeza si vale la pena participar.'
+      ? 'Evaluación preliminar, sin pliego analizado. Ve a "Análisis del proceso" y sube/analiza el PDF del pliego de este proceso para saber con certeza si vale la pena participar.'
       : 'Antes de decidir, confirma' + quien + ': ' + (revisar.length ? revisar.join(', ') : 'los puntos marcados como "revisar"') + '.';
   }
 
@@ -7875,7 +7933,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // documentado en CLAUDE.md) -- distinto de "nunca se analizó".
       return 'El pliego de este proceso ya se analizó, pero no se detectó ningún requisito de experiencia verificable en el texto extraído. ' + puntero;
     }
-    return 'Analiza el pliego de este proceso en "Análisis de pliegos" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
+    return 'Analiza el pliego de este proceso en "Análisis del proceso" para conocer el cumplimiento de experiencia -- ahí se extrae y evalúa automáticamente.';
   }
 
   const EVAL_ICONO = { ok: '✅', fail: '❌', revisar: '⚠', nd: '·' };
@@ -7894,7 +7952,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const mostrarEmpresas = varias || !entry;
     const bloquePerfil = r => {
       const filas = r.gates.map(x =>
-        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry, 'Ver el detalle completo en "Análisis de pliegos", en la sección "Experiencia requerida" de este pliego.') : x.detalle) + '</li>'
+        '<li><b>' + EVAL_ICONO[x.estado] + ' ' + escapeHtml(x.nombre) + ':</b> ' + escapeHtml(x.nombre === 'Experiencia' ? textoExperienciaFueraDeAnalisis(x, entry, 'Ver el detalle completo en "Análisis del proceso", en la sección "Experiencia requerida" de este pliego.') : x.detalle) + '</li>'
       ).join('');
       const cls = r.veredicto === 'GO' ? 'eval-go' : r.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
       // Carta y paquete son POR PERFIL (r.perfilId): NIT, representante y contacto son de una empresa
@@ -7930,9 +7988,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function renderSinPliegoHtml(item, s){
     foldCtxId = item.id;
     const res = evaluarMejor(item, { daysLeft: s.daysLeft }, undefined);
-    if (!res) return '<div class="analysis-block analysis-warn">No hay perfiles para evaluar. Marca al menos uno en "Comparar en el análisis de pliegos" (Perfil de la empresa). <button class="link-btn" data-ir-a="perfil">Ir a Perfil de la empresa</button></div>';
-    const cls = res.mejor.veredicto === 'GO' ? 'eval-go' : res.mejor.veredicto === 'NO-GO' ? 'eval-nogo' : 'eval-revisar';
-    return '<div class="analysis-resumen"><div class="analysis-head">Evaluación preliminar (sin pliego analizado): <span class="eval-verdict ' + cls + '">' + res.mejor.veredicto + '</span></div></div>' +
+    if (!res) return '<div class="analysis-block analysis-warn">No hay ninguna empresa para comparar. Crea o marca una en <button class="link-btn" data-ir-a="perfil">Empresa</button>.</div>';
+    // Sin pliego analizado no hay evidencia de los requisitos: el resultado es NO DETERMINABLE (salvo que algo ya impida
+    // participar, como un proceso cerrado, que sí es NO-GO).
+    const v = etiquetaVeredicto(res.mejor.veredictoGlobal);
+    const alertas = alertasAnalisis(res.mejor.gates, { hayPliego: false });
+    const expl = v === 'NO-GO' ? explicacionVeredicto(v, res.mejor.gates, { hayPliego: false })
+      : 'Todavía no analizaste el documento de este proceso: sin él no hay evidencia para saber si tu empresa cumple.';
+    return '<div class="analysis-resumen"><div class="resultado-global ' + claseVeredicto(v) + '" role="status"><div class="resultado-nombre">' + escapeHtml(v) + '</div>' +
+      '<div class="resultado-expl">' + escapeHtml(expl) + '</div>' +
+      '<div class="resultado-meta">Evaluación preliminar con los datos del proceso (valor, plazo, estado). <i>' + AVISO_ORIENTATIVO + '</i></div></div>' +
+      (alertas.length ? '<div class="analisis-seccion"><h3>Alertas</h3><ul class="alertas-analisis">' + alertas.map(a => '<li class="alerta-item ' + a.nivel + '"><span class="alerta-nivel">' + (a.nivel === 'critica' ? '● CRÍTICA' : '▲ REVISAR') + '</span><span>' + escapeHtml(a.texto) + '</span></li>').join('') + '</ul></div>' : '') +
+      '</div>' +
       evalSeccionesHtml(item, res, undefined);
   }
 
@@ -8217,7 +8284,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('════════════════════════════════════════════════════════');
     L.push('[NOTAS INTERNAS -- borra desde aquí antes de presentar]');
     if (!hayResultados){
-      L.push('Todavía no se evaluó la experiencia de este proceso. Ve a "Análisis de pliegos", analiza el pliego y evalúa la experiencia; luego vuelve a generar el paquete.');
+      L.push('Todavía no se evaluó la experiencia de este proceso. Ve a "Análisis del proceso", analiza el pliego y evalúa la experiencia; luego vuelve a generar el paquete.');
     } else {
       L.push('Autoevaluación automática (orientativa, del motor de "Experiencia requerida"): ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' + ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' + ev.resultados.length + ' requisito(s)).');
       ev.resultados.forEach((r, i) => { if (r.resultado !== 'CUMPLE') L.push('  - Requisito ' + (i + 1) + ': ' + r.resultado + ' -- ' + truncate(r.justificacion || '', 220)); });
@@ -8890,7 +8957,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const habilitante = filaIAHabilitante(f);
       const bloqueo = habilitante ? motivoBloqueoFilaIA(f) : null;
       const confiable = !habilitante || filaIAConfiable(f);
-      let estado, detalle = '';
+      let estado, estadoGate = null, detalle = '';
       if (!habilitante){
         estado = 'NO HABILITANTE';
         detalle = 'La IA lo clasificó como "' + f.naturaleza + '": no es un requisito para participar, así que no decide el veredicto.';
@@ -8909,6 +8976,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         if (nombreGate){
           const g = (gates || []).find(x => x.nombre === nombreGate);
           estado = g ? ESTADO_GATE_A_RESULTADO[g.estado] : 'NO DETERMINABLE';
+          estadoGate = g ? g.estado : 'nd';
           const deConjunto = f.categoria === 'personal' || f.categoria === 'clasificacion_unspsc';
           detalle = (g && deConjunto ? 'Resultado del CONJUNTO («' + nombreGate + '»), no de esta fila individual: ' : '') + (g ? g.detalle : 'Se compara con tu perfil en el "Resumen de compatibilidad" de esta tarjeta (necesita que el proceso esté en pantalla y un perfil marcado).');
         } else {
@@ -8917,8 +8985,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         }
       }
       return {
-        iaIndex: i, categoria: f.categoria, categoriaLabel: CATEGORIA_IA_LABEL[f.categoria] || f.categoria,
-        descripcion: f.descripcion, exigido: textoExigidoIA(f), estado: estado, detalle: detalle,
+        iaIndex: i, categoria: f.categoria, indicador: f.indicador || null, categoriaLabel: CATEGORIA_IA_LABEL[f.categoria] || f.categoria,
+        descripcion: f.descripcion, exigido: textoExigidoIA(f), estado: estado, estadoGate: estadoGate, detalle: detalle,
         documento: f.documento, pagina: f.paginaCorregida || f.pagina, cita: f.cita_textual,
         verificada: f.verificada === true, confirmada: f.confirmadaPorUsuario === true, confiable: confiable, bloqueo: bloqueo,
         motivoVerificacion: f.motivoVerificacion, notas: f.notas, confianza: f.confianza,
@@ -9195,6 +9263,239 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       (meta ? '<span class="fold-meta">' + escapeHtml(meta) + '</span>' : '') + '</summary><div class="fold-body' + (sinSub ? ' sin-sub' : '') + '">' + cuerpo + '</div></details>';
   }
 
+  // ── Análisis: resultado, resumen de viabilidad, alertas y matriz de requisitos ───────────────────
+  // Todo se arma desde los gates del motor y las filas ya verificadas (nunca desde la IA directamente).
+  const ESTADOS_REQ = ['CUMPLE', 'NO CUMPLE', 'REVISAR', 'NO DETERMINABLE'];
+  const ESTADO_REQ_CLASE = { 'CUMPLE': 'estado-cumple', 'NO CUMPLE': 'estado-nocumple', 'REVISAR': 'estado-revisar', 'NO DETERMINABLE': 'estado-nd' };
+  const ESTADO_REQ_GLIFO = { 'CUMPLE': '✓', 'NO CUMPLE': '✕', 'REVISAR': '!', 'NO DETERMINABLE': '?' };
+  const GATE_A_ESTADO4 = { ok: 'CUMPLE', fail: 'NO CUMPLE', revisar: 'REVISAR', nd: 'NO DETERMINABLE' };
+  // Siempre texto además de color y glifo (nunca depende solo del color).
+  function badgeEstado4(estado){
+    const e = ESTADOS_REQ.indexOf(estado) !== -1 ? estado : 'NO DETERMINABLE';
+    return '<span class="expeval-badge ' + ESTADO_REQ_CLASE[e] + '"><span aria-hidden="true">' + ESTADO_REQ_GLIFO[e] + '</span> ' + e + '</span>';
+  }
+
+  // Filas de la matriz: { clave, requisito, exigencia, empresa, resultado, evidencia:{documento,pagina,cita,verificada,...} }.
+  // Con requisitos extraídos por IA, cada fila habilitante; sin ellos (o para lo que la IA no cubre), cada gate del motor.
+  // Una fila con cita sin verificar es NO DETERMINABLE (nunca CUMPLE) hasta que el usuario la confirme.
+  function matrizRequisitos(entry, gates){
+    const filas = [];
+    const dePliego = entry.esSoloEP ? 'Estudio Previo' : 'Pliego de Condiciones';
+    const ia = entry.requisitosIA ? filasRequisitosHabilitantes(entry, gates) : null;
+    const cubiertos = new Set();
+    if (ia){
+      ia.filter(f => f.estado !== 'NO HABILITANTE').forEach(f => {
+        let resultado;
+        if (f.estado === 'SIN VERIFICAR') resultado = 'NO DETERMINABLE';
+        else if (f.estado === 'VERIFICAR A MANO') resultado = 'REVISAR';
+        else if (f.estadoGate) resultado = GATE_A_ESTADO4[f.estadoGate];
+        else resultado = ESTADOS_REQ.indexOf(f.estado) !== -1 ? f.estado : 'NO DETERMINABLE';
+        if (f.categoria === 'experiencia_general' || f.categoria === 'experiencia_especifica') cubiertos.add('Experiencia');
+        else if (f.categoria === 'k_residual') cubiertos.add(INDICADOR_GATE.k_residual);
+        else if (f.categoria === 'clasificacion_unspsc') cubiertos.add('Clasificación UNSPSC');
+        else if (f.categoria === 'personal') cubiertos.add('Personal / equipo de trabajo');
+        else if (f.categoria === 'capacidad_financiera' && INDICADOR_GATE[f.indicador]) cubiertos.add(INDICADOR_GATE[f.indicador]);
+        filas.push({
+          clave: 'ia-' + f.iaIndex, requisito: f.categoriaLabel + (f.descripcion ? ': ' + truncate(f.descripcion, 160) : ''), exigencia: f.exigido,
+          empresa: f.estado === 'SIN VERIFICAR' ? 'No se compara con los datos de tu empresa hasta que la cita se verifique o la confirmes.' : f.detalle, resultado: resultado,
+          evidencia: { documento: f.documento || dePliego, pagina: f.pagina || null, cita: f.cita || '', verificada: f.verificada, confirmada: f.confirmada,
+            bloqueo: f.bloqueo || null, modificadaPorAdenda: f.modificadaPorAdenda, origen: 'ia' }
+        });
+      });
+    }
+    // Experiencia sin IA: un requisito por fila, con los contratos de la empresa que se evaluaron.
+    const ev = entry.experienciaResultado;
+    if (!ia && ev && ev.resultados && ev.resultados.length){
+      cubiertos.add('Experiencia');
+      ev.resultados.forEach((r, i) => {
+        const contratos = (r.contratosEvaluados || []).map(c => 'Fila ' + c.fila + (c.objeto ? ': ' + truncate(c.objeto, 70) : '') + (c.valor != null ? ' · valor ' + c.valor : '')).join('; ');
+        filas.push({
+          clave: 'exp-' + i, requisito: 'Experiencia: ' + truncate(r.requisito.criterio || '', 160), exigencia: (r.evidencia || []).join(' ') || '—',
+          empresa: (contratos ? 'Contratos de tu empresa: ' + contratos + '. ' : 'Sin contratos de tu empresa que lo acrediten. ') + (r.justificacion || ''),
+          resultado: ESTADOS_REQ.indexOf(r.resultado) !== -1 ? r.resultado : 'NO DETERMINABLE',
+          evidencia: { documento: r.requisito.fuente || dePliego, pagina: r.requisito.pagina || null, cita: r.requisito.criterio || '', verificada: true, confirmada: false, bloqueo: null, modificadaPorAdenda: false, origen: 'texto' }
+        });
+      });
+    }
+    // Lo que el motor evaluó y ninguna fila cubre (indicadores por texto, capacidad vs valor, UNSPSC, personal...).
+    const ex = Object.assign({}, entry.exigencias || {}, entry.exigenciasIA || {});
+    const exigenciaDeGate = { 'Índice de liquidez': ex.liquidez, 'Índice de endeudamiento': ex.endeudamiento, 'Razón de cobertura': ex.cobertura, 'Patrimonio': ex.patrimonio, 'Capital de trabajo': ex.capitalTrabajo, 'Capacidad K residual': ex.kResidual };
+    const citaDeGate = nombre => { const x = exigenciaDeGate[nombre]; return x && x.raw ? String(x.raw) : ''; };
+    (gates || []).forEach(g => {
+      if (cubiertos.has(g.nombre) || GATES_ADMIN_UI.indexOf(g.nombre) !== -1 || GATES_META_UI.indexOf(g.nombre) !== -1) return;
+      // Un indicador que el pliego no exige no es una fila de la matriz (el gate existe siempre, pero sin exigencia no hay nada que comparar).
+      if (g.nombre in exigenciaDeGate && !exigenciaDeGate[g.nombre]) return;
+      const cita = citaDeGate(g.nombre);
+      filas.push({
+        clave: 'gate-' + g.nombre, requisito: g.nombre, exigencia: g.nombre === 'Capacidad vs valor' ? 'Capacidad residual suficiente para el valor del proceso' : (cita ? truncate(cita, 120) : '—'),
+        empresa: g.detalle, resultado: GATE_A_ESTADO4[g.estado] || 'NO DETERMINABLE',
+        evidencia: { documento: g.nombre === 'Capacidad vs valor' ? 'Datos del proceso (SECOP)' : dePliego, pagina: null, cita: cita, verificada: !!cita, confirmada: false, bloqueo: null, modificadaPorAdenda: false, origen: 'motor' }
+      });
+    });
+    return filas;
+  }
+  const GATES_ADMIN_UI = ['Estado del proceso', 'Presentación de oferta', 'Valor de la obra'];
+  const GATES_META_UI = ['Lectura del pliego', 'Requisitos por verificar a mano', 'Completitud de la lectura', 'Requisitos habilitantes'];
+
+  // Opciones de contexto que alimentan las alertas (conteos reales del análisis guardado).
+  function opcionesAlertasDe(entry, filasIA, hayPliego){
+    const flujo = estadoFlujoPliego();
+    const faltan = [];
+    if (!Object.keys(perfiles || {}).length) faltan.push('los datos de tu empresa');
+    if (!flujo.experienciaCargada) faltan.push('tu experiencia acreditada');
+    if (!flujo.perfilesCargados) faltan.push('tu personal');
+    return {
+      hayPliego: hayPliego, lecturaParcial: lecturaParcial(entry), redFlags: entry.redFlags || [],
+      nSinVerificar: (filasIA || []).filter(f => !f.confiable && f.estado !== 'NO HABILITANTE').length,
+      tablasNoLeidas: (entry.posiblesTablasExperiencia || []).length,
+      conflictos: (filasIA || []).filter(f => f.detalle && /conflicto/i.test(f.detalle) || f.bloqueo && /conflicto/i.test(f.bloqueo)).length,
+      inyeccion: (entry.requisitosIA && entry.requisitosIA.avisosInyeccion ? entry.requisitosIA.avisosInyeccion.length : 0),
+      faltanDatosEmpresa: faltan
+    };
+  }
+
+  // Cabecera del análisis: resultado global + explicación, resumen de viabilidad, alertas y matriz.
+  function resultadoAnalisisHtml(entry, evalParaCompat){
+    const lp = lecturaParcial(entry);
+    const cobertura = '<div class="resultado-meta">' + escapeHtml(textoCoberturaLectura(entry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>';
+    if (!evalParaCompat){
+      return '<div class="analysis-resumen"><div class="resultado-global eval-nd" role="status"><div class="resultado-nombre">NO DETERMINABLE</div>' +
+        '<div class="resultado-expl">No hay ninguna empresa para comparar con este proceso. Crea o marca tu empresa en <button type="button" class="link-btn" data-ir-a="perfil">Empresa</button> y vuelve a abrir el análisis.</div>' + cobertura + '</div></div>';
+    }
+    const m = evalParaCompat.mejor;
+    const v = etiquetaVeredicto(m.veredictoGlobal);
+    const filasIA = entry.requisitosIA ? filasRequisitosHabilitantes(entry, m.gates) : [];
+    const opAl = opcionesAlertasDe(entry, filasIA, !!m.conPliego);
+    const areas = resumenViabilidad(m.gates, { hayPliego: !!m.conPliego, redFlags: entry.redFlags || [] });
+    const alertas = alertasAnalisis(m.gates, opAl);
+    const filas = matrizRequisitos(entry, m.gates);
+    const quien = evalParaCompat.porPerfil.length > 1 ? ' Mejor resultado: ' + escapeHtml(m.perfil) + '.' : '';
+    const hero = '<div class="resultado-global ' + claseVeredicto(v) + '" role="status"><div class="resultado-nombre">' + escapeHtml(v) + '</div>' +
+      '<div class="resultado-expl">' + escapeHtml(explicacionVeredicto(v, m.gates, { hayPliego: !!m.conPliego })) + quien + '</div>' +
+      '<div class="resultado-meta">' + escapeHtml(descripcionVeredicto(v)) + '</div>' + cobertura + '</div>';
+    const siguientePaso = (!entry.requisitosIA)
+      ? '<div class="saved-note mb-8">Siguiente paso: extrae los requisitos del documento para completar la matriz. <button type="button" class="link-btn" data-abrir-fold="Requisitos habilitantes (IA)">Ir a "Requisitos habilitantes"</button></div>'
+      : '';
+    const tabViab = '<table class="viabilidad-tabla"><thead><tr><th scope="col">Área</th><th scope="col">Resultado</th><th scope="col">Por qué</th></tr></thead><tbody>' +
+      areas.map(a => '<tr><td>' + escapeHtml(a.nombre) + '</td><td>' + badgeEstado4(a.estado) + '</td><td>' + escapeHtml(a.motivo) + '</td></tr>').join('') + '</tbody></table>';
+    const alertasHtml = alertas.length
+      ? '<ul class="alertas-analisis">' + alertas.map(a => '<li class="alerta-item ' + a.nivel + '"><span class="alerta-nivel">' + (a.nivel === 'critica' ? '● CRÍTICA' : '▲ REVISAR') + '</span><span>' + escapeHtml(a.texto) + '</span></li>').join('') + '</ul>'
+      : '<div class="matriz-vacia">No hay alertas importantes con la información analizada.</div>';
+    const cuenta = est => filas.filter(f => f.resultado === est).length;
+    const filtros = '<div class="matriz-filtros" role="group" aria-label="Filtrar requisitos por resultado">' +
+      '<button type="button" class="matriz-filtro" data-matriz-filtro="" aria-pressed="true">Todos (' + filas.length + ')</button>' +
+      ESTADOS_REQ.map(e => '<button type="button" class="matriz-filtro" data-matriz-filtro="' + e + '" aria-pressed="false">' + (e === 'NO DETERMINABLE' ? 'No determinable' : e.charAt(0) + e.slice(1).toLowerCase()) + ' (' + cuenta(e) + ')</button>').join('') + '</div>';
+    const idE = escapeHtml(entry.id || '');
+    const matrizHtml = filas.length
+      ? filtros + '<div class="expeval-table-wrap"><table class="matriz-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Exigencia</th><th scope="col">Empresa</th><th scope="col">Resultado</th><th scope="col">Evidencia</th></tr></thead><tbody>' +
+        filas.map(f => '<tr data-resultado="' + f.resultado + '"><td>' + escapeHtml(f.requisito) + '</td><td>' + escapeHtml(f.exigencia) + '</td><td>' + escapeHtml(truncate(f.empresa || '', 240)) + '</td><td>' + badgeEstado4(f.resultado) + '</td>' +
+          '<td><button type="button" class="link-btn" data-ev-id="' + idE + '" data-ev-fila="' + escapeHtml(f.clave) + '">Ver evidencia</button></td></tr>').join('') +
+        '</tbody></table></div><div class="matriz-vacia" data-matriz-vacia hidden>Ningún requisito con ese resultado.</div>'
+      : '<div class="matriz-vacia">Todavía no hay requisitos para mostrar: ' + (entry.requisitosIA ? 'la lectura no encontró requisitos habilitantes (confírmalo en el documento).' : 'extrae los requisitos del documento.') + '</div>';
+    return '<div class="analysis-resumen">' + hero + siguientePaso +
+      '<div class="analisis-seccion"><h3>Resumen de viabilidad</h3>' + tabViab + '</div>' +
+      '<div class="analisis-seccion"><h3>Alertas</h3>' + alertasHtml + '</div>' +
+      '<div class="analisis-seccion"><h3>Matriz de requisitos</h3>' + matrizHtml + '</div></div>';
+  }
+
+  // Panel de evidencia: de dónde salió cada conclusión, sin salir de la pantalla de análisis.
+  const evidenciaBackdropEl = document.getElementById('bt-evidencia-backdrop');
+  const evidenciaPanelEl = document.getElementById('bt-evidencia-panel');
+  let evidenciaOpenerEl = null;
+  function textoDePaginaDeEntry(entry, documento, pagina){
+    if (!entry || !pagina) return null;
+    const esEP = /estudio/i.test(documento || '') && entry.estudioPrevioText;
+    const texto = esEP ? entry.estudioPrevioText : textoPliegoDe(entry);
+    const offsets = esEP ? entry.estudioPrevioPaginaOffsets : entry.paginaOffsets;
+    return textoDePaginaPliego(texto, offsets, Number(pagina));
+  }
+  function evidenciaHtml(fila, entry){
+    const ev = fila.evidencia;
+    let verif;
+    if (ev.origen === 'ia'){
+      verif = ev.verificada ? '✓ La cita se encontró en el texto del PDF.'
+        : (ev.confirmada ? '✓ Confirmada por ti (la cita no se pudo verificar sola).' : '✕ Cita sin verificar' + (ev.bloqueo ? ': ' + ev.bloqueo : '.') + ' No cuenta para decidir hasta que la confirmes.');
+    } else if (ev.origen === 'texto') verif = '✓ Texto tomado directamente del documento leído.';
+    else verif = ev.cita ? '✓ Texto tomado directamente del documento leído.' : 'Sin cita textual: esta conclusión sale de comparar datos de tu empresa con datos del proceso.';
+    const paginaTxt = ev.pagina ? String(ev.pagina) : 'No identificada';
+    const puedePagina = !!(ev.pagina && textoDePaginaDeEntry(entry, ev.documento, ev.pagina));
+    return '<h2 id="bt-evidencia-titulo">Evidencia</h2><dl class="evidencia-dl">' +
+      '<div><dt>Requisito</dt><dd>' + escapeHtml(fila.requisito) + '</dd></div>' +
+      '<div><dt>Exigencia</dt><dd>' + escapeHtml(fila.exigencia || '—') + '</dd></div>' +
+      '<div><dt>Fuente</dt><dd>' + escapeHtml(ev.documento || '—') + (ev.modificadaPorAdenda ? ' <span class="tag tag-sutil">modificado por adenda</span>' : '') + '</dd></div>' +
+      '<div><dt>Página</dt><dd>' + escapeHtml(paginaTxt) + '</dd></div>' +
+      '<div><dt>Cita textual</dt><dd>' + (ev.cita ? '<blockquote class="evidencia-cita">«' + escapeHtml(ev.cita) + '»</blockquote>' : 'No hay cita textual.') + '<div class="saved-note mt-8">' + escapeHtml(verif) + '</div></dd></div>' +
+      '<div><dt>Información de la empresa</dt><dd>' + escapeHtml(fila.empresa || '—') + '</dd></div>' +
+      '<div><dt>Resultado</dt><dd>' + badgeEstado4(fila.resultado) + '</dd></div>' +
+      '</dl>' +
+      '<div class="actions mt-12"><button type="button" class="btn-secondary" data-ev-pagina data-ev-doc="' + escapeHtml(ev.documento || '') + '" data-ev-pag="' + escapeHtml(String(ev.pagina || '')) + '"' + (puedePagina ? '' : ' disabled') + '>Ver página del documento</button></div>' +
+      (!puedePagina ? '<div class="saved-note mt-8">' + (ev.pagina ? 'El texto completo de esta página ya no está en este navegador: vuelve a cargar el PDF para verlo.' : 'Esta conclusión no tiene una página asociada.') + '</div>' : '') +
+      '<div id="bt-evidencia-pagina" class="evidencia-pagina" hidden></div>';
+  }
+  function abrirEvidencia(id, clave, opener){
+    if (!evidenciaPanelEl || !evidenciaBackdropEl) return;
+    const entry = analisis[id];
+    if (!entry) return;
+    const ctx = itemYScorePara(id);
+    let gates = [];
+    try { const res = ctx.item ? evaluarMejor(ctx.item, ctx.s, entry) : null; gates = res ? res.mejor.gates : []; } catch(e){ gates = []; }
+    const fila = matrizRequisitos(entry, gates).find(f => f.clave === clave);
+    if (!fila) return;
+    evidenciaPanelEl.dataset.entryId = id;
+    evidenciaPanelEl.innerHTML = '<button type="button" class="btn-secondary evidencia-cerrar" id="bt-evidencia-cerrar" aria-label="Cerrar la evidencia">✕ Cerrar</button>' + evidenciaHtml(fila, entry);
+    evidenciaOpenerEl = opener || document.activeElement;
+    evidenciaBackdropEl.hidden = false;
+    document.getElementById('bt-evidencia-cerrar').focus();
+  }
+  function cerrarEvidencia(){
+    if (!evidenciaBackdropEl || evidenciaBackdropEl.hidden) return;
+    evidenciaBackdropEl.hidden = true;
+    if (evidenciaOpenerEl && evidenciaOpenerEl.focus && document.contains(evidenciaOpenerEl)) evidenciaOpenerEl.focus();
+    evidenciaOpenerEl = null;
+  }
+  if (evidenciaBackdropEl){
+    evidenciaBackdropEl.addEventListener('click', e => {
+      if (e.target === evidenciaBackdropEl || e.target.closest('#bt-evidencia-cerrar')){ cerrarEvidencia(); return; }
+      const pag = e.target.closest('[data-ev-pagina]');
+      if (pag){
+        const entry = analisis[evidenciaPanelEl.dataset.entryId];
+        const caja = document.getElementById('bt-evidencia-pagina');
+        const texto = textoDePaginaDeEntry(entry, pag.getAttribute('data-ev-doc'), pag.getAttribute('data-ev-pag'));
+        if (!caja) return;
+        if (!caja.hidden){ caja.hidden = true; pag.textContent = 'Ver página del documento'; return; }
+        const cita = (document.querySelector('#bt-evidencia-panel .evidencia-cita') || {}).textContent || '';
+        const frag = cita.replace(/^«|»$/g, '').slice(0, 50);
+        const i = frag ? texto.toLowerCase().indexOf(frag.toLowerCase()) : -1;
+        caja.innerHTML = '<div class="saved-note mb-8">Texto de la página ' + escapeHtml(pag.getAttribute('data-ev-pag')) + ' (lo que Bitácora leyó, no la imagen del PDF).</div>' +
+          (i === -1 ? escapeHtml(texto) : escapeHtml(texto.slice(0, i)) + '<mark>' + escapeHtml(texto.slice(i, i + Math.max(frag.length, Math.min(cita.length, 400)))) + '</mark>' + escapeHtml(texto.slice(i + Math.max(frag.length, Math.min(cita.length, 400)))));
+        caja.hidden = false;
+        pag.textContent = 'Ocultar página del documento';
+      }
+    });
+    document.addEventListener('keydown', e => {
+      if (evidenciaBackdropEl.hidden) return;
+      if (e.key === 'Escape'){ e.preventDefault(); cerrarEvidencia(); return; }
+      if (e.key === 'Tab'){
+        const foco = Array.from(evidenciaPanelEl.querySelectorAll('button:not([disabled]), a[href]')).filter(x => x.offsetParent);
+        if (!foco.length) return;
+        const primero = foco[0], ultimo = foco[foco.length - 1];
+        if (e.shiftKey && document.activeElement === primero){ e.preventDefault(); ultimo.focus(); }
+        else if (!e.shiftKey && document.activeElement === ultimo){ e.preventDefault(); primero.focus(); }
+      }
+    });
+  }
+  // Filtro de la matriz (sin volver a dibujar: así no se cierran los plegables de la tarjeta).
+  function filtrarMatriz(btn){
+    const cont = btn.closest('.analisis-seccion');
+    if (!cont) return;
+    const f = btn.getAttribute('data-matriz-filtro');
+    cont.querySelectorAll('[data-matriz-filtro]').forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+    let visibles = 0;
+    cont.querySelectorAll('.matriz-tabla tbody tr').forEach(tr => { const ok = !f || tr.getAttribute('data-resultado') === f; tr.hidden = !ok; if (ok) visibles++; });
+    const vacia = cont.querySelector('[data-matriz-vacia]');
+    if (vacia) vacia.hidden = visibles > 0;
+  }
+
   // item/s son OPCIONALES (compatibilidad hacia atrás): cuando no se pasan
   // (ej. una tanda de OCR que solo tiene el `entry`, no el proceso en pantalla)
   // simplemente no se agrega el resumen de compatibilidad -- el resto del
@@ -9309,33 +9610,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const ev = entry.experienciaResultado;
     const evOk = !!(ev && ev.resultados && ev.resultados.length);
     const nombres = arr => arr.map(g => g.nombre);
-    const razones = [];
-    if (compat){
-      if (compat.resumen.noCumplen.length) razones.push('<b>No cumple:</b> ' + escapeHtml(nombres(compat.resumen.noCumplen).slice(0, 4).join(', ')));
-      const porVerificar = compat.resumen.sinDato.concat(compat.resumen.parciales);
-      if (porVerificar.length) razones.push('<b>Por verificar:</b> ' + escapeHtml(nombres(porVerificar).slice(0, 4).join(', ')) + (porVerificar.length > 4 ? ' y ' + (porVerificar.length - 4) + ' más' : ''));
-    }
-    if (nSinConfirmar) razones.push('<b>' + nSinConfirmar + '</b> requisito(s) extraído(s) con IA por confirmar');
-    const dias = (item && item.closingRaw) ? diasRestantesDe(item.closingRaw) : null;
     const nAltas = tieneRedFlags ? entry.redFlags.filter(f => f.severidad === 'alta' || f.severidad === 'media').length : 0;
-    const chips = [];
-    if (compat){
-      const rs = compat.resumen;
-      chips.push('<span class="expeval-badge expeval-cumple">' + rs.cumplen.length + ' cumple(n)</span>');
-      if (rs.noCumplen.length) chips.push('<span class="expeval-badge expeval-nocumple">' + rs.noCumplen.length + ' no cumple(n)</span>');
-      if (rs.sinDato.length + rs.parciales.length) chips.push('<span class="expeval-badge expeval-nd">' + (rs.sinDato.length + rs.parciales.length) + ' por verificar</span>');
-    }
-    if (tieneRedFlags) chips.push('<span class="tag' + (nAltas ? ' redflag-alta' : '') + '">' + (entry.redFlags.length ? entry.redFlags.length + ' alerta(s)' : 'sin alertas') + '</span>');
-    if (dias != null) chips.push('<span class="tag' + (dias < 0 ? ' redflag-alta' : (dias <= 5 ? ' redflag-media' : '')) + '">' + (dias < 0 ? 'cierre vencido' : (dias === 0 ? 'cierra hoy' : 'cierra en ' + dias + ' día(s)')) + '</span>');
-    if (viabilidadHtml) chips.push(viabilidadHtml);
-    const resumenArriba = '<div class="analysis-resumen">' +
-      (compat ? compat.hero + compat.lecturaParcialHtml : '') +
-      '<div class="analysis-chips">' + chips.join('') + '</div>' +
-      (razones.length ? '<ul class="analysis-list">' + razones.map(r => '<li>' + r + '</li>').join('') + '</ul>' : '') +
-      docsPropuestaHtml + '</div>';
+    // Arriba: resultado, resumen de viabilidad, alertas y matriz (ver resultadoAnalisisHtml). Abajo: el detalle técnico plegado.
+    const resumenArriba = resultadoAnalisisHtml(entry, evalParaCompat);
 
     const secciones =
-      (tieneRedFlags ? seccionPlegable('Alertas del pliego', entry.redFlags.length ? entry.redFlags.length + ' alerta(s)' : 'ninguna', redFlagsHtml, nAltas > 0) : '') +
+      (tieneRedFlags ? seccionPlegable('Alertas del pliego', entry.redFlags.length ? entry.redFlags.length + ' alerta(s)' : 'ninguna', (viabilidadHtml ? '<div class="mb-8">' + viabilidadHtml + '</div>' : '') + redFlagsHtml, false) : '') +
       seccionPlegable('Experiencia requerida', evOk ? ev.conteo['CUMPLE'] + ' cumple · ' + ev.conteo['NO CUMPLE'] + ' no cumple · ' + ev.conteo['NO DETERMINABLE'] + ' por verificar' : 'sin evaluar',
         bloqueExperienciaHtml(entry), !evOk || !!ev.conteo['NO CUMPLE'] || !expevalContratos, true) +
       seccionPlegable('Requisitos habilitantes (IA)', entry.requisitosIA ? filasIA.length + ' requisito(s)' + (nSinConfirmar ? ' · ' + nSinConfirmar + ' por confirmar' : '') : 'sin extraer',
@@ -9402,6 +9682,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
       resumenArriba + secciones +
       (evalParaCompat ? evalSeccionesHtml(item, evalParaCompat, entry) : '') +
+      (docsPropuestaHtml ? seccionPlegable('Documentos de propuesta (plantillas orientativas)', 'carta y paquete', docsPropuestaHtml, false) : '') +
       seccionPlegable('Lectura y avisos', entry.pagesRead + '/' + entry.numPages + ' págs · ' + (metodoLecturaDe(entry) || 'texto del PDF'), lecturaHtml, parcialLect) +
     '</div>';
   }
@@ -9832,7 +10113,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const analysisHtml = !enAnalisis ? '' : (analysisEntry ? renderAnalysisHtml(analysisEntry, it, s) : renderSinPliegoHtml(it, s));
     // Sin bloqueo: se puede analizar un pliego aunque falten datos de la empresa; lo que falte sale como NO DETERMINABLE
     // y el análisis dice qué dato falta (nunca se rellena con un "cumple").
-    const analizarLabel = analysisEntry ? '↻ Volver a analizar' : '📄 Analizar pliego (PDF)';
+    const analizarLabel = analysisEntry ? 'Volver a analizar' : 'Analizar proceso';
 
     // F-04: proceso reabierto desde el análisis guardado (ya no sale en la búsqueda en pantalla).
     let guardadoHtml = '';
@@ -9856,7 +10137,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // analizar" lo reemplaza; el Estudio Previo sigue disponible como SOPORTE del análisis ya
     // hecho, dentro de la tarjeta, ver renderEstudioPrevioUploadHtml).
     const epBtnHtml = !analysisEntry
-      ? '<button class="btn-mini analizar-ep" data-action="analizar-ep" data-id="' + escapeHtml(it.id) + '">📋 Analizar Estudio Previo</button>' +
+      ? '<button class="link-btn analizar-ep" data-action="analizar-ep" data-id="' + escapeHtml(it.id) + '" title="Si el proceso todavía no tiene Pliego de Condiciones publicado">Analizar el Estudio Previo</button>' +
         '<input type="file" aria-label="Seleccionar el PDF o Word del Estudio Previo para analizarlo" accept=".pdf,.docx" data-analyze-ep-id="' + escapeHtml(it.id) + '" style="display:none">'
       : '';
     // Pipeline comercial (CRM Kanban): link chico "+ Pipeline" si el proceso no está en el
@@ -9866,17 +10147,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const pipelineBtnHtml = (hist && hist.etapa)
       ? '<button type="button" class="link-btn" data-ir-pipeline="' + escapeHtml(it.id) + '" title="Está en Mis procesos">✓ Guardado · ' + escapeHtml((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa) + '</button>'
       : '<button type="button" class="btn-mini" data-agregar-pipeline="' + escapeHtml(it.id) + '">Guardar</button>';
-    const gestionHtml =
-      '<button class="btn-mini' + (isVisto ? ' active-visto' : '') + '" data-action="visto" data-id="' + escapeHtml(it.id) + '">' + (isVisto ? '✓ Visto' : 'Marcar visto') + '</button>' +
-      '<button class="btn-mini' + (isDescartado ? ' active-descartado' : '') + '" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : '✕ Descartar') + '</button>';
     const irAnalisisLabel = analysisEntry ? 'Ver análisis →' : 'Ver proceso →';
+    // Una sola acción principal por pantalla: en el detalle del proceso es "Analizar proceso" (cargar el pliego o el
+    // estudio previo). Guardar y Ver en SECOP son secundarias; Descartar y el estudio previo, discretas.
     const actionsHtml = enAnalisis
       ? '<div class="row-actions">' +
-          gestionHtml +
-          '<button class="btn-mini analizar" data-action="analizar" data-id="' + escapeHtml(it.id) + '">' + analizarLabel + '</button>' +
-          epBtnHtml +
+          '<button class="btn-primary analizar" data-action="analizar" data-id="' + escapeHtml(it.id) + '">' + analizarLabel + '</button>' +
           pipelineBtnHtml +
+          (safeUrl ? '<a class="btn-secondary" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+          epBtnHtml +
+          '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
         '</div>' +
+        (analysisEntry ? '' : '<div class="saved-note mt-8">Sube el Pliego de Condiciones (PDF) para comparar sus requisitos con tu empresa. Si aún no está publicado, analiza el Estudio Previo.</div>') +
         '<input type="file" aria-label="Seleccionar el PDF del pliego para analizarlo" accept="application/pdf" data-analyze-id="' + escapeHtml(it.id) + '" style="display:none">' +
         '<div class="analysis-slot">' + analysisHtml + '</div>'
       : '<div class="row-actions">' +
@@ -9915,7 +10197,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
             ' · ' + escapeHtml(textoCoberturaLectura(analysisEntry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>'
         : '') +
       guardadoHtml +
-      linkHtml +
+      (enAnalisis ? '' : linkHtml) +
       actionsHtml +
     '</div>';
   }
@@ -10698,7 +10980,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // de experienciaGateDetalle() -- bug real corregido, ver CLAUDE.md).
     L.push('EXPERIENCIA (evaluación independiente — no varía por perfil)');
     L.push('  ' + textoExperienciaFueraDeAnalisis(experienciaGateDetalle(entry), entry,
-      'Descarga "Informe de experiencia (.txt)" desde la tarjeta de este pliego en "Análisis de pliegos" para el detalle completo por requisito.'));
+      'Descarga "Informe de experiencia (.txt)" desde la tarjeta de este pliego en "Análisis del proceso" para el detalle completo por requisito.'));
     nl();
 
     // Requisitos habilitantes extraídos con IA (tabla de la tarjeta): una entrada por requisito,
@@ -11093,7 +11375,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         ? (conExp.length > 1
           ? 'Combinado para evaluar pliegos: ' + conExp.length + ' empresa(s) marcadas aportan ' + expevalContratos.contratos.length + ' contrato(s) en total (consorcio/unión temporal).'
           : expevalContratos.contratos.length + ' contrato(s) listos para evaluar pliegos.')
-        : (activos.length ? 'Ninguna de las empresas marcadas para comparar tiene experiencia cargada todavía.' : 'Marca al menos una empresa en "Perfil de la empresa" para comparar en el análisis de pliegos.');
+        : (activos.length ? 'Ninguna de las empresas marcadas para comparar tiene experiencia cargada todavía.' : 'Marca al menos una empresa en "Empresa" para comparar en el análisis de pliegos.');
     }
 
     let html = '';
@@ -11857,6 +12139,19 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return;
     }
 
+    // Análisis: evidencia de una fila de la matriz, filtro de la matriz y salto a una sección plegada.
+    const evBtn = e.target.closest('[data-ev-fila]');
+    if (evBtn){ abrirEvidencia(evBtn.getAttribute('data-ev-id'), evBtn.getAttribute('data-ev-fila'), evBtn); return; }
+    const filtroMatrizBtn = e.target.closest('[data-matriz-filtro]');
+    if (filtroMatrizBtn){ filtrarMatriz(filtroMatrizBtn); return; }
+    const abrirFoldBtn = e.target.closest('[data-abrir-fold]');
+    if (abrirFoldBtn){
+      const titulo = abrirFoldBtn.getAttribute('data-abrir-fold');
+      const fold = Array.from(abrirFoldBtn.closest('.row').querySelectorAll('details.analysis-fold')).find(d => (d.querySelector('.fold-title') || {}).textContent === titulo);
+      if (fold){ fold.open = true; fold.scrollIntoView({ block: 'start' }); const sm = fold.querySelector('summary'); if (sm) sm.focus({ preventScroll: true }); }
+      return;
+    }
+
     // 0) "Ir a Experiencia/Personal" -- del mensaje que bloquea "Analizar pliego"
     const irABtn = e.target.closest('button[data-ir-a]');
     if (irABtn){
@@ -12316,7 +12611,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     slot.innerHTML = '<div class="analysis-block">' +
       '<div class="analysis-head">✓ Pliego cargado</div>' +
       '<div class="mb-10">' + escapeHtml(file.name) + ' (' + kb + ' KB). Revisa que sea el documento correcto y pulsa el botón para analizarlo.</div>' +
-      '<button class="btn-primary analysis-confirmar-btn" data-confirmar-id="' + escapeHtml(id) + '">Analizar pliego</button>' +
+      '<button class="btn-primary analysis-confirmar-btn" data-confirmar-id="' + escapeHtml(id) + '">Procesar documento</button>' +
     '</div>';
   });
 
