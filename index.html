@@ -1831,7 +1831,7 @@
           <p data-help-view="buscar">Si analizas un pliego, la prioridad del proceso se ajusta según cuántos términos del perfil que mejor encaje aparecieron en el texto, más el resultado de la evaluación de experiencia si ya la corriste; esto también es orientativo. Los procesos revisados que vencen en 3 días o menos se resaltan en rojo. Puedes exportar los procesos de alta prioridad como CSV o copiar un resumen de texto con los botones de la barra de resultados.</p>
           <p data-help-view="buscar">Cada tarjeta muestra la fecha de "Apertura del proceso" (publicación inicial / acto administrativo de apertura) y de "Presentación de oferta" (cierre, con los días restantes). Cada tarjeta trae también un semáforo GO / NO-GO / REVISAR: cruza el proceso (valor, plazo, estado) y —si hay pliego analizado— los indicadores financieros y la clasificación UNSPSC que exige el pliego contra la matriz de capacidad de los perfiles marcados, más el resultado de "Experiencia" (CUMPLE/NO CUMPLE/NO DETERMINABLE), que es el mismo para cualquier perfil comparado. "·" al lado del semáforo = evaluación ligera (sin pliego). El filtro "Ocultar NO-GO" deja la shortlist.</p>
           <p data-help-view="analisis">En "Análisis del proceso" ves, junto al análisis del pliego, una recomendación de una línea ("vale la pena participar" / "no se recomienda" / "confirma esto antes de decidir"), el veredicto por empresa cuando comparas varias, y si el pliego menciona consorcio o unión temporal y el % de participación mínima, se lista aparte (informativo: no se compara contra el perfil, que es de una sola empresa). Lo puedes descargar, y "Ver adjudicaciones de esta entidad" trae quién ganó procesos anteriores y a qué % del presupuesto (dato de completitud variable). Todo orientativo: no valida jurídicamente los requisitos ni reemplaza leer el pliego completo.</p>
-          <p data-help-view="buscar">"Buscar procesos" solo consulta SECOP II — SECOP I es casi todo histórico (contratos ya cerrados) desde que los procesos nuevos migraron a SECOP II en 2021, así que no aporta oportunidades abiertas reales. Sí se usa en "Ver adjudicaciones de esta entidad", para ampliar el historial de contratación más atrás de lo que cubre SECOP II.</p>
+          <p data-help-view="buscar">"Buscar procesos" solo consulta SECOP II — SECOP I es casi todo histórico (contratos ya cerrados) desde que los procesos nuevos migraron a SECOP II en 2021, así que no aporta oportunidades abiertas reales. Tampoco se usa en "Ver adjudicaciones de esta entidad", que usa solo SECOP II.</p>
         </div>
       </div>
     </main>
@@ -7560,7 +7560,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Pie estándar para todo lo que sale de la app (informes, CSV, resumen, paquete): de dónde
   // vienen los datos, cuándo se consultaron y en qué modo (en vivo / respaldo / ejemplo).
   function pieFuenteDatos(modo, consultadoISO, snapshotFecha){
-    const ds = 'datos.gov.co, datasets SECOP II (p6dx-8zbt) y SECOP I (f789-7hwg)';
+    const ds = 'datos.gov.co, dataset SECOP II (p6dx-8zbt)';
     if (modo === 'demo') return 'Fuente: DATOS DE EJEMPLO FICTICIOS -- no provienen de SECOP y no deben usarse para decidir ni presentarse a nada.';
     if (modo === 'snapshot') return 'Fuente: ' + ds + ' -- SNAPSHOT DE RESPALDO del ' + (snapshotFecha || 'fecha no indicada') + ' (no son datos actuales; la consulta en vivo falló).';
     return 'Fuente: ' + ds + ' -- consultado ' + (consultadoISO || 'fecha no registrada') + ' -- modo: en vivo.';
@@ -8407,21 +8407,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Adjudicaciones de una entidad: consulta el dataset (p6dx-8zbt trae adjudicado,
   // valor_total_adjudicacion, nombre_del_proveedor, precio_base) y muestra los
   // procesos ya adjudicados con quién ganó y a qué valor vs presupuesto.
-  // SECOP I ("SECOP I - Procesos de Compra Pública", dataset f789-7hwg,
-  // Colombia Compra Eficiente): 6.4 millones de filas, casi todo histórico --
-  // a diferencia de SECOP II, esta tabla YA junta proceso + contrato en el
-  // mismo registro (la adjudicación no es un campo sí/no aparte, es que el
-  // registro tenga contratista). Por eso NO se usa para "Buscar procesos"
-  // (ver decisión en CLAUDE.md, "Fase 2: SECOP I") -- sí sirve, y bien, para
-  // ampliar el historial de adjudicaciones de una entidad más allá de lo que
-  // cubre SECOP II (que solo existe desde ~2021).
-  const SECOP_I_DATASET = 'f789-7hwg';
-
+  // Solo SECOP II: SECOP I (6,4 M de filas, casi todo histórico y sin presupuesto base real)
+  // se retiró de la app por decisión del usuario (2026-10).
   // La más reciente de las fechas plausibles del registro (findAllDates ya
   // descarta fechas centinela/basura) -- para un contrato ya adjudicado o
   // ejecutado, suele ser la fecha de firma/terminación, una referencia
   // razonable de "cuándo pasó esto" sin depender de un nombre de columna
-  // exacto (que difiere entre SECOP I y SECOP II). Se usa solo para mostrar
+  // exacto (que puede variar entre registros). Se usa solo para mostrar
   // la antigüedad de la muestra en "Sugerencia de oferta económica" -- ver
   // sugerenciaOfertaEconomica/CLAUDE.md, hallazgo SECOP-019.
   function fechaMasRecienteDe(record){
@@ -8464,71 +8456,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return out;
     }
 
-    // Mismo ancla/coincide que SECOP II (misma entidad que se está buscando),
-    // pero esquema de columnas y criterio de "adjudicado" propios: aquí no hay
-    // un campo sí/no, así que se toma como adjudicado cualquier registro con
-    // un contratista identificado o un valor de contrato > 0. $order por fecha
-    // de cargue más reciente primero -- con 6.4M de filas en la tabla, sin
-    // orden el $limit=400 podría devolver una muestra vieja y no representativa.
-    async function deSecopI(){
-      // Auditoría SI-001/SI-002: antes era `$q` + `$limit=400` y el filtro por entidad se hacía
-      // DESPUÉS en el cliente (INVIAS: 1 de 987 filas). Ahora se resuelve primero el nombre
-      // EXACTO de la entidad en una muestra y se piden sus filas con `$where` (indexable, ~0,6 s),
-      // paginando. Timeout de 60 s con un reintento (la tabla tiene 6,4 M de filas; subido de 30 a
-      // 60 s para dar cabida al índice de nombres de respaldo de consultarSecopIPorEntidad, que
-      // agrega sobre toda la tabla y puede tardar hasta ~50 s la primera vez, medido en la API real).
-      const fetchJson = params => conReintento(async () => {
-        const url = 'https://www.datos.gov.co/resource/' + SECOP_I_DATASET + '.json?' + new URLSearchParams(params).toString();
-        const res = await withTimeout(fetch(url, socrataFetchOptions()), 60000, 'La consulta de adjudicaciones (SECOP I)');
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const d = await res.json();
-        if (!Array.isArray(d)) throw new Error('respuesta inesperada');
-        return d;
-      }, 2);
-      const resuelto = await consultarSecopIPorEntidad(ancla, coincideEstricta, fetchJson, palabras);
-      const data = resuelto.filas;
-      const out = [];
-      out.entidadNoResuelta = !resuelto.nombres.length;
-      data.forEach(r => {
-        const ent = findField(r, ['nombre_entidad', 'entidad'], 'entidad') || '';
-        if (!coincide(ent)) return;
-        let prove = findField(r, ['nom_razon_social_contratista'], 'contratista');
-        prove = (prove && !/no\s+definid|no\s+aplica|^n\/?a$/i.test(String(prove))) ? String(prove) : null;
-        const adjValN = Number(findField(r, ['valor_contrato_con_adiciones', 'cuantia_contrato'], 'contrato'));
-        if (!prove && !(adjValN > 0)) return; // sin contratista ni valor de contrato -- no se puede considerar adjudicado
-        const obj = findField(r, ['detalle_del_objeto_a_contratar', 'objeto_a_contratar'], 'objeto') || '';
-        const ref = findField(r, ['numero_de_proceso'], 'proceso') || '';
-        const uid = findField(r, ['uid'], 'uid') || '';
-        out.push({
-          // Auditoría TR-002: SECOP I repite filas (mismo `uid`, varias por proceso).
-          clave: 'I|' + (uid || (ref + '|' + (prove || '') + '|' + (adjValN > 0 ? adjValN : ''))),
-          fuente: 'I', objeto: obj, referencia: ref,
-          adjudicatario: prove,
-          valorAdj: adjValN > 0 ? adjValN : null,
-          // Auditoría TR-001: en SECOP I `cuantia_proceso` repite el valor del CONTRATO (385 de 400
-          // filas reales), no es un presupuesto base: usarlo daba descuentos de 0% "históricos".
-          precioBase: null,
-          fecha: fechaMasRecienteDe(r)
-        });
-      });
-      return out;
+    let resII;
+    try { resII = { ok: true, value: await deSecopII() }; }
+    catch(e){
+      console.error('No se pudo consultar adjudicaciones de SECOP II', e);
+      resII = { ok: false, error: String(e && e.message || e || 'error') };
     }
-
-    // allSettled, no all: si una fuente falla (ej. timeout en una tabla de 6.4M
-    // filas), la otra igual muestra sus resultados en vez de fallar la consulta
-    // completa -- mismo criterio que appReady más arriba.
-    const [resII, resI] = await Promise.allSettled([deSecopII(), deSecopI()]);
-    if (resII.status === 'rejected') console.error('No se pudo consultar adjudicaciones de SECOP II', resII.reason);
-    if (resI.status === 'rejected') console.error('No se pudo consultar adjudicaciones de SECOP I', resI.reason);
-    // Auditoría TR-003: el estado de cada fuente viaja con el resultado (antes un fallo solo
-    // iba a la consola y con ambas caídas decía "no se encontraron procesos").
-    const fuentes = {
-      II: resII.status === 'fulfilled' ? { ok: true } : { ok: false, error: String(resII.reason && resII.reason.message || resII.reason || 'error') },
-      I: resI.status === 'fulfilled' ? { ok: true } : { ok: false, error: String(resI.reason && resI.reason.message || resI.reason || 'error') }
-    };
-    const bruto = (resII.status === 'fulfilled' ? resII.value : []).concat(resI.status === 'fulfilled' ? resI.value : []);
-    const out = deduplicarAdjudicaciones(bruto);
-    if (resI.status === 'fulfilled' && resI.value.entidadNoResuelta) fuentes.I.aviso = 'no se pudo identificar a esta entidad en SECOP I (el nombre allí es distinto); su historial anterior a SECOP II puede existir y no aparece aquí';
+    // Auditoría TR-003: el estado de la fuente viaja con el resultado (antes un fallo solo
+    // iba a la consola y decía "no se encontraron procesos").
+    const fuentes = { II: resII.ok ? { ok: true } : { ok: false, error: resII.error } };
+    const out = deduplicarAdjudicaciones(resII.ok ? resII.value : []);
     // más recientes/grandes primero
     out.sort((a, b) => (b.valorAdj || 0) - (a.valorAdj || 0));
     out.fuentes = fuentes;
@@ -8620,7 +8557,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // "vs base") como la sugerencia de oferta económica (que promedia estos
   // mismos descuentos) -- si algún día se ajusta el umbral, se ajusta una vez.
   function descuentoComparable(a){
-    if (a.fuente === 'I') return null; // TR-001: SECOP I no trae un presupuesto base real
     if (a.valorAdj == null || !a.precioBase) return null;
     const ratio = a.valorAdj / a.precioBase;
     if (ratio < 0.3 || ratio > 1.3) return null;
@@ -8629,7 +8565,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   function renderAdjudicacionesHtml(lista){
     const aviso = avisoFuentesHtml(lista.fuentes);
-    if (!lista.length && lista.fuentes && (!lista.fuentes.II.ok || !lista.fuentes.I.ok)) return aviso;
+    if (!lista.length && lista.fuentes && !lista.fuentes.II.ok) return aviso;
     if (!lista.length) return aviso + '<div class="analysis-disclaimer">No se encontraron procesos adjudicados de esta entidad en la consulta (el dato de adjudicación en SECOP abierto es irregular; revisa el expediente en SECOP II).</div>';
     const conDato = lista.filter(a => a.adjudicatario || a.valorAdj != null);
     const filas = lista.slice(0, 25).map(a => {
@@ -8641,11 +8577,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         ' · Precio base: ' + (a.precioBase != null ? (fmtMoney(a.precioBase) || a.precioBase) : '—') +
         ' · vs base: <b>' + pctTxt + '</b></li>';
     }).join('');
-    const nI = lista.filter(a => a.fuente === 'I').length;
-    const nII = lista.length - nI;
-    return aviso + '<div class="analysis-sub">ADJUDICACIONES DE LA ENTIDAD (' + conDato.length + ' con dato, de ' + lista.length + ' encontradas — ' + nII + ' en SECOP II, ' + nI + ' en SECOP I)</div>' +
+    return aviso + '<div class="analysis-sub">ADJUDICACIONES DE LA ENTIDAD (' + conDato.length + ' con dato, de ' + lista.length + ' encontradas en SECOP II)</div>' +
       '<ul class="analysis-list">' + filas + '</ul>' +
-      '<div class="analysis-disclaimer">"vs base" = valor adjudicado / precio base − 1 (negativo = por debajo del presupuesto oficial). "n/c" = valor y presupuesto no comparables (proceso multi-lote, acuerdo marco…). SECOP I cubre historial anterior a SECOP II (desde 2018); su dato de adjudicación se infiere de si el registro trae contratista o valor de contrato, y no trae un presupuesto base real, por eso no muestra "vs base" ni entra en la sugerencia de oferta. Dato de adjudicación en SECOP abierto de completitud variable — confírmalo en el expediente.</div>';
+      '<div class="analysis-disclaimer">"vs base" = valor adjudicado / precio base − 1 (negativo = por debajo del presupuesto oficial). "n/c" = valor y presupuesto no comparables (proceso multi-lote, acuerdo marco…). Dato de adjudicación en SECOP abierto de completitud variable — confírmalo en el expediente.</div>';
   }
 
   // ==========================================================================
@@ -8672,7 +8606,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (!presupuesto || presupuesto <= 0) return { aplica: false, motivo: 'Este proceso no tiene un presupuesto oficial detectado para comparar.' };
     // TR-003: la sugerencia se calcula solo con SECOP II; si esa consulta falló no hay base.
     if (lista.fuentes && lista.fuentes.II && !lista.fuentes.II.ok){
-      return { aplica: false, motivo: 'No se pudo consultar SECOP II (' + lista.fuentes.II.error + '), que es la única fuente con presupuesto base: no hay base para sugerir una oferta. Intenta de nuevo más tarde.' };
+      return { aplica: false, motivo: 'No se pudo consultar SECOP II (' + lista.fuentes.II.error + '), que es la fuente del historial: no hay base para sugerir una oferta. Intenta de nuevo más tarde.' };
     }
     // Adjudicaciones que SÍ entran en la muestra (mismas que dan un descuento
     // no-null) -- se filtran una sola vez para poder sacar tanto los
@@ -8680,9 +8614,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const comparables = lista.filter(a => descuentoComparable(a) !== null);
     const descuentos = comparables.map(descuentoComparable).sort((a, b) => a - b);
     if (descuentos.length < OFERTA_MIN_MUESTRA){
-      const nI = lista.filter(a => a.fuente === 'I').length;
-      return { aplica: false, motivo: 'Solo ' + descuentos.length + ' adjudicación(es) comparable(s) de esta entidad en SECOP II -- muy pocas para sugerir un patrón (mínimo ' + OFERTA_MIN_MUESTRA + ').' +
-        (nI ? ' Las ' + nI + ' de SECOP I no cuentan: ese dataset no trae un presupuesto base real (su "cuantía del proceso" repite el valor del contrato), así que no permite calcular descuentos.' : '') };
+      return { aplica: false, motivo: 'Solo ' + descuentos.length + ' adjudicación(es) comparable(s) de esta entidad en SECOP II -- muy pocas para sugerir un patrón (mínimo ' + OFERTA_MIN_MUESTRA + ').' };
     }
     // Antigüedad de la muestra -- antes la sugerencia no decía si el
     // "patrón histórico" venía de hace 2 meses o de hace 8 años (una
@@ -8736,12 +8668,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // TR-003: aviso visible con el nombre de cada fuente que falló.
   function avisoFuentesHtml(fuentes){
     if (!fuentes) return '';
-    const fallidas = ['II', 'I'].filter(k => fuentes[k] && !fuentes[k].ok);
-    if (!fallidas.length){
-      return (fuentes.I && fuentes.I.aviso) ? '<div class="analysis-block analysis-warn" role="status">ℹ SECOP I: ' + escapeHtml(fuentes.I.aviso) + '.</div>' : '';
-    }
+    const fallidas = ['II'].filter(k => fuentes[k] && !fuentes[k].ok);
+    if (!fallidas.length) return '';
     return '<div class="analysis-block analysis-warn" role="alert">⚠ No se pudo consultar ' + fallidas.map(k => 'SECOP ' + k + ' (' + escapeHtml(fuentes[k].error) + ')').join(' ni ') +
-      '. Los resultados de abajo son parciales' + (fallidas.length === 2 ? ' (ninguna fuente respondió)' : '') + ': no significa que la entidad no tenga adjudicaciones.</div>';
+      '. No hay resultados que mostrar: no significa que la entidad no tenga adjudicaciones.</div>';
   }
 
   // Auditoría ESC-002: cada visita al Dashboard/Buscar repetía las mismas consultas a datos.gov.co, todas
@@ -8756,75 +8686,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     };
   }
   const cacheSocrata = crearCacheTtl(5 * 60 * 1000);
-
-  // Auditoría SI-002: un fallo transitorio (timeout de una tabla de 6,4 M de filas) se reintenta
-  // una vez antes de darlo por perdido.
-  async function conReintento(fn, intentos){
-    let ultimo;
-    for (let i = 0; i < intentos; i++){
-      try { return await fn(); } catch(e){ ultimo = e; }
-    }
-    throw ultimo;
-  }
-
-  // Auditoría SI-001: nombres EXACTOS (los que usa el dataset) de la entidad buscada, tomados de una
-  // muestra de filas; los más frecuentes primero, máximo 3 (una entidad suele escribirse igual siempre).
-  function nombresExactosDeMuestra(muestra, coincide){
-    const cuenta = new Map();
-    (muestra || []).forEach(r => {
-      const n = r && r.nombre_entidad;
-      if (n && coincide(n)) cuenta.set(n, (cuenta.get(n) || 0) + 1);
-    });
-    return Array.from(cuenta.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(e => e[0]);
-  }
-
-  // Dos pasos: (1) muestra por `$q` -> nombres exactos; (2) todas las filas de esas entidades por
-  // `$where=nombre_entidad='...'`, hasta 800. `fetchJson(params)` se inyecta (así se prueba sin red).
-  async function consultarSecopIPorEntidad(ancla, coincide, fetchJson, palabrasExtra){
-    // Si la ancla (las 2 palabras más largas) no trae la entidad, se prueba cada palabra distintiva
-    // ('instituto nacional' no trae INVIAS, 'invias' sí).
-    const palabras = (palabrasExtra && palabrasExtra.length) ? palabrasExtra : String(ancla || '').split(' ').filter(Boolean);
-    // Las palabras institucionales genéricas ("instituto", "alcaldia"...) traen muestras dominadas por
-    // otras entidades: se prueban primero las distintivas ('invias', 'medellin').
-    const GENERICAS_ENTIDAD = /^(instituto|nacional|alcaldia|gobernacion|municipio|municipal|departamento|departamental|empresa|empresas|universidad|secretaria|ministerio|hospital|distrito|unidad|agencia|corporacion|fondo|direccion|servicio|servicios|publica|publico|social)$/;
-    const distintivas = palabras.filter(w => !GENERICAS_ENTIDAD.test(w));
-    const consultas = distintivas.concat([ancla], palabras).filter((q, i, a) => q && a.indexOf(q) === i).slice(0, 3);
-    let nombres = [];
-    for (const q of consultas){
-      const muestra = await fetchJson({ '$q': q, '$limit': '400', '$select': 'nombre_entidad', '$order': 'fecha_de_cargue_en_el_secop DESC' });
-      nombres = nombresExactosDeMuestra(muestra, coincide);
-      if (nombres.length) break;
-    }
-    // SI-001: si ninguna muestra reciente trae la entidad (pasa con entidades grandes que
-    // reparten sus contratos entre MUCHAS dependencias que comparten las mismas palabras --
-    // ej. "Medellín" trae decenas de institutos/agencias antes que la Alcaldía misma -- su
-    // fila más reciente puede no estar entre las últimas 400 subidas del término buscado),
-    // último recurso: un índice real de nombres por `$group` -- cuenta cuántas filas tiene
-    // cada nombre_entidad que coincide con la búsqueda en TODA la tabla (6,4M filas), no solo
-    // en una muestra ordenada por fecha. Mucho más lento la primera vez (medido en la API
-    // real: hasta ~50 s sin caché; Socrata cachea la consulta y responde en <1 s después) --
-    // por eso solo se intenta cuando el camino rápido de arriba no encontró nada.
-    if (!nombres.length){
-      const q = distintivas[0] || ancla;
-      if (q){
-        try {
-          const agrupado = await fetchJson({ '$q': q, '$select': 'nombre_entidad, count(*) as n', '$group': 'nombre_entidad', '$order': 'n DESC', '$limit': '30' });
-          nombres = (agrupado || []).filter(r => r && r.nombre_entidad && coincide(r.nombre_entidad)).map(r => r.nombre_entidad).slice(0, 3);
-        } catch(e){
-          console.error('No se pudo resolver el nombre de la entidad en SECOP I por el índice de respaldo (' + q + ')', e);
-        }
-      }
-    }
-    const filas = [];
-    for (const nom of nombres){
-      for (let off = 0; off < 800; off += 400){
-        const pag = await fetchJson({ '$where': "nombre_entidad='" + nom.replace(/'/g, "''") + "'", '$order': 'fecha_de_cargue_en_el_secop DESC', '$limit': '400', '$offset': String(off) });
-        filas.push.apply(filas, pag);
-        if (pag.length < 400) break;
-      }
-    }
-    return { filas: filas, nombres: nombres };
-  }
 
   function renderOfertaSugeridaHtml(sug){
     if (!sug.aplica){
@@ -8844,7 +8705,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         tarjeta('oferta-competitivo', 'Competitivo', sug.competitivo) +
         tarjeta('oferta-agresivo', 'Agresivo', sug.agresivo) +
       '</div>' +
-      '<div class="analysis-disclaimer">Basado en ' + sug.muestra + ' adjudicación(es) comparables de esta entidad (solo SECOP II: SECOP I no trae presupuesto base)' + rangoFechasTexto(sug.rangoFechas) + ': "conservador" = el descuento más leve que esta entidad ha aplicado sobre su presupuesto oficial; "competitivo" = la mediana; "agresivo" = el descuento más fuerte visto. Es una referencia estadística sobre el comportamiento HISTÓRICO de la entidad, no una predicción ni garantía de adjudicación -- verifica siempre las condiciones específicas del pliego (fórmula de evaluación económica, causales de rechazo por oferta artificialmente baja, presupuesto oficial exacto) antes de decidir cuánto ofertar.</div>';
+      '<div class="analysis-disclaimer">Basado en ' + sug.muestra + ' adjudicación(es) comparables de esta entidad (SECOP II)' + rangoFechasTexto(sug.rangoFechas) + ': "conservador" = el descuento más leve que esta entidad ha aplicado sobre su presupuesto oficial; "competitivo" = la mediana; "agresivo" = el descuento más fuerte visto. Es una referencia estadística sobre el comportamiento HISTÓRICO de la entidad, no una predicción ni garantía de adjudicación -- verifica siempre las condiciones específicas del pliego (fórmula de evaluación económica, causales de rechazo por oferta artificialmente baja, presupuesto oficial exacto) antes de decidir cuánto ofertar.</div>';
   }
 
   // Antes la sugerencia no decía si la muestra venía de hace 2 meses o de
@@ -10140,9 +10001,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const safeUrl = it.url && /^https?:\/\//i.test(it.url) ? escapeHtml(it.url) : null;
     const linkHtml = safeUrl
       ? '<div class="row-link"><a href="' + safeUrl + '" target="_blank" rel="noopener">Abrir expediente en SECOP ' + it.fuente + '</a></div>'
-      : (it.fuente === 'I'
-          ? '<div class="row-link"><a href="https://www.colombiacompra.gov.co/secop/secop-i/consulte-en-el-secop-i" target="_blank" rel="noopener">Buscar en SECOP I (por número de proceso)</a></div>'
-          : '<div class="row-link"><a href="https://community.secop.gov.co/Public/Tendering/ContractNoticeManagement/Index?currentLanguage=es-CO" target="_blank" rel="noopener">Buscar en SECOP II</a></div>');
+      : '<div class="row-link"><a href="https://community.secop.gov.co/Public/Tendering/ContractNoticeManagement/Index?currentLanguage=es-CO" target="_blank" rel="noopener">Buscar en SECOP II</a></div>';
 
     const analysisEntry = analisis[it.id];
     if (analysisEntry) analysisEntry.id = it.id; // backfill para análisis guardados antes de este cambio
@@ -10835,7 +10694,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return [
         it.entidad, it.objeto, it.modalidad || '', it.departamento || '', it.ciudad || '',
         it.valor || '', fmtDate(it.pubRaw) || '', fmtDate(it.closingRaw) || '', (s.daysLeft ?? ''), it.referencia || '', it.url || '',
-        'datos.gov.co ' + (it.fuente === 'I' ? SECOP_I_DATASET : 'p6dx-8zbt'), lastConsultaISO || '', modoTxt
+        'datos.gov.co p6dx-8zbt', lastConsultaISO || '', modoTxt
       ].map(csvEscape).join(',');
     });
     const csv = headers.map(csvEscape).join(',') + '\n' + rows.join('\n');
