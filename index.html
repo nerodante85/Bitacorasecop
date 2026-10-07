@@ -7601,8 +7601,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return out;
   }
 
+  // Un Estudio Previo suele listar los indicadores seguidos ("Índice de liquidez ≥ 1,2 Índice de
+  // endeudamiento ≤ 0,70 Razón de cobertura ≥ 1,0 ..."): sin cortar, la ventana de cada uno veía las
+  // cifras de sus vecinos y todos salían "varias cifras" (NO DETERMINABLE). Se corta donde empieza
+  // OTRO indicador; si el corte deja la ventana sin cifras se usa la ventana completa (comportamiento previo).
+  const RE_OTRO_INDICADOR = /[íi]ndice\s+de\s+(?:liquidez|endeudamiento)|raz[óo]n\s+de\s+(?:liquidez|cobertura)|nivel\s+de\s+endeudamiento|liquidez\s+corriente|cobertura\s+de\s+intereses|capital\s+de\s+trabajo|patrimonio|rentabilidad|capacidad\s+residual|k\s*residual/i;
   function buscarUmbralCerca(t, etqRe, valRe){
-    const ventanas = ventanasDeEtiqueta(t, etqRe, 110);
+    const propias = new RegExp('^(?:' + etqRe + ')$', 'i');
+    const ventanas = ventanasDeEtiqueta(t, etqRe, 110).map(w => {
+      const re = new RegExp(RE_OTRO_INDICADOR.source, 'gi');
+      let m, corte = -1;
+      while ((m = re.exec(w.ventana))){ if (!propias.test(m[0])){ corte = m.index; break; } }
+      if (corte === -1) return w;
+      const recorte = w.ventana.slice(0, corte);
+      if (!cifrasCandidatas(recorte).length) return w;
+      return Object.assign({}, w, { ventana: recorte, raw: (w.etiqueta + recorte).trim() });
+    });
     let primeroNoClaro = null;
     for (const w of ventanas){
       if (w.niega){

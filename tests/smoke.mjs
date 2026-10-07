@@ -1969,6 +1969,17 @@ await check('MC-005: "no será exigido / no se exigirá / no aplica" NO produce 
   }
 });
 
+await check('Estudio Previo LP-008-2026: indicadores listados seguidos -> cada uno lee SOLO su cifra (antes liquidez/endeudamiento salían "varias cifras" y NO DETERMINABLE)', () => {
+  const t = 'Índice de liquidez ≥ 1,2 Índice de endeudamiento ≤ 0,70 Razón de cobertura de intereses ≥ 1,0 Capital de trabajo Definido en el documento base Patrimonio (Ver nota 1)';
+  assert(umbral(t, ETQ_LIQ).valor === 1.2, 'liquidez 1,2, fue ' + JSON.stringify(umbral(t, ETQ_LIQ)));
+  assert(umbral(t, ETQ_END).valor === 0.7, 'endeudamiento 0,70, fue ' + JSON.stringify(umbral(t, ETQ_END)));
+  assert(umbral(t, ETQ_COB).valor === 1, 'cobertura 1,0, fue ' + JSON.stringify(umbral(t, ETQ_COB)));
+  const raw = umbral(t, ETQ_LIQ).raw;
+  assert(!/endeudamiento/i.test(raw), 'la cita de liquidez no debe arrastrar el siguiente indicador: ' + raw);
+  // Sin otro indicador a la vista el comportamiento no cambia (la ambigüedad real sigue siendo ambigua).
+  assert(umbral('Índice de liquidez 1,2 y 1,5', ETQ_LIQ).valor === null, 'dos cifras reales de LA MISMA etiqueta siguen ambiguas');
+});
+
 await check('MC-005: varias cifras sin operador que desempate -> ambiguo (no se elige); con operador o cifras iguales, sí; controles positivos', () => {
   assert(umbral('Índice de liquidez 1,2 y 1,5', ETQ_LIQ).valor === null, 'dos cifras distintas sin operador: ambiguo');
   assert(umbral('Índice de liquidez 1,2 y mayor o igual a 1,5', ETQ_LIQ).valor === 1.5, 'con un solo operador, ese decide');
