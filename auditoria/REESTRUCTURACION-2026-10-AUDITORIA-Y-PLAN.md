@@ -131,3 +131,20 @@ comparación lado a lado de dos procesos; búsqueda en SECOP I filtrada por esta
 1. **SECOP I en la búsqueda**: el prompt lo pide; el HISTORIAL documenta por qué se descartó (mezcla contratos cerrados con oportunidades).
    Por defecto: **no** se agrega; SECOP I aparece como "Histórico de adjudicación" de cada proceso. ¿Quieres reabrirlo?
 2. **Texto de la política de privacidad**: solo la persona responsable puede dar los campos `[COMPLETAR]`.
+
+---
+
+## 6. Resultado de la ejecución (2026-10-07)
+
+Hecho: motor con NO DETERMINABLE global; menú de 4 ítems + Configuración; Empresa con pestañas; Inicio simple; Mis procesos (5 estados con
+migración); búsqueda natural determinista; filtros de valor/entidad/cierre; pantalla de análisis (resultado, viabilidad, alertas, matriz, evidencia);
+Documentos; pruebas nuevas (smoke 304 ok salvo el SRI sin red; e2e 13/13) con mutaciones sobre las reglas críticas.
+
+Seguridad (revisión del código, sin tocar producción): sin secretos en el repo (la clave `anon` es pública por diseño); RLS con `USING` que actúa como
+`WITH CHECK` en `app_state`; todo texto dinámico nuevo pasa por `escapeHtml`. Sin hallazgos nuevos que corregir. Límite de GitHub Pages: sin cabeceras HTTP propias.
+
+**FUTURA FUNCIONALIDAD** (no implementada): guardar hojas de vida/matrículas como archivos en Storage privado; búsqueda en SECOP I filtrada por estados abiertos;
+exportar el análisis a PDF; comparar dos procesos lado a lado.
+
+Pendiente de verificar con el usuario: SECOP I en la búsqueda (decisión abierta, §5), texto jurídico de privacidad, y una extracción real con IA tras el rediseño
+(no probada: requiere cuenta y crédito).
