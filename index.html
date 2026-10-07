@@ -189,12 +189,16 @@
     display: flex; align-items: center; justify-content: center;
   }
   #bitacora-root .brand-mark svg { height: 19px; width: auto; }
-  #bitacora-root .sidebar-brand-text h1 {
-    margin: 0; font-size: 16px; font-weight: 500; color: #fff; line-height: 1.2;
+  /* La marca es un botón (lleva a Inicio): se anulan los estilos nativos del botón. */
+  #bitacora-root button.sidebar-brand { width: 100%; background: transparent; border-left: 0; border-right: 0; border-top: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+  #bitacora-root button.sidebar-brand:hover .brand-title { text-decoration: underline; }
+  #bitacora-root .sidebar-brand-text { display: block; min-width: 0; }
+  #bitacora-root .sidebar-brand-text .brand-title {
+    display: block; margin: 0; font-size: 16px; font-weight: 500; color: #fff; line-height: 1.2;
     font-family: 'Space Grotesk', 'Outfit', sans-serif; letter-spacing: 0.06em;
   }
-  #bitacora-root .sidebar-brand-text p {
-    margin: 2px 0 0; font-size: 12px; color: #8089A3; line-height: 1.3;
+  #bitacora-root .sidebar-brand-text .brand-sub {
+    display: block; margin: 2px 0 0; font-size: 12px; color: #8089A3; line-height: 1.3;
   }
   #bitacora-root .sidebar-nav { padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
   /* El botón desplegable solo existe en celular -- oculto acá, se muestra
@@ -216,6 +220,9 @@
      porque el ámbar es demasiado claro para blanco. */
   #bitacora-root .nav-item.active { background: var(--accent-button); color: var(--accent-ink); }
   #bitacora-root .nav-item.active svg { opacity: 1; }
+  /* Zona secundaria del menú (Configuración y ayuda): separada y más discreta. */
+  #bitacora-root .nav-secondary { margin-top: auto; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); }
+  #bitacora-root .nav-item-secondary { font-size: 13px; font-weight: 400; }
   #bitacora-root .sidebar-foot {
     padding: 14px 20px 18px; font-size: 12px; color: #8089A3; line-height: 1.5;
     border-top: 1px solid rgba(255,255,255,.08);
@@ -287,6 +294,17 @@
     color: var(--text-heading);
   }
   #bitacora-root .view-header p { margin: 0; font-size: 14px; color: var(--text-muted); max-width: 640px; line-height: 1.5; }
+  /* Empresa: tres paneles (datos, experiencia, personal) dentro de una sola vista, con pestañas internas. */
+  #bitacora-root .empresa-panel[hidden] { display: none; }
+  #bitacora-root .panel-header { margin-bottom: 16px; }
+  #bitacora-root .view-header.panel-header h2 { margin: 0 0 4px; font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 20px; letter-spacing: -0.01em; color: var(--text-heading); }
+  #bitacora-root .subtabs { display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  #bitacora-root .subtab {
+    background: transparent; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    padding: 10px 14px; font: inherit; font-size: 14px; font-weight: 500; color: var(--text-muted); cursor: pointer;
+  }
+  #bitacora-root .subtab:hover { color: var(--text); }
+  #bitacora-root .subtab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent-button); }
 
   /* Barra superior compacta, solo visible en pantallas angostas donde la
      sidebar vertical se convierte en fila horizontal de pestañas. */
@@ -574,6 +592,7 @@
   #bitacora-root .eval-go { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
   #bitacora-root .eval-nogo { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger); }
   #bitacora-root .eval-revisar { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning); }
+  #bitacora-root .eval-nd { border-color: var(--neutral-border); background: var(--neutral-bg); color: var(--neutral); }
   #bitacora-root .eval-verdict {
     font-weight: 700; font-size: 12.5px;
     border-radius: var(--radius-sm); padding: 3px 12px;
@@ -626,7 +645,7 @@
      zona sensible con un pseudo-elemento, para no reventar tarjetas con tres etiquetas por fila. */
   @media (pointer: coarse), (max-width: 560px) {
     #bitacora-root .btn-mini, #bitacora-root .btn-primary, #bitacora-root .btn-secondary,
-    #bitacora-root .nav-toggle, #bitacora-root .nav-item, #bitacora-root .field input, #bitacora-root .field select, #bitacora-root .pipeline-card select { min-height: 44px; }
+    #bitacora-root .nav-toggle, #bitacora-root .nav-item, #bitacora-root .field input, #bitacora-root .field select, #bitacora-root .pipeline-card select, #bitacora-root .subtab { min-height: 44px; }
     #bitacora-root .link-btn, #bitacora-root .tag-tip, #bitacora-root .row-link a, #bitacora-root summary { position: relative; }
     #bitacora-root .link-btn::after, #bitacora-root .tag-tip::after, #bitacora-root .row-link a::after, #bitacora-root summary::after { content: ''; position: absolute; inset: -14px -4px; }
     #bitacora-root input[type=checkbox], #bitacora-root input[type=radio] { width: 24px; height: 24px; }
@@ -1088,6 +1107,7 @@
       border-bottom: none; border-right: 1px solid rgba(255,255,255,.08); flex-shrink: 0;
       padding: 12px 12px; gap: 8px;
     }
+    #bitacora-root button.sidebar-brand { width: auto; }
     /* Mismo criterio que antes: con marca + texto no cabía nada más al
        lado -- se deja solo la marca "B", el nombre completo "Bitácora"
        vuelve en el <h1> de cada vista, un poco más abajo. */
@@ -1136,7 +1156,7 @@
 <div id="bitacora-root">
   <div class="app-shell">
     <nav class="sidebar" aria-label="Navegación principal">
-      <div class="sidebar-brand">
+      <button type="button" class="sidebar-brand" id="bt-brand-home" data-view="dashboard" aria-label="Bitácora SECOP: ir al inicio">
         <div class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 44.5 62" xmlns="http://www.w3.org/2000/svg">
             <rect x="0" y="0" width="10" height="62" fill="#F7F7F4"/>
@@ -1144,11 +1164,11 @@
             <path d="M 13.50 31.00 L 28.50 31.00 A 16.00 16.00 0 0 1 44.50 47.00 L 44.50 46.00 A 16.00 16.00 0 0 1 28.50 62.00 L 13.50 62.00 L 13.50 56.50 L 28.50 56.50 A 10.50 10.50 0 0 0 39.00 46.00 L 39.00 47.00 A 10.50 10.50 0 0 0 28.50 36.50 L 13.50 36.50 Z" fill="#51825B"/>
           </svg>
         </div>
-        <div class="sidebar-brand-text">
-          <h1>Bitácora</h1>
-          <p>Consultoría en contratación pública</p>
-        </div>
-      </div>
+        <span class="sidebar-brand-text">
+          <span class="brand-title">Bitácora SECOP</span>
+          <span class="brand-sub">A qué procesos vale la pena presentarse</span>
+        </span>
+      </button>
       <!-- Auditoría "primer uso", rediseño de navegación móvil: en vez de
            forzar todos los nombres a caber en una fila (desborda, ver
            CLAUDE.md) este botón solo existe a ≤560px (ver CSS) y abre
@@ -1161,34 +1181,29 @@
         <svg class="nav-toggle-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="sidebar-nav" id="bt-nav" role="tablist">
-        <button class="nav-item" type="button" id="bt-nav-dashboard" data-view="dashboard" role="tab" aria-selected="true" aria-controls="view-dashboard" title="Inicio" aria-label="Inicio">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-          <span class="nav-label">Inicio</span>
-        </button>
         <button class="nav-item" type="button" id="bt-nav-buscar" data-view="buscar" role="tab" aria-selected="false" aria-controls="view-buscar" title="Buscar procesos" aria-label="Buscar procesos">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="20" y1="20" x2="15.4" y2="15.4"/></svg>
           <span class="nav-label">Buscar procesos</span>
         </button>
-        <button class="nav-item" type="button" id="bt-nav-analisis" data-view="analisis" role="tab" aria-selected="false" aria-controls="view-analisis" title="Análisis de pliegos" aria-label="Análisis de pliegos">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
-          <span class="nav-label">Análisis de pliegos</span>
-        </button>
-        <button class="nav-item" type="button" id="bt-nav-perfil" data-view="perfil" role="tab" aria-selected="false" aria-controls="view-perfil" title="Perfil de la empresa" aria-label="Perfil de la empresa">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-          <span class="nav-label">Perfil de la empresa</span>
-        </button>
-        <button class="nav-item" type="button" id="bt-nav-experiencia" data-view="experiencia" role="tab" aria-selected="false" aria-controls="view-experiencia" title="Experiencia" aria-label="Experiencia">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8.5 13l2 2 4.5-4.5"/></svg>
-          <span class="nav-label">Experiencia</span>
-        </button>
-        <button class="nav-item" type="button" id="bt-nav-personal" data-view="personal" role="tab" aria-selected="false" aria-controls="view-personal" title="Personal" aria-label="Personal">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/></svg>
-          <span class="nav-label">Personal</span>
-        </button>
-        <button class="nav-item" type="button" id="bt-nav-pipeline" data-view="pipeline" role="tab" aria-selected="false" aria-controls="view-pipeline" title="Pipeline" aria-label="Pipeline">
+        <button class="nav-item" type="button" id="bt-nav-procesos" data-view="procesos" role="tab" aria-selected="false" aria-controls="view-procesos" title="Mis procesos" aria-label="Mis procesos">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="10" rx="1"/><rect x="16" y="4" width="5" height="13" rx="1"/></svg>
-          <span class="nav-label">Pipeline</span>
+          <span class="nav-label">Mis procesos</span>
         </button>
+        <button class="nav-item" type="button" id="bt-nav-empresa" data-view="empresa" role="tab" aria-selected="false" aria-controls="view-empresa" title="Empresa" aria-label="Empresa">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+          <span class="nav-label">Empresa</span>
+        </button>
+        <button class="nav-item" type="button" id="bt-nav-documentos" data-view="documentos" role="tab" aria-selected="false" aria-controls="view-documentos" title="Documentos" aria-label="Documentos">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+          <span class="nav-label">Documentos</span>
+        </button>
+        <!-- Zona secundaria: no es un módulo de trabajo (ayuda, respaldo, cuenta). -->
+        <div class="nav-secondary" role="presentation">
+        <button class="nav-item nav-item-secondary" type="button" id="bt-nav-ajustes" data-view="ajustes" role="tab" aria-selected="false" aria-controls="view-ajustes" title="Configuración y ayuda" aria-label="Configuración y ayuda">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span class="nav-label">Configuración y ayuda</span>
+        </button>
+        </div>
       </div>
       <div class="sidebar-foot" id="bt-sidebar-foot">Tus datos se guardan solo en esta cuenta/navegador. Nadie más puede verlos.</div>
     </nav>
@@ -1196,7 +1211,7 @@
     <main class="main">
       <div class="wrap">
 
-        <section class="view" id="view-dashboard" data-view="dashboard" role="tabpanel" aria-labelledby="bt-nav-dashboard">
+        <section class="view" id="view-dashboard" data-view="dashboard" role="region" aria-labelledby="bt-dash-greeting">
           <div class="view-header">
             <h1 id="bt-dash-greeting">Buenos días</h1>
             <p>Este es el resumen de tu actividad de consultoría. Desde aquí puedes ir directo a lo que necesites hacer.</p>
@@ -1256,17 +1271,6 @@
               <div class="stat-card-value" id="bt-dash-pipeline">0</div>
               <div class="stat-card-note" id="bt-dash-pipeline-note">Agrega procesos con "+ Pipeline" para seguirlos</div>
             </div>
-          </div>
-
-          <div class="titleblock" id="bt-dash-respaldo-panel">
-            <div class="titleblock-head"><h2>Respaldo de tus datos</h2></div>
-            <p class="saved-note">Sin cuenta, tus perfiles, experiencia y análisis viven solo en este navegador: si borras los datos del navegador, se pierden. Descarga un respaldo de vez en cuando; puedes restaurarlo aquí o en otro navegador.</p>
-            <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button type="button" class="btn-secondary" id="bt-respaldo-export">⬇ Descargar respaldo (.json)</button>
-              <button type="button" class="btn-secondary" id="bt-respaldo-import">Restaurar un respaldo…</button>
-              <input type="file" id="bt-respaldo-file" accept="application/json,.json" style="display:none" aria-label="Archivo de respaldo a restaurar">
-            </div>
-            <div class="saved-note" id="bt-respaldo-msg" role="status" hidden></div>
           </div>
 
           <div class="titleblock" id="bt-dash-alertas-panel">
@@ -1486,9 +1490,19 @@
           <div id="bt-results"></div>
         </section>
 
-        <section class="view" id="view-perfil" data-view="perfil" role="tabpanel" aria-labelledby="bt-nav-perfil" hidden>
+        <section class="view" id="view-empresa" data-view="empresa" role="tabpanel" aria-labelledby="bt-nav-empresa" hidden>
           <div class="view-header">
-            <h1>Perfil de la empresa</h1>
+            <h1>Empresa</h1>
+            <p>Lo que Bitácora compara contra cada proceso: los datos y registros de tu empresa, su experiencia acreditada y tu equipo de trabajo.</p>
+          </div>
+          <div class="subtabs" id="bt-empresa-tabs" role="tablist" aria-label="Secciones de la empresa">
+            <button type="button" class="subtab" role="tab" id="bt-empresa-tab-perfil" data-subview="perfil" aria-controls="view-perfil" aria-selected="true">Datos y registros</button>
+            <button type="button" class="subtab" role="tab" id="bt-empresa-tab-experiencia" data-subview="experiencia" aria-controls="view-experiencia" aria-selected="false">Experiencia</button>
+            <button type="button" class="subtab" role="tab" id="bt-empresa-tab-personal" data-subview="personal" aria-controls="view-personal" aria-selected="false">Personal</button>
+          </div>
+        <div class="empresa-panel" id="view-perfil" data-view="perfil" role="tabpanel" aria-labelledby="bt-empresa-tab-perfil" hidden>
+          <div class="view-header panel-header">
+            <h2>Perfil de la empresa</h2>
             <p>Ficha empresarial: clasificación (RUP), capacidad financiera y capacidad residual. La experiencia se evalúa aparte, en "Experiencia".</p>
           </div>
 
@@ -1625,11 +1639,11 @@
               <div id="bt-capacidad-estimada-out"></div>
             </details>
           </div>
-        </section>
+        </div>
 
-        <section class="view" id="view-experiencia" data-view="experiencia" role="tabpanel" aria-labelledby="bt-nav-experiencia" hidden>
-          <div class="view-header">
-            <h1>Experiencia</h1>
+        <div class="empresa-panel" id="view-experiencia" data-view="experiencia" role="tabpanel" aria-labelledby="bt-empresa-tab-experiencia" hidden>
+          <div class="view-header panel-header">
+            <h2>Experiencia</h2>
             <p>Carga la experiencia acreditada de tu empresa. Si vas a participar en consorcio o unión temporal, cada empresa carga su propio archivo aquí -- al evaluar un pliego se suman los contratos de las empresas marcadas para comparar (ver "Perfil de la empresa"). Los requisitos que exige cada proceso se extraen automáticamente del Pliego de Condiciones y/o Estudio Previo al analizar ese pliego, en "Análisis de pliegos" -- ya no hace falta preparar una matriz aparte.</p>
           </div>
 
@@ -1684,11 +1698,11 @@
             </div>
           </div>
           <div class="saved-note" id="bt-expeval-siguiente-paso" hidden>Ya cargaste tu experiencia. Siguiente paso: ve a "Personal" para registrar el equipo de trabajo, y después a "Buscar procesos" para elegir un proceso y a "Análisis de pliegos" para analizar su pliego -- ahí se extraen los requisitos y se evalúa el cumplimiento.</div>
-        </section>
+        </div>
 
-        <section class="view" id="view-personal" data-view="personal" role="tabpanel" aria-labelledby="bt-nav-personal" hidden>
-          <div class="view-header">
-            <h1>Personal</h1>
+        <div class="empresa-panel" id="view-personal" data-view="personal" role="tabpanel" aria-labelledby="bt-empresa-tab-personal" hidden>
+          <div class="view-header panel-header">
+            <h2>Personal</h2>
             <p>Registra el equipo de trabajo (director de obra, residente, especialistas...) que puede acreditarse frente al personal mínimo que exige un pliego.</p>
           </div>
 
@@ -1751,11 +1765,12 @@
             </div>
           </div>
           <div class="saved-note" id="bt-personal-siguiente-paso" hidden>Siguiente paso: ve a "Buscar procesos", elige un proceso y analiza su pliego en "Análisis de pliegos" — ahí verás cuándo está todo listo.</div>
+        </div>
         </section>
 
-        <section class="view" id="view-analisis" data-view="analisis" role="tabpanel" aria-labelledby="bt-nav-analisis" hidden>
+        <section class="view" id="view-analisis" data-view="analisis" role="region" aria-labelledby="bt-analisis-titulo" hidden>
           <div class="view-header">
-            <h1>Análisis de pliegos</h1>
+            <h1 id="bt-analisis-titulo">Análisis de pliegos</h1>
             <p>Aquí analizas el pliego (o el Estudio Previo) del proceso que elijas en "Buscar procesos": veredicto, requisitos, experiencia, cronograma y riesgos; la comparación por empresa, la carta y el paquete de propuesta, y las adjudicaciones históricas de la entidad con una sugerencia de oferta. La lista de procesos se queda solo con lo esencial.</p>
           </div>
           <div class="demo-banner" id="bt-analisis-fuente" style="display:none" role="status"></div>
@@ -1772,13 +1787,55 @@
           <div id="bt-analisis-out"></div>
         </section>
 
-        <section class="view" id="view-pipeline" data-view="pipeline" role="tabpanel" aria-labelledby="bt-nav-pipeline" hidden>
+        <section class="view" id="view-procesos" data-view="procesos" role="tabpanel" aria-labelledby="bt-nav-procesos" hidden>
           <div class="view-header">
-            <h1>Pipeline</h1>
-            <p>Sigue en qué etapa va cada proceso que decidiste perseguir, desde que lo detectas hasta que se adjudica o se pierde. Agrega un proceso al pipeline desde su tarjeta en "Buscar procesos" (botón "+ Pipeline") -- lo que esté aquí no depende de que una búsqueda nueva lo siga mostrando.</p>
+            <h1>Mis procesos</h1>
+            <p>Los procesos que guardaste, ordenados por cómo van: desde "Por revisar" hasta "Presentada". Guarda un proceso desde su tarjeta en "Buscar procesos".</p>
           </div>
-          <div class="empty" id="bt-pipeline-empty" hidden>Todavía no tienes ningún proceso en el pipeline. Ve a "Buscar procesos" y usa "+ Pipeline" en el que te interese. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
+          <div class="empty" id="bt-pipeline-empty" hidden>Todavía no has guardado ningún proceso. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button> y usa "Guardar" en el que te interese.</div>
           <div id="bt-pipeline-board"></div>
+        </section>
+
+        <section class="view" id="view-documentos" data-view="documentos" role="tabpanel" aria-labelledby="bt-nav-documentos" hidden>
+          <div class="view-header">
+            <h1>Documentos</h1>
+            <p>Lo que has cargado, ordenado por para qué sirve. Bitácora no guarda copias de tus archivos: conserva lo que leyó de ellos.</p>
+          </div>
+          <div id="bt-docs-out"></div>
+        </section>
+
+        <section class="view" id="view-ajustes" data-view="ajustes" role="tabpanel" aria-labelledby="bt-nav-ajustes" hidden>
+          <div class="view-header">
+            <h1>Configuración y ayuda</h1>
+            <p>Tu cuenta, el respaldo de tus datos y cómo leer los resultados.</p>
+          </div>
+          <div class="titleblock" id="bt-ajustes-cuenta-panel">
+            <div class="titleblock-head"><h2>Cuenta</h2></div>
+            <p class="saved-note" id="bt-ajustes-cuenta-texto">Sin cuenta, tus datos viven solo en este navegador.</p>
+            <div class="actions"><button type="button" class="btn-secondary" data-abrir-cuenta id="bt-ajustes-cuenta-btn">Iniciar sesión o crear cuenta</button></div>
+          </div>
+          <div class="titleblock" id="bt-ajustes-respaldo-panel">
+            <div class="titleblock-head"><h2>Respaldo de tus datos</h2></div>
+            <p class="saved-note">Sin cuenta, tus perfiles, experiencia y análisis viven solo en este navegador: si borras los datos del navegador, se pierden. Descarga un respaldo de vez en cuando; puedes restaurarlo aquí o en otro navegador.</p>
+            <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button type="button" class="btn-secondary" id="bt-respaldo-export">⬇ Descargar respaldo (.json)</button>
+              <button type="button" class="btn-secondary" id="bt-respaldo-import">Restaurar un respaldo…</button>
+              <input type="file" id="bt-respaldo-file" accept="application/json,.json" style="display:none" aria-label="Archivo de respaldo a restaurar">
+            </div>
+            <div class="saved-note" id="bt-respaldo-msg" role="status" hidden></div>
+          </div>
+
+          <div class="titleblock" id="bt-ajustes-ayuda-panel">
+            <div class="titleblock-head"><h2>Cómo leer un resultado</h2></div>
+            <ul class="analysis-list">
+              <li><b>GO</b> — con la información disponible no se identificó ningún incumplimiento determinante. No es asesoría: confirma con el pliego oficial.</li>
+              <li><b>REVISAR</b> — hay aspectos relevantes que una persona debe validar antes de decidir.</li>
+              <li><b>NO-GO</b> — al menos un requisito crítico aparentemente no se cumple.</li>
+              <li><b>NO DETERMINABLE</b> — no hay evidencia suficiente para saber si se cumple. Nunca se interpreta como "cumple".</li>
+            </ul>
+            <p class="saved-note">La IA solo localiza y estructura los requisitos del pliego; cada cita se verifica contra el texto real del documento, y es un motor de reglas, no la IA, quien decide el resultado.</p>
+            <p class="saved-note"><a href="privacidad.html" target="_blank" rel="noopener">Política de tratamiento de datos personales</a> (borrador).</p>
+          </div>
         </section>
 
         <!-- Auditoría "primer uso": este bloque era un solo párrafo largo
@@ -2711,7 +2768,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
     saveHistorial();
     rerender();
-    const vp = document.getElementById('view-pipeline');
+    const vp = document.getElementById('view-procesos');
     if (vp && !vp.hidden) renderPipelineView();
   }
 
@@ -11751,7 +11808,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     const irPipelineBtn = e.target.closest('[data-ir-pipeline]');
     if (irPipelineBtn){
-      mostrarVista('pipeline');
+      mostrarVista('procesos');
       return;
     }
 
@@ -12271,7 +12328,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // evaluación de experiencia siguen funcionando exactamente igual estén o no
   // a la vista).
   // ============================================================
-  const VISTAS = ['dashboard', 'buscar', 'analisis', 'perfil', 'experiencia', 'personal', 'pipeline'];
+  // Menú principal: Buscar procesos · Mis procesos · Empresa · Documentos (+ Configuración y ayuda, zona secundaria).
+  // Inicio es la pantalla de entrada (la marca la abre) y "analisis" es el detalle de UN proceso: ninguna tiene ítem
+  // propio. "perfil/experiencia/personal" son paneles (pestañas) dentro de "Empresa", y los nombres viejos
+  // ("evaluacion", "pipeline") siguen funcionando como alias para no romper enlaces ni una última vista guardada.
+  const VISTAS_EMPRESA = ['perfil', 'experiencia', 'personal'];
+  const VISTAS_PRINCIPALES = ['dashboard', 'buscar', 'analisis', 'procesos', 'empresa', 'documentos', 'ajustes'];
+  const VISTAS = VISTAS_PRINCIPALES.concat(VISTAS_EMPRESA);
+  const ALIAS_VISTAS = { evaluacion: 'analisis', pipeline: 'procesos' };
+  let ultimaPestanaEmpresa = 'perfil';
+  let vistaActual = null;
+  let vistaOrigenAnalisis = 'buscar'; // desde dónde se abrió un proceso: decide qué ítem del menú queda marcado
+  const ETIQUETA_VISTA_SIN_MENU = { dashboard: 'Inicio', analisis: 'Análisis del proceso' };
   // Nav móvil (menú desplegable, ver CSS ≤560px): botón que abre/cierra
   // #bt-nav como panel + el <span> donde se refleja el nombre de la vista
   // activa. En desktop estos elementos existen igual en el DOM, pero el
@@ -12282,12 +12350,27 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const navToggleLabelEl = document.getElementById('bt-nav-toggle-label');
 
   function mostrarVista(nombre, opciones){
-    if (nombre === 'evaluacion') nombre = 'analisis'; // la pantalla "Evaluación y documentos" se fusionó con "Análisis de pliegos"
+    if (ALIAS_VISTAS[nombre]) nombre = ALIAS_VISTAS[nombre];
+    if (nombre === 'empresa') nombre = ultimaPestanaEmpresa;
     if (VISTAS.indexOf(nombre) === -1) nombre = 'dashboard';
-    VISTAS.forEach(v => {
+    const esEmpresa = VISTAS_EMPRESA.indexOf(nombre) !== -1;
+    if (esEmpresa) ultimaPestanaEmpresa = nombre;
+    if (nombre === 'analisis' && (vistaActual === 'procesos' || vistaActual === 'buscar')) vistaOrigenAnalisis = vistaActual;
+    const contenedor = esEmpresa ? 'empresa' : nombre;
+    VISTAS_PRINCIPALES.forEach(v => {
       const sec = document.getElementById('view-' + v);
-      if (sec) sec.hidden = (v !== nombre);
+      if (sec) sec.hidden = (v !== contenedor);
     });
+    VISTAS_EMPRESA.forEach(v => {
+      const panel = document.getElementById('view-' + v);
+      if (panel) panel.hidden = (v !== nombre);
+      const tab = document.getElementById('bt-empresa-tab-' + v);
+      if (tab){ tab.setAttribute('aria-selected', v === nombre ? 'true' : 'false'); tab.tabIndex = (v === nombre) ? 0 : -1; }
+    });
+    // Ítem del menú que queda marcado: el de la sección que contiene la vista (un proceso abierto cuenta como
+    // parte de donde se llegó a él; Inicio no tiene ítem).
+    const navActivo = nombre === 'analisis' ? vistaOrigenAnalisis : (esEmpresa ? 'empresa' : nombre);
+    vistaActual = nombre;
     // El bloque de ayuda al pie es un único elemento compartido por todas
     // las vistas (no vive dentro de cada <section>) -- cada <p> declara en
     // qué vista(s) aplica y aquí se filtra cuáles quedan visibles, en vez de
@@ -12302,15 +12385,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       });
       footnoteEl.hidden = !algunaVisible;
     }
+    if (navToggleLabelEl) navToggleLabelEl.textContent = ETIQUETA_VISTA_SIN_MENU[nombre] || '';
     document.querySelectorAll('#bt-nav .nav-item').forEach(btn => {
-      const activo = btn.getAttribute('data-view') === nombre;
+      const activo = btn.getAttribute('data-view') === navActivo;
       btn.classList.toggle('active', activo);
       btn.setAttribute('aria-selected', activo ? 'true' : 'false');
       // El botón desplegable del nav móvil (ver CSS ≤560px) muestra el
       // nombre de la vista activa -- se sincroniza acá, en el mismo lugar
       // que ya recorre los <button> para marcar cuál está activo, en vez
       // de duplicar la búsqueda del ítem activo en otra función aparte.
-      if (activo && navToggleLabelEl) navToggleLabelEl.textContent = btn.getAttribute('aria-label') || btn.getAttribute('title') || '';
+      if (activo && navToggleLabelEl && !ETIQUETA_VISTA_SIN_MENU[nombre]) navToggleLabelEl.textContent = btn.getAttribute('aria-label') || btn.getAttribute('title') || '';
     });
     if (sidebarEl) sidebarEl.classList.remove('nav-open');
     if (navToggleEl) navToggleEl.setAttribute('aria-expanded', 'false');
@@ -12326,8 +12410,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       rerender();
       renderAlertasList();
     }
-    if (nombre === 'pipeline') renderPipelineView();
+    if (nombre === 'procesos') renderPipelineView();
     if (nombre === 'analisis') renderAnalisisView();
+    if (nombre === 'documentos') renderDocumentosView();
+    if (nombre === 'ajustes') renderAjustesView();
     // F-05 (auditoría 2026-10-06): al pulsar un botón de una vista que se oculta (p. ej. "Analizar pliego →"),
     // el foco caía al <body> y quien navega con teclado o lector de pantalla perdía su lugar. Si el foco se
     // perdió, pasa al título de la vista nueva. NO se mueve cuando sigue en un control visible: así las
@@ -12338,7 +12424,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const vistaDelActivo = activo && activo.closest ? activo.closest('.view') : null;
       const perdido = !activo || activo === document.body || (vistaDelActivo && vistaDelActivo.hidden) || !activo.getClientRects().length;
       if (perdido){
-        const sec = document.getElementById('view-' + nombre);
+        const sec = document.getElementById('view-' + contenedor);
         const titulo = sec && (sec.querySelector('h1') || sec);
         if (titulo){
           titulo.setAttribute('tabindex', '-1');
@@ -12381,7 +12467,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
   }
 
-  document.querySelectorAll('#bt-nav .nav-item, .quick-card[data-view], .primeros-pasos-item[data-view]').forEach(btn => {
+  document.querySelectorAll('#bt-nav .nav-item, #bt-brand-home, .quick-card[data-view], .primeros-pasos-item[data-view]').forEach(btn => {
     btn.addEventListener('click', () => mostrarVista(btn.getAttribute('data-view')));
   });
   // Navegación por teclado del patrón ARIA "tablist" (#bt-nav ya tenía
@@ -12404,6 +12490,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       next.focus();
       mostrarVista(next.getAttribute('data-view'));
     }
+  });
+
+  // Pestañas internas de "Empresa" (Datos y registros · Experiencia · Personal): patrón ARIA tablist con flechas.
+  const empresaTabs = Array.from(document.querySelectorAll('#bt-empresa-tabs .subtab'));
+  empresaTabs.forEach(t => t.addEventListener('click', () => mostrarVista(t.getAttribute('data-subview'))));
+  document.getElementById('bt-empresa-tabs').addEventListener('keydown', (e) => {
+    const idx = empresaTabs.indexOf(document.activeElement);
+    if (idx === -1) return;
+    let next = null;
+    if (e.key === 'ArrowRight') next = empresaTabs[(idx + 1) % empresaTabs.length];
+    else if (e.key === 'ArrowLeft') next = empresaTabs[(idx - 1 + empresaTabs.length) % empresaTabs.length];
+    else if (e.key === 'Home') next = empresaTabs[0];
+    else if (e.key === 'End') next = empresaTabs[empresaTabs.length - 1];
+    if (next){ e.preventDefault(); mostrarVista(next.getAttribute('data-subview')); next.focus(); }
   });
 
   // Botón desplegable del nav móvil (≤560px, ver CSS): abre/cierra #bt-nav
@@ -12436,6 +12536,89 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const btn = e.target.closest('button[data-ir-a-flujo]');
     if (btn) mostrarVista(btn.getAttribute('data-ir-a-flujo'));
   });
+
+  // ── Documentos: índice HONESTO de lo cargado ───────────────────────────
+  // Bitácora no guarda copias de los PDF/Excel que subes (solo lo que leyó de ellos): este inventario dice qué
+  // datos hay, de qué archivo salieron cuando se sabe, y qué está incompleto. Puro (recibe el estado) para poder
+  // probarse sin DOM.
+  function inventarioDocumentos(perfilesMap, expPorPerfil, profesionalesMap, analisisMap){
+    const lleno = v => !!String(v == null ? '' : v).trim();
+    const empresa = Object.keys(perfilesMap || {}).map(id => {
+      const p = perfilesMap[id] || {};
+      return { id: id, nombre: lleno(p.nombre) ? p.nombre : 'Empresa sin nombre', rup: lleno(p.rup) || lleno(p.k) || lleno(p.kResidual), rut: lleno(p.nit) };
+    });
+    const experiencia = Object.keys(expPorPerfil || {}).map(id => {
+      const e = expPorPerfil[id] || {};
+      const meta = e.meta || {};
+      const n = (e.contratos && Array.isArray(e.contratos.contratos)) ? e.contratos.contratos.length : (meta.nContratos || 0);
+      const p = (perfilesMap || {})[id];
+      return { perfilId: id, empresa: p && lleno(p.nombre) ? p.nombre : 'Empresa sin nombre', archivo: meta.expFile || null, contratos: n, omitidos: meta.omitidos || null };
+    });
+    const personal = Object.keys(profesionalesMap || {}).map(id => {
+      const x = profesionalesMap[id] || {};
+      return { id: id, nombre: lleno(x.nombre) ? x.nombre : 'Profesional sin nombre', cargo: lleno(x.cargo) ? x.cargo : null,
+        completo: lleno(x.formacion) && lleno(x.anos) };
+    });
+    const procesos = Object.keys(analisisMap || {}).map(id => {
+      const e = analisisMap[id] || {};
+      const parcial = lecturaParcial(e);
+      return { id: id, archivo: e.fileName || null, estudioPrevio: e.estudioPrevioFileName || null, paginasLeidas: e.pagesRead != null ? e.pagesRead : null,
+        paginas: e.numPages != null ? e.numPages : null, parcial: !!parcial, textoLiberado: !!e.textoLiberado, ts: e.ts || 0,
+        titulo: (e.proceso && (e.proceso.objeto || e.proceso.entidad)) || null };
+    }).sort((a, b) => b.ts - a.ts);
+    return { empresa: empresa, experiencia: experiencia, personal: personal, procesos: procesos };
+  }
+
+  function renderDocumentosView(){
+    const out = document.getElementById('bt-docs-out');
+    if (!out) return;
+    const inv = inventarioDocumentos(perfiles, expevalPorPerfil, perfilesProfesionales, analisis);
+    const fila = (titulo, detalle, estado, ir) => '<div class="recent-item"><div class="recent-item-body"><div class="recent-item-title">' + escapeHtml(titulo) + '</div>' +
+      '<div class="recent-item-sub">' + escapeHtml(detalle) + '</div></div>' +
+      (estado ? '<span class="tag ' + (estado.ok ? 'eval-go' : 'eval-revisar') + '">' + escapeHtml(estado.texto) + '</span>' : '') +
+      (ir ? ' <button type="button" class="link-btn" ' + ir + '>' + (ir.indexOf('data-abrir-proceso') !== -1 ? 'Abrir análisis' : 'Ir a cargar') + '</button>' : '') + '</div>';
+    const bloque = (titulo, nota, filas, vacio) => '<div class="titleblock"><div class="titleblock-head"><h2>' + escapeHtml(titulo) + '</h2></div>' +
+      (nota ? '<p class="saved-note">' + escapeHtml(nota) + '</p>' : '') +
+      '<div class="recent-list">' + (filas.length ? filas.join('') : '<div class="empty-inline">' + vacio + '</div>') + '</div></div>';
+    const ok = t => ({ ok: true, texto: t }), pend = t => ({ ok: false, texto: t });
+    const htmlEmpresa = inv.empresa.map(e =>
+      fila(e.nombre, 'RUP: ' + (e.rup ? 'datos cargados (clasificación y/o capacidad)' : 'sin cargar') + ' · RUT: ' + (e.rut ? 'datos cargados (NIT)' : 'sin cargar'),
+        (e.rup && e.rut) ? ok('Completo') : pend('Falta información'), 'data-ir-a="perfil"'));
+    const htmlExp = inv.experiencia.map(x =>
+      fila(x.empresa, (x.archivo ? x.archivo + ' · ' : '') + x.contratos + ' contrato(s) leído(s)' + (x.omitidos ? ' · se omitieron filas repetidas o de totales' : ''),
+        x.contratos ? ok('Cargada') : pend('Sin contratos'), 'data-ir-a="experiencia"'));
+    const htmlPers = inv.personal.map(x =>
+      fila(x.nombre, (x.cargo || 'Sin cargo') + ' · hoja de vida, matrícula y certificados: no se guardan como archivo (solo estos datos)',
+        x.completo ? ok('Datos completos') : pend('Faltan datos'), 'data-ir-a="personal"'));
+    const htmlProc = inv.procesos.map(x =>
+      fila(x.titulo ? truncate(x.titulo, 90) : (x.archivo || x.id),
+        (x.archivo ? 'Pliego: ' + x.archivo : '') + (x.estudioPrevio ? (x.archivo ? ' · ' : '') + 'Estudio previo: ' + x.estudioPrevio : '') +
+          (x.paginas != null ? ' · leídas ' + x.paginasLeidas + ' de ' + x.paginas + ' págs' : '') + (x.textoLiberado ? ' · el texto completo ya no está en este navegador (vuelve a cargar el PDF para verificar citas)' : ''),
+        x.parcial ? pend('Lectura parcial') : (x.paginas != null ? ok('Leído completo') : null), 'data-abrir-proceso="' + escapeHtml(x.id) + '"'));
+    out.innerHTML =
+      bloque('Empresa', 'RUP y RUT se leen para autocompletar la ficha; el archivo original no se conserva.', htmlEmpresa, 'Todavía no hay ninguna empresa. Créala en "Empresa".') +
+      bloque('Experiencia', 'Excel, PDF o Word con los contratos de cada empresa.', htmlExp, 'Todavía no cargaste experiencia. Se compara contra lo que pide cada proceso.') +
+      bloque('Personal', 'Profesionales del equipo de trabajo.', htmlPers, 'Todavía no registraste profesionales.') +
+      bloque('Procesos', 'Pliegos y estudios previos que analizaste.', htmlProc, 'Todavía no has analizado ningún pliego. Elige un proceso en "Buscar procesos".');
+  }
+  const docsOutEl = document.getElementById('bt-docs-out');
+  if (docsOutEl) docsOutEl.addEventListener('click', e => {
+    const ir = e.target.closest('button[data-ir-a]');
+    if (ir){ mostrarVista(ir.getAttribute('data-ir-a')); return; }
+    const ab = e.target.closest('button[data-abrir-proceso]');
+    if (ab) abrirAnalisis(ab.getAttribute('data-abrir-proceso'));
+  });
+
+  // Configuración y ayuda: refleja el estado de la cuenta (el modal lo abre el mismo botón [data-abrir-cuenta]).
+  function renderAjustesView(){
+    const t = document.getElementById('bt-ajustes-cuenta-texto');
+    const b = document.getElementById('bt-ajustes-cuenta-btn');
+    if (!t || !b) return;
+    if (!SUPABASE_ENABLED){ t.textContent = 'La sincronización con cuenta no está habilitada en esta versión: tus datos viven solo en este navegador.'; b.hidden = true; return; }
+    b.hidden = false;
+    if (sbSession){ t.textContent = 'Sincronizado como ' + (sbSession.user.email || '') + '. Puedes descargar tus datos o eliminar la cuenta desde el panel de la cuenta.'; b.textContent = 'Abrir mi cuenta'; }
+    else { t.textContent = 'Sin cuenta, tus datos viven solo en este navegador: si borras los datos del navegador, se pierden.'; b.textContent = 'Iniciar sesión o crear cuenta'; }
+  }
 
   function saludoSegunHora(){
     const h = new Date().getHours();
@@ -12666,7 +12849,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   let vistaInicial = 'dashboard';
   try {
     let v = localStorage.getItem('bitacora_ultima_vista');
-    if (v === 'evaluacion') v = 'analisis';
+    if (ALIAS_VISTAS[v]) v = ALIAS_VISTAS[v];
     if (v && VISTAS.indexOf(v) !== -1) vistaInicial = v;
   } catch(e){ /* nada */ }
   mostrarVista(vistaInicial, { enfocar: false });

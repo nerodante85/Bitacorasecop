@@ -3454,8 +3454,9 @@ await check('Interfaz: hay un landmark <main> que envuelve las vistas (lector de
 });
 await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el análisis del pliego vive en la vista "Análisis de pliegos"', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
-  assert(/id="view-analisis"/.test(html) && /id="bt-nav-analisis"/.test(html) && /id="bt-analisis-out"/.test(html), 'falta la vista/nav/contenedor de análisis');
-  assert(/const VISTAS = \['dashboard', 'buscar', 'analisis'/.test(html), 'VISTAS debe incluir analisis');
+  assert(/id="view-analisis"/.test(html) && /id="bt-analisis-out"/.test(html), 'falta la vista/contenedor de análisis');
+  assert(!/id="bt-nav-analisis"/.test(html), 'el análisis es el detalle de UN proceso: no tiene ítem propio en el menú');
+  assert(/const VISTAS_PRINCIPALES = \['dashboard', 'buscar', 'analisis'/.test(html), 'las vistas principales deben incluir analisis');
   const i = html.indexOf('function tarjetaProcesoHtml');
   assert(i !== -1, 'falta tarjetaProcesoHtml');
   const fn = html.slice(i, html.indexOf('function truncate(', i));
@@ -3470,8 +3471,8 @@ await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su 
   for (const viejo of ['id="view-evaluacion"', 'id="bt-nav-evaluacion"', 'id="bt-eval-run"', 'id="bt-eval-select"', 'function runEvaluacion', 'function poblarEvalSelect', 'data-view="evaluacion"']) {
     assert(!html.includes(viejo), 'quedó rastro de la pantalla Evaluación: ' + viejo);
   }
-  assert(!/const VISTAS = \[[^\]]*'evaluacion'/.test(html), 'VISTAS no debe incluir evaluacion');
-  assert(/if \(nombre === 'evaluacion'\) nombre = 'analisis'/.test(html), 'una "última vista" guardada como evaluacion debe abrir analisis');
+  assert(!/const VISTAS_PRINCIPALES = \[[^\]]*'evaluacion'/.test(html), 'las vistas no deben incluir evaluacion');
+  assert(/const ALIAS_VISTAS = \{ evaluacion: 'analisis', pipeline: 'procesos' \}/.test(html), 'una "última vista" guardada como evaluacion debe abrir analisis (y pipeline, procesos)');
   const i = html.indexOf('function evalSeccionesHtml');
   assert(i !== -1, 'falta evalSeccionesHtml');
   const fn = html.slice(i, i + 6000);
@@ -3482,6 +3483,52 @@ await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su 
   assert(/function renderSinPliegoHtml/.test(html) && /renderSinPliegoHtml\(/.test(html.slice(html.indexOf('function tarjetaProcesoHtml'), html.indexOf('function truncate('))), 'sin pliego analizado la vista también debe mostrar la evaluación ligera y las secciones');
   assert(/const mostrarEmpresas = varias \|\| !entry/.test(fn) && /mostrarEmpresas \? res\.porPerfil\.map\(bloquePerfil\)/.test(fn), 'sin pliego analizado (y con una sola empresa) la carta y el paquete por empresa deben seguir ofreciéndose');
   assert(/enContenedoresDeProceso\('click', async function manejarClickEvaluacion/.test(html), 'los botones eval-* deben colgar de ambos contenedores');
+});
+// Reestructuración (2026-10): el menú principal son 4 ítems (+ una zona secundaria), no 7 módulos.
+await check('Menú: Buscar procesos · Mis procesos · Empresa · Documentos, y "Configuración y ayuda" aparte; sin módulos de PAA, alertas, pipeline, perfil, experiencia ni personal', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const nav = html.slice(html.indexOf('<div class="sidebar-nav" id="bt-nav"'), html.indexOf('<div class="sidebar-foot"'));
+  const items = [...nav.matchAll(/<button class="nav-item([^"]*)"[^>]*data-view="([a-z]+)"[^>]*aria-label="([^"]+)"/g)].map(m => ({ secundario: /nav-item-secondary/.test(m[1]), vista: m[2], etiqueta: m[3] }));
+  const principales = items.filter(i => !i.secundario);
+  assert(JSON.stringify(principales.map(i => i.etiqueta)) === JSON.stringify(['Buscar procesos', 'Mis procesos', 'Empresa', 'Documentos']), 'el menú principal debe ser exactamente Buscar procesos, Mis procesos, Empresa, Documentos; fue ' + JSON.stringify(principales.map(i => i.etiqueta)));
+  const secundarios = items.filter(i => i.secundario);
+  assert(secundarios.length === 1 && secundarios[0].etiqueta === 'Configuración y ayuda', 'la zona secundaria es solo "Configuración y ayuda"');
+  for (const prohibido of ['PAA', 'Plan Anual', 'Alertas', 'Pipeline', 'Perfil de la empresa', 'Personal', 'Dashboard', 'Histórico', 'Calculadora', 'Plantillas']) {
+    assert(!items.some(i => i.etiqueta.includes(prohibido)), 'el menú no debe tener "' + prohibido + '"');
+  }
+  assert(/id="bt-brand-home"[^>]*data-view="dashboard"/.test(html), 'la marca lleva a Inicio (Inicio no es un ítem del menú)');
+});
+await check('Vistas: Empresa agrupa Datos/Experiencia/Personal con pestañas; los nombres viejos (pipeline, evaluacion, perfil...) siguen abriendo algo; todo id referenciado por ARIA existe', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  for (const v of ['perfil', 'experiencia', 'personal']) {
+    assert(new RegExp('class="empresa-panel" id="view-' + v + '"').test(html), 'el panel ' + v + ' debe vivir dentro de Empresa');
+    assert(html.includes('id="bt-empresa-tab-' + v + '"'), 'falta la pestaña ' + v);
+  }
+  assert(!/id="view-pipeline"/.test(html) && /id="view-procesos"/.test(html), 'Pipeline pasó a ser "Mis procesos" (view-procesos)');
+  assert(/const VISTAS_EMPRESA = \['perfil', 'experiencia', 'personal'\]/.test(html), 'VISTAS_EMPRESA');
+  const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]));
+  const roto = [];
+  for (const m of html.matchAll(/\s(aria-controls|aria-labelledby)="([^"]+)"/g)) {
+    if (!ids.has(m[2]) && !/['"+]/.test(m[2])) roto.push(m[1] + '=' + m[2]);
+  }
+  assert(!roto.length, 'referencias ARIA a ids que no existen: ' + roto.join(', '));
+});
+await check('Documentos: el inventario dice qué hay cargado sin inventar (RUP/RUT, experiencia con su archivo, personal, pliegos con lectura parcial)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('function inventarioDocumentos('), j = html.indexOf('function renderDocumentosView(');
+  assert(i !== -1 && j > i, 'anclas de inventarioDocumentos');
+  const inventario = new Function('lecturaParcial', html.slice(i, j) + '\nreturn inventarioDocumentos;')(expEngine.lecturaParcial);
+  const inv = inventario(
+    { a: { nombre: 'Constructora A', rup: '72101507', k: '', kResidual: '', nit: '' }, b: { nombre: '', rup: '', k: '', kResidual: '', nit: '900.1-2' } },
+    { a: { contratos: { contratos: [{}, {}, {}] }, meta: { expFile: 'experiencia.xlsx', omitidos: { total: 1 } } } },
+    { p1: { nombre: 'Ana', cargo: 'Directora', formacion: 'Ing. civil', anos: '10 años' }, p2: { nombre: 'Luis', cargo: '', formacion: '', anos: '' } },
+    { x1: { fileName: 'pliego.pdf', pagesRead: 15, numPages: 76, ts: 5, proceso: { objeto: 'Pavimentación', entidad: 'Alcaldía' } }, x2: { fileName: 'otro.pdf', pagesRead: 10, numPages: 10, ts: 9, textoLiberado: true } });
+  assert(inv.empresa.length === 2 && inv.empresa[0].rup === true && inv.empresa[0].rut === false, 'empresa A: RUP sí, RUT no');
+  assert(inv.empresa[1].nombre === 'Empresa sin nombre' && inv.empresa[1].rup === false && inv.empresa[1].rut === true, 'empresa B: sin nombre, RUT sí, RUP no (sin inventar)');
+  assert(inv.experiencia.length === 1 && inv.experiencia[0].archivo === 'experiencia.xlsx' && inv.experiencia[0].contratos === 3, 'experiencia con archivo y número de contratos');
+  assert(inv.personal[0].completo === true && inv.personal[1].completo === false && inv.personal[1].cargo === null, 'personal completo / incompleto');
+  assert(inv.procesos[0].id === 'x2' && inv.procesos[0].parcial === false && inv.procesos[0].textoLiberado === true, 'más reciente primero; lectura completa; texto liberado se avisa');
+  assert(inv.procesos[1].parcial === true && inv.procesos[1].paginasLeidas === 15 && inv.procesos[1].paginas === 76 && inv.procesos[1].titulo === 'Pavimentación', 'una lectura de 15 de 76 páginas se marca parcial');
 });
 await check('Fusión: ningún texto manda a "Buscar procesos" para subir/analizar el pliego (ahora es "Análisis de pliegos")', () => {
   const html = readFileSync(HTML_PATH, 'utf8');

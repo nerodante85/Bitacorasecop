@@ -90,6 +90,12 @@ const quitarFiltros = pg => pg.evaluate(() => {
     if (e && e.checked) { e.checked = false; e.dispatchEvent(new Event('change', { bubbles: true })); }
   });
 });
+// El análisis ya no tiene ítem de menú: se llega a él desde la tarjeta de un proceso (o desde Documentos / Mis procesos).
+const abrirAnalisisDelPrimero = async pg => {
+  await pg.click('#bt-nav-buscar');
+  await pg.locator('#bt-results .row').first().locator('[data-ir-analisis]').click();
+  await pg.waitForFunction(() => !document.getElementById('view-analisis').hidden);
+};
 const dosEmpresas = () => {
   const o = {};
   for (let i = 1; i <= 2; i++) o['p' + i] = { nombre: 'Empresa ' + i, nit: '90000000' + i, k: '5000000000', kResidual: '3000000000', representanteLegal: 'Juan Pérez', representanteCedula: '123', ciudad: 'Cúcuta', direccion: 'Calle 1', telefono: '1', correo: 'a@b.co' };
@@ -135,19 +141,57 @@ await check('Buscar → "Analizar pliego →" → Análisis de pliegos: la lista
   await ctx.close();
 });
 
-await check('Menú: 7 secciones, sin "Evaluación y documentos"; una última vista guardada como evaluacion abre Análisis de pliegos', async () => {
-  const { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
+await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agrupa 3 pestañas; "evaluacion" y "pipeline" guardados abren Análisis y Mis procesos', async () => {
+  let { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
   const m = await pg.evaluate(() => ({
     items: [...document.querySelectorAll('#bt-nav .nav-item')].map(i => i.textContent.trim()),
     eval: !!document.getElementById('bt-nav-evaluacion') || !!document.getElementById('view-evaluacion') || !!document.querySelector('[data-view="evaluacion"]')
   }));
-  assert(m.items.length === 7, 'el menú debe tener 7 ítems: ' + m.items.join(', '));
-  assert(m.items.includes('Análisis de pliegos') && !m.eval, 'debe existir Análisis de pliegos y ya no Evaluación');
+  assert(JSON.stringify(m.items) === JSON.stringify(['Buscar procesos', 'Mis procesos', 'Empresa', 'Documentos', 'Configuración y ayuda']), 'ítems del menú: ' + m.items.join(', '));
+  assert(!m.eval, 'ya no debe existir Evaluación');
   assert(await vistaActiva(pg) === 'view-analisis', 'la vista guardada "evaluacion" debe abrir el análisis: ' + await vistaActiva(pg));
+  // un proceso abierto cuenta como parte de la sección desde donde se llegó a él
+  assert(await pg.evaluate(() => document.getElementById('bt-nav-buscar').classList.contains('active')), 'abierto el análisis, el ítem activo del menú es Buscar procesos');
+  // la marca lleva a Inicio y ningún ítem queda marcado
+  await pg.click('#bt-brand-home');
+  assert(await vistaActiva(pg) === 'view-dashboard', 'la marca debe abrir Inicio');
+  assert(await pg.evaluate(() => document.querySelectorAll('#bt-nav .nav-item.active').length) === 0, 'en Inicio no hay ítem activo');
   // flechas del menú: el foco se queda en el menú y la vista cambia
-  await pg.focus('#bt-nav-analisis');
+  await pg.focus('#bt-nav-buscar');
   await pg.keyboard.press('ArrowDown');
-  assert((await focoActual(pg)).startsWith('BUTTON') && await vistaActiva(pg) === 'view-perfil', 'las flechas del menú deben conservar el foco en el menú y cambiar de vista');
+  assert((await focoActual(pg)).startsWith('BUTTON') && await vistaActiva(pg) === 'view-procesos', 'las flechas del menú deben conservar el foco en el menú y cambiar de vista');
+  await pg.keyboard.press('ArrowDown');
+  assert(await vistaActiva(pg) === 'view-empresa', 'Empresa');
+  // pestañas de Empresa
+  const panel = () => pg.evaluate(() => ['perfil', 'experiencia', 'personal'].filter(v => !document.getElementById('view-' + v).hidden));
+  assert(JSON.stringify(await panel()) === '["perfil"]', 'Empresa abre en Datos y registros');
+  await pg.click('#bt-empresa-tab-experiencia');
+  assert(JSON.stringify(await panel()) === '["experiencia"]' && await vistaActiva(pg) === 'view-empresa', 'pestaña Experiencia');
+  await pg.keyboard.press('ArrowRight');
+  assert(JSON.stringify(await panel()) === '["personal"]' && (await focoActual(pg)).startsWith('BUTTON'), 'flecha derecha pasa a Personal y deja el foco en la pestaña');
+  assert(await pg.evaluate(() => document.getElementById('bt-nav-empresa').classList.contains('active')), 'Empresa sigue marcado en el menú');
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+  // nombres viejos guardados
+  ({ ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'pipeline' } }));
+  assert(await vistaActiva(pg) === 'view-procesos', '"pipeline" guardado abre Mis procesos: ' + await vistaActiva(pg));
+  await ctx.close();
+  ({ ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'experiencia' } }));
+  assert(await vistaActiva(pg) === 'view-empresa' && await pg.evaluate(() => !document.getElementById('view-experiencia').hidden), '"experiencia" guardado abre Empresa › Experiencia');
+  await ctx.close();
+});
+
+await check('Documentos: lista lo cargado por categoría y "Abrir análisis" abre el pliego analizado sin pasar por la búsqueda', async () => {
+  const analisis = { 'ps2-E2E-DOC': { id: 'ps2-E2E-DOC', ts: Date.now(), fileName: 'pliego-doc.pdf', pagesRead: 15, numPages: 76, text: 'x', proceso: { entidad: 'Alcaldía E2E', objeto: 'Obra de prueba documentos', modalidad: 'Licitación pública', valor: 1000, fuente: 'II' } } };
+  const { ctx, pg } = await abrir({ sembrar: Object.assign(dosEmpresas(), { bitacora_analisis_pliegos: JSON.stringify(analisis) }) });
+  await pg.click('#bt-nav-documentos');
+  assert(await vistaActiva(pg) === 'view-documentos', 'Documentos');
+  const t = await pg.evaluate(() => document.getElementById('bt-docs-out').innerText);
+  for (const sec of ['Empresa', 'Experiencia', 'Personal', 'Procesos']) assert(t.includes(sec), 'falta la categoría ' + sec);
+  assert(t.includes('pliego-doc.pdf') && /leídas 15 de 76/.test(t) && /Lectura parcial/.test(t), 'el pliego con lectura parcial debe decirlo: ' + t.slice(-300));
+  await pg.locator('#bt-docs-out [data-abrir-proceso]').first().click();
+  assert(await vistaActiva(pg) === 'view-analisis', 'Abrir análisis');
+  assert(await pg.evaluate(() => document.getElementById('bt-analisis-select').value) === 'ps2-E2E-DOC', 'debe quedar elegido el proceso guardado');
   assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
   await ctx.close();
 });
@@ -157,14 +201,19 @@ await check('Celular (375 y 320 px): los ítems del menú miden 44 px y las vist
     const { ctx, pg } = await abrir({ viewport: { width: ancho, height: 700 }, hasTouch: true });
     await pg.click('#bt-nav-toggle');
     const alturas = await pg.evaluate(() => [...document.querySelectorAll('#bt-nav .nav-item')].map(i => Math.round(i.getBoundingClientRect().height)));
-    assert(alturas.length === 7 && alturas.every(h => h >= 44), 'ítems del menú a ' + ancho + ' px: ' + alturas.join(','));
-    await pg.click('#bt-nav-analisis');
-    assert(await vistaActiva(pg) === 'view-analisis', 'el menú móvil debe abrir el análisis');
-    assert(await focoActual(pg) === 'H1:Análisis de pliegos', 'tras elegir una sección del menú móvil el foco va al título: ' + await focoActual(pg));
-    assert(await sinDesborde(pg) <= 0, 'desborde horizontal en Análisis a ' + ancho + ' px');
-    await pg.click('#bt-nav-toggle');
-    await pg.click('#bt-nav-buscar');
-    assert(await sinDesborde(pg) <= 0, 'desborde horizontal en Buscar a ' + ancho + ' px');
+    assert(alturas.length === 5 && alturas.every(h => h >= 44), 'ítems del menú a ' + ancho + ' px: ' + alturas.join(','));
+    await pg.click('#bt-nav-empresa');
+    assert(await vistaActiva(pg) === 'view-empresa', 'el menú móvil debe abrir Empresa');
+    assert(await focoActual(pg) === 'H1:Empresa', 'tras elegir una sección del menú móvil el foco va al título: ' + await focoActual(pg));
+    assert(await sinDesborde(pg) <= 0, 'desborde horizontal en Empresa a ' + ancho + ' px');
+    const tabs = await pg.evaluate(() => [...document.querySelectorAll('#bt-empresa-tabs .subtab')].map(t => Math.round(t.getBoundingClientRect().height)));
+    assert(tabs.length === 3 && tabs.every(h => h >= 44), 'pestañas de Empresa a ' + ancho + ' px: ' + tabs.join(','));
+    for (const [nav, vista] of [['procesos', 'view-procesos'], ['documentos', 'view-documentos'], ['ajustes', 'view-ajustes'], ['buscar', 'view-buscar']]) {
+      await pg.click('#bt-nav-toggle');
+      await pg.click('#bt-nav-' + nav);
+      assert(await vistaActiva(pg) === vista, 'menú móvil -> ' + vista);
+      assert(await sinDesborde(pg) <= 0, 'desborde horizontal en ' + vista + ' a ' + ancho + ' px');
+    }
     assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
     await ctx.close();
   }
@@ -172,7 +221,7 @@ await check('Celular (375 y 320 px): los ítems del menú miden 44 px y las vist
 
 await check('Evaluación fusionada: con dos empresas el análisis trae la recomendación, el veredicto por empresa, el contexto de la entidad y descarga carta e informe', async () => {
   const { ctx, pg } = await abrir({ sembrar: dosEmpresas() });
-  await pg.click('#bt-nav-analisis');
+  await abrirAnalisisDelPrimero(pg);
   await pg.waitForFunction(() => document.querySelectorAll('#bt-analisis-out .fold-title').length > 0);
   const t = await pg.evaluate(() => [...document.querySelectorAll('#bt-analisis-out .fold-title')].map(e => e.textContent));
   assert(t.includes('Recomendación y comparación por empresa') && t.includes('Contexto de la entidad: adjudicaciones y oferta'), 'secciones fusionadas ausentes: ' + t.join(' | '));
@@ -194,7 +243,7 @@ await check('F-04: un análisis guardado se reabre aunque su proceso ya no salga
     'ps2-E2E-SIN-DATOS': { id: 'ps2-E2E-SIN-DATOS', ts: ahora - 1000, fileName: 'pliego-b.pdf', pagesRead: 3, numPages: 3, text: 'x' }
   };
   const { ctx, pg } = await abrir({ sembrar: { bitacora_analisis_pliegos: JSON.stringify(analisis) } });
-  await pg.click('#bt-nav-analisis');
+  await abrirAnalisisDelPrimero(pg);
   const grupos = await pg.evaluate(() => [...document.querySelectorAll('#bt-analisis-select optgroup')].map(g => g.label));
   assert(grupos.some(g => /Analizados antes/.test(g)), 'debe existir el grupo "Analizados antes": ' + grupos.join(' | '));
   await pg.selectOption('#bt-analisis-select', 'ps2-E2E-CON-RESUMEN');
@@ -213,7 +262,7 @@ await check('Datos de ejemplo: "Análisis de pliegos" avisa que son ficticios y 
   await quitarFiltros(pg);
   await pg.click('#bt-demo');
   await pg.waitForFunction(() => /ejemplo/i.test(document.getElementById('bt-demo-banner').textContent) && getComputedStyle(document.getElementById('bt-demo-banner')).display !== 'none');
-  await pg.click('#bt-nav-analisis');
+  await abrirAnalisisDelPrimero(pg);
   await pg.waitForFunction(() => document.querySelectorAll('#bt-analisis-out .row').length > 0);
   const aviso = await pg.evaluate(() => getComputedStyle(document.getElementById('bt-analisis-fuente')).display !== 'none' ? document.getElementById('bt-analisis-fuente').textContent : '');
   assert(/datos de ejemplo \(ficticios\)/.test(aviso), 'aviso de datos de ejemplo: ' + aviso);
