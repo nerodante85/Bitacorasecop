@@ -1613,6 +1613,28 @@ await check('"En Ejecución" en la columna de terminación: el contrato no acred
   const { r } = evaluarReqTexto('Experiencia en construcción de puentes vehiculares', H, [[PUENTE, 'Alcaldía X', '900000000', '2024-03-01']]);
   assert(r.resultado === 'CUMPLE', 'control: terminado sí cumple');
 });
+// Archivo real de PCM: "VALOR ACTUALIZADO" solo venía en 25 de 57 contratos aunque todos traían "VALOR CONTRATO".
+await check('Valor del contrato: si la columna de valor actualizado está vacía en una fila, se usa el valor del contrato de ESA fila, marcado como nominal y sin dar por ajustado el % de participación', () => {
+  const H = ['Objeto', 'Contratante', 'Valor contrato', 'Valor actualizado (según % participación)'];
+  const rows = [
+    ['Puente A', 'Alcaldía X', '$ 500,000,000', '$ 900,000,000'],
+    ['Puente B', 'Alcaldía Y', '$ 300,000,000', ''],
+    ['Puente C', 'Alcaldía Z', '', ''],
+    ['', '', '30121900', ''],
+  ];
+  const r = expEngine.parsearExperienciaDeFilas({ headers: H, rows });
+  const [a, b, c, d] = r.contratos;
+  assert(r.contratos.length === 3 || (d && d.valor === null), 'una fila sin objeto ni contratante (un código suelto) NO se convierte en contrato con valor: ' + JSON.stringify(d));
+  assert(a.valor === 900000000 && a.valorAjustado === true && !a.valorNominal, 'con valor actualizado se usa ese: ' + JSON.stringify(a));
+  assert(b.valor === 300000000 && b.valorAjustado === false && b.valorNominal === true, 'sin actualizado, cae al valor del contrato (nominal) y NO se da por ajustado: ' + JSON.stringify(b));
+  assert(c.valor === null, 'sin ningún valor no se inventa uno: ' + c.valor);
+  const r3 = expEngine.parsearExperienciaDeFilas({ headers: ['No.', 'OBJETO', 'ENTIDAD CONTRATANTE', 'VALOR CONTRATO', 'VALOR EJECUTADO', 'VALOR ACTUALIZADO'], rows: [['1', 'Puente D', 'Alcaldía W', '$ 422,642,613', '$ 100', ''], ['2', 'Puente E', 'Alcaldía V', '$ 200', '', '$ 1,428,255,960.00']] });
+  assert(r3.contratos[0].valor === 422642613 && r3.contratos[0].valorNominal === true, 'el respaldo es "VALOR CONTRATO", no "VALOR EJECUTADO": ' + JSON.stringify(r3.contratos[0]));
+  assert(r3.contratos[1].valor === 1428255960 && r3.contratos[1].valorAjustado === true, 'con actualizado se usa ese');
+  // sin columna de valor actualizado nada cambia
+  const r2 = expEngine.parsearExperienciaDeFilas({ headers: ['Objeto', 'Valor contrato'], rows: [['Puente A', '$ 500,000,000'], ['Puente B', '']] });
+  assert(r2.contratos[0].valor === 500000000 && !r2.contratos[0].valorNominal && r2.contratos[1].valor === null, 'una sola columna: igual que antes');
+});
 await check('MC-019 (control): el mismo contrato ya terminado SÍ cumple', () => {
   const { r } = evaluarReqTexto('Experiencia en construcción de puentes vehiculares', H_FECHA, [[PUENTE, 'Alcaldía X', '900000000', '2024-03-01']]);
   assert(r.resultado === 'CUMPLE', 'contrato terminado: ' + r.resultado + ' -- ' + r.justificacion);

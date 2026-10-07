@@ -143,7 +143,7 @@ sincronización, Edge Functions de IA y correo).
 - OCR: Tesseract v5 desde jsDelivr (cdnjs no sirve el paquete completo); detecta rotación probando 4 ángulos solo en la primera
   página y la reutiliza (`rotacionConocida`). Un PDF escaneado de pliego se lee mejor con la IA (`transcribir-pdf`, 8 páginas/tanda).
 - Excel de experiencia: leer **todas** las hojas; descartar filas vacías; panel "Revisar interpretación".
-- Excel de experiencia: las fechas son **números de serie** con formato m/d/yy; el texto ("12/2/94") es ambiguo → `fechasDeHojaAISO` las convierte a ISO leyendo con `cellNF:true`. "En Ejecución" en la columna de terminación marca `enEjecucion` (no acredita). Probado con 4 Excel reales (antes 0 de ~300 contratos con fecha).
+- Excel de experiencia: las fechas son **números de serie** con formato m/d/yy; el texto ("12/2/94") es ambiguo → `fechasDeHojaAISO` las convierte a ISO leyendo con `cellNF:true`. "En Ejecución" en la columna de terminación marca `enEjecucion` (no acredita). Probado con 4 Excel reales (antes 0 de ~300 contratos con fecha). Si la columna de valor preferida es la "actualizada/según %" y una fila la trae vacía, esa fila usa "VALOR CONTRATO" como respaldo (`valorNominal`, sin dar por ajustado el %), solo en filas con objeto o contratante.
 - Un PDF con contraseña da mensaje claro (`mensajeErrorPdf`). Un `<input accept>` no filtra el arrastrar y soltar:
   valida la extensión (`esTipoDeArchivoAceptado`).
 
