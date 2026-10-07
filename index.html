@@ -6114,6 +6114,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       justificacion += ' ' + nota;
     }
 
+    // ¿Los contratos que acreditan están en el RUP? Solo AVISA (la entidad suele verificar la experiencia con el RUP):
+    // no cambia el resultado, y sin dato (columna EN_RUP vacía) no dice nada.
+    const fueraDelRup = relevantes.filter(c => c.formatoMaestro && c.formatoMaestro.enRup === 'no');
+    if (fueraDelRup.length){
+      justificacion += fueraDelRup.length === relevantes.length
+        ? ' Aviso: ninguno de los contratos que acreditan este requisito está en tu RUP; si el pliego exige acreditar la experiencia con el RUP, no serán aceptados.'
+        : ' Aviso: ' + fueraDelRup.length + ' de los ' + relevantes.length + ' contratos que acreditan este requisito no están en tu RUP; si el pliego exige acreditarlo con el RUP, esos no cuentan.';
+      evidencia.push(fueraDelRup.length + ' contrato(s) relevante(s) no están en el RUP.');
+    }
+
     // Si TODOS los contratos relevantes con fecha confiable quedaron fuera de la
     // ventana (y ninguno queda sin fecha), es un incumplimiento demostrado.
     if (gateTemporalPrevio && gateTemporalPrevio.bloquea && gateTemporalPrevio.resultado === 'NO CUMPLE' && resultado !== 'NO CUMPLE'){
