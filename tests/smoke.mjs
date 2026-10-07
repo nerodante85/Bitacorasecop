@@ -3561,6 +3561,29 @@ await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el 
   assert(/tarjetaProcesoHtml\(s, flujoListoParaPliego, 'lista'\)/.test(html) && /tarjetaProcesoHtml\(s2, .*'analisis'\)/.test(html), 'la lista usa modo lista y la vista nueva modo analisis');
   assert(!/resultsEl\.addEventListener/.test(html), 'los listeners de tarjeta deben colgar de ambos contenedores (enContenedoresDeProceso)');
 });
+await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('function unirFilasExperienciaRepetidas');
+  assert(i !== -1, 'falta unirFilasExperienciaRepetidas');
+  const unir = new Function(html.slice(i, html.indexOf('function matrizRequisitos', i)) + '\nreturn unirFilasExperienciaRepetidas;')();
+  const fila = (clave, req, res, exig, cita) => ({ clave, requisito: req, exigencia: exig, empresa: 'x', resultado: res, evidencia: { documento: 'Estudio Previo', pagina: 3, cita, verificada: true } });
+  const r = unir([
+    fila('exp-0', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento TIPO A', 'NO DETERMINABLE', '—', 'cita A'),
+    fila('exp-1', 'Experiencia: 3. OBRAS MARITIMAS Y FLUVIALES Cuantías', 'NO DETERMINABLE', '—', 'cita B'),
+    fila('exp-2', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento TIPO D', 'NO DETERMINABLE', '—', 'cita C'),
+    fila('gate-Índice de liquidez', 'Índice de liquidez', 'CUMPLE', '≥ 1,2', 'liq')
+  ]);
+  assert(r.length === 3, 'de 4 filas debe quedar 3, quedó ' + r.length);
+  assert(r[0].clave === 'exp-0' && /2 fragmentos/.test(r[0].requisito), 'la primera junta 2 fragmentos y lo dice: ' + r[0].requisito);
+  assert(/cita A/.test(r[0].evidencia.cita) && /cita C/.test(r[0].evidencia.cita), 'la evidencia conserva las dos citas');
+  assert(r[1].clave === 'exp-1' && r[2].clave === 'gate-Índice de liquidez', 'el orden y las demás filas no cambian');
+  const no = unir([
+    fila('exp-0', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento a', 'CUMPLE', '—', 'a'),
+    fila('exp-1', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento b', 'NO DETERMINABLE', '—', 'b'),
+    fila('exp-2', 'Experiencia: 7. OBRAS EN PUENTES Cuantías del procedimiento c', 'CUMPLE', 'Contratos relevantes: 0 (exige mínimo 5)', 'c')
+  ]);
+  assert(no.length === 3, 'con distinto resultado o exigencia no se junta (esconder un CUMPLE o una exigencia sería mentir): ' + no.length);
+});
 await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su contenido vive en "Análisis de pliegos"', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   for (const viejo of ['id="view-evaluacion"', 'id="bt-nav-evaluacion"', 'id="bt-eval-run"', 'id="bt-eval-select"', 'function runEvaluacion', 'function poblarEvalSelect', 'data-view="evaluacion"']) {

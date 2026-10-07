@@ -9392,6 +9392,36 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return '<span class="expeval-badge ' + ESTADO_REQ_CLASE[e] + '"><span aria-hidden="true">' + ESTADO_REQ_GLIFO[e] + '</span> ' + e + '</span>';
   }
 
+  // Un Estudio Previo con la misma tabla en varios tramos daba varias filas "Experiencia: 7. OBRAS EN PUENTES..."
+  // casi iguales (ruido que no ayuda a decidir). Solo la PRESENTACIÓN: se juntan las filas de experiencia (leídas
+  // del texto) con el mismo encabezado, el mismo resultado Y la misma exigencia; la fila resultante conserva las
+  // citas de todos los fragmentos para "Ver evidencia". Con otro resultado o exigencia NO se junta (no se esconde
+  // un CUMPLE ni una exigencia distinta). El veredicto sale del motor, que no pasa por aquí.
+  function unirFilasExperienciaRepetidas(filas){
+    const encabezado = f => String(f.requisito || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 45);
+    const grupos = new Map();
+    const salida = [];
+    filas.forEach(f => {
+      if (!f.clave || f.clave.indexOf('exp-') !== 0){ salida.push(f); return; }
+      const k = encabezado(f) + '|' + f.resultado + '|' + f.exigencia;
+      const g = grupos.get(k);
+      if (!g){
+        const copia = Object.assign({}, f, { evidencia: Object.assign({}, f.evidencia), _fragmentos: 1 });
+        grupos.set(k, copia);
+        salida.push(copia);
+        return;
+      }
+      g._fragmentos++;
+      const cita = f.evidencia && f.evidencia.cita;
+      if (cita && g.evidencia.cita.indexOf(cita) === -1) g.evidencia.cita += '\n\n— — —\n\n' + cita;
+    });
+    salida.forEach(f => {
+      if (f._fragmentos > 1) f.requisito += ' (' + f._fragmentos + ' fragmentos del documento)';
+      delete f._fragmentos;
+    });
+    return salida;
+  }
+
   // Filas de la matriz: { clave, requisito, exigencia, empresa, resultado, evidencia:{documento,pagina,cita,verificada,...} }.
   // Con requisitos extraídos por IA, cada fila habilitante; sin ellos (o para lo que la IA no cubre), cada gate del motor.
   // Una fila con cita sin verificar es NO DETERMINABLE (nunca CUMPLE) hasta que el usuario la confirme.
@@ -9449,7 +9479,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         evidencia: { documento: g.nombre === 'Capacidad vs valor' ? 'Datos del proceso (SECOP)' : dePliego, pagina: null, cita: cita, verificada: !!cita, confirmada: false, bloqueo: null, modificadaPorAdenda: false, origen: 'motor' }
       });
     });
-    return filas;
+    return unirFilasExperienciaRepetidas(filas);
   }
   const GATES_ADMIN_UI = ['Estado del proceso', 'Presentación de oferta', 'Valor de la obra'];
   const GATES_META_UI = ['Lectura del pliego', 'Requisitos por verificar a mano', 'Completitud de la lectura', 'Requisitos habilitantes'];
