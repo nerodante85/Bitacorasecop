@@ -5078,7 +5078,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // mismo objeto + contratante + valor + fechas).
   // Una fila sin NINGÚN campo con dato real no es un contrato, es ruido de la hoja (celdas de
   // formato/espaciado entre bloques, o una hoja que en realidad es un resumen de una sola cifra
-  // -- ej. "DORA NAHIR GARAY GUTIERREZ" + un valor suelto -- donde el encabezado detectado por el
+  // -- ej. "NOMBRE DE LA PERSONA" + un valor suelto -- donde el encabezado detectado por el
   // heurístico de "primera fila con >=2 celdas" no es una fila de encabezados real, así que
   // ninguna columna matchea y cada fila de abajo queda vacía). Sin este filtro, un Excel real de
   // varias hojas podía reportar "127 contrato(s) leído(s)" cuando en realidad solo 47 tenían
