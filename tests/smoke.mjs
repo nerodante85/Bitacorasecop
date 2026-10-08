@@ -719,6 +719,21 @@ await check('parsearExcelExperiencia: combina contratos de TODAS las hojas, no s
   assert(parsed.contratos.some(c => c.valor === 5930400645), 'el valor del contrato de COLEGIOS no se leyó bien');
 });
 
+await check('parsearExcelExperiencia: avisa qué hojas NO aportaron contratos (sin tabla, o con tabla sin filas reconocibles); un libro sano no da aviso', () => {
+  const H = ['Objeto del contrato', 'Entidad contratante', 'Valor del contrato'];
+  const wb = fakeWorkbookMultiHoja([
+    { nombre: 'COLEGIOS', headers: H, rows: [['Construcción de aulas en el colegio Simón Bolívar', 'Alcaldía de Cúcuta', '5.930.400.645']] },
+    { nombre: 'CUPS', headers: [], rows: [['11 10 17 00 : METALES DE BASE'], ['11 11 15 00 : BARRO Y TIERRA']] }
+  ]);
+  const p = expEngine.parsearExcelExperiencia(wb);
+  assert(p.contratos.length === 1, 'sigue leyendo la hoja buena');
+  assert(Array.isArray(p.hojasOmitidas) && p.hojasOmitidas.length === 1 && p.hojasOmitidas[0].nombre === 'CUPS', 'debe listar CUPS: ' + JSON.stringify(p.hojasOmitidas));
+  const sano = expEngine.parsearExcelExperiencia(fakeWorkbookMultiHoja([{ nombre: 'A', headers: H, rows: [['Construcción de puente sobre la quebrada Buturama', 'Municipio de Aguachica', '410.944.603']] }]));
+  assert(sano.hojasOmitidas.length === 0, 'un libro sano no debe avisar: ' + JSON.stringify(sano.hojasOmitidas));
+  const nada = expEngine.parsearExcelExperiencia(fakeWorkbookMultiHoja([{ nombre: 'RESUMEN', headers: [], rows: [['x']] }]));
+  assert(nada.contratos.length === 0 && nada.hojasOmitidas.length === 1, 'libro sin tablas: todas las hojas quedan listadas');
+});
+
 // Regresión de un bug real encontrado con un Excel real de experiencia (persona natural):
 // algunas hojas de un libro de varias hojas son en realidad un resumen de una sola cifra ("NOMBRE
 // DE LA PERSONA" + un valor suelto, sin tabla real) -- el heurístico de "primera fila con

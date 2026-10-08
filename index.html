@@ -5244,13 +5244,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // `nHojas`, para que el usuario sepa que se combinaron varias.
   function parsearExcelExperiencia(workbook){
     const hojas = leerTodasLasHojasComoFilas(workbook);
-    if (!hojas.length) return parsearExperienciaDeFilas({ headers: [], rows: [] });
+    // Hojas que no aportaron ningún contrato: se listan para avisar (una hoja con contratos que no se pudo leer
+    // NO cuenta en la evaluación, y el usuario debe saberlo; no se adivina cuáles "eran" de contratos).
+    const hojasOmitidas = [];
+    (workbook.SheetNames || []).forEach(n => { if (!hojas.some(h => h.hojaNombre === n)) hojasOmitidas.push({ nombre: n, motivo: 'sin una tabla de contratos reconocible' }); });
+    if (!hojas.length) return Object.assign(parsearExperienciaDeFilas({ headers: [], rows: [] }), { hojasOmitidas: hojasOmitidas });
     let contratos = [];
     let primeraConDatos = null;
     let primeraConObjeto = null; // ver "Revisar interpretación" más abajo
     let duplicados = 0, totales = 0, vacios = 0;
     hojas.forEach(h => {
       const parsed = parsearExperienciaDeFilas(h);
+      if (!parsed.contratos.length) hojasOmitidas.push({ nombre: h.hojaNombre, motivo: 'tiene una tabla pero ninguna fila se reconoció como contrato' });
       if (!primeraConDatos) primeraConDatos = parsed;
       // El panel "Revisar interpretación" muestra las columnas de UNA hoja representativa -- si la
       // primera hoja del libro resultó ser basura (encabezado mal detectado, ningún campo
@@ -5267,7 +5272,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const dep = depurarContratos(contratos);
     duplicados += dep.duplicados; totales += dep.totales; vacios += dep.vacios;
     contratos = dep.contratos.map((c, i) => Object.assign({}, c, { fila: i + 1 }));
-    return { headers: representativa.headers, cols: representativa.cols, contratos: contratos, nHojas: hojas.length, omitidos: { duplicados: duplicados, totales: totales, vacios: vacios } };
+    return { headers: representativa.headers, cols: representativa.cols, contratos: contratos, nHojas: hojas.length, hojasOmitidas: hojasOmitidas, omitidos: { duplicados: duplicados, totales: totales, vacios: vacios } };
   }
 
   const STOPWORDS_ES = new Set(['de','del','la','el','los','las','en','y','o','para','con','por','a','al','un','una','que','se','su','sus','como','entre','sobre','este','esta','estos','estas','sea','ser','mas','no']);
@@ -12627,6 +12632,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         })() +
         (conColumnas ? ' Revisa abajo qué columna se usó para cada campo antes de continuar.' : ' Revisa abajo cada contrato detectado antes de continuar.') +
         '</div>';
+      if (c.hojasOmitidas && c.hojasOmitidas.length){
+        html += '<div class="mb-10 alerta-item revisar" role="alert"><span class="alerta-nivel">▲ REVISAR</span><span>' + c.hojasOmitidas.length + ' hoja(s) del Excel no aportaron contratos y NO cuentan en la evaluación: ' +
+          c.hojasOmitidas.map(x => '«' + escapeHtml(x.nombre) + '» (' + escapeHtml(x.motivo) + ')').join('; ') + '. Si alguna tiene contratos, revisa que tenga una fila de encabezados con Objeto/Valor/Fechas y vuelve a cargar el archivo.</span></div>';
+      }
       html += c.fuente === 'formato-maestro'
         ? renderContratosFormatoMaestro(c, propio.meta)
         : conColumnas
@@ -12680,7 +12689,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
       if (!guardarExperienciaDelPerfil(parsed, file.name)) return;
       const sufijoHojas = parsed.nHojas > 1 ? ' de ' + parsed.nHojas + ' hojas' : '';
-      expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.';
+      const hOm = parsed.hojasOmitidas || [];
+      expevalExpStatusEl.textContent = file.name + ' · ' + parsed.contratos.length + ' contrato(s) leído(s)' + sufijoHojas + '.' +
+        (hOm.length ? ' ⚠ ' + hOm.length + ' hoja(s) no aportaron contratos (' + hOm.map(x => x.nombre).join(', ') + '): si alguna los tiene, NO cuentan en la evaluación.' : '');
     } catch(err){
       expevalExpStatusEl.textContent = 'No se pudo leer el Excel (' + (err && err.message ? err.message : 'error') + ').';
     }
