@@ -6102,8 +6102,92 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   const redondearMin = v => Math.round(v * 100) / 100;
 
+  // Pliego tipo (CCE, infraestructura de transporte): la experiencia se acredita por SUMATORIA de valores en SMMLV según una
+  // tabla por número de contratos ("De 1 hasta 2: 75% · De 3 hasta 4: 120% · Hasta 5: 150%" del presupuesto oficial).
+  // Devuelve { tramos: [{desde, hasta, pct}], maxContratos } o null si no hay tabla o es incoherente.
+  function tramosDeSumatoria(text){
+    const t = String(text || '').replace(/\s+/g, ' ');
+    if (!/valor\s+m[íi]nimo\s+a\s+certificar/i.test(t)) return null;
+    const tramos = [];
+    const re = /\bDe\s+(\d+)\s+hasta\s+(\d+)\s+(\d+(?:[.,]\d+)?)\s*%/gi;
+    let m, fin = 0;
+    while ((m = re.exec(t))){ tramos.push({ desde: parseInt(m[1], 10), hasta: parseInt(m[2], 10), pct: parseFloat(m[3].replace(',', '.')) }); fin = re.lastIndex; }
+    const h = tramos.length ? t.slice(fin).match(/^\s*(?:\S+\s+){0,3}?Hasta\s+(\d+)\s+(\d+(?:[.,]\d+)?)\s*%/i) : null;
+    if (h) tramos.push({ desde: tramos[tramos.length - 1].hasta + 1, hasta: parseInt(h[1], 10), pct: parseFloat(h[2].replace(',', '.')) });
+    if (tramos.length < 2) return null;
+    for (let i = 0; i < tramos.length; i++){
+      const x = tramos[i];
+      if (!(x.desde >= 1 && x.hasta >= x.desde && x.pct > 0)) return null;
+      if (i > 0 && (x.desde !== tramos[i - 1].hasta + 1 || x.pct <= tramos[i - 1].pct)) return null;
+    }
+    return { tramos: tramos, maxContratos: tramos[tramos.length - 1].hasta };
+  }
+
+  // Evalúa la sumatoria por tramos. NUNCA da CUMPLE: el sistema no verifica que los contratos sean de la actividad exigida
+  // (tipo de obra o vía, códigos UNSPSC, fecha de terminación anterior al cierre). Sí puede DEMOSTRAR un NO CUMPLE: si ni
+  // sumando los contratos de mayor valor (de CUALQUIER tipo, hasta 7: una Mipyme y empresa de mujer pueden aportar 6 o 7) se
+  // alcanza el mínimo, ningún subconjunto lo hará. Si hay contratos que podrían cambiar la cuenta (sin valor, sin fecha para
+  // convertir a SMMLV, en ejecución) o falta el presupuesto del proceso, no se concluye.
+  function evaluarSumatoriaTramos(req, contratos, hoy, ctx){
+    const sm = req.sumatoriaTramos;
+    const evidencia = [], faltantes = [];
+    const fmt = n => (Math.round(n * 10) / 10).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    const devolver = (resultado, justificacion, evaluados) => ({
+      requisito: req, contratosEvaluados: (evaluados || []).map(c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin })),
+      evidencia: evidencia, nota: '', faltantes: faltantes, resultado: resultado, justificacion: justificacion
+    });
+    const pres = ctx && Number(ctx.presupuesto) > 0 ? Number(ctx.presupuesto) : null;
+    const anio = (ctx && ctx.anio) || hoy.getFullYear();
+    const smmlvAnio = SMMLV_POR_ANIO[anio];
+    if (!pres || !smmlvAnio){
+      faltantes.push(!pres ? 'No se conoce el presupuesto oficial del proceso.' : 'Falta en la tabla el SMMLV de ' + anio + '.');
+      return devolver('NO DETERMINABLE', 'El pliego exige la experiencia por sumatoria de valores como porcentaje del presupuesto oficial en SMMLV, y ' + (!pres ? 'no se conoce el presupuesto del proceso' : 'no se puede convertir a SMMLV') + ': no se puede comparar.', []);
+    }
+    const po = pres / smmlvAnio;
+    const minDe = n => { const t = sm.tramos.find(x => n >= x.desde && n <= x.hasta); return t ? po * t.pct / 100 : null; };
+    evidencia.push('Tabla del pliego (valor mínimo a certificar, como % del presupuesto oficial = ' + fmt(po) + ' SMMLV): ' +
+      sm.tramos.map(x => (x.desde === x.hasta ? x.desde : x.desde + '–' + x.hasta) + ' contrato(s): ' + x.pct + '% = ' + fmt(po * x.pct / 100) + ' SMMLV').join(' · ') + '.');
+    const regla = req.reglaSmmlv || 'fecha_terminacion';
+    const conocidos = [];
+    let inciertos = 0;
+    (contratos || []).forEach(c => {
+      if (contratoEnEjecucion(c, hoy)){ inciertos++; return; }
+      const v = valorAcreditable(c);
+      if (v == null){ inciertos++; return; }
+      const conv = valorContratoEnSmmlv(Object.assign({}, c, { valor: v }), regla);
+      if (!conv || conv.smmlv == null){ inciertos++; return; }
+      conocidos.push({ contrato: c, smmlv: conv.smmlv });
+    });
+    conocidos.sort((a, b) => b.smmlv - a.smmlv);
+    const tope = Math.min(conocidos.length, 7);
+    let acum = 0, alcanza = false, cerca = false;
+    const cuentas = [];
+    for (let n = 1; n <= tope; n++){
+      acum += conocidos[n - 1].smmlv;
+      const min = minDe(Math.min(n, sm.maxContratos));
+      cuentas.push({ n: n, suma: acum, min: min });
+      if (min != null && acum >= min) alcanza = true;
+      else if (min != null && acum >= min - 1) cerca = true;
+    }
+    if (conocidos.length){
+      const resumen = cuentas.slice(0, sm.maxContratos).map(c => c.n + ' mayor(es): ' + fmt(c.suma) + ' SMMLV (mínimo ' + fmt(c.min) + ')').join(' · ');
+      evidencia.push('Tus contratos de mayor valor, de cualquier tipo de obra: ' + resumen + '.');
+    }
+    const evaluados = conocidos.slice(0, sm.maxContratos).map(x => x.contrato);
+    if (!alcanza && !cerca && inciertos === 0){
+      return devolver('NO CUMPLE', 'Aun sumando tus contratos de mayor valor (de cualquier tipo, hasta ' + Math.max(tope, 1) + ' contrato(s)) no se alcanza el valor mínimo que exige el pliego: ningún conjunto de contratos puede acreditar la experiencia.', evaluados);
+    }
+    if (inciertos > 0) faltantes.push(inciertos + ' contrato(s) no se pudieron contar (sin valor reconocido, sin fecha para convertir a SMMLV o en ejecución); con ellos la suma podría cambiar.');
+    faltantes.push('El sistema no verifica que los contratos sean de la actividad exigida (tipo de obra o vía), ni su clasificación UNSPSC, ni que hayan terminado antes del cierre del proceso: confírmalo en el pliego y en cada certificación.');
+    if (cerca) faltantes.push('La suma queda a menos de 1 SMMLV del mínimo y el pliego redondea: el resultado no es concluyente.');
+    return devolver('NO DETERMINABLE', alcanza
+      ? 'Por valor, tus contratos de mayor valor alcanzarían el mínimo del pliego, pero el sistema no puede confirmar que sean de la actividad exigida, ni su clasificación UNSPSC ni sus fechas: no se afirma el cumplimiento.'
+      : 'No se puede concluir: hay contratos que no se pudieron contar o la suma queda en el límite.', evaluados);
+  }
+
   function evaluarRequisito(req, contratos, hoy, ctx){
     hoy = hoy || new Date();
+    if (req && req.sumatoriaTramos) return evaluarSumatoriaTramos(req, contratos, hoy, ctx);
     const reqOriginal = req;
     req = resolverValorRelativo(req, ctx, hoy);
     const exigeUnspsc = !!(req.codigosUnspsc && req.codigosUnspsc.length);
@@ -7350,6 +7434,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         posiblesTablasNoLeidas.push({ pagina: zona.pagina, ancla: zona.ancla });
       }
     });
+    const tramosSum = tramosDeSumatoria(text);
+    if (tramosSum){
+      const reqS = construirRequisitoDesdeTexto('Experiencia por sumatoria de valores ejecutados en SMMLV, según la tabla de tramos del pliego (por número de contratos)', requisitos.length, {});
+      reqS.tipo = 'general'; reqS.obligatoriedad = 'obligatorio'; reqS.fuente = fuenteLabel;
+      const iT = String(text).search(/valor\s+m[íi]nimo\s+a\s+certificar/i);
+      reqS.pagina = iT >= 0 ? paginaDeOffset(paginaOffsets, iT) : null;
+      reqS.sumatoriaTramos = tramosSum;
+      if (reglaSmmlvPliego) reqS.reglaSmmlv = reglaSmmlvPliego;
+      requisitos.push(reqS);
+    }
     // Pliego tipo (CCE): la experiencia se acredita por SUMATORIA de valores según una tabla por número de contratos
     // ("De 1 hasta 2: 75% · De 3 hasta 4: 120% · Hasta 5: 150%" del presupuesto oficial). El motor no evalúa esa regla:
     // ningún requisito de experiencia del pliego puede dar CUMPLE automático (se revisa a mano).
