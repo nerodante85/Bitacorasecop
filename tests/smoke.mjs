@@ -3439,6 +3439,29 @@ await check('fichaHabilitante: con VARIOS presupuestos (lotes) no elige ninguno 
   assert(una.filas.find(x => x.requisito === 'Presupuesto oficial').exige === '$3.185.389.625', 'un único monto grande sí se usa');
   assert(una.filas.some(x => x.requisito === 'Anticipo'), 'debe reconocer "No se otorgará anticipo"');
 });
+const FICHA_LOTES_TIPO = [
+ "OBJETO LOTE No 1 CONSTRUCCIÓN DE OBRAS DE ALCANTARILLADO EN EL DEPARTAMENTO DE CUNDINAMARCA (GRUPO No 1 – LOTE No 1) – APROPIACIÒN. OBJETO LOTE No 2: CONSTRUCCIÓN DE OBRAS DE PATP Y ACUEDUCTO EN EL DEPARTAMENTO DE CUNDINAMARCA (GRUPO No 2 – LOTE No 2) – APROPIACIÒN. 2.2. ALCANCE DEL OBJETO A CONTRATAR",
+ "LOTE No 1 – GRUPO No 1 El plazo establecido para la ejecución del contrato de obra corresponderá al frente que presente el mayor tiempo de ejecución. Para este caso, se tomará como referencia el plazo de DOCE (12) MESES. Frente Municipio Plazo",
+ "LOTE No 2 – GRUPO No 2 El plazo establecido para la ejecución del contrato de obra corresponderá al frente que presente el mayor tiempo de ejecución. Para este caso, se tomará como referencia el plazo de NUEVE (09) MESES. Pág. 47 de 124",
+ "LOTE No 1 El valor estimado para la ejecución del proyecto “CONSTRUCCIÓN DE OBRAS DE ALCANTARILLADO EN EL DEPARTAMENTO DE CUNDINAMARCA (LOTE No 1) – APROPIACIÒN corresponde a la suma de VENTIOCHO MIL MILLONES DE PESOS M/CTE ($ 28.456.095.935,00), incluido el valor del A.I.U.",
+ "LOTE No 2 El valor estimado para la ejecución del proyecto “CONSTRUCCIÓN DE OBRAS DE PATP Y ACUEDUCTO (GRUPO No 2 – LOTE No 2) – APROPIACIÒN.”, corresponde a la suma de CINCO MIL OCHOCIENTOS MILLONES DE PESOS M/CTE ($ 5.804.940.381,00), incluido el valor del A.I.U.",
+ "El Capital de Trabajo demandado para el proceso que presenta propuesta (CTd) se calcula así: Presupuesto Fórmula oficial ≤$10.000.000.000 CTd = 10% x (PO) Entre CTd = 20 %x (PO) $10.000.000.001 y $20.000.000.000 ≥$20.000.000.001 CTd = 30% x (PO) Donde, CTd = Capital de Trabajo demandado del proceso al cual presenta propuesta PO = Presupuesto oficial del proceso",
+ "En el presente proceso de contratación no se entregará anticipo."
+];
+await check('fichaHabilitante por lote: sin lote elegido avisa y lista los lotes; con lote usa SU presupuesto, plazo, objeto y capital de trabajo (no mezcla)', () => {
+  const t = FICHA_LOTES_TIPO.join('\n');
+  const sin = expEngine.fichaHabilitante(t, { anio: 2026 });
+  assert(sin.lotes && sin.lotes.length === 2, 'debe detectar 2 lotes: ' + JSON.stringify(sin.lotes));
+  assert(sin.avisos.some(a => /se divide en 2 lotes/.test(a)), 'debe pedir elegir lote');
+  assert(!sin.filas.some(x => x.requisito === 'Plazo de ejecución'), 'sin lote no inventa plazo');
+  const l1 = expEngine.fichaHabilitante(t, { anio: 2026, lote: '1' }), l2 = expEngine.fichaHabilitante(t, { anio: 2026, lote: '2' });
+  const g = (f, n) => f.filas.find(x => x.requisito.indexOf(n) === 0);
+  assert(g(l1, 'Plazo de ejecución').exige === '12 meses' && g(l2, 'Plazo de ejecución').exige === '9 meses', 'plazos por lote');
+  assert(/28\.456\.095\.935/.test(g(l1, 'Presupuesto oficial').exige) && /5\.804\.940\.381/.test(g(l2, 'Presupuesto oficial').exige), 'presupuesto por lote');
+  assert(/ALCANTARILLADO/.test(g(l1, 'Objeto del Lote 1').exige) && /ACUEDUCTO/.test(g(l2, 'Objeto del Lote 2').exige), 'objeto por lote');
+  assert(/\$8\.536\.828\.781/.test(g(l1, 'Capital de trabajo').cifras) && /\$580\.494\.038/.test(g(l2, 'Capital de trabajo').cifras), 'CTd por lote: ' + g(l1, 'Capital de trabajo').cifras);
+  assert(!sin.filas.some(x => /^Objeto del Lote/.test(x.requisito)), 'sin lote no hay objeto de lote');
+});
 const FICHA_TOLEDO_PAGINAS = [
  "ntratista encargado de ejecutar el contrato de obra pública para OPTIMIZACIÓN DEL ALCANTARILLADO SANITARIO MUNICIPIO DE TOLEDO, DEPARTAMENTO NORTE DE SANTANDER, en adelante el “contrato” Los documentos del proceso que incluyen los estudios y documentos previos, el estudio de sector, así co",
  "OBJETO, PRESUPUESTO OFICIAL, PLAZO Y UBICACIÓN El objeto, presupuesto oficial estimado, plazo y ubicación del proyecto objeto del presente proceso de contratación se identifican en la siguiente tabla: Plazo Valor presupuesto oficial (pesos Lugar(es) de ejecución Objeto del proyecto del incluido IVA) del contrato contrato TRES MIL CIENTO OCHENTA Y OPTIMIZACIÓN DEL MUNICIPIO DE CINCO MILLONES ALCANTARILLADO SANITARIO TOLEDO, 4 TRESCIENTOS OCHENTA Y MUNICIPIO DE TOLEDO, DEPARTAMENTO MESES NUEVE MIL SEISCIENTOS DEPARTAMENTO NORTE DE NORTE DE VEINTICINCO PESOS M/CTE SANTANDER SANTANDER ($3.185.389.625,00) La obra pública tiene las especificaciones técnicas descritas en el Anexo 1- Anexo Técnico y",

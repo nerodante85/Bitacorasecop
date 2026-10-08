@@ -7443,6 +7443,29 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Resume en una tabla lo que EXIGE el proceso, con las cifras ya convertidas a pesos y SMMLV. Es determinista (no usa IA)
   // y solo informa lo que el documento dice: lo que no encuentra no lo inventa, simplemente no aparece como fila.
   // Devuelve { filas: [{ grupo, requisito, exige, cifras, aviso }], avisos: [] }.
+  // Procesos "por lotes": cada lote tiene su presupuesto, plazo y experiencia. Devuelve [{ id, presupuesto }] (2 o más lotes con
+  // presupuestos distintos) o [] si el documento no se divide en lotes de forma clara.
+  function lotesDeTexto(t){
+    const porId = {};
+    const re = /LOTE\s+(?:No\.?|N[°º])?\s*(\d{1,2})\s+El\s+valor\s+estimado[^$]{0,520}?\$\s*(\d{1,3}(?:\.\d{3}){2,})/ig;
+    let m;
+    while ((m = re.exec(t))){ const v = parseInt(m[2].replace(/\./g, ''), 10); if (v >= 50000000 && !porId[m[1]]) porId[m[1]] = v; }
+    const ids = Object.keys(porId);
+    if (ids.length < 2 || new Set(ids.map(i => porId[i])).size < 2) return [];
+    return ids.sort((x, y) => x - y).map(i => ({ id: i, presupuesto: porId[i] }));
+  }
+  // Tramo del texto donde empieza la experiencia del lote (hasta el encabezado de otro lote o la clasificación UNSPSC).
+  function segmentoDeLote(t, id){
+    const cab = n => new RegExp('LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s*[–-]\\s*GRUPO\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s+ACTIVIDAD\\s+PRINCIPAL', 'i');
+    const m = cab(id).exec(t);
+    if (!m) return null;
+    let fin = t.length;
+    const sig = t.slice(m.index + 30).search(/LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\s*[–-]\s*GRUPO\s+(?:No\.?|N[°º])?\s*\d{1,2}\s+ACTIVIDAD\s+PRINCIPAL/i);
+    if (sig >= 0) fin = m.index + 30 + sig;
+    const cl = t.slice(m.index).search(/CLASIFICACI[ÓO]N\s+DE\s+LA\s+EXPERIENCIA/i);
+    if (cl >= 0) fin = Math.min(fin, m.index + cl);
+    return { inicio: m.index, fin: fin };
+  }
   const FICHA_MESES_APALANCAMIENTO = [[12, 4], [24, 8], [36, 12], [48, 16], [60, 20], [72, 24], [84, 28], [96, 32], [108, 36], [120, 40]];
   function fichaHabilitante(text, ctx){
     // El texto del documento trae una línea por página: se normaliza cada página (letras matemáticas de las fórmulas -> normales,
@@ -7466,16 +7489,29 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // (lotes, grupos, fases) no se elige ninguno: sería inventar cuál es el del proceso del usuario.
     const montosPO = []; { const rePO = /presupuesto\s+oficial[^$]{0,360}?\$\s*(\d{1,3}(?:\.\d{3}){2,})/ig; let mm; while ((mm = rePO.exec(t))){ const v = parseInt(mm[1].replace(/\./g, ''), 10); if (v >= 50000000) montosPO.push({ v: v, i: mm.index }); } }
     const distintos = Array.from(new Set(montosPO.map(x => x.v)));
-    const mPres = distintos.length === 1 ? { index: montosPO[0].i } : null;
-    const presupuesto = (ctx && Number(ctx.presupuesto) > 0) ? Number(ctx.presupuesto) : (distintos.length === 1 ? distintos[0] : null);
-    if (distintos.length > 1 && !(ctx && Number(ctx.presupuesto) > 0)) avisos.push('El documento trae varios valores de presupuesto oficial (por ejemplo lotes, grupos o fases): la ficha no convierte a SMMLV ni calcula capital de trabajo ni capacidad residual. Identifica cuál es el del lote al que te presentas.');
+    const lotes = lotesDeTexto(t);
+    const loteSel = (ctx && ctx.lote != null) ? (lotes.find(l => l.id === String(ctx.lote)) || null) : null;
+    const mPres = (distintos.length === 1 && lotes.length < 2) ? { index: montosPO[0].i } : null;
+    const ctxPres = ctx && Number(ctx.presupuesto) > 0;
+    const presupuesto = ctxPres ? Number(ctx.presupuesto) : (loteSel ? loteSel.presupuesto : ((distintos.length === 1 && lotes.length < 2) ? distintos[0] : null));
+    if (lotes.length >= 2 && !loteSel && !ctxPres) avisos.push('El documento se divide en ' + lotes.length + ' lotes con presupuestos distintos: elige el lote al que te presentas para calcular las cifras (SMMLV, capital de trabajo, plazo y experiencia del lote).');
+    else if (distintos.length > 1 && lotes.length < 2 && !ctxPres) avisos.push('El documento trae varios valores de presupuesto oficial (por ejemplo grupos o fases): la ficha no convierte a SMMLV ni calcula capital de trabajo ni capacidad residual. Identifica cuál es el del proceso al que te presentas.');
+    if (loteSel){
+      const mOL = t.match(new RegExp('OBJETO\\s+LOTE\\s+(?:No\\.?|N[°º])?\\s*' + loteSel.id + ':?\\s+(.{15,260}?)(?=\\s+OBJETO\\s+LOTE|\\s+\\d\\.\\d+\\.?\\s+[A-ZÁÉÍÓÚ]|$)', 'i'));
+      if (mOL) add('Datos del proceso', 'Objeto del Lote ' + loteSel.id, mOL[1].trim(), '', { pagina: pagina(mOL.index) });
+    }
     const anio = (ctx && ctx.anio) || new Date().getFullYear();
     const smmlvAnio = SMMLV_POR_ANIO[anio] || null;
     const poSmmlv = presupuesto && smmlvAnio ? presupuesto / smmlvAnio : null;
-    if (presupuesto) add('Datos del proceso', 'Presupuesto oficial', money(presupuesto), poSmmlv ? fmt1(poSmmlv) + ' SMMLV (SMMLV ' + anio + ': ' + money(smmlvAnio) + ')' : '', { pagina: pagina(mPres ? mPres.index : null) });
+    if (presupuesto) add('Datos del proceso', loteSel ? 'Presupuesto oficial del Lote ' + loteSel.id : 'Presupuesto oficial', money(presupuesto), poSmmlv ? fmt1(poSmmlv) + ' SMMLV (SMMLV ' + anio + ': ' + money(smmlvAnio) + ')' : '', { pagina: pagina(mPres ? mPres.index : null) });
     const mPlazo = t.match(/plazo\s+de\s+ejecuci[óo]n\s+del\s+contrato\s+ser[áa]\s+de[^()]{0,40}\((\d{1,3})\)\s*mes/i);
     let plazo = mPlazo ? parseInt(mPlazo[1], 10) : null;
     let idxPlazo = mPlazo ? mPlazo.index : null;
+    if (loteSel){
+      const mPL = t.match(new RegExp('LOTE\\s+(?:No\\.?|N[°º])?\\s*' + loteSel.id + '\\s*[–-]\\s*GRUPO\\s+(?:No\\.?|N[°º])?\\s*' + loteSel.id + '\\s+El\\s+plazo[\\s\\S]{0,500}?\\((\\d{1,2})\\)\\s*MESES', 'i'));
+      if (mPL){ plazo = parseInt(mPL[1], 10); idxPlazo = mPL.index; }
+      else { plazo = null; idxPlazo = null; }
+    }
     if (plazo == null){
       // Documentos tipo: el plazo va en la tabla "OBJETO, PRESUPUESTO OFICIAL, PLAZO Y UBICACIÓN" ("4 MESES").
       const iTab = t.search(/OBJETO,\s+PRESUPUESTO\s+OFICIAL,\s+PLAZO\s+Y\s+UBICACI[ÓO]N\s+El\s+objeto/i);
@@ -7519,7 +7555,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // una fila por exigencia con su cifra final. Se omiten las del % del presupuesto y la de luz de puentes, que ya tienen fila propia.
     { const reMag = /Por\s+lo\s+menos\s+uno\s*\(1\)\s+de\s+los\s+contratos\s+v[áa]lidos\s+aportados.{20,1100}?(?=Por\s+lo\s+menos\s+uno\s*\(1\)|C[óo]digo\s+CCE|ESPEC[ÍI]FICA|ACTIVIDAD\s+(?:A\s+CONTRATAR|SECUNDARIA|PRINCIPAL)|\b3\.5\.\d|Las\s+demás\s+características|$)/gi;
       const vistas = {}; let mm;
+      const segLote = loteSel ? segmentoDeLote(t, loteSel.id) : null;
       while ((mm = reMag.exec(t))){
+        if (lotes.length >= 2 && (!segLote || mm.index < segLote.inicio || mm.index >= segLote.fin)) continue;
         const frase = mm[0].replace(/\s+/g, ' ').trim();
         const clave = frase.slice(0, 220).toLowerCase();
         if (vistas[clave] || /presupuesto\s+oficial|luz\s+principal/i.test(frase)) continue;
@@ -7559,6 +7597,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         FICHA_MESES_APALANCAMIENTO.forEach(r => { if (plazo >= r[0]) n = r[1]; });
         if (n != null){ ctd = base / plazo * n; how = 'Presupuesto ÷ plazo × ' + n + ' meses de apalancamiento'; }
       }
+      const mDoc = t.match(/el\s+capital\s+de\s+trabajo\s+es\s+el\s+siguiente:?\s*CT\s*≥\s*(\d{1,2})\s*%/i);
+      if (mDoc && porRango.length === 3 && ctd != null && Math.abs(ctd - presupuesto * parseInt(mDoc[1], 10) / 100) > 1) avisos.push('El documento afirma "CT ≥ ' + mDoc[1] + '% del presupuesto oficial", pero su propia tabla da ' + (Math.round(ctd / presupuesto * 100)) + '% para este presupuesto (' + money(ctd) + ' frente a ' + money(presupuesto * parseInt(mDoc[1], 10) / 100) + '). Confírmalo en observaciones.');
       if (ctd != null){ ctd = Math.min(ctd, presupuesto); add('Capacidad financiera', 'Capital de trabajo demandado', how, money(ctd) + (smmlvAnio ? ' · ' + fmt1(ctd / smmlvAnio) + ' SMMLV' : '')); }
     }
     const mPd = t.match(/Pd\s*=\s*POE\s*x\s*(\d{1,3})\s*%/i);
@@ -7621,7 +7661,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const f = filas[filas.length - 1]; if (f && f.grupo === 'Maquinaria') f.aviso = 'Según el documento se verifica después de adjudicar el contrato: no es un requisito habilitante ni da puntaje.';
       }
     }
-    return { filas: filas, avisos: avisos };
+    return { filas: filas, avisos: avisos, lotes: lotes, lote: loteSel ? loteSel.id : null };
   }
 
   function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
@@ -10457,13 +10497,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function fichaHabilitanteDe(entry){
     const fuentes = [['Pliego de Condiciones', textoPliegoDe(entry)], ['Estudio Previo', entry && entry.estudioPrevioText]];
     const filas = [], avisos = [], vistos = {};
+    let lotes = null;
     fuentes.forEach(function(f){
       if (!f[1]) return;
-      let r; try { r = fichaHabilitante(f[1], { anio: new Date().getFullYear() }); } catch (e) { return; }
+      let r; try { r = fichaHabilitante(f[1], { anio: new Date().getFullYear(), lote: entry && entry.loteFicha }); } catch (e) { return; }
+      if (!lotes && r.lotes && r.lotes.length > 1) lotes = r.lotes;
       r.filas.forEach(function(x){ if (vistos[x.requisito]) return; vistos[x.requisito] = true; x.documento = f[0]; filas.push(x); });
       r.avisos.forEach(function(a){ if (avisos.indexOf(a) === -1) avisos.push(a); });
     });
-    return { filas: filas, avisos: avisos };
+    return { filas: filas, avisos: avisos, lotes: lotes };
   }
   function fichaHabilitanteHtml(entry){
     const f = fichaHabilitanteDe(entry);
@@ -10476,7 +10518,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         (x.aviso ? '<div class="ficha-aviso"><b>Ojo:</b> ' + escapeHtml(x.aviso) + '</div>' : '') + '</td><td>' + escapeHtml(x.cifras) + '</td><td>' +
         escapeHtml((x.documento || '') + (x.pagina ? ', p. ' + x.pagina : '')) + '</td></tr>';
     }).join('');
-    return '<div class="analisis-seccion"><h3>Requisitos habilitantes del proceso</h3>' +
+    const selLote = f.lotes ? '<div class="ficha-lotes" role="group" aria-label="Lote al que te presentas"><span>Lote:</span> ' +
+      f.lotes.map(function(l){ return '<button type="button" class="matriz-filtro" data-ficha-lote="' + escapeHtml(String(l.id)) + '" aria-pressed="' + (String(entry.loteFicha) === String(l.id) ? 'true' : 'false') + '">Lote ' + escapeHtml(String(l.id)) + '</button>'; }).join(' ') + '</div>' : '';
+    return '<div class="analisis-seccion" data-ficha-seccion="1"><h3>Requisitos habilitantes del proceso</h3>' + selLote +
       '<div class="expeval-table-wrap"><table class="matriz-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th></tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
       (f.avisos.length ? '<ul class="alertas-analisis">' + f.avisos.map(function(a){ return '<li class="alerta-item revisar"><span class="alerta-nivel">▲ REVISAR</span><span>' + escapeHtml(a) + '</span></li>'; }).join('') + '</ul>' : '') +
       '<div class="resultado-meta">Cifras calculadas por el sistema a partir del documento (SMMLV ' + new Date().getFullYear() + '); confírmalas en el pliego definitivo.</div></div>';
@@ -13451,6 +13495,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Análisis: evidencia de una fila de la matriz, filtro de la matriz y salto a una sección plegada.
     const evBtn = e.target.closest('[data-ev-fila]');
     if (evBtn){ abrirEvidencia(evBtn.getAttribute('data-ev-id'), evBtn.getAttribute('data-ev-fila'), evBtn); return; }
+    const loteBtn = e.target.closest('[data-ficha-lote]');
+    if (loteBtn){
+      const en = analisis[analisisSelId], sec = loteBtn.closest('[data-ficha-seccion]');
+      if (en && sec){ en.loteFicha = loteBtn.getAttribute('data-ficha-lote'); sec.outerHTML = fichaHabilitanteHtml(en); saveAnalisis(analisisSelId); }
+      return;
+    }
     const filtroMatrizBtn = e.target.closest('[data-matriz-filtro]');
     if (filtroMatrizBtn){ filtrarMatriz(filtroMatrizBtn); return; }
     const abrirFoldBtn = e.target.closest('[data-abrir-fold]');
