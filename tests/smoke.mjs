@@ -3264,6 +3264,24 @@ await check('lectura de pliegos con capa de texto: la primera tanda cubre un pli
   assert(texto >= 150, 'la tanda de texto debe cubrir pliegos largos: ' + texto);
   assert(ocr > 0 && ocr <= 20, 'el OCR (lento) conserva tandas chicas: ' + ocr);
 });
+// Pliego tipo (CCE, infraestructura de transporte): la "Matriz 1" trae la cuantía del proceso y el valor del presupuesto,
+// que NO son un valor mínimo de experiencia; el valor exigido se define aparte, por tramos (3.5.8).
+const MATRIZ1_GENERAL_TIPO = '1. OBRAS EN VIAS PRIMARIAS O SECUNDARIAS < 100 Cuantías del procedimiento de contratación: Entre 100 y 1.000 SMMLV SMMLV Acreditación de la ACTIVIDAD A TIPO DE $1.228.783.848,75,00 = EXPERIENCIA: CONTRATAR: EXPERIENCIA: 701,79 SMMLV Que hayan contenido la CONSTRUCCIÓN O MEJORAMIENTO O MANTENIMIENTO RUTINARIO O MANTENIMIENTO PERIÓDICO O RECONSTRUCCIÓN O REHABILITACIÓN GENERAL';
+const TABLA_TRAMOS_TIPO = '3.5.8. RELACIÓN DE LOS CONTRATOS FRENTE AL PRESUPUESTO OFICIAL La verificación del número de contratos para acreditar la experiencia se realiza de la siguiente manera: Número de contratos con los cuales el Proponente cumple la experiencia acreditada Valor mínimo a certificar (como % del Presupuesto Oficial de obra expresado en SMMLV) De 1 hasta 2 75% De 3 hasta 4 120% Hasta 5 150% La verificación se hará con base en la sumatoria de los valores totales ejecutados (incluido IVA) en SMMLV de los contratos.';
+await check('pliego tipo CCE: la cuantía del proceso ("Entre 100 y 1.000 SMMLV") y el presupuesto en SMMLV no se leen como valor mínimo de experiencia; el requisito no puede dar CUMPLE automático', () => {
+  const r = expEngine.construirRequisitoDesdeTexto(MATRIZ1_GENERAL_TIPO, 0, {});
+  assert(r.minValor == null, 'no debe tomar 1.000 SMMLV (rango de cuantía) ni el presupuesto como mínimo: ' + JSON.stringify(r.minValor));
+  assert(r.condicionNoVerificable && /cuant/i.test(r.condicionNoVerificable), 'debe quedar bloqueado para CUMPLE automático: ' + r.condicionNoVerificable);
+  const normal = expEngine.construirRequisitoDesdeTexto('Experiencia general: tres (3) contratos de obra civil, cada uno igual o superior a 500 SMMLV', 0, {});
+  assert(normal.minValor && normal.minValor.valor === 500 && !normal.condicionNoVerificable, 'control: un mínimo normal sigue leyéndose: ' + JSON.stringify(normal.minValor));
+});
+await check('pliego tipo CCE: si el pliego exige la experiencia por SUMATORIA según una tabla (75% / 120% / 150% del presupuesto), ningún requisito de experiencia da CUMPLE automático', () => {
+  const ex = expEngine.extraerRequisitosDePliego('Experiencia general. El proponente acreditará tres (3) contratos de obra de acueducto. ' + TABLA_TRAMOS_TIPO, [], 'Pliego').requisitos;
+  assert(ex.length >= 1, 'debe extraer el requisito');
+  assert(ex.every(r => r.condicionNoVerificable && /sumatoria|tramos|tabla/i.test(r.condicionNoVerificable)), 'todos bloqueados: ' + JSON.stringify(ex.map(r => r.condicionNoVerificable)));
+  const sin = expEngine.extraerRequisitosDePliego('Experiencia general. El proponente acreditará tres (3) contratos de obra de acueducto.', [], 'Pliego').requisitos;
+  assert(sin.length >= 1 && sin.every(r => !r.condicionNoVerificable), 'control: sin tabla de tramos no se bloquea: ' + JSON.stringify(sin.map(r => r.condicionNoVerificable)));
+});
 // ── Cruce RUP ↔ Excel de experiencia (códigos UNSPSC por contrato) ──
 const RUP_ENCABEZADO = ' Página 17 de 95 CÁMARA DE COMERCIO DE CUCUTA CERTIFICADO DE INSCRIPCIÓN Y CLASIFICACIÓN EN EL REGISTRO DE PROPONENTES Fecha expedición: 06/05/2026 - 08:32:40 Recibo No. S002130953, Valor 75000 CÓDIGO DE VERIFICACIÓN rdNuhBwDRf Verifique el contenido y confiabilidad de este certificado, ingresando a https://sii.confecamaras.co/vista/plantilla/cv.php?empresa=11 y digite el respectivo código, para que visualice la imagen generada al momento de su expedición. La verificación se puede realizar de manera ilimitada, durante 60 días calendario contados a partir de la fecha de su expedición. ';
 const rupExp = (n, contratista, contratante, smmlv, part, codigos, corte) => '*** EXPERIENCIA No.' + n + ' : NÚMERO CONSECUTIVO DEL CONTRATO:00' + n + ' CONTRATO CELEBRADO POR :3 - CONSORCIO O UNIÓN TEMPORAL NOMBRE DEL CONTRATISTA :' + contratista + ' NOMBRE DEL CONTRATANTE :' + contratante + (corte === 'contratante' ? RUP_ENCABEZADO : '') + ' VALOR CONTRATADO EN SMMLV :' + smmlv + ' PORCENTAJE DE PARTICIPACIÓN EN EL VALOR EJECUTADO EN CASO DE CONSORCIOS Y UNIONES TEMPORALES: ' + part + '% SG FM CL PR - DESCRIPCIÓN ' + codigos.map((c, i) => c + ' : DESC ' + (corte === 'codigos' && i === 1 ? RUP_ENCABEZADO : '')).join(' ');

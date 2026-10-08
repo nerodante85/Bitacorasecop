@@ -5826,7 +5826,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const cntTxt = celdas.minContratos ? null : minContratosDeTexto(criterioTexto);
     const minContratos = celdas.minContratos ? parseNumCO(String(celdas.minContratos)) : (cntTxt ? cntTxt.valor : null);
     const contratosAmbiguo = (cntTxt && cntTxt.ambiguo) ? cntTxt.fragmento : null;
-    let minValor = parseValorUnidad(textoDeCelda(celdas.minValor || '')) || (function(){
+    // Pliego tipo (CCE, infraestructura de transporte): la celda de la "Matriz 1" trae la tabla de cuantías del proceso
+    // ("Entre 100 y 1.000 SMMLV") y el presupuesto en pesos y SMMLV. Son datos del proceso, no un valor mínimo de experiencia
+    // (antes "1.000 SMMLV" se tomaba como mínimo): no se lee ningún valor de ese texto y el requisito no da CUMPLE automático.
+    const tablaCuantia = !celdas.minValor && /cuant[íi]as?\s+del\s+procedimiento/i.test(criterioTexto);
+    let minValor = parseValorUnidad(textoDeCelda(celdas.minValor || '')) || (tablaCuantia ? null : (function(){
       // Auditoría (motor de extracción): igual que minContratos, "valor
       // mínimo de quince mil (15.000) SMMLV" no se reconocía -- solo la
       // forma con dígito suelto. Se agrega la misma convención legal como
@@ -5836,9 +5840,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const m = criterioTexto.match(/(\d[\d.,]*)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i) ||
         criterioTexto.match(/[a-záéíóúñ]+\s*\((\d[\d.,]*)\)\s*(smmlv|smlmv|salarios?\s+m[íi]nimos)/i);
       return m ? parseValorUnidad(m[1] + ' ' + m[2]) : null;
-    })();
+    })());
     let valorSinModelar = null;
-    if (!minValor && !celdas.minValor){
+    if (!minValor && !celdas.minValor && !tablaCuantia){
       const vp = minValorPesosDeTexto(criterioTexto);
       if (vp && vp.valor != null) minValor = { valor: vp.valor, unidad: 'COP' };
       else if (vp && vp.sinModelar) valorSinModelar = vp.sinModelar;
@@ -5854,11 +5858,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Texto libre: la clasificación UNSPSC y el valor relativo al presupuesto oficial se modelan
     // aquí. La vía de IA trae sus propios campos numéricos y no pasa por esto (celdas.fuenteIA).
     const unspscTxt = celdas.fuenteIA ? null : unspscDeTexto(criterioTexto);
-    const valorRelativo = (celdas.fuenteIA || minValor || celdas.minValor) ? null : valorRelativoPresupuestoDeTexto(criterioTexto);
+    const valorRelativo = (celdas.fuenteIA || minValor || celdas.minValor || tablaCuantia) ? null : valorRelativoPresupuestoDeTexto(criterioTexto);
     const unspscSinModelar = unspscTxt ? (!unspscTxt.codigos.length ? 'clasificación UNSPSC mencionada, pero no se pudieron leer los códigos'
       : (unspscTxt.minCodigos == null ? 'clasificación UNSPSC: el texto no indica cuántos de los códigos debe acreditar cada contrato'
       : (unspscTxt.minCodigos > unspscTxt.codigos.length ? 'clasificación UNSPSC: se exigen más códigos de los que lista el texto' : null))) : null;
     const condicionNoVerificable = condicionCuantitativaSinModelar(criterioTexto) ||
+      (tablaCuantia ? 'el texto trae la tabla de cuantías del proceso (rango y presupuesto), no un valor mínimo por contrato: el valor exigido se define en otra parte del pliego' : null) ||
       (valorSinModelar ? 'valor mínimo en pesos (' + valorSinModelar + ')' : null) ||
       (contratosAmbiguo ? 'número mínimo de contratos ambiguo (' + contratosAmbiguo + ')' : null) ||
       unspscSinModelar;
@@ -7345,6 +7350,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         posiblesTablasNoLeidas.push({ pagina: zona.pagina, ancla: zona.ancla });
       }
     });
+    // Pliego tipo (CCE): la experiencia se acredita por SUMATORIA de valores según una tabla por número de contratos
+    // ("De 1 hasta 2: 75% · De 3 hasta 4: 120% · Hasta 5: 150%" del presupuesto oficial). El motor no evalúa esa regla:
+    // ningún requisito de experiencia del pliego puede dar CUMPLE automático (se revisa a mano).
+    if (/valor\s+m[íi]nimo\s+a\s+certificar/i.test(text) && /sumatoria\s+de\s+los\s+valores/i.test(text)){
+      requisitos.forEach(r => {
+        if (!r.condicionNoVerificable) r.condicionNoVerificable = 'el pliego exige acreditar la experiencia por sumatoria de valores según una tabla de tramos (por número de contratos, como % del presupuesto oficial): el sistema no evalúa esa regla';
+      });
+    }
     return { requisitos: requisitos, zonas: zonas, posiblesTablasNoLeidas: posiblesTablasNoLeidas };
   }
 
