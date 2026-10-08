@@ -367,7 +367,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, reglaConversionSmmlvDePliego, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2923,6 +2923,142 @@ await check('cláusula genérica de experiencia (3.ª tanda): presupuesto, ofici
   const d = r.palabrasDistintivas || [];
   assert(d.includes('alcantarillado'), 'conserva lo técnico: ' + JSON.stringify(d));
   ['presupuesto', 'oficial', 'presente', 'proceso', 'entidad', 'pliego', 'contratante'].forEach(w => assert(!d.includes(w), w + ' no es distintiva: ' + JSON.stringify(d)));
+});
+
+// ---- Regla UNSPSC + valor relativo al presupuesto oficial (caso Ocaña, SVIV SAMC 016 de 2026) ----
+// Cláusula tal cual sale del PDF (incluido el pie de página con código postal y teléfono, que NO son códigos UNSPSC).
+const CLAUSULA_OCANA_GENERAL = 'Experiencia general. El proponente acreditará TRES (3) contratos de obra civil, cada uno en un valor igual o superior al 100% del valor del presupuesto oficial del presente proceso, expresado en salarios mínimos mensuales legales vigentes. El objeto o alcance de cada uno de los contratos aportados debe estar relacionado con el sector de acueducto(s) y clasificados con todos por lo menos dos (2) de los códigos siguientes códigos UNSPSC: 72101500, 72102900, 72153900, 771015, y 81101500. Secretaría de Vías, Infraestructura y Vivienda – Alcaldía Municipal de Ocaña, Norte de Santander Carrera 12 No. 10 - 42 Palacio Municipal Código Postal: 546552 Correo: secretariadevias@ocananortedesantander.gov.co - Teléfono: (607) 5636300';
+const CTX_OCANA = { presupuesto: 138776810, anio: 2026 }; // presupuesto oficial / SMMLV 2026 (1.750.905) = 79,26 SMMLV por contrato
+function contratoOcana(valor, fechaFin, unspsc) {
+  return { tipo: 'general', objeto: 'Construcción de acueducto veredal', actividades: '', valor, fechaInicio: '2023-01-01', fechaFin, formatoMaestro: unspsc ? { unspsc } : undefined };
+}
+function reqOcana(texto) {
+  const r = expEngine.construirRequisitoDesdeTexto(texto || CLAUSULA_OCANA_GENERAL, 0, {});
+  r.tipo = 'general'; r.palabrasDistintivas = ['acueducto']; r.reglaSmmlv = 'fecha_terminacion'; // la segmentación del texto no es lo que se prueba aquí
+  return r;
+}
+const TRES_BUENOS = () => [
+  contratoOcana(500000000, '2024-06-30', ['72101507', '72102901', '81101501']),
+  contratoOcana(450000000, '2023-11-30', ['72101500', '72153901']),
+  contratoOcana(300000000, '2025-02-28', ['771015', '72102900'])
+];
+
+await check('regla UNSPSC (Ocaña): extrae los 5 códigos (a clase de 6 dígitos) y "por lo menos dos (2)"; el código postal y el teléfono del pie de página NO son códigos', () => {
+  const r = expEngine.construirRequisitoDesdeTexto(CLAUSULA_OCANA_GENERAL, 0, {});
+  assert(JSON.stringify(r.codigosUnspsc) === JSON.stringify(['721015', '721029', '721539', '771015', '811015']), 'códigos: ' + JSON.stringify(r.codigosUnspsc));
+  assert(r.minCodigosUnspsc === 2, 'mínimo de códigos: ' + r.minCodigosUnspsc);
+  assert(!r.condicionNoVerificable, 'con códigos y mínimo claros no debe quedar bloqueada: ' + r.condicionNoVerificable);
+});
+
+await check('regla valor (Ocaña): "100% del valor del presupuesto oficial ... salarios mínimos" se modela como valor relativo en SMMLV por contrato (antes se descartaba en silencio)', () => {
+  const r = expEngine.construirRequisitoDesdeTexto(CLAUSULA_OCANA_GENERAL, 0, {});
+  assert(r.valorRelativo && r.valorRelativo.factor === 1 && r.valorRelativo.unidad === 'SMMLV', 'valorRelativo: ' + JSON.stringify(r.valorRelativo));
+  assert(r.porContrato === true, 'porContrato: ' + r.porContrato);
+  assert(r.minContratos === 3, 'minContratos: ' + r.minContratos);
+});
+
+await check('regla valor/UNSPSC (Ocaña): 3 contratos, cada uno >= 79,26 SMMLV (convertido con el SMMLV de su año de terminación) y con 2+ códigos -> CUMPLE (control positivo)', () => {
+  const r = expEngine.evaluarRequisito(reqOcana(), TRES_BUENOS(), HOY_AUD, CTX_OCANA);
+  assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('regla valor (Ocaña): un contrato de solo ~35 SMMLV frente a un mínimo de 79,26 SMMLV por contrato -> NO CUMPLE (antes: CUMPLE falso)', () => {
+  const cs = TRES_BUENOS(); cs[2].valor = 50000000;
+  const r = expEngine.evaluarRequisito(reqOcana(), cs, HOY_AUD, CTX_OCANA);
+  assert(r.resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('regla valor (Ocaña): sin el presupuesto oficial del proceso no se puede resolver "100% del presupuesto oficial" -> NO DETERMINABLE, nunca CUMPLE', () => {
+  [undefined, {}, { presupuesto: null }].forEach(ctx => {
+    const r = expEngine.evaluarRequisito(reqOcana(), TRES_BUENOS(), HOY_AUD, ctx);
+    assert(r.resultado === 'NO DETERMINABLE', 'ctx ' + JSON.stringify(ctx) + ' -> ' + r.resultado + ': ' + r.justificacion);
+  });
+});
+
+await check('regla UNSPSC (Ocaña): un contrato con solo UNO de los códigos exigidos (se piden dos) no acredita -> el resultado NO es CUMPLE', () => {
+  const cs = TRES_BUENOS(); cs[1].formatoMaestro = { unspsc: ['72101500'] };
+  const r = expEngine.evaluarRequisito(reqOcana(), cs, HOY_AUD, CTX_OCANA);
+  assert(r.resultado !== 'CUMPLE', 'no puede ser CUMPLE con un contrato de 1 solo código: ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('regla UNSPSC (Ocaña): un contrato sin ningún código UNSPSC cargado -> NO DETERMINABLE (no se afirma lo que no se midió)', () => {
+  const cs = TRES_BUENOS(); cs[1].formatoMaestro = undefined;
+  const r = expEngine.evaluarRequisito(reqOcana(), cs, HOY_AUD, CTX_OCANA);
+  assert(r.resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('regla valor: a menos de 1 SMMLV del mínimo, el pliego redondea a la unidad más próxima -> NO DETERMINABLE (ni CUMPLE ni NO CUMPLE)', () => {
+  const cs = TRES_BUENOS(); cs[2] = contratoOcana(102700000, '2024-05-01', ['771015', '72102900']); // 102.700.000 / 1.300.000 = 79,0 SMMLV vs 79,26
+  const r = expEngine.evaluarRequisito(reqOcana(), cs, HOY_AUD, CTX_OCANA);
+  assert(r.resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + r.resultado + ': ' + r.justificacion);
+  assert(/redondeo/i.test(r.justificacion), 'debe explicar el redondeo: ' + r.justificacion);
+});
+
+await check('regla "cada uno": 3 contratos exigidos, cada uno >= $300.000.000, pero solo uno lo alcanza -> NO CUMPLE (antes: CUMPLE falso por comparar solo el mejor)', () => {
+  const req = reqOcana('Experiencia general: tres (3) contratos de acueducto, cada uno por valor igual o superior a $300.000.000');
+  const cs = [contratoOcana(500000000, '2024-06-30'), contratoOcana(10000000, '2024-07-30'), contratoOcana(10000000, '2024-08-30')];
+  const r = expEngine.evaluarRequisito(req, cs, HOY_AUD, CTX_OCANA);
+  assert(r.resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('valor ambiguo: "tres contratos por valor >= $300.000.000" con solo uno que lo alcanza -> NO DETERMINABLE (podría ser por cada uno o por uno de ellos), nunca CUMPLE', () => {
+  const req = reqOcana('Experiencia general: tres (3) contratos de acueducto, por valor igual o superior a $300.000.000');
+  const cs = [contratoOcana(500000000, '2024-06-30'), contratoOcana(10000000, '2024-07-30'), contratoOcana(10000000, '2024-08-30')];
+  const r = expEngine.evaluarRequisito(req, cs, HOY_AUD, CTX_OCANA);
+  assert(r.resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('regla valor: con tres contratos que SÍ alcanzan el valor ("cada uno") el CUMPLE sigue funcionando (no se rompió el caso normal)', () => {
+  const req = reqOcana('Experiencia general: tres (3) contratos de acueducto, cada uno por valor igual o superior a $300.000.000');
+  const cs = [contratoOcana(500000000, '2024-06-30'), contratoOcana(400000000, '2024-07-30'), contratoOcana(350000000, '2024-08-30')];
+  const r = expEngine.evaluarRequisito(req, cs, HOY_AUD, CTX_OCANA);
+  assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('regla UNSPSC: si el texto menciona UNSPSC pero no se pueden leer los códigos (o cuántos acreditar) el requisito queda NO DETERMINABLE, no CUMPLE', () => {
+  [
+    'Experiencia general: dos (2) contratos de acueducto, clasificados en la familia UNSPSC de obras civiles',
+    'Experiencia general: dos (2) contratos de acueducto, clasificados en los códigos UNSPSC: 72101500, 72102900, 72153900'
+  ].forEach(texto => {
+    const req = reqOcana(texto);
+    const cs = [contratoOcana(500000000, '2024-06-30', ['72101507', '72102901']), contratoOcana(400000000, '2024-07-30', ['72101507', '72102901'])];
+    const r = expEngine.evaluarRequisito(req, cs, HOY_AUD, CTX_OCANA);
+    assert(r.resultado !== 'CUMPLE', 'no puede ser CUMPLE (' + texto.slice(60, 120) + '): ' + r.resultado + ': ' + r.justificacion);
+  });
+});
+
+await check('regla valor/UNSPSC (Ocaña): las palabras de la cláusula del valor y de la lista UNSPSC (expresado, mínimos, mensuales, legales, vigentes, códigos, siguientes, clasificados) no son distintivas; "acueducto" sí', () => {
+  const r = expEngine.construirRequisitoDesdeTexto(CLAUSULA_OCANA_GENERAL, 0, {});
+  const d = r.palabrasDistintivas || [];
+  assert(d.includes('acueducto') || d.includes('acueductos'), 'conserva lo técnico: ' + JSON.stringify(d));
+  ['expresado', 'minimos', 'mensuales', 'legales', 'vigentes', 'codigos', 'siguientes', 'clasificados', 'unspsc'].forEach(w => assert(!d.includes(w), w + ' no es distintiva: ' + JSON.stringify(d)));
+});
+
+await check('regla UNSPSC: una mención de UNSPSC que no habla de contratos/experiencia (p. ej. la inscripción en el RUP) no bloquea el requisito', () => {
+  const r = expEngine.construirRequisitoDesdeTexto('El proponente debe estar inscrito en el RUP y clasificado según el clasificador UNSPSC vigente', 0, {});
+  assert(!/unspsc/i.test(r.condicionNoVerificable || ''), 'no debe bloquear por UNSPSC: ' + r.condicionNoVerificable);
+  assert(!r.codigosUnspsc.length, 'no hay códigos que exigir a los contratos');
+});
+
+await check('regla UNSPSC: si el objeto de los contratos coincide pero ninguno trae los códigos, la justificación lo dice (no "ningún contrato comparte palabras clave")', () => {
+  const sinCodigos = [contratoOcana(500000000, '2024-06-30'), contratoOcana(450000000, '2023-11-30'), contratoOcana(300000000, '2025-02-28')];
+  const r1 = expEngine.evaluarRequisito(reqOcana(), sinCodigos, HOY_AUD, CTX_OCANA);
+  assert(r1.resultado === 'NO DETERMINABLE', 'sin códigos: ' + r1.resultado);
+  assert(!/Ningún contrato del Excel de experiencia comparte palabras clave/.test(r1.justificacion), 'mensaje engañoso: ' + r1.justificacion);
+  assert(/3 contrato\(s\) cuyo objeto coincide/.test(r1.justificacion), 'debe decir cuántos contratos coinciden por objeto: ' + r1.justificacion);
+  const otros = sinCodigos.map(c => Object.assign({}, c, { formatoMaestro: { unspsc: ['10101500'] } }));
+  const r2 = expEngine.evaluarRequisito(reqOcana(), otros, HOY_AUD, CTX_OCANA);
+  assert(r2.resultado !== 'CUMPLE', 'con otros códigos no acredita: ' + r2.resultado);
+  assert(!/Ningún contrato del Excel de experiencia comparte palabras clave/.test(r2.justificacion), 'mensaje engañoso (otros códigos): ' + r2.justificacion);
+});
+
+await check('regla de conversión a SMMLV del pliego: "del año correspondiente a la fecha de terminación del contrato" -> fecha_terminacion; ambiguo o ausente -> null', () => {
+  const t1 = 'B. Conversión a SMMLV. Se emplearán los valores históricos de SMMLV señalados por el Banco de la República, del año correspondiente a la fecha de terminación del contrato.';
+  assert(expEngine.reglaConversionSmmlvDePliego(t1) === 'fecha_terminacion', 'terminación: ' + expEngine.reglaConversionSmmlvDePliego(t1));
+  const t2 = 'se dividirá el precio total entre el monto del salario mínimo legal vigente a la fecha de inicio del contrato';
+  assert(expEngine.reglaConversionSmmlvDePliego(t2) === 'fecha_inicio', 'inicio: ' + expEngine.reglaConversionSmmlvDePliego(t2));
+  assert(expEngine.reglaConversionSmmlvDePliego(t1 + ' ' + t2) === null, 'si el pliego dice dos cosas distintas no se elige una');
+  assert(expEngine.reglaConversionSmmlvDePliego('la fecha de terminación del contrato debe constar en la certificación') === null, 'sin mención de SMMLV no hay regla');
 });
 
 await check('evaluarProceso: límite -- sin K residual en el perfil, todo lo demás en verde, el veredicto NUNCA es GO (RT-004, probado de punta a punta)', () => {

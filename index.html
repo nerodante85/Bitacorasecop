@@ -5295,6 +5295,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // igual que las genéricas de obra -- nunca de `palabrasClave` en sí
   // (que sigue completo, por si se usa para otra cosa más adelante).
   const PALABRAS_META_REQUISITO = new Set(['experiencia','especifica','especifico','general','minimo','minima','maximo','maxima',
+    // 4.ª tanda: cláusula del valor en SMMLV ("expresado en salarios mínimos mensuales legales vigentes") y lista de códigos UNSPSC
+    'expresado','expresada','expresados','minimos','minimas','maximos','maximas','mensual','mensuales','legal','legales','vigente','vigentes','codigo','codigos','siguiente','siguientes','clasificado','clasificados','clasificada','clasificadas','unspsc',
     'obligatorio','obligatoria','opcional','complementario','complementaria','alternativo','alternativa',
     'acumulable','acumulativo','acumulativa','contratos','contrato','smmlv','smlmv','salarios','salario',
     'acreditar','acreditada','acreditado','acreditacion','exigido','exigida','exige','exigencia',
@@ -5657,6 +5659,92 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return null;
   }
 
+  // ---------------------------------------------------------------------------
+  // Valor relativo al presupuesto oficial + clasificación UNSPSC en el texto de un
+  // requisito (caso Ocaña, SVIV SAMC 016 de 2026). Antes la vía por reglas descartaba
+  // en silencio "100% del valor del presupuesto oficial ... expresado en SMMLV" (el regex
+  // de SMMLV exige un número pegado a la unidad y minValorPesosDeTexto devuelve null si ve
+  // "salarios mínimos") y no leía los códigos UNSPSC del texto: solo un bloqueo dimensional
+  // (m², m³) evitaba un CUMPLE falso. Regla de oro: lo que el texto exige se modela, o el
+  // requisito queda NO DETERMINABLE -- nunca se ignora.
+  // ---------------------------------------------------------------------------
+  function valorRelativoPresupuestoDeTexto(texto){
+    const t = String(texto || '');
+    if (!/presupuesto\s+oficial/i.test(t)) return null;
+    const unidad = /smmlv|smlmv|salarios?\s+m[ií]nimos/i.test(t) ? 'SMMLV' : 'COP';
+    const num = x => { const n = parseNumCO(String(x)); return n != null && n > 0 ? n : null; };
+    const contextoValor = idx => /valor|cuant[ií]a|monto|igual|superior|mayor|equivalente/i.test(t.slice(Math.max(0, idx - 110), idx));
+    let m = /(\d+(?:[.,]\d+)?)\s*%\s*(?:del?\s+)?(?:valor\s+)?(?:del?\s+)?(?:total\s+)?presupuesto\s+oficial/i.exec(t);
+    if (m && contextoValor(m.index)){
+      const p = num(m[1]);
+      if (p != null) return { factor: p / 100, unidad: unidad, texto: m[0].replace(/\s+/g, ' ') };
+    }
+    m = /(\d+(?:[.,]\d+)?)\s+veces\s+(?:el\s+)?(?:valor\s+(?:del?\s+)?)?presupuesto\s+oficial/i.exec(t);
+    if (m){
+      const p = num(m[1]);
+      if (p != null) return { factor: p, unidad: unidad, texto: m[0].replace(/\s+/g, ' ') };
+    }
+    m = /(?:igual|superior|mayor|equivalente)[^.;\d]{0,40}?\b(?:al?|del?)\s+(?:valor\s+(?:del?\s+)?)?presupuesto\s+oficial/i.exec(t);
+    if (m) return { factor: 1, unidad: unidad, texto: m[0].replace(/\s+/g, ' ') };
+    return null;
+  }
+
+  // Códigos UNSPSC exigidos en el texto: SOLO la lista que sigue inmediatamente a "UNSPSC"
+  // (el código postal o el teléfono de un pie de página no se confunden con códigos). Se
+  // comparan a clase (6 dígitos, igual que estadoUnspscDeContrato). `minCodigos` = cuántos de
+  // los listados debe traer cada contrato ("por lo menos dos (2) de los códigos"); si el texto
+  // no lo dice queda null y el requisito se bloquea (no se adivina "alguno" vs "todos").
+  function unspscDeTexto(texto){
+    const t = String(texto || '');
+    const iMencion = t.search(/unspsc/i);
+    if (iMencion === -1) return null;
+    // Solo cuenta si la mención habla de lo que deben traer los CONTRATOS (objeto, alcance, experiencia); una
+    // referencia suelta (inscripción en el RUP, un trozo ajeno) ni exige códigos ni bloquea el requisito.
+    if (!/contrato|experiencia|objeto|alcance/i.test(t.slice(Math.max(0, iMencion - 350), iMencion + 60))) return null;
+    const codigos = [];
+    const re = /unspsc\s*[:\-–]?\s*((?:\d{6,8}\b[\s,;]*(?:(?:y|e|o)\s+)?)+)/gi;
+    let m;
+    while ((m = re.exec(t))){
+      (m[1].match(/\d{6,8}/g) || []).forEach(c => {
+        if (c.length === 7) return;
+        const seg = parseInt(c.slice(0, 2), 10);
+        if (seg < 10 || seg > 95) return;
+        const k = c.slice(0, 6);
+        if (codigos.indexOf(k) === -1) codigos.push(k);
+      });
+    }
+    let min = null;
+    const mm = /(?:por\s+lo\s+menos|al\s+menos|m[ií]nimo(?:\s+de)?)\s+(\d+|[a-záéíóúñ]+)\s*(?:\(\s*(\d+)\s*\)\s*)?(?:de\s+)?(?:los\s+|las\s+)?(?:siguientes\s+)?c[oó]digos/i.exec(t);
+    if (mm){
+      const tok = normHeader(mm[1]);
+      const n = mm[2] != null ? parseInt(mm[2], 10) : (/^\d+$/.test(tok) ? parseInt(tok, 10) : (NUMEROS_ESPANOL[tok] != null ? NUMEROS_ESPANOL[tok] : (/^una?$/.test(tok) ? 1 : null)));
+      if (n != null && n >= 1) min = n;
+    } else if (/todos\s+los\s+(?:siguientes\s+)?c[oó]digos|(?:la\s+totalidad|cada\s+uno)\s+de\s+los\s+c[oó]digos/i.test(t)){
+      min = codigos.length || null;
+    } else if (/(?:alguno|cualquiera|uno)\s+de\s+los\s+(?:siguientes\s+)?c[oó]digos|(?:al|por\s+lo)\s+menos\s+un\s+c[oó]digo/i.test(t)){
+      min = 1;
+    }
+    if (min == null && codigos.length === 1) min = 1;
+    return { codigos: codigos, minCodigos: min };
+  }
+
+  // Regla de conversión a SMMLV que fija el PLIEGO ("del año correspondiente a la fecha de
+  // terminación del contrato"). Solo se devuelve si el documento dice UNA sola cosa: con dos
+  // reglas distintas, o sin mención de SMMLV cerca, queda null y el requisito no se decide.
+  function reglaConversionSmmlvDePliego(texto){
+    const t = String(texto || '').replace(/\s+/g, ' ');
+    const tipos = new Set();
+    const tipoDe = x => /^terminaci/i.test(x) ? 'fecha_terminacion' : 'fecha_inicio';
+    let m;
+    const reA = /a[ñn]o\s+correspondiente\s+a\s+la\s+fecha\s+de\s+(terminaci[oó]n|inicio)/gi;
+    while ((m = reA.exec(t))){
+      if (/smmlv|salarios?\s+m[ií]nimos/i.test(t.slice(Math.max(0, m.index - 600), m.index))) tipos.add(tipoDe(m[1]));
+    }
+    const reB = /salario\s+m[ií]nimo(?:\s+mensual)?(?:\s+legal)?(?:\s+vigente)?\s+(?:a|en)\s+la\s+fecha\s+de\s+(terminaci[oó]n|inicio)/gi;
+    while ((m = reB.exec(t))) tipos.add(tipoDe(m[1]));
+    return tipos.size === 1 ? Array.from(tipos)[0] : null;
+  }
+
   function construirRequisitoDesdeTexto(criterioTexto, i, celdas){
     celdas = celdas || {};
     criterioTexto = (criterioTexto || '').toString().trim();
@@ -5700,9 +5788,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const acumulableRaw = normHeader(String(celdas.acumulable || '') + ' ' + criterioTexto);
     const acumulable = /acumul|sumatoria|suma de los? contratos?/.test(acumulableRaw);
     const palabras = palabrasClaveDe(criterioTexto);
+    // Texto libre: la clasificación UNSPSC y el valor relativo al presupuesto oficial se modelan
+    // aquí. La vía de IA trae sus propios campos numéricos y no pasa por esto (celdas.fuenteIA).
+    const unspscTxt = celdas.fuenteIA ? null : unspscDeTexto(criterioTexto);
+    const valorRelativo = (celdas.fuenteIA || minValor || celdas.minValor) ? null : valorRelativoPresupuestoDeTexto(criterioTexto);
+    const unspscSinModelar = unspscTxt ? (!unspscTxt.codigos.length ? 'clasificación UNSPSC mencionada, pero no se pudieron leer los códigos'
+      : (unspscTxt.minCodigos == null ? 'clasificación UNSPSC: el texto no indica cuántos de los códigos debe acreditar cada contrato'
+      : (unspscTxt.minCodigos > unspscTxt.codigos.length ? 'clasificación UNSPSC: se exigen más códigos de los que lista el texto' : null))) : null;
     const condicionNoVerificable = condicionCuantitativaSinModelar(criterioTexto) ||
       (valorSinModelar ? 'valor mínimo en pesos (' + valorSinModelar + ')' : null) ||
-      (contratosAmbiguo ? 'número mínimo de contratos ambiguo (' + contratosAmbiguo + ')' : null);
+      (contratosAmbiguo ? 'número mínimo de contratos ambiguo (' + contratosAmbiguo + ')' : null) ||
+      unspscSinModelar;
     const condicionTemporal = condicionTemporalDelRequisito(criterioTexto);
     // La cláusula temporal completa ("dentro de los últimos diez (10)
     // años") es 100% boilerplate de redacción -- a diferencia de "50
@@ -5722,7 +5818,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       id: 'r' + (i + 1), fila: i + 1, criterio: criterioTexto, tipo: tipo, obligatoriedad: obligatoriedad,
       minContratos: minContratos, minValor: minValor, minCantidad: minCantidad, acumulable: acumulable,
       palabrasClave: palabras, palabrasDistintivas: distintivas, condicionNoVerificable: condicionNoVerificable,
-      condicionTemporal: condicionTemporal, grupo: grupo
+      condicionTemporal: condicionTemporal, grupo: grupo,
+      // "cada uno" / "cada contrato": el valor mínimo aplica a CADA contrato exigido, no solo al mejor.
+      porContrato: /\bcada\s+(?:uno|una|contrato)\b/i.test(criterioTexto),
+      valorRelativo: valorRelativo,
+      codigosUnspsc: unspscTxt ? unspscTxt.codigos : [], minCodigosUnspsc: unspscTxt ? unspscTxt.minCodigos : null
     };
   }
 
@@ -5880,8 +5980,64 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   //    dependería de esa rama -- el resultado baja a NO DETERMINABLE con
   //    la condición sin verificar explícita en la justificación, nunca se
   //    inventa que se cumplió.
-  function evaluarRequisito(req, contratos, hoy){
+  // Resuelve "N% del presupuesto oficial" (req.valorRelativo) contra el presupuesto del proceso
+  // (ctx.presupuesto) y devuelve una COPIA del requisito con `minValor` concreto. Sin presupuesto,
+  // o sin el SMMLV del año en la tabla, el requisito queda bloqueado: nunca se ignora el valor.
+  function resolverValorRelativo(req, ctx, hoy){
+    if (!req || !req.valorRelativo || req.minValor) return req;
+    const vr = req.valorRelativo;
+    const etiqueta = (Math.round(vr.factor * 1000) / 10) + '% del presupuesto oficial';
+    const pres = ctx && Number(ctx.presupuesto) > 0 ? Number(ctx.presupuesto) : null;
+    const bloquear = motivo => Object.assign({}, req, { condicionNoVerificable: req.condicionNoVerificable || (etiqueta + ' (' + motivo + ')') });
+    if (!pres) return bloquear('no se conoce el presupuesto oficial del proceso');
+    const money = x => '$' + Number(x).toLocaleString('es-CO');
+    if (vr.unidad === 'SMMLV'){
+      const anio = (ctx && ctx.anio) || (hoy || new Date()).getFullYear();
+      const smmlv = SMMLV_POR_ANIO[anio];
+      if (!smmlv) return bloquear('falta en la tabla el SMMLV de ' + anio);
+      const valor = vr.factor * pres / smmlv;
+      return Object.assign({}, req, { minValor: { valor: valor, unidad: 'SMMLV',
+        derivadoDe: etiqueta + ' = ' + money(vr.factor * pres) + ' ÷ SMMLV ' + anio + ' (' + money(smmlv) + ') = ' + (Math.round(valor * 100) / 100) + ' SMMLV' } });
+    }
+    return Object.assign({}, req, { minValor: { valor: vr.factor * pres, unidad: 'COP', derivadoDe: etiqueta + ' = ' + money(vr.factor * pres) } });
+  }
+
+  // Decide el criterio de valor mínimo. `valores` = valor de cada contrato relevante comparable (en la
+  // unidad del mínimo), `total` = contratos relevantes evaluados. Reglas (cero falsos CUMPLE):
+  //  - acumulable: suma >= mínimo.
+  //  - exige N >= 2 contratos con valor mínimo, no acumulable: deben alcanzarlo N contratos, no solo el mejor.
+  //    Con "cada uno" y menos de N que lo alcanzan -> false; sin "cada uno" la redacción es ambigua
+  //    ("N contratos, uno de ellos >= X") -> null (el resultado depende de la lectura del pliego).
+  //  - `banda`: SMMLV se redondea a la unidad más próxima; a menos de `banda` del mínimo no se concluye.
+  //  - `incompletoNulo`: si algún contrato no tiene valor comparable, un "no alcanza" no es concluyente.
+  function decidirValor(valores, total, req, min, banda, incompletoNulo){
+    const NOTA_REDONDEO = 'El valor queda a menos de 1 SMMLV del mínimo y el pliego ajusta los SMMLV a la unidad más próxima (redondeo): el resultado no es concluyente, compáralo a mano.';
+    const sinValor = total - valores.length;
+    const incierto = incompletoNulo && sinValor > 0;
+    if (req.acumulable){
+      const suma = valores.reduce((a, v) => a + v, 0);
+      if (suma >= min) return { ok: true };
+      if (banda && suma >= min - banda) return { ok: null, nota: NOTA_REDONDEO };
+      return { ok: incierto ? null : false };
+    }
+    const n = (req.minContratos != null && req.minContratos >= 2) ? req.minContratos : 1;
+    const cumplen = valores.filter(v => v >= min).length;
+    const cerca = banda ? valores.filter(v => v < min && v >= min - banda).length : 0;
+    const evid = n >= 2 ? (cumplen + ' de los ' + total + ' contrato(s) relevante(s) alcanza(n) por sí solo(s) el valor mínimo (se exigen ' + n + ').') : null;
+    if (cumplen >= n) return { ok: true, evidencia: evid };
+    if (cumplen + cerca >= n) return { ok: null, nota: NOTA_REDONDEO, evidencia: evid };
+    if (n >= 2 && !req.porContrato && cumplen >= 1){
+      return { ok: null, evidencia: evid, nota: 'El requisito pide ' + n + ' contratos y un valor mínimo, pero solo ' + cumplen + ' de los relevantes alcanza ese valor. Si el valor aplica a CADA contrato no cumple; si basta con uno de ellos, sí: confirma la redacción del pliego.' };
+    }
+    return { ok: incierto ? null : false, evidencia: evid };
+  }
+
+  const redondearMin = v => Math.round(v * 100) / 100;
+
+  function evaluarRequisito(req, contratos, hoy, ctx){
     hoy = hoy || new Date();
+    const reqOriginal = req;
+    req = resolverValorRelativo(req, ctx, hoy);
     const exigeUnspsc = !!(req.codigosUnspsc && req.codigosUnspsc.length);
     const candidatos = (req.tipo === 'general' || req.tipo === 'especifica')
       ? contratos.filter(c => c.tipo === req.tipo || c.tipo === 'no-clasificado')
@@ -5901,7 +6057,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       let coincidenciaTotal = totalPorPalabras && !motivoActividad;
       // Clasificación UNSPSC exigida: el contrato solo acredita si, además del objeto, trae un código de la misma
       // clase. Sin palabras distintivas en el requisito, la clasificación es el único criterio de relevancia.
-      const unspsc = exigeUnspsc ? estadoUnspscDeContrato(c, req.codigosUnspsc) : null;
+      const unspsc = exigeUnspsc ? estadoUnspscDeContrato(c, req.codigosUnspsc, req.minCodigosUnspsc) : null;
       const objetoCoincide = coincidenciaTotal;
       if (exigeUnspsc){
         if (!req.palabrasDistintivas.length) coincidenciaTotal = unspsc === 'coincide';
@@ -5965,7 +6121,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       evalSet = evalSetBruto.map(c => c.valor == null ? c : Object.assign({}, c, { valor: valorAcreditable(c) }));
       if (evalSetBruto.some(c => c.valor != null && valorAcreditable(c) !== c.valor)) evidencia.push('Valor ponderado por el % de participación en consorcio/UT de los contratos (solo cuenta la parte de tu empresa).');
       if (evalSet.length === 0){
-        faltantes.push('No hay contratos relevantes por objeto para comparar contra el valor mínimo exigido (' + req.minValor.valor + ' ' + req.minValor.unidad + ').');
+        faltantes.push('No hay contratos relevantes por objeto para comparar contra el valor mínimo exigido (' + redondearMin(req.minValor.valor) + ' ' + req.minValor.unidad + ').');
       } else if (evalSet.every(c => c.valor == null)){
         faltantes.push('Los contratos relevantes no tienen un valor reconocido en el Excel (columna de valor no detectada o vacía).');
         numericoOk = (numericoOk === false) ? false : null; // criterio no verificable: no puede quedar CUMPLE por otro criterio
@@ -5976,7 +6132,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         // la fecha del contrato, no se decide (NO DETERMINABLE).
         const convertidos = evalSet.map(c => Object.assign({ contrato: c }, valorContratoEnSmmlv(c, req.reglaSmmlv))).filter(x => x.smmlv != null);
         if (!req.reglaSmmlv){
-          faltantes.push('El requisito exige ' + req.minValor.valor + ' SMMLV, pero el pliego no indica con qué salario mínimo convertir el valor de los contratos (fecha de terminación, de inicio...) -- compáralo a mano.');
+          faltantes.push('El requisito exige ' + redondearMin(req.minValor.valor) + ' SMMLV, pero el pliego no indica con qué salario mínimo convertir el valor de los contratos (fecha de terminación, de inicio...) -- compáralo a mano.');
           numericoOk = (numericoOk === false) ? false : null;
         } else if (!convertidos.length){
           faltantes.push('No se pudo convertir a SMMLV el valor de los contratos relevantes (falta la fecha de ' + (req.reglaSmmlv === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' o el año no está en la tabla de SMMLV).');
@@ -5984,25 +6140,31 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         } else {
           const suma = convertidos.reduce((a, x) => a + x.smmlv, 0);
           const mejorIndividual = Math.max.apply(null, convertidos.map(x => x.smmlv));
-          const cumpleValor = req.acumulable ? (suma >= req.minValor.valor) : (mejorIndividual >= req.minValor.valor);
+          const dec = decidirValor(convertidos.map(x => x.smmlv), evalSet.length, req, req.minValor.valor, 1, true);
           const redondear = n => Math.round(n * 10) / 10;
           evidencia.push((req.acumulable ? 'Suma de los contratos relevantes: ' : 'Mejor contrato individual: ') +
             redondear(req.acumulable ? suma : mejorIndividual) + ' SMMLV (valor en pesos convertido con el SMMLV del año de ' +
-            (req.reglaSmmlv === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' de cada contrato; exige ' + req.minValor.valor + ' SMMLV' +
+            (req.reglaSmmlv === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' de cada contrato; exige ' + redondearMin(req.minValor.valor) + ' SMMLV' +
             (req.acumulable ? ', acumulable entre contratos' : ', por contrato individual') + ').');
+          if (req.minValor.derivadoDe) evidencia.push('Mínimo por contrato: ' + req.minValor.derivadoDe + '.');
+          if (dec.evidencia) evidencia.push(dec.evidencia);
           // Si algún contrato relevante no se pudo convertir, un "no alcanza" no es concluyente.
-          numericoOk = (numericoOk === false) ? false : (cumpleValor ? true : (convertidos.length < evalSet.length ? null : false));
-          if (!cumpleValor && convertidos.length < evalSet.length) faltantes.push('Algún contrato relevante no se pudo convertir a SMMLV; el resultado no es concluyente.');
+          numericoOk = (numericoOk === false) ? false : dec.ok;
+          if (dec.nota) faltantes.push(dec.nota);
+          if (dec.ok !== true && convertidos.length < evalSet.length) faltantes.push('Algún contrato relevante no se pudo convertir a SMMLV; el resultado no es concluyente.');
         }
       } else {
         const conValor = evalSet.filter(c => c.valor != null);
         const suma = conValor.reduce((a, c) => a + c.valor, 0);
         const mejorIndividual = Math.max.apply(null, conValor.map(c => c.valor));
-        const cumpleValor = req.acumulable ? (suma >= req.minValor.valor) : (mejorIndividual >= req.minValor.valor);
+        const dec = decidirValor(conValor.map(c => c.valor), evalSet.length, req, req.minValor.valor, 0, false);
         evidencia.push((req.acumulable ? 'Suma de valores de contratos relevantes: ' : 'Mejor valor individual entre contratos relevantes: ') +
           (req.acumulable ? suma : mejorIndividual) + ' (exige ' + req.minValor.valor + ' ' + req.minValor.unidad +
           (req.acumulable ? ', acumulable entre contratos' : ', por contrato individual') + ').');
-        numericoOk = (numericoOk === false) ? false : cumpleValor;
+        if (req.minValor.derivadoDe) evidencia.push('Mínimo por contrato: ' + req.minValor.derivadoDe + '.');
+        if (dec.evidencia) evidencia.push(dec.evidencia);
+        if (dec.nota) faltantes.push(dec.nota);
+        numericoOk = (numericoOk === false) ? false : dec.ok;
       }
       evalSet = evalSetBruto;
     }
@@ -6053,6 +6215,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           (req.palabrasDistintivas.length ? ' (' + listaAcotada(req.palabrasDistintivas, 12) + ')' : '') +
           '. No es suficiente para confirmar que el objeto realmente coincide -- requiere revisión humana del objeto completo.';
         faltantes.push('Revisar manualmente si alguno de esos contratos, pese a no compartir palabra distintiva, sí corresponde al alcance exigido.');
+      } else if (exigeUnspsc && (sinCodigoUnspsc + otroCodigoUnspsc) > 0){
+        // El objeto SÍ coincide; lo que bloquea es la clasificación UNSPSC. Decir "ningún contrato comparte palabras
+        // clave" sería falso y llevaría a creer que la experiencia no existe.
+        justificacion = 'Hay ' + (sinCodigoUnspsc + otroCodigoUnspsc) + ' contrato(s) cuyo objeto coincide con el requisito, pero ninguno acredita todavía la clasificación UNSPSC exigida' +
+          (sinCodigoUnspsc ? ' (' + sinCodigoUnspsc + ' sin códigos UNSPSC cargados)' : '') + '.';
+        faltantes.push('Confirmar con el RUP / Formato Maestro los códigos UNSPSC de esos contratos: sin ellos el sistema no puede afirmar que acreditan el requisito.');
       } else {
         justificacion = 'Ningún contrato del Excel de experiencia comparte palabras clave con este requisito. Puede que la experiencia no exista, o que esté descrita con términos distintos a los del requisito.';
         faltantes.push('Confirmar si existe experiencia relacionada descrita con otras palabras, o si el requisito realmente no se cumple.');
@@ -6106,7 +6274,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Clasificación UNSPSC exigida: lo que se pudo y no se pudo comprobar. Un contrato sin códigos puede ser el que
     // falte para completar el mínimo, así que un NO CUMPLE pasa a NO DETERMINABLE (nunca se afirma lo que no se midió).
     if (exigeUnspsc){
-      const nota = 'Clasificación UNSPSC exigida: ' + req.codigosUnspsc.join(', ') + ' (se compara por clase, 6 dígitos). ' +
+      const nota = 'Clasificación UNSPSC exigida: ' + req.codigosUnspsc.join(', ') + ' (se compara por clase, 6 dígitos' + (req.minCodigosUnspsc > 1 ? '; cada contrato debe traer por lo menos ' + req.minCodigosUnspsc + ' de ellos' : '') + '). ' +
         relevantes.length + ' contrato(s) con objeto y código coincidentes' +
         (otroCodigoUnspsc ? '; ' + otroCodigoUnspsc + ' con objeto afín pero otro código (no acreditan)' : '') +
         (sinCodigoUnspsc ? '; ' + sinCodigoUnspsc + ' sin ningún código UNSPSC cargado (no se pueden contar)' : '') + '.';
@@ -6151,7 +6319,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
 
     return {
-      requisito: req,
+      requisito: reqOriginal,
       contratosEvaluados: relevantes.map(c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin })),
       evidencia: evidencia, faltantes: faltantes, resultado: resultado, justificacion: justificacion
     };
@@ -6233,8 +6401,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // "alternativos" detectado -- un "alternativo" suelto (sin grupo) sigue
   // sin arrastrar el global por sí solo, igual que "opcional"/
   // "complementario".
-  function evaluarExperienciaCompleta(contratos, requisitos, hoy){
-    const resultados = requisitos.map(r => evaluarRequisito(r, contratos, hoy));
+  // Datos del proceso que algunos requisitos necesitan para resolverse ("100% del presupuesto oficial").
+  function contextoExperienciaDe(entry){
+    const p = Number(entry && entry.valorProceso);
+    return { presupuesto: p > 0 ? p : null, anio: (entry && entry.anioProceso) || null };
+  }
+
+  function evaluarExperienciaCompleta(contratos, requisitos, hoy, ctx){
+    const resultados = requisitos.map(r => evaluarRequisito(r, contratos, hoy, ctx));
     const conteo = { 'CUMPLE': 0, 'NO CUMPLE': 0, 'NO DETERMINABLE': 0 };
     resultados.forEach(r => conteo[r.resultado]++);
     // Un requisito con columna "Grupo" explícita queda representado por su
@@ -6963,6 +7137,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
     const zonas = localizarSeccionesExperiencia(text, paginaOffsets);
+    const reglaSmmlvPliego = reglaConversionSmmlvDePliego(text);
     const aceptados = []; // rangos [inicio, fin] absolutos ya usados
     const seSolapaMucho = (a0, a1) => aceptados.some(([b0, b1]) => {
       const solape = Math.max(0, Math.min(a1, b1) - Math.max(a0, b0));
@@ -6984,6 +7159,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         req.fuente = fuenteLabel;
         req.pagina = paginaDeOffset(paginaOffsets, absInicio);
         req.anclaDetectada = zona.ancla;
+        // El valor se exige en SMMLV: el pliego dice con qué salario mínimo convertir (fecha de terminación / inicio).
+        if (reglaSmmlvPliego && !req.reglaSmmlv && ((req.minValor && req.minValor.unidad === 'SMMLV') || (req.valorRelativo && req.valorRelativo.unidad === 'SMMLV'))) req.reglaSmmlv = reglaSmmlvPliego;
         requisitos.push(req);
         aceptadosEnZona++;
       });
@@ -7485,10 +7662,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
     return { validos: validos, noComparables: noComparables };
   }
-  function estadoUnspscDeContrato(c, exigidos){
+  function estadoUnspscDeContrato(c, exigidos, minimo){
     const codigos = ((c && c.formatoMaestro && c.formatoMaestro.unspsc) || []).map(x => String(x).replace(/\D/g, '').slice(0, 6)).filter(x => x.length === 6);
     if (!codigos.length) return 'sin-codigo';
-    return exigidos.some(e => codigos.indexOf(e) !== -1) ? 'coincide' : 'no-coincide';
+    // `minimo` = cuántos de los códigos exigidos debe traer el contrato ("por lo menos dos (2) de los códigos"); sin dato, uno.
+    const necesarios = Math.max(1, Math.min(minimo || 1, exigidos.length));
+    return exigidos.filter(e => codigos.indexOf(e) !== -1).length >= necesarios ? 'coincide' : 'no-coincide';
   }
 
   // Fila de experiencia de la IA -> el mismo `requisito` que construye
@@ -7506,7 +7685,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const req = construirRequisitoDesdeTexto(objetoLiteralVerificado(fila) ? String(fila.objeto_literal).trim() : descripcion, i, {
       tipo: fila.categoria === 'experiencia_general' ? 'general' : 'especifica',
       obligatoriedad: fila.obligatoriedad,
-      grupo: fila.grupo_alternativo || ''
+      grupo: fila.grupo_alternativo || '',
+      fuenteIA: true
     });
     req.minContratos = fila.min_contratos != null ? fila.min_contratos : null;
     req.minValor = (fila.valor_minimo_numero != null && fila.valor_minimo_unidad)
@@ -12003,7 +12183,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (entry.estudioPrevioText) reqsEP = extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo').requisitos;
     entry.requisitosExperiencia = reqsPliego.concat(reqsEP);
     entry.inconsistenciasPliegoEP = detectarInconsistenciasPliegoEP(reqsPliego, reqsEP);
-    entry.experienciaResultado = expevalContratos ? evaluarExperienciaCompleta(expevalContratos.contratos, entry.requisitosExperiencia) : null;
+    entry.experienciaResultado = expevalContratos ? evaluarExperienciaCompleta(expevalContratos.contratos, entry.requisitosExperiencia, undefined, contextoExperienciaDe(entry)) : null;
   }
 
   // Al re-analizar el pliego se construye un `entry` nuevo: se conservan los campos que
@@ -12016,9 +12196,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
   }
 
+  // Guarda en el análisis el presupuesto oficial del proceso (item.valor): lo necesitan los requisitos de
+  // valor relativo ("100% del presupuesto oficial"). Sin él esos requisitos quedan NO DETERMINABLE.
+  function registrarContextoProceso(id, entry){
+    const it = (itemYScorePara(id) || {}).item;
+    const v = it ? Number(it.valor) : 0;
+    if (entry && v > 0) entry.valorProceso = v;
+  }
+
   function evaluarExperienciaDeProceso(id, slot){
     const entry = analisis[id];
     if (!entry) return;
+    registrarContextoProceso(id, entry);
     // PERF-005: con el texto liberado no se puede volver a extraer requisitos del pliego / estudio previo
     // (daría "0 requisitos" en silencio); con IA y sin estudio previo, sí se puede recalcular.
     if (entry.textoLiberado){
@@ -12060,7 +12249,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         vistas.add(k);
         return true;
       });
-      entry.experienciaResultado = evaluarExperienciaCompleta(expevalContratos.contratos, todos);
+      entry.experienciaResultado = evaluarExperienciaCompleta(expevalContratos.contratos, todos, undefined, contextoExperienciaDe(entry));
       analisis[id] = entry;
       saveAnalisis(id);
     }
@@ -12207,6 +12396,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       };
       actual.cronogramaIA = cronograma;
       actual.riesgosIA = riesgosIA;
+      registrarContextoProceso(id, actual);
       aplicarRequisitosIAaEntry(actual);
       analisis[id] = actual;
       saveAnalisis(id);
@@ -12270,6 +12460,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       actual.paginasCitadas = extra;
       usos.forEach(r => Lectura.acumularUso(actual, r));
       reverificarRequisitosIA(actual);
+      registrarContextoProceso(id, actual);
       aplicarRequisitosIAaEntry(actual);
       analisis[id] = actual;
       saveAnalisis(id);
