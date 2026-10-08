@@ -3428,6 +3428,17 @@ await check('fichaHabilitante: nunca inventa -- sin datos no hay filas; con anti
   assert(!ca.filas.some(x => x.requisito === 'Anticipo'), 'no debe decir que no hay anticipo');
   assert(!ca.filas.some(x => /Capital de trabajo|Capacidad residual/.test(x.requisito)), 'con anticipo no se calcula el capital de trabajo ni el K como si no lo hubiera');
 });
+await check('fichaHabilitante: con VARIOS presupuestos (lotes) no elige ninguno ni convierte a SMMLV; ignora montos chicos; lee todas las clases UNSPSC (72, 80, 81); acepta "no se otorgará anticipo"', () => {
+  const multi = 'El presupuesto oficial del Lote 1 es de $28.456.095.935 incluido AIU. El presupuesto oficial del Lote 2 es de $5.804.940.381. Valor mínimo a certificar De 1 hasta 2 75% De 3 hasta 4 120% Hasta 5 150%. 5.1.4.3. CLASIFICACIÓN DE LA EXPERIENCIA EN EL CLASIFICADOR Segmentos Familia Clase 72 12 15 Plantas 72 14 11 Pavimentación 80 10 16 Gerencia 81 10 15 Ingeniería Las personas naturales o jurídicas extranjeras sin domicilio indicarán 72 99 99.';
+  const f = expEngine.fichaHabilitante(multi, { anio: 2026 });
+  assert(!f.filas.some(x => x.requisito === 'Presupuesto oficial'), 'con dos presupuestos no debe elegir uno');
+  assert(f.avisos.some(a => /varios valores de presupuesto/.test(a)), 'debe avisar');
+  assert(f.filas.filter(x => /Sumatoria/.test(x.requisito)).every(x => x.cifras === ''), 'sin presupuesto no hay cifras de tramos');
+  assert(f.filas.find(x => /Clases UNSPSC/.test(x.requisito)).exige === '721215, 721411, 801016, 811015', 'clases: ' + JSON.stringify(f.filas.find(x => /Clases UNSPSC/.test(x.requisito))));
+  const una = expEngine.fichaHabilitante('El presupuesto oficial es de $3.185.389.625. Un anticipo de prueba $4.063.954 no cuenta. El plazo de ejecución del contrato será de CUATRO (4) MESES. No se otorgará anticipo.', { anio: 2026 });
+  assert(una.filas.find(x => x.requisito === 'Presupuesto oficial').exige === '$3.185.389.625', 'un único monto grande sí se usa');
+  assert(una.filas.some(x => x.requisito === 'Anticipo'), 'debe reconocer "No se otorgará anticipo"');
+});
 // ── Cruce RUP ↔ Excel de experiencia (códigos UNSPSC por contrato) ──
 const RUP_ENCABEZADO = ' Página 17 de 95 CÁMARA DE COMERCIO DE CUCUTA CERTIFICADO DE INSCRIPCIÓN Y CLASIFICACIÓN EN EL REGISTRO DE PROPONENTES Fecha expedición: 06/05/2026 - 08:32:40 Recibo No. S002130953, Valor 75000 CÓDIGO DE VERIFICACIÓN rdNuhBwDRf Verifique el contenido y confiabilidad de este certificado, ingresando a https://sii.confecamaras.co/vista/plantilla/cv.php?empresa=11 y digite el respectivo código, para que visualice la imagen generada al momento de su expedición. La verificación se puede realizar de manera ilimitada, durante 60 días calendario contados a partir de la fecha de su expedición. ';
 const rupExp = (n, contratista, contratante, smmlv, part, codigos, corte) => '*** EXPERIENCIA No.' + n + ' : NÚMERO CONSECUTIVO DEL CONTRATO:00' + n + ' CONTRATO CELEBRADO POR :3 - CONSORCIO O UNIÓN TEMPORAL NOMBRE DEL CONTRATISTA :' + contratista + ' NOMBRE DEL CONTRATANTE :' + contratante + (corte === 'contratante' ? RUP_ENCABEZADO : '') + ' VALOR CONTRATADO EN SMMLV :' + smmlv + ' PORCENTAJE DE PARTICIPACIÓN EN EL VALOR EJECUTADO EN CASO DE CONSORCIOS Y UNIONES TEMPORALES: ' + part + '% SG FM CL PR - DESCRIPCIÓN ' + codigos.map((c, i) => c + ' : DESC ' + (corte === 'codigos' && i === 1 ? RUP_ENCABEZADO : '')).join(' ');

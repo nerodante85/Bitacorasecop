@@ -7461,8 +7461,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Datos del proceso
     const mObj = t.match(/\bOBJETO:\s*(.{20,420}?)(?=\s+\d\.\d+\.?\s+ALCANCE|\s+ALCANCE\s+DEL\s+OBJETO)/i);
     if (mObj) add('Datos del proceso', 'Objeto', mObj[1].trim(), '', { pagina: pagina(mObj.index) });
-    const mPres = t.match(/presupuesto\s+oficial[^$]{0,360}?\$\s*(\d{1,3}(?:\.\d{3}){2,})/i);
-    const presupuesto = (ctx && Number(ctx.presupuesto) > 0) ? Number(ctx.presupuesto) : (mPres ? parseInt(mPres[1].replace(/\./g, ''), 10) : null);
+    // Presupuesto: solo se usa si el documento trae UN único valor grande junto a "presupuesto oficial". Con varios valores
+    // (lotes, grupos, fases) no se elige ninguno: sería inventar cuál es el del proceso del usuario.
+    const montosPO = []; { const rePO = /presupuesto\s+oficial[^$]{0,360}?\$\s*(\d{1,3}(?:\.\d{3}){2,})/ig; let mm; while ((mm = rePO.exec(t))){ const v = parseInt(mm[1].replace(/\./g, ''), 10); if (v >= 50000000) montosPO.push({ v: v, i: mm.index }); } }
+    const distintos = Array.from(new Set(montosPO.map(x => x.v)));
+    const mPres = distintos.length === 1 ? { index: montosPO[0].i } : null;
+    const presupuesto = (ctx && Number(ctx.presupuesto) > 0) ? Number(ctx.presupuesto) : (distintos.length === 1 ? distintos[0] : null);
+    if (distintos.length > 1 && !(ctx && Number(ctx.presupuesto) > 0)) avisos.push('El documento trae varios valores de presupuesto oficial (por ejemplo lotes, grupos o fases): la ficha no convierte a SMMLV ni calcula capital de trabajo ni capacidad residual. Identifica cuál es el del lote al que te presentas.');
     const anio = (ctx && ctx.anio) || new Date().getFullYear();
     const smmlvAnio = SMMLV_POR_ANIO[anio] || null;
     const poSmmlv = presupuesto && smmlvAnio ? presupuesto / smmlvAnio : null;
@@ -7470,7 +7475,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const mPlazo = t.match(/plazo\s+de\s+ejecuci[óo]n\s+del\s+contrato\s+ser[áa]\s+de[^()]{0,40}\((\d{1,3})\)\s*mes/i);
     const plazo = mPlazo ? parseInt(mPlazo[1], 10) : null;
     if (plazo) add('Datos del proceso', 'Plazo de ejecución', plazo + ' meses', '', { pagina: pagina(mPlazo.index) });
-    const sinAnticipo = /no\s+se\s+pactan\s+anticipos|no\s+entregar[áa]\s+anticipo/i.test(t);
+    const sinAnticipo = /no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:ning[úu]n\s+)?anticipo/i.test(t);
     const conAnticipo = !sinAnticipo && /anticipo\s+del\s+\d/i.test(t);
     if (sinAnticipo) add('Datos del proceso', 'Anticipo', 'No hay anticipo ni pago anticipado', '');
     const anticipo = 0;
@@ -7505,7 +7510,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const reCl = /CLASIFICACI[ÓO]N\s+DE\s+LA\s+EXPERIENCIA/ig;
     let mCl;
     while ((mCl = reCl.exec(t))){
-      const cl = Array.from(new Set((t.slice(mCl.index, mCl.index + 900).match(/\b72\s+\d{2}\s+\d{2}\b/g) || []).map(x => x.replace(/\s+/g, ''))));
+      const cl = Array.from(new Set(((t.slice(mCl.index, mCl.index + 1100).split(/Las\s+personas\s+naturales\s+o\s+jur[íi]dicas\s+extranjeras/i)[0]).match(/\b(?:[78]\d|9[0-5])\s+\d{2}\s+\d{2}\b/g) || []).map(x => x.replace(/\s+/g, ''))));
       if (cl.length){ add('Experiencia', 'Clases UNSPSC exigidas a los contratos', cl.join(', '), '', { pagina: pagina(mCl.index) }); break; }
     }
     const iUn = t.search(/CLASIFICACI[ÓO]N\s+UNSPSC/i);
