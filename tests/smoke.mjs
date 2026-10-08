@@ -367,7 +367,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -3208,6 +3208,82 @@ await check('la regla del pliego sobre consorcios/UT y moneda extranjera no cuen
   assert(!e.palabrasDistintivas.includes('consorcio'), 'no debe contar para la coincidencia');
   const res = expEngine.evaluarRequisito(e, [], new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
   assert(/consorcio/i.test(res.evidencia.join(' ')) && /moneda extranjera/i.test(res.evidencia.join(' ')), 'la nota debe aparecer en la evidencia: ' + JSON.stringify(res.evidencia));
+  const larga = expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA.replace('convertido a pesos colombianos', 'convertido a pesos colombianos ' + 'texto de relleno de la regla. '.repeat(40)), [], 'Pliego').requisitos.find(x => x.tipo === 'especifica');
+  assert(larga.reglaParticipacion.length <= 601 && /[.…]$/.test(larga.reglaParticipacion), 'una nota larga se corta en una oración, no a mitad de palabra: ' + larga.reglaParticipacion.slice(-40));
+});
+// ── Cruce RUP ↔ Excel de experiencia (códigos UNSPSC por contrato) ──
+const RUP_ENCABEZADO = ' Página 17 de 95 CÁMARA DE COMERCIO DE CUCUTA CERTIFICADO DE INSCRIPCIÓN Y CLASIFICACIÓN EN EL REGISTRO DE PROPONENTES Fecha expedición: 06/05/2026 - 08:32:40 Recibo No. S002130953, Valor 75000 CÓDIGO DE VERIFICACIÓN rdNuhBwDRf Verifique el contenido y confiabilidad de este certificado, ingresando a https://sii.confecamaras.co/vista/plantilla/cv.php?empresa=11 y digite el respectivo código, para que visualice la imagen generada al momento de su expedición. La verificación se puede realizar de manera ilimitada, durante 60 días calendario contados a partir de la fecha de su expedición. ';
+const rupExp = (n, contratista, contratante, smmlv, part, codigos, corte) => '*** EXPERIENCIA No.' + n + ' : NÚMERO CONSECUTIVO DEL CONTRATO:00' + n + ' CONTRATO CELEBRADO POR :3 - CONSORCIO O UNIÓN TEMPORAL NOMBRE DEL CONTRATISTA :' + contratista + ' NOMBRE DEL CONTRATANTE :' + contratante + (corte === 'contratante' ? RUP_ENCABEZADO : '') + ' VALOR CONTRATADO EN SMMLV :' + smmlv + ' PORCENTAJE DE PARTICIPACIÓN EN EL VALOR EJECUTADO EN CASO DE CONSORCIOS Y UNIONES TEMPORALES: ' + part + '% SG FM CL PR - DESCRIPCIÓN ' + codigos.map((c, i) => c + ' : DESC ' + (corte === 'codigos' && i === 1 ? RUP_ENCABEZADO : '')).join(' ');
+const RUP_TEXTO = 'EXPERIENCIA QUE EN RELACIÓN A LOS CONTRATOS EJECUTADOS EL PROPONENTE REPORTÓ: ' +
+  rupExp(1, 'CONSORCIO UNO', 'GOBERNACION DE NORTE DE SANTANDER', '5005,21', 50, ['72 10 15 00', '72 10 29 00', '30 10 15 00', '72 10 15 00'], 'codigos') + ' ' +
+  rupExp(2, 'CONSORCIO DOS', 'INVIAS', '1000,00', 50, ['72 15 39 00', '77 10 15 00'], 'contratante') + ' ' +
+  rupExp(3, 'CONSORCIO TRES', 'MUNICIPIO VILLA DEL ROSARIO', '1000,00', 50, ['30 10 15 00']);
+await check('parsearExperienciasRUP: lee contratante, valor en SMMLV, participación y clases UNSPSC (6 dígitos, sin repetir) aunque un salto de página caiga en medio', () => {
+  const r = expEngine.parsearExperienciasRUP(RUP_TEXTO);
+  assert(r.length === 3, 'se esperaban 3 experiencias y salieron ' + r.length);
+  assert(r[0].n === 1 && r[0].contratante === 'GOBERNACION DE NORTE DE SANTANDER' && r[0].smmlv === 5005.21 && r[0].participacion === 0.5, 'datos de la experiencia 1: ' + JSON.stringify(r[0]));
+  assert(JSON.stringify(r[0].clases) === JSON.stringify(['301015', '721015', '721029']), 'clases de la 1: ' + r[0].clases.join(','));
+  assert(r[1].contratante === 'INVIAS' && !/CÁMARA|Página|expedición/i.test(r[1].contratante), 'el encabezado de página no debe colarse en el contratante: ' + r[1].contratante);
+  assert(JSON.stringify(r[1].clases) === JSON.stringify(['721539', '771015']), 'clases de la 2: ' + r[1].clases.join(','));
+});
+const SMMLV2012 = 566700; // verificado en la tabla de la app
+const ctoCruce = (extra) => Object.assign({ objeto: 'CONSTRUCCION DE ACUEDUCTO', contratante: 'GOBERNACION DE NORTE DE SANTANDER', valor: 5005.21 * 0.5 * SMMLV2012, fechaFin: '2012-05-09', participacion: { valor: 0.5, unidad: 'COP' }, tipo: 'no-clasificado', hoja: 'ACUEDUCTO', fila: 1, numeroContrato: 'A-1' }, extra || {});
+await check('encabezadoRUP: titular, NIT y fecha de expedición', () => {
+  const e = expEngine.encabezadoRUP('Fecha expedición: 06/05/2026 - 08:32:39 Recibo No. S002 IDENTIFICACIÓN NOMBRE:GARAY GUTIERREZ DORA NAHIR NIT:37251479-5 C.C.:37251479 NACIONALIDAD:COLOMBIANA');
+  assert(e.nombre === 'GARAY GUTIERREZ DORA NAHIR' && e.nit === '37251479-5' && e.expedido === '06/05/2026', JSON.stringify(e));
+});
+await check('proponerCruceRup: valor × participación con contratante compatible = sugerido; contratante distinto = dudoso (nunca sugerido); sin valor / sin pareja se dicen', () => {
+  const exps = expEngine.parsearExperienciasRUP(RUP_TEXTO);
+  const filas = expEngine.proponerCruceRup([
+    ctoCruce(),
+    ctoCruce({ contratante: 'INSTITUTO NACIONAL DE VIAS', valor: 1000 * 0.5 * SMMLV2012, fila: 2 }),   // 1000 SMMLV: coincide en valor con la 2 (INVIAS) y la 3 (Villa del Rosario)
+    ctoCruce({ valor: null, fila: 3 }),
+    ctoCruce({ valor: 77 * SMMLV2012, fila: 4 })
+  ], exps);
+  assert(filas[0].estado === 'sugerido' && filas[0].experiencia.n === 1, 'la 1 debe quedar sugerida con la experiencia 1: ' + JSON.stringify(filas[0]));
+  assert(filas[1].estado === 'sugerido' && filas[1].experiencia.n === 2, 'INVIAS = Instituto Nacional de Vías, la 3 (Villa del Rosario) no es compatible: ' + JSON.stringify(filas[1].estado));
+  assert(filas[2].estado === 'sin-valor', 'sin valor: ' + filas[2].estado);
+  assert(filas[3].estado === 'sin-pareja', 'sin pareja: ' + filas[3].estado);
+  const soloVilla = expEngine.proponerCruceRup([ctoCruce({ contratante: 'MUNICIPIO DE CHINACOTA', valor: 1000 * 0.5 * SMMLV2012 })], expEngine.parsearExperienciasRUP(RUP_TEXTO).filter(e => e.n === 3));
+  assert(soloVilla[0].estado === 'dudoso', 'el valor coincide pero el contratante no: debe ser dudoso, no sugerido (' + soloVilla[0].estado + ')');
+});
+await check('proponerCruceRup: tolera una diferencia mínima de redondeo (0,1%) pero no una de 1%', () => {
+  const exps = expEngine.parsearExperienciasRUP(RUP_TEXTO).filter(e => e.n === 1);
+  const base = 5005.21 * 0.5 * SMMLV2012;
+  assert(expEngine.proponerCruceRup([ctoCruce({ valor: base * 1.001 })], exps)[0].estado === 'sugerido', 'con 0,1% de diferencia sigue siendo la misma');
+  assert(expEngine.proponerCruceRup([ctoCruce({ valor: base * 1.01 })], exps)[0].estado === 'sin-pareja', 'con 1% de diferencia ya no se propone');
+});
+await check('proponerCruceRup: dos candidatos compatibles, o una experiencia pedida por dos contratos, quedan ambiguos', () => {
+  const exps = [
+    { n: 1, contratante: 'ALCALDIA DE SAN JOSE DE CUCUTA', smmlv: 1000, participacion: 0.5, clases: ['721015'] },
+    { n: 2, contratante: 'ALCALDIA DE SAN JOSE DE CUCUTA', smmlv: 1000, participacion: 0.5, clases: ['301015'] }
+  ];
+  const c = ctoCruce({ contratante: 'ALCALDIA SAN JOSE DE CUCUTA', valor: 500 * SMMLV2012 });
+  assert(expEngine.proponerCruceRup([c], exps)[0].estado === 'ambiguo', 'dos candidatos compatibles');
+  const unica = [exps[0]];
+  const f = expEngine.proponerCruceRup([c, Object.assign({}, c, { fila: 2 })], unica);
+  assert(f[0].estado === 'ambiguo' && f[1].estado === 'ambiguo', 'una misma experiencia para dos contratos no se puede asignar sola: ' + f.map(x => x.estado));
+});
+await check('aplicarCruceRup: solo los contratos CONFIRMADOS reciben códigos; no pisa los que ya traen y no modifica los originales', () => {
+  const exps = expEngine.parsearExperienciasRUP(RUP_TEXTO);
+  const a = ctoCruce(), b = ctoCruce({ fila: 2, contratante: 'INVIAS', valor: 1000 * 0.5 * SMMLV2012 }), c = ctoCruce({ fila: 5, formatoMaestro: { unspsc: ['111111'] } });
+  const ka = expEngine.claveContratoCruce(a, 0), kc = expEngine.claveContratoCruce(c, 2);
+  const out = expEngine.aplicarCruceRup([a, b, c], exps, { [ka]: 1, [kc]: 2 });
+  assert(out[0].formatoMaestro && out[0].formatoMaestro.unspsc.includes('72101500') && /RUP/.test(out[0].formatoMaestro.fuenteUnspsc), 'el confirmado recibe los códigos de su experiencia');
+  assert(!out[1].formatoMaestro, 'el no confirmado no recibe nada');
+  assert(JSON.stringify(out[2].formatoMaestro.unspsc) === JSON.stringify(['111111']), 'no pisa códigos que ya tenía');
+  assert(!a.formatoMaestro, 'el contrato original no se modifica');
+});
+await check('Ocaña con el RUP: sin confirmar el cruce sigue NO DETERMINABLE; con 3 contratos confirmados pasa a CUMPLE y lo dice en la evidencia', () => {
+  const req = Object.assign({}, expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA, [], 'Pliego de Condiciones').requisitos.find(x => x.tipo === 'general'), { reglaSmmlv: 'fecha_terminacion' }); // el pliego real de Ocaña trae esa regla
+  const exps = [1, 2, 3].map(n => ({ n: n, contratante: 'ALCALDIA DE MUNICIPIO ' + n, smmlv: 400, participacion: 1, clases: ['721015', '721029'] }));
+  const cts = [1, 2, 3].map(n => ctoCruce({ objeto: 'CONSTRUCCION DEL ACUEDUCTO VEREDA ' + n, contratante: 'ALCALDIA DE MUNICIPIO ' + n, valor: 400 * SMMLV2012, participacion: { valor: 100, unidad: '%' }, fila: n }));
+  const hoy = new Date('2026-10-08T00:00:00'), ctx = { presupuesto: 138776810, anio: 2026 };
+  assert(expEngine.evaluarRequisito(req, cts, hoy, ctx).resultado === 'NO DETERMINABLE', 'sin confirmar no puede acreditar');
+  const conf = {}; cts.forEach((c, i) => { conf[expEngine.claveContratoCruce(c, i)] = i + 1; });
+  const res = expEngine.evaluarRequisito(req, expEngine.aplicarCruceRup(cts, exps, conf), hoy, ctx);
+  assert(res.resultado === 'CUMPLE', 'con el cruce confirmado debe cumplir: ' + res.resultado + ' | ' + res.justificacion.slice(0, 200));
+  assert(/RUP/.test(res.evidencia.join(' ')), 'la evidencia debe decir que los códigos vienen del RUP: ' + JSON.stringify(res.evidencia));
 });
 await check('regla de conversión a SMMLV del pliego: "del año correspondiente a la fecha de terminación del contrato" -> fecha_terminacion; ambiguo o ausente -> null', () => {
   const t1 = 'B. Conversión a SMMLV. Se emplearán los valores históricos de SMMLV señalados por el Banco de la República, del año correspondiente a la fecha de terminación del contrato.';
@@ -3305,6 +3381,22 @@ await check('recalcularExpevalActivo: dos perfiles con contratos propios, ambos 
   assert(combinado.contratos.some(c => c._perfilId === 'a') && combinado.contratos.some(c => c._perfilId === 'b'), 'cada contrato debe quedar etiquetado con la empresa de la que vino: ' + JSON.stringify(combinado.contratos.map(c => c._perfilId)));
   const meta = expEngine.getExpevalMeta();
   assert(meta.nContratos === 2 && /2 empresa/.test(meta.expFile), 'expevalMeta debe reflejar las 2 empresas combinadas: ' + JSON.stringify(meta));
+});
+
+await check('recalcularExpevalActivo: el combinado lleva los códigos UNSPSC del RUP solo en los contratos con cruce confirmado, y solo de su propia empresa', () => {
+  expEngine.setPerfiles(Object.assign({}, perfilFixture('a', 'Constructora Alfa'), perfilFixture('b', 'Constructora Beta')));
+  expEngine.setPerfilesActivos(['a', 'b']);
+  expEngine.setPerfilActivoId('a');
+  const mk = obj => ({ headers: ['Objeto', 'Valor'], cols: {}, contratos: [{ objeto: obj, valor: 1, hoja: 'H', fila: 1, numeroContrato: 'X' }, { objeto: obj + ' bis', valor: 1, hoja: 'H', fila: 2, numeroContrato: 'Y' }], nHojas: 1, fuente: 'xlsx' });
+  const rupA = { experiencias: [{ n: 7, contratante: 'X', smmlv: 1, participacion: 1, clases: ['721015', '721029'] }] };
+  expEngine.setExpevalPorPerfil({
+    a: { contratos: mk('Acueducto A'), meta: {}, rup: rupA, cruce: { 'H|1|X': 7 } },
+    b: { contratos: mk('Acueducto B'), meta: {}, rup: rupA }   // la empresa B no confirmó nada: nada de A se le aplica
+  });
+  expEngine.recalcularExpevalActivo();
+  const cs = expEngine.getExpevalContratos().contratos;
+  const conCodigos = cs.filter(c => c.formatoMaestro && c.formatoMaestro.unspsc);
+  assert(conCodigos.length === 1 && conCodigos[0]._perfilId === 'a' && conCodigos[0].objeto === 'Acueducto A', 'solo el contrato confirmado de A: ' + JSON.stringify(conCodigos.map(c => [c._perfilId, c.objeto])));
 });
 
 await check('recalcularExpevalActivo: con solo una empresa marcada, el combinado SOLO cuenta la de esa empresa (no la de la desmarcada)', () => {

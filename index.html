@@ -938,6 +938,10 @@
     border-radius: var(--radius-sm); padding: 1px 7px; margin-left: 6px; vertical-align: middle;
   }
   #bitacora-root tr.fila-esencial-faltante td { background: var(--warning-bg); }
+  #bitacora-root .rup-estado { font-weight: 600; font-size: 12px; }
+  #bitacora-root .rup-estado.rup-ok { color: var(--success); }
+  #bitacora-root .rup-estado.rup-aviso { color: var(--warning); }
+  #bitacora-root .rup-estado.rup-mudo { color: var(--text-muted); }
   #bitacora-root .expeval-table-wrap { overflow-x: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-md); }
   #bitacora-root table.expeval-table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
   #bitacora-root table.expeval-table th, #bitacora-root table.expeval-table td {
@@ -4234,7 +4238,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const entrada = expevalPorPerfil[id];
       const c = entrada.contratos;
       const nombrePerfil = (perfiles[id] && perfiles[id].nombre) || 'Sin nombre';
-      (c.contratos || []).forEach(ct => contratos.push(Object.assign({}, ct, { _perfilId: id, _perfilNombre: nombrePerfil })));
+      aplicarCruceRup(c.contratos || [], entrada.rup && entrada.rup.experiencias, entrada.cruce).forEach(ct => contratos.push(Object.assign({}, ct, { _perfilId: id, _perfilNombre: nombrePerfil })));
       // Encabezados/columnas: se muestran los del PRIMER perfil con columnas reales (informativo nada
       // más -- cada contrato ya trae sus propios valores) en vez de intentar fusionar esquemas distintos.
       if (!headers.length && c.headers && c.headers.length){ headers = c.headers; cols = c.cols || {}; fuente = c.fuente; }
@@ -6330,6 +6334,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         faltantes.push('Cargar los códigos UNSPSC de esos contratos (hoja UNSPSC del Formato Maestro) o confirmarlos a mano.');
       }
       justificacion += ' ' + nota;
+      const delRup = relevantes.filter(c => c.formatoMaestro && /^RUP/.test(String(c.formatoMaestro.fuenteUnspsc || '')));
+      if (delRup.length) evidencia.push('Códigos UNSPSC tomados del RUP (cruce confirmado por el usuario) en ' + delRup.length + ' de los ' + relevantes.length + ' contrato(s) relevante(s): ' + delRup.map(c => c.formatoMaestro.fuenteUnspsc.replace(/^RUP, experiencia /, '').replace(/ \(.*$/, '')).join(', ') + '.');
     }
 
     // ¿Los contratos que acreditan están en el RUP? Solo AVISA (la entidad suele verificar la experiencia con el RUP):
@@ -7281,7 +7287,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           req.pagina = paginaDeOffset(paginaOffsets, absInicio);
           req.anclaDetectada = zona.ancla;
           // Regla de consorcios/UT y moneda extranjera: no es alcance técnico (no cuenta para la coincidencia), pero se muestra.
-          if (partido.cola) req.reglaParticipacion = partido.cola.slice(0, 600);
+          if (partido.cola){
+            const corte = partido.cola.slice(0, 600), k = corte.lastIndexOf('. ');
+            req.reglaParticipacion = partido.cola.length <= 600 ? partido.cola : (k > 200 ? corte.slice(0, k + 1) : corte + '…');
+          }
           // El valor se exige en SMMLV: el pliego dice con qué salario mínimo convertir (fecha de terminación / inicio).
           if (reglaSmmlvPliego && !req.reglaSmmlv && ((req.minValor && req.minValor.unidad === 'SMMLV') || (req.valorRelativo && req.valorRelativo.unidad === 'SMMLV'))) req.reglaSmmlv = reglaSmmlvPliego;
           requisitos.push(req);
@@ -7779,6 +7788,143 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // UNSPSC en la experiencia. El pliego puede exigir que el contrato acreditado esté clasificado en ciertos
   // códigos; la comparación es por CLASE (primeros 6 dígitos, el mismo nivel del gate del RUP).
   // 'coincide' | 'no-coincide' | 'sin-codigo' (el contrato no trae ningún código: no se puede afirmar nada).
+  // ── Cruce RUP ↔ Excel de experiencia ─────────────────────────────────────────────────────────────
+  // El RUP trae, por cada contrato inscrito, las clases UNSPSC con que se clasificó. El Excel de
+  // experiencia casi nunca las trae, y sin ellas un pliego que exige "por lo menos dos de estos códigos"
+  // no se puede evaluar. El RUP NO trae el objeto del contrato: el emparejamiento se INFIERE (valor en
+  // SMMLV × participación + contratante) y por eso nunca se aplica solo -- el usuario confirma cada
+  // cruce y solo los confirmados aportan códigos.
+  function parsearExperienciasRUP(texto){
+    let t = String(texto || '').replace(/\r/g, '');
+    // encabezado/pie que la Cámara repite en cada página (puede caer en medio de un campo o de la lista de códigos)
+    t = t.replace(/P[áa]gina\s+\d+\s+de\s+\d+[\s\S]{0,1400}?fecha\s+de\s+su\s+expedici[oó]n\.?/gi, ' ');
+    const partes = t.split(/\*{3}\s*EXPERIENCIA\s+No\.\s*(\d+)\s*:/i);
+    const num = v => {
+      if (v == null) return null;
+      let x = String(v).trim();
+      if (!x) return null;
+      if (x.indexOf(',') !== -1) x = x.replace(/\./g, '').replace(',', '.');
+      else if (!/\.\d{1,2}$/.test(x)) x = x.replace(/\./g, '');
+      const n = parseFloat(x);
+      return isFinite(n) ? n : null;
+    };
+    const out = [];
+    for (let i = 1; i < partes.length; i += 2){
+      const b = partes[i + 1].replace(/\s+/g, ' ');
+      const campo = re => { const m = re.exec(b); return m ? m[1].trim() : null; };
+      const clases = [];
+      const reCod = /(?:^|[^\d])(\d{2}) (\d{2}) (\d{2}) (\d{2}) :/g; let m;
+      while ((m = reCod.exec(b))){ const k = m[1] + m[2] + m[3]; if (clases.indexOf(k) === -1) clases.push(k); }
+      clases.sort();
+      const part = campo(/PORCENTAJE DE PARTICIPACI[ÓO]N[^:]*:\s*([\d.,]+)\s*%/i);
+      const p = num(part);
+      out.push({
+        n: parseInt(partes[i], 10),
+        contratista: campo(/NOMBRE DEL CONTRATISTA\s*:\s*(.*?)\s*NOMBRE DEL CONTRATANTE/i),
+        contratante: campo(/NOMBRE DEL CONTRATANTE\s*:\s*(.*?)\s*VALOR CONTRATADO EN SMMLV/i),
+        smmlv: num(campo(/VALOR CONTRATADO EN SMMLV\s*:\s*([\d.,]+)/i)),
+        participacion: p != null && p > 0 && p <= 100 ? p / 100 : null,
+        clases: clases
+      });
+    }
+    return out;
+  }
+
+  // Titular y fecha de expedición del RUP: se muestran junto al cruce para que el usuario vea de quién es el certificado.
+  function encabezadoRUP(texto){
+    const t = String(texto || '').replace(/\s+/g, ' ');
+    const g = re => { const m = re.exec(t); return m ? m[1].trim() : null; };
+    return {
+      nombre: g(/\bNOMBRE\s*:\s*(.*?)\s+NIT\s*:/i),
+      nit: g(/\bNIT\s*:\s*([\d.]+(?:-\d)?)/i),
+      expedido: g(/Fecha\s+expedici[oó]n\s*:\s*(\d{2}\/\d{2}\/\d{4})/i)
+    };
+  }
+
+  function claveContratoCruce(c, i){
+    return String((c && c.hoja) || '') + '|' + ((c && c.fila != null) ? c.fila : i) + '|' + String((c && c.numeroContrato) || '');
+  }
+
+  // Compatibilidad de contratante entre el Excel y el RUP: nombres escritos distinto ("Gobernación de Norte de Santander"
+  // / "Departamento de Norte de Santander", "INVIAS" / "Instituto Nacional de Vías"). Solo decide "sugerido" vs "dudoso":
+  // en ambos casos el usuario confirma.
+  const CRUCE_ALIAS_ENTIDAD = [/\binvias\b|instituto nacional de vias/, /\bincoder\b|instituto colombiano de desarrollo rural/, /\binat\b|instituto nacional de adecuacion de tierras/, /\bhimat\b|instituto colombiano de hidrologia/];
+  const CRUCE_GENERICAS = new Set(['alcaldia', 'municipal', 'municipio', 'departamento', 'gobernacion', 'empresa', 'servicios', 'publicos', 'instituto', 'nacional', 'esp', 'sas', 'ltda', 'del', 'los', 'las', 'para', 'area', 'fondo', 'unidad', 'administrativa', 'especial']);
+  function contratantesCompatibles(a, b){
+    const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/norte de santander/g, 'nortedesantander').replace(/san jose de cucuta|san jsoe de cucuta|\bcucuta\b/g, 'cucuta');
+    const na = norm(a), nb = norm(b);
+    if (!na.trim() || !nb.trim()) return false;
+    if (CRUCE_ALIAS_ENTIDAD.some(re => re.test(na) && re.test(nb))) return true;
+    const toks = s => new Set((s.match(/[a-z]{3,}/g) || []).filter(w => !CRUCE_GENERICAS.has(w)));
+    const ta = toks(na), tb = toks(nb);
+    return Array.from(ta).some(w => tb.has(w));
+  }
+
+  function participacionDeCruce(c){
+    const v = c && c.participacion && c.participacion.valor;
+    if (v == null || !isFinite(v) || v <= 0) return null;
+    return v <= 1 ? v : (v <= 100 ? v / 100 : null);
+  }
+
+  // Para cada contrato del Excel: la experiencia del RUP que PARECE ser la misma, o por qué no se puede decir.
+  // estado: 'sugerido' (valor × participación y contratante coinciden, pareja única) · 'dudoso' (el valor coincide
+  // pero el contratante no) · 'ambiguo' · 'sin-pareja' · 'sin-valor'.
+  function proponerCruceRup(contratos, experiencias){
+    const TOL = 0.003;
+    const exps = (experiencias || []).filter(e => e && e.smmlv > 0);
+    const filas = (contratos || []).map((c, i) => {
+      const fila = { indice: i, clave: claveContratoCruce(c, i), estado: 'sin-pareja', experiencia: null, motivo: '', candidatas: [] };
+      const sm = ['fecha_terminacion', 'fecha_inicio'].map(r => { try { return valorContratoEnSmmlv(c, r); } catch(e){ return null; } })
+        .map(x => x && x.smmlv).filter(v => v > 0);
+      if (!sm.length){ fila.estado = 'sin-valor'; fila.motivo = 'El contrato no tiene un valor convertible a SMMLV (falta valor o fecha).'; return fila; }
+      const part = participacionDeCruce(c);
+      fila.smmlv = sm[0];
+      const igual = (x, y) => Math.abs(x - y) / y <= TOL;
+      // El valor del Excel puede venir ya ponderado por la participación (lo habitual en los formatos de consorcio)
+      // o ser el valor total del contrato; sin participación en el Excel se prueba también la del RUP.
+      const cand = exps.filter(e => sm.some(v => igual(v, e.smmlv) ||
+        (part != null ? igual(v, e.smmlv * part) : (e.participacion != null && igual(v, e.smmlv * e.participacion)))));
+      fila.candidatas = cand;
+      const comp = cand.filter(e => contratantesCompatibles(c.contratante, e.contratante));
+      if (comp.length === 1){ fila.estado = 'sugerido'; fila.experiencia = comp[0]; fila.motivo = 'Valor × participación coincide con el RUP y el contratante es compatible.'; }
+      else if (comp.length > 1){ fila.estado = 'ambiguo'; fila.motivo = comp.length + ' experiencias del RUP coinciden en valor y contratante (N° ' + comp.map(e => e.n).join(', ') + ').'; }
+      else if (cand.length === 1){ fila.estado = 'dudoso'; fila.experiencia = cand[0]; fila.motivo = 'El valor coincide pero el contratante no (Excel: "' + (c.contratante || '—') + '"; RUP: "' + cand[0].contratante + '"). Confirma solo si sabes que es el mismo contrato.'; }
+      else if (cand.length > 1){ fila.estado = 'ambiguo'; fila.motivo = cand.length + ' experiencias del RUP coinciden en valor, ninguna con contratante compatible.'; }
+      else { fila.motivo = 'Ninguna experiencia del RUP coincide en valor × participación.'; }
+      if (part == null && (fila.estado === 'sugerido' || fila.estado === 'dudoso')) fila.motivo += ' El Excel no trae % de participación: se comparó contra el valor total del RUP.';
+      return fila;
+    });
+    // una misma experiencia del RUP no puede ser de dos contratos distintos
+    const usos = {};
+    filas.forEach(f => { if (f.experiencia && (f.estado === 'sugerido' || f.estado === 'dudoso')) usos[f.experiencia.n] = (usos[f.experiencia.n] || 0) + 1; });
+    filas.forEach(f => {
+      if (f.experiencia && usos[f.experiencia.n] > 1 && (f.estado === 'sugerido' || f.estado === 'dudoso')){
+        f.motivo = 'La experiencia N° ' + f.experiencia.n + ' del RUP también coincide con otro contrato del Excel: no se puede asignar sola.';
+        f.estado = 'ambiguo';
+      }
+    });
+    return filas;
+  }
+
+  // Contratos con los códigos UNSPSC del RUP SOLO donde el usuario confirmó el cruce. No pisa códigos ya cargados
+  // (Formato Maestro) y devuelve copias: los contratos originales no cambian.
+  function aplicarCruceRup(contratos, experiencias, cruce){
+    const porN = {};
+    (experiencias || []).forEach(e => { if (e && e.n != null) porN[e.n] = e; });
+    return (contratos || []).map((c, i) => {
+      const n = cruce && cruce[claveContratoCruce(c, i)];
+      const e = n != null ? porN[n] : null;
+      if (!e || !e.clases || !e.clases.length) return c;
+      const previos = (c.formatoMaestro && c.formatoMaestro.unspsc) || [];
+      if (previos.length) return c;
+      return Object.assign({}, c, { formatoMaestro: Object.assign({}, c.formatoMaestro, {
+        unspsc: e.clases.map(k => k + '00'),
+        fuenteUnspsc: 'RUP, experiencia N° ' + e.n + ' (cruce confirmado por el usuario)'
+      }) });
+    });
+  }
+
   function unspscExigidosDeFila(fila){
     const validos = [], noComparables = [];
     ((fila && fila.codigos_unspsc) || []).forEach(c => {
@@ -11935,6 +12081,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     } else {
       expevalExpStatusEl.textContent = 'Sin cargar.';
     }
+    if (c && Array.isArray(c.contratos) && c.contratos.length) html += renderCruceRupHtml(propio);
     expevalReviewEl.innerHTML = html;
     expevalClearBtn.style.display = c ? '' : 'none';
     renderExpEvalSteps();
@@ -11950,10 +12097,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       expevalExpStatusEl.textContent = 'Crea o elige una empresa arriba antes de cargar su experiencia.';
       return false;
     }
+    // El RUP cargado se conserva al subir otro Excel, pero los cruces confirmados NO: eran de los contratos anteriores.
+    const previo = expevalPorPerfil[perfilActivoId];
     expevalPorPerfil[perfilActivoId] = {
       contratos: parsed,
       meta: Object.assign({ expFile: nombreArchivo, nContratos: parsed.contratos.length, omitidos: parsed.omitidos || null }, extra || {})
     };
+    if (previo && previo.rup) expevalPorPerfil[perfilActivoId].rup = previo.rup;
     recalcularExpevalActivo();
     renderExpEvalReview();
     saveExpEval();
@@ -12188,6 +12338,100 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (/\.docx$/.test(nombre)) return cargarExperienciaDocx(file);
     if (/\.pdf$/.test(nombre) || file.type === 'application/pdf') return cargarExperienciaPDF(file, false);
     return cargarExcelExperiencia(file);
+  }
+
+  // ── Panel "Códigos UNSPSC desde el RUP" (cruce con confirmación del usuario) ──
+  const RUP_ESTADOS = {
+    'sugerido': ['Sugerido', 'rup-ok'], 'dudoso': ['Contratante distinto', 'rup-aviso'], 'ambiguo': ['Ambiguo', 'rup-aviso'],
+    'sin-pareja': ['Sin pareja en el RUP', 'rup-mudo'], 'sin-valor': ['Sin valor en el Excel', 'rup-mudo']
+  };
+  function renderCruceRupHtml(propio){
+    const rup = propio.rup, cruce = propio.cruce || {};
+    let h = '<details class="expeval-review" open><summary>Códigos UNSPSC desde el RUP (opcional)</summary>' +
+      '<p class="my-8 saved-note">Algunos pliegos exigen que cada contrato esté clasificado con ciertos códigos UNSPSC, y el Excel de experiencia casi nunca los trae. ' +
+      'El RUP sí: cada contrato inscrito lleva sus clases. El RUP no dice el objeto del contrato, así que el emparejamiento con tu Excel se <strong>propone</strong> (valor × participación y contratante) y <strong>tú lo confirmas</strong>: solo los contratos confirmados aportan códigos.</p>' +
+      '<div class="actions"><button class="link-btn" type="button" data-rup-cargar>' + (rup ? 'Cargar otro RUP (PDF)' : 'Cargar RUP (PDF)') + '</button>' +
+      '<input type="file" accept="application/pdf" id="bt-rup-cruce-file" aria-label="Seleccionar el certificado del RUP en PDF" hidden></div>' +
+      '<div class="saved-note" id="bt-rup-cruce-status" role="status"></div>';
+    if (rup && Array.isArray(rup.experiencias)){
+      const filas = proponerCruceRup(propio.contratos.contratos || [], rup.experiencias);
+      const conf = filas.filter(f => f.experiencia && cruce[f.clave] === f.experiencia.n).length;
+      const pend = filas.filter(f => f.estado === 'sugerido' && !(cruce[f.clave] === f.experiencia.n)).length;
+      const perfil = perfiles[perfilActivoId] || {};
+      const dig = s => String(s || '').split('-')[0].replace(/\D/g, '');
+      const nitDistinto = rup.nit && perfil.nit && dig(rup.nit) && dig(perfil.nit) && dig(rup.nit) !== dig(perfil.nit);
+      h += '<div class="saved-note">RUP de <strong>' + escapeHtml(rup.nombre || 'titular no identificado') + '</strong>' + (rup.nit ? ' (NIT ' + escapeHtml(rup.nit) + ')' : '') +
+        (rup.expedido ? ', expedido el ' + escapeHtml(rup.expedido) : '') + ' · ' + rup.experiencias.length + ' experiencia(s) leída(s) · ' + conf + ' cruce(s) confirmado(s)' + (pend ? ' · ' + pend + ' sugerido(s) por confirmar' : '') + '.</div>';
+      if (nitDistinto) h += '<div class="account-error" role="alert">El NIT de este RUP (' + escapeHtml(rup.nit) + ') no coincide con el de la empresa (' + escapeHtml(perfil.nit) + '). Verifica que sea el RUP correcto antes de confirmar nada.</div>';
+      h += '<div class="actions">' + (pend ? '<button class="link-btn" type="button" data-rup-confirmar-sugeridos>Confirmar los ' + pend + ' sugeridos (contratante compatible)</button> ' : '') +
+        '<button class="link-btn" type="button" data-rup-quitar>Quitar el RUP y los cruces</button></div>';
+      h += '<div class="expeval-table-wrap"><table class="expeval-table"><thead><tr><th>Contrato del Excel</th><th>Experiencia del RUP</th><th>Estado</th><th>Confirmar</th></tr></thead><tbody>';
+      const contratos = propio.contratos.contratos || [];
+      filas.forEach(f => {
+        const ct = contratos[f.indice] || {};
+        const e = f.experiencia, est = RUP_ESTADOS[f.estado] || [f.estado, 'rup-mudo'];
+        const puede = !!e && (f.estado === 'sugerido' || f.estado === 'dudoso');
+        h += '<tr><td>' + escapeHtml(truncate(ct.objeto || '—', 80)) + '<div class="saved-note">' + escapeHtml(ct.contratante || '—') + (f.smmlv ? ' · ' + (Math.round(f.smmlv * 10) / 10) + ' SMMLV' : '') + '</div></td>' +
+          '<td>' + (e ? 'N° ' + e.n + ' · ' + escapeHtml(e.contratante || '—') + '<div class="saved-note">' + e.smmlv + ' SMMLV' + (e.participacion ? ' × ' + Math.round(e.participacion * 100) + '%' : '') + ' · ' + e.clases.length + ' clase(s) UNSPSC</div>' : '—') + '</td>' +
+          '<td><span class="rup-estado ' + est[1] + '">' + escapeHtml(est[0]) + '</span><div class="saved-note">' + escapeHtml(f.motivo) + '</div></td>' +
+          '<td>' + (puede ? '<label><input type="checkbox" data-rup-confirmar="' + escapeHtml(f.clave) + '" data-rup-n="' + e.n + '"' + (cruce[f.clave] === e.n ? ' checked' : '') + '> Es el mismo contrato</label>' : '—') + '</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+    return h + '</details>';
+  }
+
+  async function cargarRupParaCruce(file){
+    const statusEl = () => document.getElementById('bt-rup-cruce-status');
+    const aviso = t => { const el = statusEl(); if (el) el.textContent = t; };
+    if (!perfilActivoId || !expevalPorPerfil[perfilActivoId]){ aviso('Carga primero el Excel de experiencia de esta empresa.'); return; }
+    aviso('Leyendo el RUP (puede tardar unos segundos)…');
+    try {
+      await appReady;
+      const r = await extractPdfText(file, 150); // el RUP trae decenas de páginas; la experiencia va al final
+      const experiencias = parsearExperienciasRUP(r.text);
+      if (!experiencias.length){
+        aviso('Leí ' + r.pagesRead + ' de ' + r.numPages + ' páginas pero no encontré la sección de experiencia del RUP. Si el PDF es una imagen, no se puede leer aquí.');
+        return;
+      }
+      const enc = encabezadoRUP(r.text);
+      const entrada = expevalPorPerfil[perfilActivoId];
+      entrada.rup = { archivo: file.name, nombre: enc.nombre, nit: enc.nit, expedido: enc.expedido, experiencias: experiencias };
+      entrada.cruce = {}; // un RUP nuevo invalida los cruces anteriores
+      recalcularExpevalActivo(); renderExpEvalReview(); saveExpEval();
+      aviso('RUP leído: ' + experiencias.length + ' experiencia(s). Revisa y confirma los cruces.');
+    } catch(err){
+      aviso('No se pudo leer el RUP (' + mensajeErrorPdf(err) + ').');
+    }
+  }
+
+  if (expevalReviewEl){
+    expevalReviewEl.addEventListener('click', e => {
+      const entrada = expevalPorPerfil[perfilActivoId];
+      if (e.target.closest('[data-rup-cargar]')){ const f = document.getElementById('bt-rup-cruce-file'); if (f) f.click(); return; }
+      if (!entrada) return;
+      if (e.target.closest('[data-rup-quitar]')){
+        delete entrada.rup; delete entrada.cruce;
+        recalcularExpevalActivo(); renderExpEvalReview(); saveExpEval(); return;
+      }
+      if (e.target.closest('[data-rup-confirmar-sugeridos]') && entrada.rup){
+        entrada.cruce = entrada.cruce || {};
+        proponerCruceRup(entrada.contratos.contratos || [], entrada.rup.experiencias).forEach(f => { if (f.estado === 'sugerido' && f.experiencia) entrada.cruce[f.clave] = f.experiencia.n; });
+        recalcularExpevalActivo(); renderExpEvalReview(); saveExpEval();
+      }
+    });
+    expevalReviewEl.addEventListener('change', async e => {
+      const entrada = expevalPorPerfil[perfilActivoId];
+      const archivo = e.target.closest && e.target.closest('#bt-rup-cruce-file');
+      if (archivo){ const f = archivo.files && archivo.files[0]; archivo.value = ''; if (f) await cargarRupParaCruce(f); return; }
+      const cb = e.target.closest && e.target.closest('[data-rup-confirmar]');
+      if (cb && entrada){
+        entrada.cruce = entrada.cruce || {};
+        const clave = cb.getAttribute('data-rup-confirmar');
+        if (cb.checked) entrada.cruce[clave] = parseInt(cb.getAttribute('data-rup-n'), 10); else delete entrada.cruce[clave];
+        recalcularExpevalActivo(); renderExpEvalReview(); saveExpEval();
+      }
+    });
   }
 
   if (expevalExpUploadBtn && expevalExpFileEl){
