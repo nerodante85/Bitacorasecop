@@ -3248,6 +3248,12 @@ await check('específica de Ocaña: "establecido" y "selección" (de "100% del e
   const r = expEngine.evaluarRequisito(e, c, new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
   assert(r.resultado !== 'CUMPLE', 'sin poder verificar las cantidades por actividad no puede ser CUMPLE: ' + r.resultado + ' -- ' + r.justificacion);
 });
+await check('lectura de pliegos con capa de texto: la primera tanda cubre un pliego de 69 páginas completo (no se evalúa a medias); el OCR sigue por tandas chicas', () => {
+  const texto = Number((html.match(/const TEXT_BATCH_PAGES\s*=\s*(\d+)/) || [])[1]);
+  const ocr = Number((html.match(/const OCR_BATCH_PAGES\s*=\s*(\d+)/) || [])[1]);
+  assert(texto >= 150, 'la tanda de texto debe cubrir pliegos largos: ' + texto);
+  assert(ocr > 0 && ocr <= 20, 'el OCR (lento) conserva tandas chicas: ' + ocr);
+});
 // ── Cruce RUP ↔ Excel de experiencia (códigos UNSPSC por contrato) ──
 const RUP_ENCABEZADO = ' Página 17 de 95 CÁMARA DE COMERCIO DE CUCUTA CERTIFICADO DE INSCRIPCIÓN Y CLASIFICACIÓN EN EL REGISTRO DE PROPONENTES Fecha expedición: 06/05/2026 - 08:32:40 Recibo No. S002130953, Valor 75000 CÓDIGO DE VERIFICACIÓN rdNuhBwDRf Verifique el contenido y confiabilidad de este certificado, ingresando a https://sii.confecamaras.co/vista/plantilla/cv.php?empresa=11 y digite el respectivo código, para que visualice la imagen generada al momento de su expedición. La verificación se puede realizar de manera ilimitada, durante 60 días calendario contados a partir de la fecha de su expedición. ';
 const rupExp = (n, contratista, contratante, smmlv, part, codigos, corte) => '*** EXPERIENCIA No.' + n + ' : NÚMERO CONSECUTIVO DEL CONTRATO:00' + n + ' CONTRATO CELEBRADO POR :3 - CONSORCIO O UNIÓN TEMPORAL NOMBRE DEL CONTRATISTA :' + contratista + ' NOMBRE DEL CONTRATANTE :' + contratante + (corte === 'contratante' ? RUP_ENCABEZADO : '') + ' VALOR CONTRATADO EN SMMLV :' + smmlv + ' PORCENTAJE DE PARTICIPACIÓN EN EL VALOR EJECUTADO EN CASO DE CONSORCIOS Y UNIONES TEMPORALES: ' + part + '% SG FM CL PR - DESCRIPCIÓN ' + codigos.map((c, i) => c + ' : DESC ' + (corte === 'codigos' && i === 1 ? RUP_ENCABEZADO : '')).join(' ');

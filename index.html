@@ -4534,7 +4534,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   }
 
   const OCR_BATCH_PAGES = 15; // páginas por tanda -- tanto la primera pasada como cada "seguir leyendo" usan este mismo tamaño
-  const TEXT_BATCH_PAGES = 40; // mismo criterio que OCR_BATCH_PAGES, pero para la capa de texto normal (extractPdfText)
+  const TEXT_BATCH_PAGES = 200; // la capa de texto se lee casi al instante: un pliego largo (69 págs.) se evalúa completo de una vez; el OCR (lento) sigue en tandas chicas
 
   // Lee un RANGO de páginas [fromPage, toPage] (ambos inclusive), no siempre desde
   // la página 1 -- así "Seguir leyendo más páginas" puede continuar donde quedó
