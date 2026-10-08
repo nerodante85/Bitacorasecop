@@ -7445,6 +7445,53 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Devuelve { filas: [{ grupo, requisito, exige, cifras, aviso }], avisos: [] }.
   // Procesos "por lotes": cada lote tiene su presupuesto, plazo y experiencia. Devuelve [{ id, presupuesto }] (2 o más lotes con
   // presupuestos distintos) o [] si el documento no se divide en lotes de forma clara.
+  // Cruce de la ficha con los datos de la empresa. Pura: recibe `emp` ya normalizado
+  // { capitalTrabajo, patrimonio, kResidual (todo en pesos), liquidez, endeudamiento, cobertura (razones), kIncompleto }
+  // y devuelve { [requisito]: { estado, detalle } }. Reglas: CUMPLE solo si TODOS los umbrales aplicables se superan;
+  // si depende de si la empresa es Mipyme, o falta el dato, NO DETERMINABLE; NO CUMPLE solo si falla incluso el umbral más laxo.
+  function cruceFichaEmpresa(filas, emp){
+    emp = emp || {};
+    const out = {};
+    const money = n => '$' + Math.round(n).toLocaleString('es-CO');
+    const razon = n => (Math.round(n * 100) / 100).toLocaleString('es-CO');
+    const pasa = (v, op, u) => op === '≥' ? v >= u : op === '≤' ? v <= u : op === '>' ? v > u : op === '<' ? v < u : null;
+    (filas || []).forEach(function(f){
+      const d = f.dato; if (!d) return;
+      let r;
+      if (d.tipo === 'monto'){
+        const mio = emp[d.clave];
+        const nombre = { capitalTrabajo: 'capital de trabajo', patrimonio: 'patrimonio', kResidual: 'capacidad residual (K) disponible' }[d.clave] || d.clave;
+        if (mio == null || !isFinite(mio)) r = { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene ' + nombre + ' legible: cárgalo desde el RUP o el cálculo de capacidad.' };
+        else {
+          const estricto = mio >= d.min, laxo = d.minMipyme != null ? mio >= d.minMipyme : estricto;
+          const base = 'Tu ' + nombre + ': ' + money(mio) + ' frente a ' + money(d.min) + ' exigidos.';
+          if (!estricto && !laxo) r = { estado: 'NO CUMPLE', detalle: base + ' Te faltan ' + money(d.min - mio) + '.' };
+          else if (!estricto) r = { estado: 'NO DETERMINABLE', detalle: base + ' Solo alcanzas el umbral Mipyme (' + money(d.minMipyme) + '): depende de si te acreditas como Mipyme.' };
+          else if (d.clave === 'kResidual' && emp.kIncompleto) r = { estado: 'REVISAR', detalle: base + ' Alcanza, pero hay contratos en ejecución con datos incompletos en tu cálculo de K.' };
+          else r = { estado: 'CUMPLE', detalle: base + ' Margen ' + money(mio - d.min) + ' (según tu perfil; verifica con tu RUP vigente).' };
+        }
+      } else if (d.tipo === 'indice'){
+        const clave = /liquidez/i.test(d.clave) ? 'liquidez' : /endeudamiento/i.test(d.clave) ? 'endeudamiento' : /cobertura/i.test(d.clave) ? 'cobertura' : null;
+        const mio = clave ? emp[clave] : null;
+        if (!clave) r = { estado: 'NO DETERMINABLE', detalle: 'Este indicador no se cruza con tu perfil (no se guarda).' };
+        else if (mio == null || !isFinite(mio)) r = { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene este dato legible (escríbelo como razón, ej. 0,6).' };
+        else {
+          const umbrales = [d.demas, d.mipyme].filter(Boolean);
+          const res = umbrales.map(u => pasa(mio, u.op, u.v));
+          if (res.some(x => x === null)) r = { estado: 'NO DETERMINABLE', detalle: 'Operador del umbral no reconocido.' };
+          else {
+            const base = 'Tu valor: ' + razon(mio) + '. Exigido: ' + [d.demas && ('demás ' + d.demas.op + ' ' + razon(d.demas.v)), d.mipyme && ('Mipyme ' + d.mipyme.op + ' ' + razon(d.mipyme.v))].filter(Boolean).join(' / ') + '.';
+            if (res.every(x => x === true)) r = { estado: 'CUMPLE', detalle: base + ' (según tu perfil; verifica con tu RUP vigente).' };
+            else if (res.every(x => x === false)) r = { estado: 'NO CUMPLE', detalle: base };
+            else r = { estado: 'NO DETERMINABLE', detalle: base + ' Cumples solo uno de los dos umbrales: depende de si te acreditas como Mipyme.' };
+          }
+        }
+      }
+      if (r) out[f.requisito] = r;
+    });
+    return out;
+  }
+
   function lotesDeTexto(t){
     const porId = {};
     const re = /LOTE\s+(?:No\.?|N[°º])?\s*(\d{1,2})\s+El\s+valor\s+estimado[^$]{0,520}?\$\s*(\d{1,3}(?:\.\d{3}){2,})/ig;
@@ -7599,7 +7646,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
       const mDoc = t.match(/el\s+capital\s+de\s+trabajo\s+es\s+el\s+siguiente:?\s*CT\s*≥\s*(\d{1,2})\s*%/i);
       if (mDoc && porRango.length === 3 && ctd != null && Math.abs(ctd - presupuesto * parseInt(mDoc[1], 10) / 100) > 1) avisos.push('El documento afirma "CT ≥ ' + mDoc[1] + '% del presupuesto oficial", pero su propia tabla da ' + (Math.round(ctd / presupuesto * 100)) + '% para este presupuesto (' + money(ctd) + ' frente a ' + money(presupuesto * parseInt(mDoc[1], 10) / 100) + '). Confírmalo en observaciones.');
-      if (ctd != null){ ctd = Math.min(ctd, presupuesto); add('Capacidad financiera', 'Capital de trabajo demandado', how, money(ctd) + (smmlvAnio ? ' · ' + fmt1(ctd / smmlvAnio) + ' SMMLV' : '')); }
+      if (ctd != null){ ctd = Math.min(ctd, presupuesto); add('Capacidad financiera', 'Capital de trabajo demandado', how, money(ctd) + (smmlvAnio ? ' · ' + fmt1(ctd / smmlvAnio) + ' SMMLV' : ''), { dato: { tipo: 'monto', clave: 'capitalTrabajo', min: ctd } }); }
     }
     const mPd = t.match(/Pd\s*=\s*POE\s*x\s*(\d{1,3})\s*%/i);
     if (mPd && presupuesto){
@@ -7607,7 +7654,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const mMi = t.match(/Mipyme[^.]{0,200}?Pd\s*=\s*POE\s*x\s*(\d{1,3})\s*%/i);
       const pdMi = mMi ? parseInt(mMi[1], 10) : null;
       add('Capacidad financiera', 'Patrimonio demandado', pct + '% del presupuesto oficial' + (pdMi ? ' (Mipyme: ' + pdMi + '%)' : ''),
-        money(presupuesto * pct / 100) + (pdMi ? ' · Mipyme: ' + money(presupuesto * pdMi / 100) : ''), { pagina: pagina(mPd.index) });
+        money(presupuesto * pct / 100) + (pdMi ? ' · Mipyme: ' + money(presupuesto * pdMi / 100) : ''), { pagina: pagina(mPd.index), dato: { tipo: 'monto', clave: 'patrimonio', min: presupuesto * pct / 100, minMipyme: pdMi ? presupuesto * pdMi / 100 : null } });
       if (poSmmlv != null && poSmmlv < 40000 && /presupuesto\s+oficial\s+sea\s+mayor\s+o\s+igual\s+a\s+40\.?000\s*smmlv/i.test(t)){
         filas[filas.length - 1].aviso = 'La fórmula del documento está redactada para proyectos de 40.000 SMMLV o más, y este proceso es de ' + fmt1(poSmmlv) + ' SMMLV: puede ser texto de plantilla. Confírmalo en observaciones.';
       }
@@ -7615,7 +7662,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const mCr = /CRPC\s*=\s*POE\s*[-−–]\s*Anticipo/i.test(t);
     if (mCr && sinAnticipo && presupuesto && plazo){
       const crpc = plazo <= 12 ? presupuesto - anticipo : (presupuesto - anticipo) / plazo * 12;
-      add('Capacidad financiera', 'Capacidad residual del proceso (K)', plazo <= 12 ? 'Presupuesto oficial completo (plazo de 12 meses o menos)' : 'Presupuesto ÷ plazo × 12', money(crpc) + (smmlvAnio ? ' · ' + fmt1(crpc / smmlvAnio) + ' SMMLV' : ''));
+      add('Capacidad financiera', 'Capacidad residual del proceso (K)', plazo <= 12 ? 'Presupuesto oficial completo (plazo de 12 meses o menos)' : 'Presupuesto ÷ plazo × 12', money(crpc) + (smmlvAnio ? ' · ' + fmt1(crpc / smmlvAnio) + ' SMMLV' : ''), { dato: { tipo: 'monto', clave: 'kResidual', min: crpc } });
     }
     // Indicadores por rango (Matriz 2): Mipyme y demás proponentes.
     if (poSmmlv != null || (ctx && ctx.rango)){
@@ -7632,7 +7679,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       INDS.forEach(ind => {
         const d = leer(secDem, ind[1]), mi = leer(secMi, ind[1]);
         if (!d && !mi) return;
-        add('Capacidad financiera', ind[0] + ' (rango ' + rango + ')', d ? d.op + ' ' + d.v : '—', mi ? 'Mipyme: ' + mi.op + ' ' + mi.v : '', { pagina: pagina(iDem) });
+        add('Capacidad financiera', ind[0] + ' (rango ' + rango + ')', d ? d.op + ' ' + d.v : '—', mi ? 'Mipyme: ' + mi.op + ' ' + mi.v : '', { pagina: pagina(iDem), dato: { tipo: 'indice', clave: ind[0], demas: d ? { op: d.op, v: num(d.v) } : null, mipyme: mi ? { op: mi.op, v: num(mi.v) } : null } });
       });
     }
 
@@ -10507,22 +10554,46 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
     return { filas: filas, avisos: avisos, lotes: lotes };
   }
+  // Datos de la mejor empresa registrada, normalizados para cruceFichaEmpresa (null si no hay ninguna).
+  function empresaParaFicha(entry){
+    try {
+      const ctx = itemYScorePara(entry.id);
+      const res = ctx && ctx.item ? evaluarMejor(ctx.item, ctx.s, entry) : null;
+      const p = res && res.mejor && perfiles[res.mejor.perfilId];
+      if (!p) return null;
+      const mat = matrizCapacidad(p);
+      let k = null;
+      if (mat.kResidual && mat.kResidual.valor != null){
+        if (mat.kResidual.unidad === 'COP') k = mat.kResidual.valor;
+        else if (/smmlv/i.test(mat.kResidual.unidad || '') && SMMLV_POR_ANIO[new Date().getFullYear()]) k = mat.kResidual.valor * SMMLV_POR_ANIO[new Date().getFullYear()];
+      }
+      return { nombre: mat.nombre, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
+        kIncompleto: !!(mat.capacidadEstimada && mat.capacidadEstimada.incompletos > 0) };
+    } catch (e) { return null; }
+  }
   function fichaHabilitanteHtml(entry){
     const f = fichaHabilitanteDe(entry);
     if (!f.filas.length) return '';
+    const emp = empresaParaFicha(entry);
+    const cruce = emp ? cruceFichaEmpresa(f.filas, emp) : {};
+    const hayCruce = Object.keys(cruce).length > 0;
+    const cuentas = { 'CUMPLE': 0, 'NO CUMPLE': 0, 'REVISAR': 0, 'NO DETERMINABLE': 0 };
+    Object.keys(cruce).forEach(function(k){ cuentas[cruce[k].estado]++; });
     let grupoActual = '';
     const cuerpo = f.filas.map(function(x){
-      const cab = x.grupo !== grupoActual ? '<tr class="ficha-grupo"><th scope="rowgroup" colspan="4">' + escapeHtml(x.grupo) + '</th></tr>' : '';
+      const cab = x.grupo !== grupoActual ? '<tr class="ficha-grupo"><th scope="rowgroup" colspan="' + (hayCruce ? 5 : 4) + '">' + escapeHtml(x.grupo) + '</th></tr>' : '';
       grupoActual = x.grupo;
       return cab + '<tr><td>' + escapeHtml(x.requisito) + '</td><td>' + escapeHtml(x.exige) +
         (x.aviso ? '<div class="ficha-aviso"><b>Ojo:</b> ' + escapeHtml(x.aviso) + '</div>' : '') + '</td><td>' + escapeHtml(x.cifras) + '</td><td>' +
-        escapeHtml((x.documento || '') + (x.pagina ? ', p. ' + x.pagina : '')) + '</td></tr>';
+        escapeHtml((x.documento || '') + (x.pagina ? ', p. ' + x.pagina : '')) + '</td>' +
+        (hayCruce ? '<td>' + (cruce[x.requisito] ? badgeEstado4(cruce[x.requisito].estado) + '<div class="saved-note">' + escapeHtml(cruce[x.requisito].detalle) + '</div>' : '—') + '</td>' : '') + '</tr>';
     }).join('');
     const selLote = f.lotes ? '<div class="ficha-lotes" role="group" aria-label="Lote al que te presentas"><span>Lote:</span> ' +
       f.lotes.map(function(l){ return '<button type="button" class="matriz-filtro" data-ficha-lote="' + escapeHtml(String(l.id)) + '" aria-pressed="' + (String(entry.loteFicha) === String(l.id) ? 'true' : 'false') + '">Lote ' + escapeHtml(String(l.id)) + '</button>'; }).join(' ') + '</div>' : '';
     return '<div class="analisis-seccion" data-ficha-seccion="1"><h3>Requisitos habilitantes del proceso</h3>' + selLote +
-      '<div class="expeval-table-wrap"><table class="matriz-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th></tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
+      '<div class="expeval-table-wrap"><table class="matriz-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th>' + (hayCruce ? '<th scope="col">Tu empresa' + (emp.nombre ? ' (' + escapeHtml(emp.nombre) + ')' : '') + '</th>' : '') + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
       (f.avisos.length ? '<ul class="alertas-analisis">' + f.avisos.map(function(a){ return '<li class="alerta-item revisar"><span class="alerta-nivel">▲ REVISAR</span><span>' + escapeHtml(a) + '</span></li>'; }).join('') + '</ul>' : '') +
+      (hayCruce ? '<div class="resultado-meta" role="status">Cruce financiero con tu perfil: ' + cuentas['CUMPLE'] + ' cumple · ' + cuentas['NO CUMPLE'] + ' no cumple · ' + cuentas['REVISAR'] + ' por revisar · ' + cuentas['NO DETERMINABLE'] + ' no determinable. Solo compara capital de trabajo, patrimonio, K e índices; la experiencia se evalúa en la matriz.</div>' : '') +
       '<div class="resultado-meta">Cifras calculadas por el sistema a partir del documento (SMMLV ' + new Date().getFullYear() + '); confírmalas en el pliego definitivo.</div></div>';
   }
 
