@@ -8173,6 +8173,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       let ventana = t.slice(m.index + m[0].length, m.index + m[0].length + largo);
       const corte = ventana.search(/\.(?=\s|$)/);
       if (corte !== -1) ventana = ventana.slice(0, corte);
+      // Un título numerado de la sección siguiente ("3.6 CALCULO LA CAPACIDAD...") no es parte de la exigencia:
+      // su número ("3.6") se leía como una cifra más y el texto citado lo arrastraba.
+      const corteTitulo = ventana.search(/\s\d{1,2}(?:\.\d{1,2})+\s+[A-ZÁÉÍÓÚÑ]{3,}/);
+      if (corteTitulo !== -1) ventana = ventana.slice(0, corteTitulo);
       let previo = t.slice(Math.max(0, m.index - 70), m.index);
       const finPrevio = Math.max(previo.lastIndexOf('. '), previo.lastIndexOf('; '));
       if (finPrevio !== -1) previo = previo.slice(finPrevio + 2);

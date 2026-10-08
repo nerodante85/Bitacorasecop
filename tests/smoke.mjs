@@ -2082,6 +2082,16 @@ await check('indicadores financieros: el texto citado termina en la cifra elegid
   assert(!/\b3\b/.test(cob.raw) && /20,00$/.test(cob.raw), 'raw no debe arrastrar el encabezado: "' + cob.raw + '"');
 });
 
+await check('indicadores financieros: el título numerado de la sección siguiente ("3.6 CALCULO LA...") no cuenta como cifra ni se arrastra al texto citado', () => {
+  const tx = 'Rentabilidad del activo ≥ 0,06 ≥ 0,03 Mipyme 3.6 CALCULO LA CAPACIDAD RESIDUAL DEL PROPONENTE. El Proponente debe acreditar';
+  const r = expEngine.buscarUmbralCerca(tx, 'rentabilidad\\s+del\\s+activo', '');
+  assert(r && r.valor === null, 'con dos umbrales (general y Mipyme) no se elige uno: ' + JSON.stringify(r));
+  assert(!/3\.6|CALCULO/.test(r.raw + ' ' + (r.motivo || '')), 'el título de la sección no debe aparecer: ' + JSON.stringify(r));
+  const unico = expEngine.buscarUmbralCerca('Razón de cobertura de intereses ≥ 20,00 3.5 CAPACIDAD ORGANIZACIONAL Rentabilidad del patrimonio ≥ 0,06', 'raz[óo]n\\s+de\\s+cobertura\\s+de\\s+intereses', '');
+  assert(unico && unico.valor === 20, 'control: una cifra clara sigue leyéndose');
+  const conPunto = expEngine.buscarUmbralCerca('Índice de liquidez mayor o igual a 1.5 veces el pasivo', '[íi]ndice\\s+de\\s+liquidez', '');
+  assert(conPunto && conPunto.valor != null, 'una cifra con punto decimal sin título después no se corta: ' + JSON.stringify(conPunto));
+});
 await check('esRequisitoDePersonal: perfil de cargo (director/residente con años y dedicación) NO es experiencia de contratos', () => {
   const f = expEngine.esRequisitoDePersonal;
   assert(f('EXPERIENCIA GENERAL EXPERIENCIA ESPECIFICA DEDICACIÓN PUNTAJE 1 Director Ingeniero Civil Mínimo de 10 años de experiencia general'), 'director con años');
