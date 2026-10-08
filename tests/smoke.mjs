@@ -2897,6 +2897,13 @@ await check('cláusula genérica de experiencia: palabras de relleno (tiene, cue
   ['tiene', 'cuenta', 'actividades', 'ejecutar', 'servicios', 'previstos', 'alcance'].forEach(w => assert(!d.includes(w), w + ' no es distintiva: ' + JSON.stringify(d)));
 });
 
+await check('cláusula genérica de experiencia (2.ª tanda de relleno): acreditará, civil, cada, igual, superior no son distintivas', () => {
+  const r = expEngine.construirRequisitoDesdeTexto('Experiencia general: el proponente acreditará cada contrato de obra civil por un valor igual o superior al presupuesto oficial, en alcantarillado', 0, {});
+  const d = r.palabrasDistintivas || [];
+  assert(d.includes('alcantarillado'), 'conserva lo técnico: ' + JSON.stringify(d));
+  ['acreditara', 'civil', 'cada', 'igual', 'superior'].forEach(w => assert(!d.includes(w), w + ' no es distintiva: ' + JSON.stringify(d)));
+});
+
 await check('evaluarProceso: límite -- sin K residual en el perfil, todo lo demás en verde, el veredicto NUNCA es GO (RT-004, probado de punta a punta)', () => {
   const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz({ kResidual: null }), entryFeliz(), CTX_EVAL);
   assert(res.veredicto === 'REVISAR', 'sin K residual el veredicto máximo es REVISAR, fue ' + res.veredicto);
