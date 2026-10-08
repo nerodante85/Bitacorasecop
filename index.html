@@ -6127,7 +6127,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // correspondiente a por lo menos el 60% del PRESUPUESTO OFICIAL". Devuelve { factor } o null.
   function unoPctPresupuestoDeTexto(text){
     const t = String(text || '').replace(/\s+/g, ' ');
-    const m = t.match(/por\s+lo\s+menos\s+uno\s*\(1\)\s+de\s+los\s+contratos[^.]{0,200}?por\s+lo\s+menos\s+el\s+(\d{1,3}(?:[.,]\d+)?)\s*%\s+del\s+valor\s+(?:del\s+|de\s+)?(?:el\s+)?presupuesto\s+oficial/i);
+    const m = t.match(/por\s+lo\s+menos\s+uno\s*\(1\)\s+de\s+los\s+contratos[^.]{0,200}?por\s+lo\s+(?:[A-ZÁÉÍÓÚÑ]{4,}\s+){0,2}menos\s+el\s+(\d{1,3}(?:[.,]\d+)?)\s*%\s+del\s+valor\s+(?:del\s+|de\s+)?(?:el\s+)?presupuesto\s+oficial/i);
     if (!m) return null;
     const pct = parseFloat(m[1].replace(',', '.'));
     return pct > 0 && pct <= 100 ? { factor: pct / 100, indice: m.index } : null;
@@ -7485,6 +7485,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
     });
     const tramosSum = tramosDeSumatoria(text);
+    // Pliego tipo (CCE): cláusulas de CÓMO se acredita (Formato 3, tope de 5/6/7 contratos, carreteras en el exterior) no son
+    // requisitos de experiencia: se quitan para no llenar la matriz de filas NO DETERMINABLE sin sentido. Solo con la tabla de tramos.
+    if (tramosSum){
+      const CLAUSULA_ACREDITACION = /Formato\s*3\s*[–-]\s*Experiencia|tabla\s+del\s+numeral\s+3\.5\.8|contrato\s+adicional\s+a\s+los\s+cinco|se\s+consideran\s+[“"]?Carreteras\s+primarias|m[áa]s\s+de\s+cinco\s*\(5\)\s+contratos/i;
+      for (let i = requisitos.length - 1; i >= 0; i--){
+        if (CLAUSULA_ACREDITACION.test(requisitos[i].criterio || '')) requisitos.splice(i, 1);
+      }
+    }
     if (tramosSum){
       const reqS = construirRequisitoDesdeTexto('Experiencia por sumatoria de valores ejecutados en SMMLV, según la tabla de tramos del pliego (por número de contratos)', requisitos.length, {});
       reqS.tipo = 'general'; reqS.obligatoriedad = 'obligatorio'; reqS.fuente = fuenteLabel;
