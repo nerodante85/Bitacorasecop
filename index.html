@@ -7174,8 +7174,57 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // que saldría mal.
   const REGEX_MENCION_TABLA_EXPERIENCIA = new RegExp(PATRON_MATRIZ_EXPERIENCIA, 'i');
 
+  // pdf.js entrega cada página como UNA línea (items.join(' ')): el encabezado/pie de la entidad (dirección, código postal,
+  // teléfono, nombre de la alcaldía) queda pegado DENTRO del texto, incluso en medio de una cláusula, y sus palabras
+  // ("vías", "carrera", "palacio", "postal") entraban como palabras distintivas del requisito (falsos "comparten palabras" con
+  // contratos de vías). Se detectan secuencias de 8 palabras que se repiten, con los dígitos neutralizados, en >= 30% de las
+  // páginas (mínimo 3) y se sustituyen por espacios SIN cambiar la longitud: los offsets de página no se mueven. Con menos de
+  // 4 páginas no se toca nada, y una frase que solo aparece en 2 páginas es contenido, no un encabezado.
+  function limpiarRepetidosDePagina(text, paginaOffsets){
+    const t = String(text || '');
+    const N = 8;
+    const paginas = []; let ini = 0;
+    (paginaOffsets || []).forEach(o => {
+      if (!o || !(o.hasta > 0)) return;
+      const fin = Math.min(o.hasta, t.length);
+      if (fin > ini) paginas.push([ini, fin]);
+      ini = Math.max(ini, o.hasta);
+    });
+    if (paginas.length < 4) return t;
+    const porPagina = paginas.map(([a, b]) => {
+      const toks = []; const re = /\S+/g; const seg = t.slice(a, b); let m;
+      while ((m = re.exec(seg))) toks.push({ ini: a + m.index, fin: a + m.index + m[0].length, k: m[0].toLowerCase().replace(/\d/g, '#') });
+      return toks;
+    });
+    const clave = (toks, i) => { let k = toks[i].k; for (let j = 1; j < N; j++) k += ' ' + toks[i + j].k; return k; };
+    const conteo = new Map();
+    porPagina.forEach((toks, pi) => {
+      for (let i = 0; i + N <= toks.length; i++){
+        const k = clave(toks, i);
+        const v = conteo.get(k);
+        if (!v) conteo.set(k, { ultima: pi, n: 1 });
+        else if (v.ultima !== pi){ v.ultima = pi; v.n++; }
+      }
+    });
+    const umbral = Math.max(3, Math.ceil(paginas.length * 0.3));
+    const repetidos = new Set();
+    conteo.forEach((v, k) => { if (v.n >= umbral) repetidos.add(k); });
+    if (!repetidos.size) return t;
+    const chars = t.split('');
+    porPagina.forEach(toks => {
+      const cubierto = new Array(toks.length).fill(false);
+      for (let i = 0; i + N <= toks.length; i++){
+        if (repetidos.has(clave(toks, i))) for (let j = i; j < i + N; j++) cubierto[j] = true;
+      }
+      toks.forEach((tk, i) => { if (cubierto[i]) for (let p = tk.ini; p < tk.fin; p++) chars[p] = ' '; });
+    });
+    return chars.join('');
+  }
+
   function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
-    const zonas = localizarSeccionesExperiencia(text, paginaOffsets);
+    const limpio = limpiarRepetidosDePagina(text, paginaOffsets);
+    const huboLimpieza = limpio !== String(text || '');
+    const zonas = localizarSeccionesExperiencia(limpio, paginaOffsets);
     const reglaSmmlvPliego = reglaConversionSmmlvDePliego(text);
     const aceptados = []; // rangos [inicio, fin] absolutos ya usados
     const seSolapaMucho = (a0, a1) => aceptados.some(([b0, b1]) => {
@@ -7192,8 +7241,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const absInicio = zona.inicio + chunk.inicio;
         const absFin = absInicio + chunk.texto.length;
         if (seSolapaMucho(absInicio, absFin)) return;
-        const req = construirRequisitoDesdeTexto(chunk.texto, requisitos.length, {});
-        if (!req.criterio || esRequisitoDePersonal(chunk.texto) || !pareceRequisitoDeExperienciaReal(req)) return;
+        const textoChunk = huboLimpieza ? chunk.texto.replace(/\s{2,}/g, ' ') : chunk.texto;
+        const req = construirRequisitoDesdeTexto(textoChunk, requisitos.length, {});
+        if (!req.criterio || esRequisitoDePersonal(textoChunk) || !pareceRequisitoDeExperienciaReal(req)) return;
         aceptados.push([absInicio, absFin]);
         req.fuente = fuenteLabel;
         req.pagina = paginaDeOffset(paginaOffsets, absInicio);
