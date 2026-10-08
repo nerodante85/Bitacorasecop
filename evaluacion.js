@@ -87,7 +87,7 @@
   // NO DETERMINABLE, jamás "cumple".
   const AREAS_VIABILIDAD = [
     { clave: 'experiencia', nombre: 'Experiencia', gates: ['Experiencia'], que: 'la experiencia que exige el pliego' },
-    { clave: 'financiera', nombre: 'Capacidad financiera', gates: ['Índice de liquidez', 'Índice de endeudamiento', 'Razón de cobertura', 'Patrimonio', 'Capital de trabajo'], que: 'los indicadores financieros' },
+    { clave: 'financiera', nombre: 'Capacidad financiera', gates: ['Índice de liquidez', 'Índice de endeudamiento', 'Razón de cobertura', 'Rentabilidad del patrimonio', 'Rentabilidad del activo', 'Patrimonio', 'Capital de trabajo'], que: 'los indicadores financieros' },
     { clave: 'residual', nombre: 'Capacidad residual', gates: ['Capacidad K residual', 'Capacidad vs valor'], que: 'la capacidad residual' },
     { clave: 'personal', nombre: 'Personal', gates: ['Personal / equipo de trabajo'], que: 'el personal mínimo' },
     { clave: 'garantias', nombre: 'Garantías', gates: [], que: 'las garantías' }
@@ -308,6 +308,9 @@
       cmp('Índice de liquidez', ex.liquidez, matriz.liquidez, '>=');
       cmp('Índice de endeudamiento', ex.endeudamiento, matriz.endeudamiento, '<=');
       if (ex.cobertura) cmp('Razón de cobertura', ex.cobertura, matriz.cobertura, '>=');
+      // Rentabilidad: el perfil no la guarda (el RUP no la trae), así que queda en "Requiere verificación".
+      if (ex.rentabilidadPatrimonio) cmp('Rentabilidad del patrimonio', ex.rentabilidadPatrimonio, null, '>=');
+      if (ex.rentabilidadActivo) cmp('Rentabilidad del activo', ex.rentabilidadActivo, null, '>=');
       [['Patrimonio', ex.patrimonio, matriz.patrimonio], ['Capital de trabajo', ex.capitalTrabajo, matriz.capitalTrabajo]].forEach(par => {
         if (!par[1]) return;
         if (par[1].unidad === 'SMMLV') g(par[0], 'nd', 'El pliego lo exige en SMMLV (' + Number(par[1].valor).toLocaleString('es-CO') + ') y tu perfil lo tiene en pesos -- compáralo a mano.');

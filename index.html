@@ -7997,6 +7997,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       liquidez: cerca('[íi]ndice\\s+de\\s+liquidez|indicador\\s+de\\s+liquidez|raz[óo]n\\s+de\\s+liquidez|liquidez\\s+corriente', num),
       endeudamiento: cerca('[íi]ndice\\s+de\\s+endeudamiento|indicador\\s+de\\s+endeudamiento|nivel\\s+de\\s+endeudamiento', num),
       cobertura: cerca('raz[óo]n\\s+de\\s+cobertura\\s+de\\s+intereses|cobertura\\s+de\\s+intereses', num),
+      rentabilidadPatrimonio: cerca('rentabilidad\\s+(?:del|sobre\\s+(?:el|mi))\\s+patrimonio|rentabilidad\\s+patrimonial|rentabilidad\\s+del\\s+patrimonio', num),
+      rentabilidadActivo: cerca('rentabilidad\\s+(?:del|sobre\\s+(?:el|los))\\s+activos?|rentabilidad\\s+sobre\\s+activos?', num),
       kResidual: extraerKResidualUmbral(t),
       participacionConsorcio: extraerParticipacionConsorcio(t)
     };
@@ -9532,7 +9534,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     // Lo que el motor evaluó y ninguna fila cubre (indicadores por texto, capacidad vs valor, UNSPSC, personal...).
     const ex = Object.assign({}, entry.exigencias || {}, entry.exigenciasIA || {});
-    const exigenciaDeGate = { 'Índice de liquidez': ex.liquidez, 'Índice de endeudamiento': ex.endeudamiento, 'Razón de cobertura': ex.cobertura, 'Patrimonio': ex.patrimonio, 'Capital de trabajo': ex.capitalTrabajo, 'Capacidad K residual': ex.kResidual };
+    const exigenciaDeGate = { 'Índice de liquidez': ex.liquidez, 'Índice de endeudamiento': ex.endeudamiento, 'Razón de cobertura': ex.cobertura, 'Patrimonio': ex.patrimonio, 'Capital de trabajo': ex.capitalTrabajo, 'Rentabilidad del patrimonio': ex.rentabilidadPatrimonio, 'Rentabilidad del activo': ex.rentabilidadActivo, 'Capacidad K residual': ex.kResidual };
     const citaDeGate = nombre => { const x = exigenciaDeGate[nombre]; return x && x.raw ? String(x.raw) : ''; };
     (gates || []).forEach(g => {
       if (cubiertos.has(g.nombre) || GATES_ADMIN_UI.indexOf(g.nombre) !== -1 || GATES_META_UI.indexOf(g.nombre) !== -1) return;
