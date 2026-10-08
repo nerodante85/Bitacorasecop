@@ -4805,7 +4805,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     for (let i = fromPage; i <= to; i++){
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      text += content.items.map(it => it.str).join(' ') + '\n';
+      text += unirItemsDePdf(content.items) + '\n';
       paginaOffsets.push({ pagina: i, hasta: text.length });
     }
     return { text: text, numPages: pdf.numPages, pagesRead: to, paginaOffsets: paginaOffsets };
@@ -7195,6 +7195,30 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // contratos de vías). Se detectan secuencias de 8 palabras que se repiten, con los dígitos neutralizados, en >= 30% de las
   // páginas (mínimo 3) y se sustituyen por espacios SIN cambiar la longitud: los offsets de página no se mueven. Con menos de
   // 4 páginas no se toca nada, y una frase que solo aparece en 2 páginas es contenido, no un encabezado.
+  // Une los fragmentos de texto de una página de PDF. pdf.js a veces parte una
+  // palabra en dos fragmentos pegados ("lo" + "s"); unirlos con espacio
+  // ("lo s") rompe las coincidencias. Si el fragmento siguiente empieza donde
+  // termina el anterior (misma línea, sin hueco visible) se une sin espacio;
+  // en cualquier otro caso se conserva el espacio de siempre.
+  function unirItemsDePdf(items){
+    let out = '', prev = null;
+    (items || []).forEach(it => {
+      if (it == null || typeof it.str !== 'string') return;
+      const t = it.transform;
+      if (prev && t && prev.t && it.str !== '' && prev.str !== ''){
+        const mismaLinea = Math.abs(t[5] - prev.t[5]) < 1;
+        const hueco = t[4] - (prev.t[4] + (prev.width || 0));
+        const alto = Math.abs(prev.t[3]) || 10;
+        const pegado = mismaLinea && prev.width > 0 && hueco < alto * 0.08 && hueco > -alto * 0.3 && !/\s$/.test(prev.str) && !/^\s/.test(it.str);
+        out += (pegado ? '' : ' ') + it.str;
+      } else {
+        out += (prev ? ' ' : '') + it.str;
+      }
+      prev = { str: it.str, t: t, width: it.width };
+    });
+    return out;
+  }
+
   function limpiarRepetidosDePagina(text, paginaOffsets){
     const t = String(text || '');
     const N = 8;
