@@ -6123,6 +6123,55 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return { tramos: tramos, maxContratos: tramos[tramos.length - 1].hasta };
   }
 
+  // Pliego tipo (CCE) - experiencia específica: "por lo menos uno (1) de los contratos válidos ... de un valor
+  // correspondiente a por lo menos el 60% del PRESUPUESTO OFICIAL". Devuelve { factor } o null.
+  function unoPctPresupuestoDeTexto(text){
+    const t = String(text || '').replace(/\s+/g, ' ');
+    const m = t.match(/por\s+lo\s+menos\s+uno\s*\(1\)\s+de\s+los\s+contratos[^.]{0,200}?por\s+lo\s+menos\s+el\s+(\d{1,3}(?:[.,]\d+)?)\s*%\s+del\s+valor\s+(?:del\s+|de\s+)?(?:el\s+)?presupuesto\s+oficial/i);
+    if (!m) return null;
+    const pct = parseFloat(m[1].replace(',', '.'));
+    return pct > 0 && pct <= 100 ? { factor: pct / 100, indice: m.index } : null;
+  }
+
+  // Solo puede DESCARTAR: nunca CUMPLE (no se verifica la actividad ni los códigos del contrato). NO CUMPLE únicamente si
+  // todos los contratos tienen valor convertible y el mayor no llega al mínimo (con margen de 1 SMMLV por redondeo).
+  function evaluarUnoPctPO(req, contratos, hoy, ctx){
+    const evidencia = [], faltantes = [];
+    const fmt = n => (Math.round(n * 10) / 10).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    const devolver = (resultado, justificacion, evaluados) => ({
+      requisito: req, contratosEvaluados: (evaluados || []).map(c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin })),
+      evidencia: evidencia, nota: '', faltantes: faltantes, resultado: resultado, justificacion: justificacion
+    });
+    const pres = ctx && Number(ctx.presupuesto) > 0 ? Number(ctx.presupuesto) : null;
+    const anio = (ctx && ctx.anio) || hoy.getFullYear();
+    const smmlvAnio = SMMLV_POR_ANIO[anio];
+    const pct = Math.round(req.unoDebeSerPctPO.factor * 1000) / 10;
+    if (!pres || !smmlvAnio){
+      faltantes.push(!pres ? 'No se conoce el presupuesto oficial del proceso.' : 'Falta en la tabla el SMMLV de ' + anio + '.');
+      return devolver('NO DETERMINABLE', 'Se exige un contrato de al menos ' + pct + '% del presupuesto oficial y ' + (!pres ? 'no se conoce el presupuesto del proceso' : 'no se puede convertir a SMMLV') + '.', []);
+    }
+    const minimo = req.unoDebeSerPctPO.factor * pres / smmlvAnio;
+    evidencia.push('Mínimo exigido a UN contrato: ' + pct + '% del presupuesto oficial = ' + fmt(minimo) + ' SMMLV.');
+    const regla = req.reglaSmmlv || 'fecha_terminacion';
+    let inciertos = 0, mejor = null;
+    (contratos || []).forEach(c => {
+      if (contratoEnEjecucion(c, hoy)){ inciertos++; return; }
+      const v = valorAcreditable(c);
+      if (v == null){ inciertos++; return; }
+      const conv = valorContratoEnSmmlv(Object.assign({}, c, { valor: v }), regla);
+      if (!conv || conv.smmlv == null){ inciertos++; return; }
+      if (!mejor || conv.smmlv > mejor.smmlv) mejor = { contrato: c, smmlv: conv.smmlv };
+    });
+    if (mejor) evidencia.push('Tu contrato de mayor valor (de cualquier tipo de obra): ' + fmt(mejor.smmlv) + ' SMMLV.');
+    const evaluados = mejor ? [mejor.contrato] : [];
+    if (inciertos === 0 && (!mejor || mejor.smmlv < minimo - 1)){
+      return devolver('NO CUMPLE', 'Ningún contrato' + (mejor ? ' (el mayor tiene ' + fmt(mejor.smmlv) + ' SMMLV)' : '') + ' alcanza el ' + pct + '% del presupuesto oficial (' + fmt(minimo) + ' SMMLV) que exige el pliego.', evaluados);
+    }
+    if (inciertos) faltantes.push(inciertos + ' contrato(s) no se pudieron contar (sin valor reconocido, sin fecha para convertir a SMMLV o en ejecución).');
+    faltantes.push('El sistema no verifica que el contrato sea de la actividad exigida ni su clasificación UNSPSC: confírmalo en el pliego y en la certificación.');
+    return devolver('NO DETERMINABLE', 'Por valor ' + (mejor && mejor.smmlv >= minimo - 1 ? 'un contrato alcanzaría el mínimo' : 'no se puede concluir') + ', pero el sistema no confirma la actividad ni los códigos: no se afirma el cumplimiento.', evaluados);
+  }
+
   // Evalúa la sumatoria por tramos. NUNCA da CUMPLE: el sistema no verifica que los contratos sean de la actividad exigida
   // (tipo de obra o vía, códigos UNSPSC, fecha de terminación anterior al cierre). Sí puede DEMOSTRAR un NO CUMPLE: si ni
   // sumando los contratos de mayor valor (de CUALQUIER tipo, hasta 7: una Mipyme y empresa de mujer pueden aportar 6 o 7) se
@@ -6188,6 +6237,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function evaluarRequisito(req, contratos, hoy, ctx){
     hoy = hoy || new Date();
     if (req && req.sumatoriaTramos) return evaluarSumatoriaTramos(req, contratos, hoy, ctx);
+    if (req && req.unoDebeSerPctPO) return evaluarUnoPctPO(req, contratos, hoy, ctx);
     const reqOriginal = req;
     req = resolverValorRelativo(req, ctx, hoy);
     const exigeUnspsc = !!(req.codigosUnspsc && req.codigosUnspsc.length);
@@ -7443,6 +7493,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       reqS.sumatoriaTramos = tramosSum;
       if (reglaSmmlvPliego) reqS.reglaSmmlv = reglaSmmlvPliego;
       requisitos.push(reqS);
+    }
+    const unoPct = unoPctPresupuestoDeTexto(text);
+    if (unoPct){
+      const reqE = construirRequisitoDesdeTexto('Experiencia específica: al menos uno de los contratos válidos con valor de por lo menos ' + (Math.round(unoPct.factor * 1000) / 10) + '% del presupuesto oficial del proceso', requisitos.length, {});
+      reqE.tipo = 'especifica'; reqE.obligatoriedad = 'obligatorio'; reqE.fuente = fuenteLabel;
+      reqE.pagina = paginaDeOffset(paginaOffsets, unoPct.indice);
+      reqE.unoDebeSerPctPO = { factor: unoPct.factor };
+      reqE.condicionNoVerificable = 'el sistema solo puede descartar por valor: no verifica que el contrato sea de la actividad exigida (tipo de obra o vía) ni su clasificación UNSPSC';
+      if (reglaSmmlvPliego) reqE.reglaSmmlv = reglaSmmlvPliego;
+      requisitos.push(reqE);
     }
     // Pliego tipo (CCE): la experiencia se acredita por SUMATORIA de valores según una tabla por número de contratos
     // ("De 1 hasta 2: 75% · De 3 hasta 4: 120% · Hasta 5: 150%" del presupuesto oficial). El motor no evalúa esa regla:

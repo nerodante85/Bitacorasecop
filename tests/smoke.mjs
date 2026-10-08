@@ -3322,6 +3322,30 @@ await check('sumatoria por tramos: el NO CUMPLE usa hasta 7 contratos (Mipyme + 
   const r = expEngine.evaluarRequisito(reqSum(), siete, HOY, ctxSum);
   assert(r.resultado === 'NO DETERMINABLE', 'no puede ser NO CUMPLE: ' + r.resultado + ' -- ' + r.justificacion);
 });
+const ESPECIFICA_TIPO = 'Experiencia general. El proponente acreditará experiencia con contratos de obra. ESPECIFICA Por lo menos uno (1) de los contratos válidos aportados como experiencia general sea de un valor correspondiente a por lo menos el 60% del valor de PRESUPUESTO OFICIAL (PO) del presente proceso de contratación. (60% * P.O = $ 737.270.309,30) B. Estar relacionados en el Formato 3 – Experiencia con el número consecutivo del contrato en el RUP.';
+await check('pliego tipo CCE: la exigencia específica "uno de los contratos ≥ 60% del presupuesto oficial" se extrae como requisito propio, sin CUMPLE posible', () => {
+  const ex = expEngine.extraerRequisitosDePliego(ESPECIFICA_TIPO, [], 'Pliego').requisitos;
+  const e = ex.find(r => r.valorRelativo && Math.abs(r.valorRelativo.factor - 0.6) < 1e-9);
+  assert(e, 'no se extrajo el requisito del 60% del PO: ' + JSON.stringify(ex.map(r => r.texto || r.descripcion)));
+  assert(e.condicionNoVerificable, 'debe quedar bloqueado para CUMPLE (actividad/códigos no verificados)');
+  const pocos = [Object.assign({ fila: 1, objeto: 'OBRA CUALQUIERA', contratante: 'X', valor: Math.round(300 * 877803), fechaInicio: '2019-06-01', fechaFin: '2020-06-01', participacion: null, tipo: 'no-clasificado' })];
+  const r = expEngine.evaluarRequisito(e, pocos, new Date('2026-10-08T00:00:00'), { presupuesto: 1228783848.75, anio: 2026 });
+  assert(r.resultado !== 'CUMPLE', 'nunca CUMPLE, fue ' + r.resultado);
+  const grande = [Object.assign({}, pocos[0], { valor: Math.round(900 * 877803) })];
+  const r2 = expEngine.evaluarRequisito(e, grande, new Date('2026-10-08T00:00:00'), { presupuesto: 1228783848.75, anio: 2026 });
+  assert(r2.resultado !== 'CUMPLE', 'con valor suficiente tampoco CUMPLE, fue ' + r2.resultado);
+});
+await check('específica 60% del PO: NO CUMPLE solo si ningún contrato alcanza el mínimo y todos son convertibles; con uno incierto o suficiente, NO DETERMINABLE', () => {
+  const e = expEngine.extraerRequisitosDePliego(ESPECIFICA_TIPO, [], 'Pliego').requisitos.find(r => r.unoDebeSerPctPO);
+  const H = new Date('2026-10-08T00:00:00'), C = { presupuesto: 1228783848.75, anio: 2026 };
+  const k = (f, smmlv, x) => Object.assign({ fila: f, objeto: 'OBRA ' + f, contratante: 'X', valor: Math.round(smmlv * 877803), fechaInicio: '2019-06-01', fechaFin: '2020-06-01', participacion: null, tipo: 'no-clasificado' }, x || {});
+  const r1 = expEngine.evaluarRequisito(e, [k(1, 300), k(2, 200)], H, C);
+  assert(r1.resultado === 'NO CUMPLE', 'ninguno llega a ~421 SMMLV: ' + r1.resultado + ' ' + r1.justificacion);
+  assert(expEngine.evaluarRequisito(e, [k(1, 300), k(2, 200, { valor: null })], H, C).resultado === 'NO DETERMINABLE', 'un contrato sin valor impide descartar');
+  assert(expEngine.evaluarRequisito(e, [k(1, 300), k(2, 200, { fechaFin: '2027-12-31' })], H, C).resultado === 'NO DETERMINABLE', 'uno en ejecución impide descartar');
+  assert(expEngine.evaluarRequisito(e, [k(1, 800)], H, C).resultado === 'NO DETERMINABLE', 'suficiente por valor: nunca CUMPLE');
+  assert(expEngine.evaluarRequisito(e, [k(1, 300)], H, {}).resultado === 'NO DETERMINABLE', 'sin presupuesto no se concluye');
+});
 // ── Cruce RUP ↔ Excel de experiencia (códigos UNSPSC por contrato) ──
 const RUP_ENCABEZADO = ' Página 17 de 95 CÁMARA DE COMERCIO DE CUCUTA CERTIFICADO DE INSCRIPCIÓN Y CLASIFICACIÓN EN EL REGISTRO DE PROPONENTES Fecha expedición: 06/05/2026 - 08:32:40 Recibo No. S002130953, Valor 75000 CÓDIGO DE VERIFICACIÓN rdNuhBwDRf Verifique el contenido y confiabilidad de este certificado, ingresando a https://sii.confecamaras.co/vista/plantilla/cv.php?empresa=11 y digite el respectivo código, para que visualice la imagen generada al momento de su expedición. La verificación se puede realizar de manera ilimitada, durante 60 días calendario contados a partir de la fecha de su expedición. ';
 const rupExp = (n, contratista, contratante, smmlv, part, codigos, corte) => '*** EXPERIENCIA No.' + n + ' : NÚMERO CONSECUTIVO DEL CONTRATO:00' + n + ' CONTRATO CELEBRADO POR :3 - CONSORCIO O UNIÓN TEMPORAL NOMBRE DEL CONTRATISTA :' + contratista + ' NOMBRE DEL CONTRATANTE :' + contratante + (corte === 'contratante' ? RUP_ENCABEZADO : '') + ' VALOR CONTRATADO EN SMMLV :' + smmlv + ' PORCENTAJE DE PARTICIPACIÓN EN EL VALOR EJECUTADO EN CASO DE CONSORCIOS Y UNIONES TEMPORALES: ' + part + '% SG FM CL PR - DESCRIPCIÓN ' + codigos.map((c, i) => c + ' : DESC ' + (corte === 'codigos' && i === 1 ? RUP_ENCABEZADO : '')).join(' ');
