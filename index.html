@@ -7693,16 +7693,65 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const iPers = t.search(/Requisitos\s+del\s+personal/i);
     if (iPers >= 0){
       const ventana = t.slice(iPers, iPers + 2600).split(/Maquinaria\s+m[íi]nima|equipo\s+m[íi]nimo/i)[0];
-      const vistos = {};
-      CARGOS.forEach(c => {
-        const m = ventana.match(new RegExp('\\b' + c + '\\b', 'i'));
-        if (!m) return;
-        const clave = m[0].toUpperCase();
-        if (Object.keys(vistos).some(k => k.indexOf(clave) !== -1 || clave.indexOf(k) !== -1)) return;
-        vistos[clave] = true;
-        add('Personal', (m[0].charAt(0).toUpperCase() + m[0].slice(1).toLowerCase()).replace(/sg-sst/i, 'SG-SST'), 'Cargo exigido; años y contratos de experiencia: ver la tabla de personal del documento', '', { pagina: pagina(iPers) });
+      // Lista "El personal requerido es: ● Un (1) <formación> – <cargo>" (una línea por cargo: se lee sin ambigüedad).
+      const iLista = t.search(/El\s+personal\s+requerido\s+es\s+el\s+siguiente/i);
+      const lista = [];
+      if (iLista >= 0 && iLista < iPers){
+        t.slice(iLista, iPers).split(/[●•]/).slice(1).forEach(it => {
+          const m = it.replace(/\s+a\.\s*$/, '').trim().match(/^(?:Un|Una|Dos|Tres|Cuatro|Cinco)\s*\((\d{1,2})\)\s*(.+?)\s+[–—-]\s+(.+?)\.?$/i);
+          if (m) lista.push({ cant: m[1], formacion: m[2].trim(), cargo: m[3].trim() });
+        });
+      }
+      const norm = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+      const noHab = /hojas\s+de\s+vida[^.]{0,300}?ser[áa]n\s+verificadas\s+una\s+vez\s+se\s+adjudique[^.]{0,300}?no\s+podr[áa]n\s+ser\s+pedidas[^.]{0,300}?habilitante/i.test(t);
+      // Tabla de experiencia: el texto sale entrelazado por columnas. Solo se lee lo que es inequívoco: entre un cargo (en
+      // MAYÚSCULAS) y el siguiente debe haber EXACTAMENTE un "(N) contrato(s)" y EXACTAMENTE un "(M) años"; si no, ese dato no se da.
+      const reCargo = new RegExp('\\b(' + CARGOS.join('|') + ')\\b', 'g'); // sensible a mayúsculas a propósito
+      const marcas = Array.from(ventana.matchAll(reCargo)).map(m => ({ nombre: m[1], i: m.index }));
+      // El nombre de un cargo puede quedar partido por el texto de otra columna ("ESPECIALISTA … ESTRUCTURAL"): solo si lo que
+      // queda en medio no trae ninguna cifra "(N)", se toma como un cargo y la marca va donde termina.
+      Array.from(ventana.matchAll(/\bESPECIALISTA\b([^.●]{0,200}?)\bESTRUCTURAL\b/g)).forEach(m => {
+        if (/\(\d/.test(m[1]) || marcas.some(x => x.i >= m.index && x.i < m.index + m[0].length)) return;
+        marcas.push({ nombre: 'ESPECIALISTA ESTRUCTURAL', i: m.index + m[0].length - 'ESPECIALISTA ESTRUCTURAL'.length });
       });
-      if (filas.some(f => f.grupo === 'Personal')) avisos.push('El personal se lista solo por cargo y la lista puede estar incompleta: los años y contratos exigidos a cada cargo no se leen automáticamente (la tabla del documento está en columnas y la lectura no es fiable). Consúltalos en el documento.');
+      marcas.sort((a, b) => a.i - b.i);
+      const iEnc = ventana.search(/General\s+Espec[íi]fica/i);
+      const hechas = [];
+      let desde = iEnc >= 0 ? iEnc + 18 : 0;
+      marcas.forEach(mc => {
+        if (mc.i < desde) return;
+        const seg = ventana.slice(desde, mc.i);
+        const cs = Array.from(seg.matchAll(/\((\d{1,2})\)\s*contratos?\b/gi)), ys = Array.from(seg.matchAll(/\((\d{1,2})\)\s*a[ñn]os\b/gi));
+        hechas.push({ nombre: mc.nombre, contratos: cs.length === 1 ? cs[0][1] : null, anos: ys.length === 1 ? ys[0][1] : null });
+        desde = mc.i + mc.nombre.length;
+      });
+      const titulo = x => (x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()).replace(/sg-sst/i, 'SG-SST');
+      const vistos = {};
+      if (hechas.length){
+        const coincide = (h, l) => { const a = norm(h.nombre), b = norm(l.cargo); return b.indexOf(a) !== -1 || a.indexOf(b) !== -1; };
+        // Primero los cargos en el orden de la lista del documento; los que la lista no trae, al final.
+        const ordenados = lista.map(l => hechas.find(h => coincide(h, l)) || { nombre: l.cargo, contratos: null, anos: null }).concat(hechas.filter(h => !lista.some(l => coincide(h, l))));
+        ordenados.forEach(h => {
+          const clave = norm(h.nombre); if (vistos[clave]) return; vistos[clave] = true;
+          const l = lista.find(x => norm(x.cargo).indexOf(clave) !== -1 || clave.indexOf(norm(x.cargo)) !== -1);
+          const partes = [];
+          if (h.contratos) partes.push(h.contratos + ' contrato(s) de experiencia específica');
+          if (h.anos) partes.push(h.anos + ' años de experiencia (base de cómputo: ver el documento)');
+          add('Personal', titulo(h.nombre), l ? l.cant + ' · ' + l.formacion : 'Cargo exigido', partes.join(' · ') || 'años y contratos: ver la tabla del documento', { pagina: pagina(iPers), aviso: noHab ? 'Según el documento, las hojas de vida se verifican después de adjudicar y no se piden como criterio habilitante.' : '' });
+        });
+        avisos.push('Los años y contratos de cada cargo se leyeron de una tabla en columnas: solo se muestran cuando el texto los separa sin ambigüedad, y la lista de cargos puede estar incompleta. Confírmalos contra el original.');
+      } else {
+        const vv = {};
+        CARGOS.forEach(c => {
+          const m = ventana.match(new RegExp('\\b' + c + '\\b', 'i'));
+          if (!m) return;
+          const clave = m[0].toUpperCase();
+          if (Object.keys(vv).some(k => k.indexOf(clave) !== -1 || clave.indexOf(k) !== -1)) return;
+          vv[clave] = true;
+          add('Personal', titulo(m[0]), 'Cargo exigido; años y contratos de experiencia: ver la tabla de personal del documento', '', { pagina: pagina(iPers), aviso: noHab ? 'Según el documento, las hojas de vida se verifican después de adjudicar y no se piden como criterio habilitante.' : '' });
+        });
+        if (filas.some(f => f.grupo === 'Personal')) avisos.push('El personal se lista solo por cargo y la lista puede estar incompleta: los años y contratos exigidos a cada cargo no se leen automáticamente (la tabla del documento está en columnas y la lectura no es fiable). Consúltalos en el documento.');
+      }
     }
     const iMaq = t.search(/Maquinaria\s+m[íi]nima\s+del\s+proyecto|equipo\s+m[íi]nimo\s+requerido/i);
     if (iMaq >= 0){
