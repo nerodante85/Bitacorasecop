@@ -2852,6 +2852,26 @@ await check('rentabilidad: el pliego la exige -> se lee el umbral (0,06, no el 0
   assert(res.veredicto !== 'GO', 'con rentabilidad sin verificar nunca GO: ' + res.veredicto);
 });
 
+await check('PDF real: palabras partidas ("DEDIC ACIÓN", "PUNTAJ E") no esconden el perfil de un cargo', () => {
+  const f = expEngine.esRequisitoDePersonal;
+  assert(f('EXPERIENCIA GENERAL EXPERIENCIA ESPECIFICA DEDIC ACIÓN PUNTAJ E 1 Director Ingeniero Civil o arquitecto Mínimo de 10 años, acreditados con'), 'director con palabras partidas');
+  assert(!f('Experiencia específica: el proponente acreditará mínimo 2 contratos de construcción de vías cuyo valor sume 500 SMMLV'), 'contratos del proponente siguen siendo de contratos');
+});
+
+await check('PDF real: la cláusula de subsanación ("es subsanable... podrá solicitar dicha información") no es un requisito de experiencia', () => {
+  const texto = 'Requisitos de experiencia: 1. Experiencia específica del proponente: mínimo 2 contratos de construcción de vías. 2. La experiencia del proponente, es subsanable. Por lo tanto, EL MUNICIPIO podrá solicitar dicha información si el proponente no la incluyó, y la no entrega de la misma en mínimo 2 contratos genera rechazo.';
+  const { requisitos } = expEngine.extraerRequisitosDePliego(texto, [{ pagina: 1, hasta: texto.length }], 'Pliego de Condiciones');
+  assert(requisitos.length === 1 && !/subsanable/i.test(requisitos[0].criterio), 'solo el requisito real: ' + JSON.stringify(requisitos.map(r => r.criterio)));
+});
+
+await check('PDF real: una cifra partida por el extractor ("0,0 3") se lee como 0,03, no como 0,0 y 3', () => {
+  const c = expEngine.cifrasCandidatas('Rentabilidad del Patrimonio ≥ 0,06 ≥ 0,0 3 Mipyme');
+  const v = c.map(x => x.valor);
+  assert(v.includes(0.03) && v.includes(0.06) && !v.includes(3), 'cifras: ' + JSON.stringify(v));
+  const ex = expEngine.extraerExigencias('Rentabilidad del Patrimonio ≥ 0,06 ≥ 0,0 3 Mipyme');
+  assert(ex.rentabilidadPatrimonio && /0,03/.test(ex.rentabilidadPatrimonio.motivo || ''), 'el motivo cita 0,03: ' + JSON.stringify(ex.rentabilidadPatrimonio));
+});
+
 await check('evaluarProceso: límite -- sin K residual en el perfil, todo lo demás en verde, el veredicto NUNCA es GO (RT-004, probado de punta a punta)', () => {
   const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz({ kResidual: null }), entryFeliz(), CTX_EVAL);
   assert(res.veredicto === 'REVISAR', 'sin K residual el veredicto máximo es REVISAR, fue ' + res.veredicto);

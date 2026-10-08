@@ -6912,6 +6912,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // requisito ambiguo que inventar uno que en realidad es ruido.
   function pareceRequisitoDeExperienciaReal(req){
     if (!/experien/.test(normHeader(req.criterio))) return false;
+    // cláusula procedimental (subsanar / pedir información), no una exigencia de experiencia
+    if (/subsanab|subsanar|podr[áa]\s+solicitar\s+(?:dicha|la)\s+informaci[óo]n/i.test(String(req.criterio || ''))) return false;
     return req.minContratos != null || req.minValor != null || req.minCantidad != null ||
       !!req.condicionNoVerificable || !!req.condicionTemporal;
   }
@@ -6923,9 +6925,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const RE_SENAL_PERFIL = /dedicaci[óo]n|puntaje|\b\d+\s+a[ñn]os\s+de\s+experiencia|a[ñn]os\s+de\s+experiencia\s+(?:general|profesional|espec)/i;
   function esRequisitoDePersonal(texto){
     texto = String(texto || '');
-    if (!RE_CARGO_EQUIPO.test(texto) || !RE_SENAL_PERFIL.test(texto)) return false;
+    // El extractor de PDF parte palabras ("DEDIC ACIÓN", "PUNTAJ E"): la señal también se busca sin espacios.
+    const junto = texto.replace(/\s+/g, '');
+    const senalPartida = /dedicaci[óo]n|puntaje/i.test(junto);
+    if (!RE_CARGO_EQUIPO.test(texto) || !(RE_SENAL_PERFIL.test(texto) || senalPartida)) return false;
     // si habla de lo que acredita el proponente (la empresa), es de contratos
-    if (/\b(?:el\s+)?proponente\s+(?:deber[áa]|acreditar[áa]|acredite)|contratos?\s+(?:de|ejecutados|celebrados)\s+(?:construcci|obra)/i.test(texto) && !/dedicaci[óo]n|puntaje/i.test(texto)) return false;
+    if (/\b(?:el\s+)?proponente\s+(?:deber[áa]|acreditar[áa]|acredite)|contratos?\s+(?:de|ejecutados|celebrados)\s+(?:construcci|obra)/i.test(texto) && !/dedicaci[óo]n|puntaje/i.test(texto) && !senalPartida) return false;
     return true;
   }
 
@@ -7626,6 +7631,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   function cifrasCandidatas(seg){
     let t = ' ' + String(seg || '') + ' ';
+    t = t.replace(/(\d,0)\s+(\d)(?![\d,.])/g, '$1$2'); // el PDF parte "0,03" en "0,0 3"
     t = t.replace(new RegExp('\\d{1,2}\\s*(?:de\\s+)?(?:' + MESES_RE + ')\\b\\.?(?:\\s+(?:de\\s+)?(?:19|20)\\d{2})?', 'gi'), ' ');
     t = t.replace(/\d{1,4}[\/\-]\d{1,2}[\/\-]\d{1,4}/g, ' ');
     const out = [];
@@ -9542,7 +9548,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (g.nombre in exigenciaDeGate && !exigenciaDeGate[g.nombre]) return;
       const cita = citaDeGate(g.nombre);
       filas.push({
-        clave: 'gate-' + g.nombre, requisito: g.nombre, exigencia: g.nombre === 'Capacidad vs valor' ? 'Capacidad residual suficiente para el valor del proceso' : (cita ? truncate(cita, 120) : '—'),
+        clave: 'gate-' + g.nombre, requisito: g.nombre, exigencia: g.nombre === 'Capacidad vs valor' ? 'Capacidad residual suficiente para el valor del proceso' : (g.nombre === 'Capacidad K residual' && ex.kResidual && (ex.kResidual.valor != null || ex.kResidual.relativo) ? 'Capacidad residual ≥ ' + textoKResidualDetectado(ex.kResidual) : (cita ? truncate(cita, 120) : '—')),
         empresa: g.detalle, resultado: GATE_A_ESTADO4[g.estado] || 'NO DETERMINABLE',
         evidencia: { documento: g.nombre === 'Capacidad vs valor' ? 'Datos del proceso (SECOP)' : dePliego, pagina: null, cita: cita, verificada: !!cita, confirmada: false, bloqueo: null, modificadaPorAdenda: false, origen: 'motor' }
       });
