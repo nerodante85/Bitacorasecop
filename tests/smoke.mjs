@@ -1221,6 +1221,13 @@ await check('textoPliegoDe: lee ocrText cuando el pliego se leyó vía OCR, y te
 // lista dentro de una zona ancha colaba decenas de falsos "requisitos" por
 // documento -- índices financieros, obligaciones generales del
 // contratista, reglas de consorcios, encabezados de página repetidos.
+await check('pareceRequisitoDeExperienciaReal: un trozo sin ningún mínimo cuyo único indicio es "UNSPSC sin códigos legibles" es ruido (cláusula de garantía de pág. 21 de Ocaña)', () => {
+  const UNSPSC_ILEGIBLE = 'clasificación UNSPSC mencionada, pero no se pudieron leer los códigos';
+  const ruido = { criterio: 'Experiencia: porcentajes de participación de sus integrantes. La experiencia solicitada respecto al objeto y a los códigos del Clasificador', condicionNoVerificable: UNSPSC_ILEGIBLE };
+  assert(!expEngine.pareceRequisitoDeExperienciaReal(ruido), 'con solo el aviso de UNSPSC ilegible y sin mínimos no es un requisito real');
+  assert(expEngine.pareceRequisitoDeExperienciaReal(Object.assign({}, ruido, { minContratos: 3 })), 'con un mínimo de contratos sí es requisito');
+  assert(expEngine.pareceRequisitoDeExperienciaReal({ criterio: 'Experiencia en puentes', condicionNoVerificable: 'longitud mínima de 40 m' }), 'otra condición no verificable sigue siendo requisito');
+});
 await check('pareceRequisitoDeExperienciaReal: rechaza un trozo con marcador propio pero SIN relación real con experiencia (ruido típico de un pliego real)', () => {
   const ruido = expEngine.construirRequisitoDesdeTexto('16. Disponer del personal idóneo, así como de los recursos logísticos, materiales, y/o equipos necesarios.', 0, {});
   assert(!expEngine.pareceRequisitoDeExperienciaReal(ruido), 'un trozo que no menciona "experiencia" y no trae ningún número no debería aceptarse como requisito real');

@@ -7143,8 +7143,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (!/experien/.test(normHeader(req.criterio))) return false;
     // cláusula procedimental (subsanar / pedir información), no una exigencia de experiencia
     if (/subsanab|subsanar|podr[áa]\s+solicitar\s+(?:dicha|la)\s+informaci[óo]n/i.test(String(req.criterio || ''))) return false;
-    return req.minContratos != null || req.minValor != null || req.minCantidad != null ||
-      !!req.condicionNoVerificable || !!req.condicionTemporal;
+    const hayMinimo = req.minContratos != null || req.minValor != null || req.minCantidad != null;
+    // Solo "UNSPSC sin códigos legibles" y ningún mínimo: es un trozo largo que apenas roza el tema
+    // (p. ej. la garantía de seriedad de Ocaña, pág. 21), no una exigencia de experiencia.
+    const soloUnspscIlegible = /^clasificaci[óo]n UNSPSC mencionada, pero no se pudieron leer los c[óo]digos$/.test(String(req.condicionNoVerificable || '')) && !req.condicionTemporal;
+    if (!hayMinimo && soloUnspscIlegible) return false;
+    return hayMinimo || !!req.condicionNoVerificable || !!req.condicionTemporal;
   }
 
   // El perfil de un CARGO del equipo (director de obra, residente...) con sus años de experiencia y
