@@ -6916,6 +6916,19 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       !!req.condicionNoVerificable || !!req.condicionTemporal;
   }
 
+  // El perfil de un CARGO del equipo (director de obra, residente...) con sus años de experiencia y
+  // su dedicación no es experiencia de CONTRATOS del proponente: evaluarlo contra el Excel de contratos
+  // da una lectura engañosa. Se descarta aquí; lo detecta la categoría "Personal / Equipo de trabajo".
+  const RE_CARGO_EQUIPO = /\b(?:director(?:a)?\s+(?:de\s+)?(?:obra|proyecto|interventor[ií]a)?|residente|coordinador(?:a)?|especialista|inspector|ge[óo]logo|topógrafo|profesional\s+(?:sst|ambiental|social))\b|\bdirector\b/i;
+  const RE_SENAL_PERFIL = /dedicaci[óo]n|puntaje|\b\d+\s+a[ñn]os\s+de\s+experiencia|a[ñn]os\s+de\s+experiencia\s+(?:general|profesional|espec)/i;
+  function esRequisitoDePersonal(texto){
+    texto = String(texto || '');
+    if (!RE_CARGO_EQUIPO.test(texto) || !RE_SENAL_PERFIL.test(texto)) return false;
+    // si habla de lo que acredita el proponente (la empresa), es de contratos
+    if (/\b(?:el\s+)?proponente\s+(?:deber[áa]|acreditar[áa]|acredite)|contratos?\s+(?:de|ejecutados|celebrados)\s+(?:construcci|obra)/i.test(texto) && !/dedicaci[óo]n|puntaje/i.test(texto)) return false;
+    return true;
+  }
+
   // Señal de que la zona menciona una tabla/matriz de experiencia (ej.
   // "Matriz 1 – Experiencia", común en el "Documento Tipo" de obra pública
   // de Colombia Compra Eficiente) -- confirmado con un pliego real: ahí es
@@ -6945,7 +6958,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const absFin = absInicio + chunk.texto.length;
         if (seSolapaMucho(absInicio, absFin)) return;
         const req = construirRequisitoDesdeTexto(chunk.texto, requisitos.length, {});
-        if (!req.criterio || !pareceRequisitoDeExperienciaReal(req)) return;
+        if (!req.criterio || esRequisitoDePersonal(chunk.texto) || !pareceRequisitoDeExperienciaReal(req)) return;
         aceptados.push([absInicio, absFin]);
         req.fuente = fuenteLabel;
         req.pagina = paginaDeOffset(paginaOffsets, absInicio);
@@ -7686,7 +7699,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           continue;
         }
       }
-      return { valor: elegido.valor, raw: w.raw, porcentaje: elegido.pct };
+      // el texto citado termina en la cifra elegida (no arrastra el encabezado que sigue en la tabla)
+      const finCifra = w.raw.indexOf(elegido.texto, w.etiqueta.length);
+      const raw = finCifra !== -1 ? w.raw.slice(0, finCifra + elegido.texto.length) : w.raw;
+      return { valor: elegido.valor, raw: raw, porcentaje: elegido.pct };
     }
     return primeroNoClaro;
   }
