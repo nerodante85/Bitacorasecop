@@ -750,6 +750,8 @@
   #bitacora-root .ficha dt { font-size: 12px; color: var(--text-muted); margin: 0 0 2px; }
   #bitacora-root .ficha dd { margin: 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
   #bitacora-root .ficha dd.ficha-valor { font-weight: 600; }
+  #bitacora-root .matriz-tabla tr.ficha-grupo th { text-align: left; background: var(--surface-2, rgba(127,127,127,.12)); font-size: 13px; padding: 6px 10px; }
+  #bitacora-root .ficha-aviso { margin-top: 4px; font-size: 12.5px; color: var(--text-muted); }
   #bitacora-root .row-link a {
     font-size: 12.5px;
     font-weight: 600;
@@ -7437,6 +7439,157 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     };
   }
 
+  // ── Ficha de requisitos habilitantes ────────────────────────────────────────────────────────────────
+  // Resume en una tabla lo que EXIGE el proceso, con las cifras ya convertidas a pesos y SMMLV. Es determinista (no usa IA)
+  // y solo informa lo que el documento dice: lo que no encuentra no lo inventa, simplemente no aparece como fila.
+  // Devuelve { filas: [{ grupo, requisito, exige, cifras, aviso }], avisos: [] }.
+  const FICHA_MESES_APALANCAMIENTO = [[12, 4], [24, 8], [36, 12], [48, 16], [60, 20], [72, 24], [84, 28], [96, 32], [108, 36], [120, 40]];
+  function fichaHabilitante(text, ctx){
+    // El texto del documento trae una línea por página: se normaliza cada página (letras matemáticas de las fórmulas -> normales,
+    // espacios) y se anota dónde empieza cada una, para citar la página exacta.
+    const crudo = String((text && text.texto != null) ? text.texto : text || '');
+    const paginasTxt = crudo.split('\n').map(x => x.normalize('NFKC').replace(/\s+/g, ' ').trim());
+    const t = paginasTxt.join(' ');
+    const inicios = []; { let acc = 0; paginasTxt.forEach(x => { inicios.push(acc); acc += x.length + 1; }); }
+    const filas = [], avisos = [];
+    const money = n => '$' + Math.round(n).toLocaleString('es-CO');
+    const fmt1 = n => (Math.round(n * 10) / 10).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    const pagina = idx => { if (idx == null || idx < 0 || inicios.length < 2) return null; let n = 1; for (let i = 0; i < inicios.length; i++){ if (inicios[i] <= idx) n = i + 1; else break; } return n; };
+    const add = (grupo, requisito, exige, cifras, extra) => filas.push(Object.assign({ grupo: grupo, requisito: requisito, exige: exige || '', cifras: cifras || '', aviso: '' }, extra || {}));
+    const num = x => parseFloat(String(x).replace(/\./g, '').replace(',', '.'));
+
+    // Datos del proceso
+    const mObj = t.match(/\bOBJETO:\s*(.{20,420}?)(?=\s+\d\.\d+\.?\s+ALCANCE|\s+ALCANCE\s+DEL\s+OBJETO)/i);
+    if (mObj) add('Datos del proceso', 'Objeto', mObj[1].trim(), '', { pagina: pagina(mObj.index) });
+    const mPres = t.match(/presupuesto\s+oficial[^$]{0,360}?\$\s*(\d{1,3}(?:\.\d{3}){2,})/i);
+    const presupuesto = (ctx && Number(ctx.presupuesto) > 0) ? Number(ctx.presupuesto) : (mPres ? parseInt(mPres[1].replace(/\./g, ''), 10) : null);
+    const anio = (ctx && ctx.anio) || new Date().getFullYear();
+    const smmlvAnio = SMMLV_POR_ANIO[anio] || null;
+    const poSmmlv = presupuesto && smmlvAnio ? presupuesto / smmlvAnio : null;
+    if (presupuesto) add('Datos del proceso', 'Presupuesto oficial', money(presupuesto), poSmmlv ? fmt1(poSmmlv) + ' SMMLV (SMMLV ' + anio + ': ' + money(smmlvAnio) + ')' : '', { pagina: pagina(mPres ? mPres.index : null) });
+    const mPlazo = t.match(/plazo\s+de\s+ejecuci[óo]n\s+del\s+contrato\s+ser[áa]\s+de[^()]{0,40}\((\d{1,3})\)\s*mes/i);
+    const plazo = mPlazo ? parseInt(mPlazo[1], 10) : null;
+    if (plazo) add('Datos del proceso', 'Plazo de ejecución', plazo + ' meses', '', { pagina: pagina(mPlazo.index) });
+    const sinAnticipo = /no\s+se\s+pactan\s+anticipos|no\s+entregar[áa]\s+anticipo/i.test(t);
+    const conAnticipo = !sinAnticipo && /anticipo\s+del\s+\d/i.test(t);
+    if (sinAnticipo) add('Datos del proceso', 'Anticipo', 'No hay anticipo ni pago anticipado', '');
+    const anticipo = 0;
+    // El capital de trabajo y la capacidad residual restan el anticipo: solo se calculan cuando el documento dice que NO lo hay.
+    if (!sinAnticipo) avisos.push(conAnticipo ? 'El documento menciona un anticipo: el capital de trabajo y la capacidad residual no se calculan aquí porque dependen de su valor; calcúlalos con la fórmula del documento.' : 'No se pudo confirmar si hay anticipo: el capital de trabajo y la capacidad residual no se calculan aquí.');
+
+    // Experiencia
+    const tr = tramosDeSumatoria(t);
+    if (tr){
+      const iT = t.search(/valor\s+m[íi]nimo\s+a\s+certificar/i);
+      tr.tramos.forEach(x => {
+        const smmlv = poSmmlv ? poSmmlv * x.pct / 100 : null;
+        add('Experiencia', 'Sumatoria de contratos: ' + (x.desde === x.hasta ? x.desde : x.desde + ' a ' + x.hasta) + ' contrato(s)',
+          x.pct + '% del presupuesto oficial en SMMLV',
+          smmlv ? fmt1(smmlv) + ' SMMLV · ' + money(smmlv * smmlvAnio) : '', { pagina: pagina(iT) });
+      });
+    }
+    const uno = unoPctPresupuestoDeTexto(t);
+    if (uno){
+      const smmlv = poSmmlv ? poSmmlv * uno.factor : null;
+      add('Experiencia', 'Específica: un contrato de valor', 'Al menos uno de los contratos con valor de ' + (Math.round(uno.factor * 1000) / 10) + '% del presupuesto oficial',
+        smmlv ? fmt1(smmlv) + ' SMMLV · ' + money(smmlv * smmlvAnio) : '', { pagina: pagina(uno.indice) });
+    }
+    const mLuz = t.match(/corresponda\s+a\s+la\s+(construcci[óo]n[^.]{20,260}?)\s+cuya\s+luz\s+principal[^.]{0,200}?(?:mayor\s+o\s+igual\s+al|igual\s+o\s+superior\s+al)\s+(\d{1,3})\s*%\s+de\s+la\s+longitud[^.]{0,120}\./i);
+    if (mLuz){
+      const mMetros = t.slice(mLuz.index).match(/luz\s+principal[^.]{0,120}?es\s+de\s+(\d+(?:[.,]\d+)?)\s*metros/i);
+      const pct = parseInt(mLuz[2], 10);
+      const metros = mMetros ? num(mMetros[1]) : null;
+      add('Experiencia', 'Específica: magnitud del puente', 'Un contrato de construcción de puente (tipología de la Matriz 1 del documento) con luz principal de al menos ' + pct + '% de la del puente a contratar',
+        metros ? 'Luz mínima: ' + fmt1(metros * pct / 100) + ' m (' + pct + '% de ' + fmt1(metros) + ' m)' : '', { pagina: pagina(mLuz.index) });
+    }
+    const reCl = /CLASIFICACI[ÓO]N\s+DE\s+LA\s+EXPERIENCIA/ig;
+    let mCl;
+    while ((mCl = reCl.exec(t))){
+      const cl = Array.from(new Set((t.slice(mCl.index, mCl.index + 900).match(/\b72\s+\d{2}\s+\d{2}\b/g) || []).map(x => x.replace(/\s+/g, ''))));
+      if (cl.length){ add('Experiencia', 'Clases UNSPSC exigidas a los contratos', cl.join(', '), '', { pagina: pagina(mCl.index) }); break; }
+    }
+    const iUn = t.search(/CLASIFICACI[ÓO]N\s+UNSPSC/i);
+    if (iUn >= 0){
+      const codigos = Array.from(new Set((t.slice(iUn, iUn + 1100).match(/\b\d{8}\b/g) || [])));
+      if (codigos.length) add('Experiencia', 'Clasificación UNSPSC del proceso', codigos.join(', '), '', { pagina: pagina(iUn) });
+    }
+
+    // Financieros calculados
+    const mCt = /capital\s+de\s+trabajo\s+demandado/i.test(t);
+    if (mCt && sinAnticipo && presupuesto && plazo){
+      const base = presupuesto - anticipo;
+      let ctd, how;
+      if (plazo < 12){ ctd = base * 0.33; how = '33% del presupuesto oficial (plazo menor de 12 meses)'; }
+      else {
+        let n = null;
+        FICHA_MESES_APALANCAMIENTO.forEach(r => { if (plazo >= r[0]) n = r[1]; });
+        if (n != null){ ctd = base / plazo * n; how = 'Presupuesto ÷ plazo × ' + n + ' meses de apalancamiento'; }
+      }
+      if (ctd != null){ ctd = Math.min(ctd, presupuesto); add('Capacidad financiera', 'Capital de trabajo demandado', how, money(ctd) + (smmlvAnio ? ' · ' + fmt1(ctd / smmlvAnio) + ' SMMLV' : '')); }
+    }
+    const mPd = t.match(/Pd\s*=\s*POE\s*x\s*(\d{1,3})\s*%/i);
+    if (mPd && presupuesto){
+      const pct = parseInt(mPd[1], 10);
+      const mMi = t.match(/Mipyme[^.]{0,200}?Pd\s*=\s*POE\s*x\s*(\d{1,3})\s*%/i);
+      const pdMi = mMi ? parseInt(mMi[1], 10) : null;
+      add('Capacidad financiera', 'Patrimonio demandado', pct + '% del presupuesto oficial' + (pdMi ? ' (Mipyme: ' + pdMi + '%)' : ''),
+        money(presupuesto * pct / 100) + (pdMi ? ' · Mipyme: ' + money(presupuesto * pdMi / 100) : ''), { pagina: pagina(mPd.index) });
+      if (poSmmlv != null && poSmmlv < 40000 && /presupuesto\s+oficial\s+sea\s+mayor\s+o\s+igual\s+a\s+40\.?000\s*smmlv/i.test(t)){
+        filas[filas.length - 1].aviso = 'La fórmula del documento está redactada para proyectos de 40.000 SMMLV o más, y este proceso es de ' + fmt1(poSmmlv) + ' SMMLV: puede ser texto de plantilla. Confírmalo en observaciones.';
+      }
+    }
+    const mCr = /CRPC\s*=\s*POE\s*[-−–]\s*Anticipo/i.test(t);
+    if (mCr && sinAnticipo && presupuesto && plazo){
+      const crpc = plazo <= 12 ? presupuesto - anticipo : (presupuesto - anticipo) / plazo * 12;
+      add('Capacidad financiera', 'Capacidad residual del proceso (K)', plazo <= 12 ? 'Presupuesto oficial completo (plazo de 12 meses o menos)' : 'Presupuesto ÷ plazo × 12', money(crpc) + (smmlvAnio ? ' · ' + fmt1(crpc / smmlvAnio) + ' SMMLV' : ''));
+    }
+    // Indicadores por rango (Matriz 2): Mipyme y demás proponentes.
+    if (poSmmlv != null || (ctx && ctx.rango)){
+      const rango = (ctx && ctx.rango) || (poSmmlv < 40000 ? 1 : 2);
+      const iMi = t.search(/[ÍI]ndices\s+de\s+capacidad\s+financiera\s+y\s+organizacional\s+para\s+Mipyme/i);
+      const iDem = t.search(/para\s+los\s+dem[áa]s\s+Proponentes/i);
+      const seccion = (i0, i1) => (i0 >= 0 ? t.slice(i0, i1 > i0 ? i1 : i0 + 1600) : '');
+      const secMi = iMi >= 0 && iDem > iMi ? seccion(iMi, iDem) : '';
+      const secDem = iDem >= 0 ? seccion(iDem, t.indexOf('Los indicadores definidos', iDem) > iDem ? t.indexOf('Los indicadores definidos', iDem) : iDem + 1600) : '';
+      const INDS = [['Índice de liquidez', /[ÍI]ndice\s+de\s+liquidez/i], ['Índice de endeudamiento', /[ÍI]ndice\s+de\s+endeudamiento/i],
+        ['Razón de cobertura de intereses', /Raz[óo]n\s+de\s+cobertura\s+de\s+intereses|cobertura\s+de\s+intereses/i],
+        ['Rentabilidad del patrimonio', /Rentabilidad\s+del\s+patrimonio/i], ['Rentabilidad del activo', /Rentabilidad\s+del\s+activo/i]];
+      const leer = (sec, re) => { const m = sec.match(new RegExp('(?:' + re.source + ')\\s*([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)\\s*([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)', 'i')); return m ? (rango === 1 ? { op: m[1], v: m[2] } : { op: m[3], v: m[4] }) : null; };
+      INDS.forEach(ind => {
+        const d = leer(secDem, ind[1]), mi = leer(secMi, ind[1]);
+        if (!d && !mi) return;
+        add('Capacidad financiera', ind[0] + ' (rango ' + rango + ')', d ? d.op + ' ' + d.v : '—', mi ? 'Mipyme: ' + mi.op + ' ' + mi.v : '', { pagina: pagina(iDem) });
+      });
+    }
+
+    // Personal y maquinaria
+    const CARGOS = ['DIRECTOR DE OBRA', 'DIRECTOR DE PROYECTO', 'RESIDENTE DE OBRA', 'RESIDENTE', 'ESPECIALISTA ESTRUCTURAL', 'ESPECIALISTA GEOT[ÉE]CNICO', 'ESPECIALISTA HIDR[ÁA]ULICO', 'INSPECTOR DE OBRA', 'RESPONSABLE SG-SST', 'PROFESIONAL SST', 'PROFESIONAL AMBIENTAL', 'PROFESIONAL SOCIAL', 'TOP[ÓO]GRAFO'];
+    const iPers = t.search(/Requisitos\s+del\s+personal/i);
+    if (iPers >= 0){
+      const ventana = t.slice(iPers, iPers + 2600).split(/Maquinaria\s+m[íi]nima|equipo\s+m[íi]nimo/i)[0];
+      const vistos = {};
+      CARGOS.forEach(c => {
+        const m = ventana.match(new RegExp('\\b' + c + '\\b', 'i'));
+        if (!m) return;
+        const clave = m[0].toUpperCase();
+        if (Object.keys(vistos).some(k => k.indexOf(clave) !== -1 || clave.indexOf(k) !== -1)) return;
+        vistos[clave] = true;
+        add('Personal', (m[0].charAt(0).toUpperCase() + m[0].slice(1).toLowerCase()).replace(/sg-sst/i, 'SG-SST'), 'Cargo exigido; años y contratos de experiencia: ver la tabla de personal del documento', '', { pagina: pagina(iPers) });
+      });
+      if (filas.some(f => f.grupo === 'Personal')) avisos.push('El personal se lista solo por cargo y la lista puede estar incompleta: los años y contratos exigidos a cada cargo no se leen automáticamente (la tabla del documento está en columnas y la lectura no es fiable). Consúltalos en el documento.');
+    }
+    const iMaq = t.search(/Maquinaria\s+m[íi]nima\s+del\s+proyecto|equipo\s+m[íi]nimo\s+requerido/i);
+    if (iMaq >= 0){
+      const bloque = t.slice(iMaq, iMaq + 1500).split(/[●•]/).slice(1).map(x => x.trim()).filter(x => x.length > 3);
+      const items = bloque.map(x => x.split(/\.\s/)[0].replace(/\.$/, '').slice(0, 110));
+      if (items.length) add('Maquinaria', 'Equipo mínimo', items.join('; '), items.length + ' equipos', { pagina: pagina(iMaq) });
+      if (/maquinaria\s+m[íi]nima\s+requerida\s+ser[áa]\s+verificada\s+una\s+vez\s+se\s+adjudique[^.]{0,200}no\s+podr[áa]\s+ser\s+pedida[^.]{0,200}habilitante/i.test(t)){
+        const f = filas[filas.length - 1]; if (f && f.grupo === 'Maquinaria') f.aviso = 'Según el documento se verifica después de adjudicar el contrato: no es un requisito habilitante ni da puntaje.';
+      }
+    }
+    return { filas: filas, avisos: avisos };
+  }
+
   function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
     const limpio = limpiarRepetidosDePagina(text, paginaOffsets);
     const huboLimpieza = limpio !== String(text || '');
@@ -10264,6 +10417,37 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     };
   }
 
+  // Ficha de requisitos habilitantes: lo que exige el proceso, con las cifras ya convertidas a pesos y SMMLV.
+  // Se calcula al abrir el análisis desde el texto guardado (pliego y/o estudio previo); si el pliego y el estudio previo
+  // traen la misma fila, manda el pliego. No depende de la IA ni de los datos de la empresa.
+  function fichaHabilitanteDe(entry){
+    const fuentes = [['Pliego de Condiciones', textoPliegoDe(entry)], ['Estudio Previo', entry && entry.estudioPrevioText]];
+    const filas = [], avisos = [], vistos = {};
+    fuentes.forEach(function(f){
+      if (!f[1]) return;
+      let r; try { r = fichaHabilitante(f[1], { anio: new Date().getFullYear() }); } catch (e) { return; }
+      r.filas.forEach(function(x){ if (vistos[x.requisito]) return; vistos[x.requisito] = true; x.documento = f[0]; filas.push(x); });
+      r.avisos.forEach(function(a){ if (avisos.indexOf(a) === -1) avisos.push(a); });
+    });
+    return { filas: filas, avisos: avisos };
+  }
+  function fichaHabilitanteHtml(entry){
+    const f = fichaHabilitanteDe(entry);
+    if (!f.filas.length) return '';
+    let grupoActual = '';
+    const cuerpo = f.filas.map(function(x){
+      const cab = x.grupo !== grupoActual ? '<tr class="ficha-grupo"><th scope="rowgroup" colspan="4">' + escapeHtml(x.grupo) + '</th></tr>' : '';
+      grupoActual = x.grupo;
+      return cab + '<tr><td>' + escapeHtml(x.requisito) + '</td><td>' + escapeHtml(x.exige) +
+        (x.aviso ? '<div class="ficha-aviso"><b>Ojo:</b> ' + escapeHtml(x.aviso) + '</div>' : '') + '</td><td>' + escapeHtml(x.cifras) + '</td><td>' +
+        escapeHtml((x.documento || '') + (x.pagina ? ', p. ' + x.pagina : '')) + '</td></tr>';
+    }).join('');
+    return '<div class="analisis-seccion"><h3>Requisitos habilitantes del proceso</h3>' +
+      '<div class="expeval-table-wrap"><table class="matriz-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th></tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
+      (f.avisos.length ? '<ul class="alertas-analisis">' + f.avisos.map(function(a){ return '<li class="alerta-item revisar"><span class="alerta-nivel">▲ REVISAR</span><span>' + escapeHtml(a) + '</span></li>'; }).join('') + '</ul>' : '') +
+      '<div class="resultado-meta">Cifras calculadas por el sistema a partir del documento (SMMLV ' + new Date().getFullYear() + '); confírmalas en el pliego definitivo.</div></div>';
+  }
+
   // Cabecera del análisis: resultado global + explicación, resumen de viabilidad, alertas y matriz.
   function resultadoAnalisisHtml(entry, evalParaCompat){
     const lp = lecturaParcial(entry);
@@ -10302,7 +10486,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           '<td><button type="button" class="link-btn" data-ev-id="' + idE + '" data-ev-fila="' + escapeHtml(f.clave) + '">Ver evidencia</button></td></tr>').join('') +
         '</tbody></table></div><div class="matriz-vacia" data-matriz-vacia hidden>Ningún requisito con ese resultado.</div>'
       : '<div class="matriz-vacia">Todavía no hay requisitos para mostrar: ' + (entry.requisitosIA ? 'la lectura no encontró requisitos habilitantes (confírmalo en el documento).' : 'extrae los requisitos del documento.') + '</div>';
-    return '<div class="analysis-resumen">' + hero + siguientePaso +
+    return '<div class="analysis-resumen">' + hero + siguientePaso + fichaHabilitanteHtml(entry) +
       '<div class="analisis-seccion"><h3>Resumen de viabilidad</h3>' + tabViab + '</div>' +
       '<div class="analisis-seccion"><h3>Capacidad Residual</h3>' + capacidadResidualAnalisisHtml(entry, evalParaCompat, filas) + '</div>' +
       '<div class="analisis-seccion"><h3>Alertas</h3>' + alertasHtml + '</div>' +
