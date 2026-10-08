@@ -6657,6 +6657,56 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return hallazgos;
   }
 
+  // Incoherencias DENTRO del propio pliego (el pliego contra sí mismo / contra el valor del proceso).
+  // Solo reglas objetivas y conservadoras; el detector nunca afirma que el pliego esté mal, pide confirmar
+  // con la entidad. No se calculan al leer: dependen del valor del proceso, que no vive en `entry`.
+  const CITA_COHERENCIA = 'Coherencia interna del pliego (criterio de la app)';
+  function detectarInconsistenciasInternas(text, paginaOffsets, exigencias, valorProceso){
+    const t = String(text || '');
+    const out = [];
+    const valor = Number(valorProceso);
+    // 1) K residual "igual o superior al presupuesto oficial" con una cifra que NO es el presupuesto del proceso.
+    const re = /capacidad\s+residual[^$]{0,200}?(?:igual\s+o\s+superior|mayor\s+o\s+igual|no\s+inferior)[^$]{0,40}presupuesto\s+oficial[^$]{0,60}\$\s*([\d.,]+)/i;
+    const m = re.exec(t);
+    if (m && valor > 0){
+      const a = parseNumCO(m[1].replace(/[.,]+$/, ''));
+      if (a != null && a > 0 && Math.abs(a - valor) / valor > 0.01){
+        out.push({
+          id: 'k-residual-vs-presupuesto', severidad: 'media',
+          pagina: paginaDeOffset(paginaOffsets, m.index),
+          snippet: m[0].trim().replace(/\s+/g, ' ').slice(0, 200),
+          mensaje: 'El pliego exige una capacidad residual "igual o superior al presupuesto oficial", pero la cifra que indica ($' +
+            Math.round(a).toLocaleString('es-CO') + ') no coincide con el presupuesto del proceso ($' + Math.round(valor).toLocaleString('es-CO') +
+            '). Confirma con la entidad cuál rige antes de calcular tu capacidad.',
+          articulo: CITA_COHERENCIA
+        });
+      }
+    }
+    // 2) Indicadores financieros muy por encima de lo habitual (posible errata). Solo informativo.
+    const ex = exigencias || {};
+    [['liquidez', 'Índice de liquidez', 5, 'una liquidez habitual en obra está entre 1 y 3'],
+     ['cobertura', 'Razón de cobertura de intereses', 10, 'lo habitual es menor']].forEach(c => {
+      const e = ex[c[0]];
+      if (e && e.valor != null && e.valor >= c[2]){
+        const pos = e.raw ? t.indexOf(String(e.raw).slice(0, 30)) : -1;
+        out.push({
+          id: 'indicador-atipico-' + c[0], severidad: 'baja',
+          pagina: pos >= 0 ? paginaDeOffset(paginaOffsets, pos) : null,
+          snippet: String(e.raw || ''),
+          mensaje: c[1] + ' exigido de ' + String(e.valor).replace('.', ',') + ': ' + c[3] + '. No es una infracción, pero revisa si es una errata del pliego (o si deja fuera a casi todos los proponentes).',
+          articulo: CITA_COHERENCIA
+        });
+      }
+    });
+    return out;
+  }
+
+  // Alertas que se muestran: las guardadas (garantías) + las de coherencia, calculadas al dibujar.
+  function alertasDelPliego(entry, item){
+    if (!Array.isArray(entry.redFlags)) return null;
+    return entry.redFlags.concat(detectarInconsistenciasInternas(textoPliegoDe(entry), entry.paginaOffsets, entry.exigencias, item && item.valor));
+  }
+
   // 100 menos una penalización fija por severidad de cada red flag, nunca
   // bajo 0 -- aritmética simple y auditable (mismo criterio que classify()/
   // scoreRecord en "Buscar procesos"), un número orientativo, no una
@@ -9763,12 +9813,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // viabilidad orientativa. `entry.redFlags`/`entry.viabilidad` no existen en
     // análisis guardados ANTES de esta funcionalidad -- se omite el bloque
     // entero en vez de mostrar "undefined/100".
-    const tieneRedFlags = Array.isArray(entry.redFlags);
+    const alertasPliego = alertasDelPliego(entry, item);
+    const tieneRedFlags = Array.isArray(alertasPliego);
     // Con el pliego leído en parte, "100/100" y "sin alertas" solo hablan de lo leído: se dice explícito.
     const parcialRF = lecturaParcial(entry);
     const redFlagsHtml = !tieneRedFlags ? '' :
-      (entry.redFlags.length
-        ? '<ul class="analysis-list">' + entry.redFlags.map(f =>
+      (alertasPliego.length
+        ? '<ul class="analysis-list">' + alertasPliego.map(f =>
             '<li><span class="tag redflag-' + escapeHtml(f.severidad) + '">' + escapeHtml(f.severidad.toUpperCase()) + '</span> ' +
             escapeHtml(f.mensaje) +
             (f.pagina ? ' <span class="text-muted-c">— pliego, p. ' + f.pagina + '</span>' : '') +
@@ -9798,12 +9849,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const ev = entry.experienciaResultado;
     const evOk = !!(ev && ev.resultados && ev.resultados.length);
     const nombres = arr => arr.map(g => g.nombre);
-    const nAltas = tieneRedFlags ? entry.redFlags.filter(f => f.severidad === 'alta' || f.severidad === 'media').length : 0;
+    const nAltas = tieneRedFlags ? alertasPliego.filter(f => f.severidad === 'alta' || f.severidad === 'media').length : 0;
     // Arriba: resultado, resumen de viabilidad, alertas y matriz (ver resultadoAnalisisHtml). Abajo: el detalle técnico plegado.
     const resumenArriba = resultadoAnalisisHtml(entry, evalParaCompat);
 
     const secciones =
-      (tieneRedFlags ? seccionPlegable('Alertas del pliego', entry.redFlags.length ? entry.redFlags.length + ' alerta(s)' : 'ninguna', (viabilidadHtml ? '<div class="mb-8">' + viabilidadHtml + '</div>' : '') + redFlagsHtml, false) : '') +
+      (tieneRedFlags ? seccionPlegable('Alertas del pliego', alertasPliego.length ? alertasPliego.length + ' alerta(s)' : 'ninguna', (viabilidadHtml ? '<div class="mb-8">' + viabilidadHtml + '</div>' : '') + redFlagsHtml, false) : '') +
       seccionPlegable('Experiencia requerida', evOk ? ev.conteo['CUMPLE'] + ' cumple · ' + ev.conteo['NO CUMPLE'] + ' no cumple · ' + ev.conteo['NO DETERMINABLE'] + ' por verificar' : 'sin evaluar',
         bloqueExperienciaHtml(entry), !evOk || !!ev.conteo['NO CUMPLE'] || !expevalContratos, true) +
       seccionPlegable('Requisitos habilitantes (IA)', entry.requisitosIA ? filasIA.length + ' requisito(s)' + (nSinConfirmar ? ' · ' + nSinConfirmar + ' por confirmar' : '') : 'sin extraer',
@@ -11044,13 +11095,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('  Fecha análisis: ' + (fmtDate(new Date(entry.ts).toISOString()) || '—'));
     nl();
 
-    if (Array.isArray(entry.redFlags)){
+    const alertasTxt = alertasDelPliego(entry, it);
+    if (Array.isArray(alertasTxt)){
       L.push('ALERTAS DEL PLIEGO' + (entry.viabilidad != null ? ' (viabilidad orientativa: ' + entry.viabilidad + '/100)' : ''));
-      if (!entry.redFlags.length){
+      if (!alertasTxt.length){
         const parcialTxt = lecturaParcial(entry);
         L.push('  No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialTxt ? ' (solo ' + parcialTxt.pagesRead + ' de ' + parcialTxt.numPages + ' páginas): las demás no se revisaron' : '') + '.');
       } else {
-        entry.redFlags.forEach(f => {
+        alertasTxt.forEach(f => {
           L.push('  [' + f.severidad.toUpperCase() + '] ' + f.mensaje);
           L.push('    ' + f.articulo + (f.pagina ? ' · pliego, p. ' + f.pagina : ''));
         });
