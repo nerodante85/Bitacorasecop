@@ -3207,7 +3207,8 @@ await check('la regla del pliego sobre consorcios/UT y moneda extranjera no cuen
   const e = r.find(x => x.tipo === 'especifica');
   assert(!e.palabrasDistintivas.includes('consorcio'), 'no debe contar para la coincidencia');
   const res = expEngine.evaluarRequisito(e, [], new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
-  assert(/consorcio/i.test(res.evidencia.join(' ')) && /moneda extranjera/i.test(res.evidencia.join(' ')), 'la nota debe aparecer en la evidencia: ' + JSON.stringify(res.evidencia));
+  assert(/consorcio/i.test(res.nota) && /moneda extranjera/i.test(res.nota), 'la nota debe ir en su propio campo: ' + JSON.stringify(res.nota));
+  assert(!/consorcio|moneda extranjera/i.test(res.evidencia.join(' ')), 'la nota no debe ensuciar la exigencia: ' + JSON.stringify(res.evidencia));
   const larga = expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA.replace('convertido a pesos colombianos', 'convertido a pesos colombianos ' + 'texto de relleno de la regla. '.repeat(40)), [], 'Pliego').requisitos.find(x => x.tipo === 'especifica');
   assert(larga.reglaParticipacion.length <= 601 && /[.…]$/.test(larga.reglaParticipacion), 'una nota larga se corta en una oración, no a mitad de palabra: ' + larga.reglaParticipacion.slice(-40));
 });

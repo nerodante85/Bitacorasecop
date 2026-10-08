@@ -6237,7 +6237,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       faltantes.push(sinFechaTemporal + ' contrato(s) relevante(s) no tienen una fecha de terminación confiable (vacía, futura, invertida o inexistente); con esa fecha el resultado podría cambiar.');
     }
 
-    if (req.reglaParticipacion) evidencia.push('Regla del pliego sobre consorcios/UT y moneda extranjera (el sistema no la verifica automáticamente): «' + String(req.reglaParticipacion).replace(/\s+/g, ' ').trim() + '»');
+    const notaPliego = req.reglaParticipacion ? 'Regla del pliego sobre consorcios/UT y moneda extranjera (el sistema no la verifica automáticamente): «' + String(req.reglaParticipacion).replace(/\s+/g, ' ').trim() + '»' : '';
     let resultado, justificacion;
     const sinCriteriosNumericos = (req.minContratos == null && req.minValor == null && req.minCantidad == null);
 
@@ -6371,7 +6371,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return {
       requisito: reqOriginal,
       contratosEvaluados: relevantes.map(c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin })),
-      evidencia: evidencia, faltantes: faltantes, resultado: resultado, justificacion: justificacion
+      evidencia: evidencia, nota: notaPliego, faltantes: faltantes, resultado: resultado, justificacion: justificacion
     };
   }
 
@@ -9999,7 +9999,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       ev.resultados.forEach((r, i) => {
         const contratos = (r.contratosEvaluados || []).map(c => 'Fila ' + c.fila + (c.objeto ? ': ' + truncate(c.objeto, 70) : '') + (c.valor != null ? ' · valor ' + c.valor : '')).join('; ');
         filas.push({
-          clave: 'exp-' + i, requisito: 'Experiencia: ' + truncate(r.requisito.criterio || '', 160), exigencia: (r.evidencia || []).join(' ') || '—',
+          clave: 'exp-' + i, requisito: 'Experiencia: ' + truncate(r.requisito.criterio || '', 160), exigencia: (r.evidencia || []).join(' ') || '—', nota: r.nota || '',
           empresa: (contratos ? 'Contratos de tu empresa: ' + contratos + '. ' : 'Sin contratos de tu empresa que lo acrediten. ') + (r.justificacion || ''),
           resultado: ESTADOS_REQ.indexOf(r.resultado) !== -1 ? r.resultado : 'NO DETERMINABLE',
           evidencia: { documento: r.requisito.fuente || dePliego, pagina: r.requisito.pagina || null, cita: r.requisito.criterio || '', verificada: true, confirmada: false, bloqueo: null, modificadaPorAdenda: false, origen: 'texto' }
@@ -10156,6 +10156,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div><dt>Página</dt><dd>' + escapeHtml(paginaTxt) + '</dd></div>' +
       '<div><dt>Cita textual</dt><dd>' + (ev.cita ? '<blockquote class="evidencia-cita">«' + escapeHtml(ev.cita) + '»</blockquote>' : 'No hay cita textual.') + '<div class="saved-note mt-8">' + escapeHtml(verif) + '</div></dd></div>' +
       '<div><dt>Información de la empresa</dt><dd>' + escapeHtml(fila.empresa || '—') + '</dd></div>' +
+      (fila.nota ? '<div><dt>Nota del pliego</dt><dd>' + escapeHtml(fila.nota) + '</dd></div>' : '') +
       '<div><dt>Resultado</dt><dd>' + badgeEstado4(fila.resultado) + '</dd></div>' +
       '</dl>' +
       '<div class="actions mt-12"><button type="button" class="btn-secondary" data-ev-pagina data-ev-doc="' + escapeHtml(ev.documento || '') + '" data-ev-pag="' + escapeHtml(String(ev.pagina || '')) + '"' + (puedePagina ? '' : ' disabled') + '>Ver página del documento</button></div>' +
