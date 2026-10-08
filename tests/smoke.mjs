@@ -1637,6 +1637,24 @@ await check('Excel real: una celda de fecha (número de serie con formato m/d/yy
   } finally { eng_set_xlsx(null); }
   function eng_set_xlsx(x) { expEngine.__window.XLSX = x || { utils: { sheet_to_json: (sheet) => sheet } }; }
 });
+await check('Excel real: una hoja con filas-título de 2 celdas arriba (nombre + cifra) ya no se descarta: el encabezado es la fila que trae los nombres de columna', () => {
+  const H = ['No. RUP', 'OBJETO DEL CONTRATO', 'ENTIDAD CONTRATANTE', 'FECHA DE INICIO', 'FECHA DE TERMINACION', 'NUMERO DE CONTRATO', 'VALOR DEL CONTRATO'];
+  const hoja = [
+    ['', 'DORA NAHIR GARAY GUTIERREZ', '', '', '', '', '1750905'],
+    ['', '', '', '', '', '', ''],
+    ['', 'EXPERIENCIA PROFESIONAL EN ESCUELA', '', '', '', '', ''],
+    H,
+    ['40', 'CONSTRUCCION BATERIA SANITARIA Y AULA', 'MUNICIPIO DE VILLA DEL ROSARIO', '2015-01-05', '2015-03-03', '214/2014', '163147838']
+  ];
+  const wb = { SheetNames: ['ESCUELA'], Sheets: { ESCUELA: hoja } };
+  const r = expEngine.parsearExcelExperiencia(wb);
+  assert(r.contratos.length === 1 && /BATERIA SANITARIA/.test(r.contratos[0].objeto), 'el contrato debe leerse: ' + JSON.stringify(r.contratos));
+  assert(r.contratos[0].valor === 163147838, 'valor leído: ' + r.contratos[0].valor);
+  const normal = expEngine.parsearExcelExperiencia(fakeWorkbook(H, [['1', 'PUENTE X', 'ALCALDIA', '2010-01-01', '2010-06-01', '1-2010', '500000000']]));
+  assert(normal.contratos.length === 1, 'sin filas-título sigue igual');
+  const sinTabla = expEngine.parsearExcelExperiencia({ SheetNames: ['R'], Sheets: { R: [['NOMBRE', 'X'], ['JUAN', '1750905']] } });
+  assert(sinTabla.contratos.length === 0, 'una hoja que no es tabla de contratos no inventa contratos');
+});
 await check('"En Ejecución" en la columna de terminación: el contrato no acredita experiencia (antes quedaba "sin fecha" y contaba)', () => {
   const H = ['Objeto', 'Contratante', 'Valor', 'Fecha de terminación'];
   for (const txt of ['En Ejecución', 'EN EJECUCION', 'en ejecución']) {
@@ -3219,6 +3237,16 @@ await check('la regla del pliego sobre consorcios/UT y moneda extranjera no cuen
   assert(!/consorcio|moneda extranjera/i.test(res.evidencia.join(' ')), 'la nota no debe ensuciar la exigencia: ' + JSON.stringify(res.evidencia));
   const larga = expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA.replace('convertido a pesos colombianos', 'convertido a pesos colombianos ' + 'texto de relleno de la regla. '.repeat(40)), [], 'Pliego').requisitos.find(x => x.tipo === 'especifica');
   assert(larga.reglaParticipacion.length <= 601 && /[.…]$/.test(larga.reglaParticipacion), 'una nota larga se corta en una oración, no a mitad de palabra: ' + larga.reglaParticipacion.slice(-40));
+});
+await check('específica de Ocaña: "establecido" y "selección" (de "100% del establecido para el presente proceso de selección") no son palabras distintivas; un contrato con todo el alcance NO da CUMPLE (las cantidades por actividad no se verifican)', () => {
+  const trozo = CLAUSULA_OCANA_COMPLETA.slice(0, CLAUSULA_OCANA_COMPLETA.search(/Cuando\s+se\s+presenten/i));
+  const e = expEngine.extraerRequisitosDePliego(trozo, [], 'Pliego de Condiciones').requisitos.find(x => x.tipo === 'especifica');
+  assert(e, 'debe extraerse la específica');
+  assert(!e.palabrasDistintivas.includes('establecido') && !e.palabrasDistintivas.includes('seleccion'), 'relleno fuera: ' + JSON.stringify(e.palabrasDistintivas));
+  assert(e.palabrasDistintivas.includes('baterias') && e.palabrasDistintivas.includes('excavacion'), 'el alcance sigue: ' + JSON.stringify(e.palabrasDistintivas));
+  const c = [{ fila: 1, objeto: 'CONSTRUCCION DE BATERIAS UNIDADES SANITARIAS EN CONCRETO CON EXCAVACION, VIGAS DE CIMENTACION', contratante: 'X', valor: 400000000, fechaInicio: '2019-06-01', fechaFin: '2020-01-01', participacion: null, tipo: 'no-clasificado' }];
+  const r = expEngine.evaluarRequisito(e, c, new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
+  assert(r.resultado !== 'CUMPLE', 'sin poder verificar las cantidades por actividad no puede ser CUMPLE: ' + r.resultado + ' -- ' + r.justificacion);
 });
 // ── Cruce RUP ↔ Excel de experiencia (códigos UNSPSC por contrato) ──
 const RUP_ENCABEZADO = ' Página 17 de 95 CÁMARA DE COMERCIO DE CUCUTA CERTIFICADO DE INSCRIPCIÓN Y CLASIFICACIÓN EN EL REGISTRO DE PROPONENTES Fecha expedición: 06/05/2026 - 08:32:40 Recibo No. S002130953, Valor 75000 CÓDIGO DE VERIFICACIÓN rdNuhBwDRf Verifique el contenido y confiabilidad de este certificado, ingresando a https://sii.confecamaras.co/vista/plantilla/cv.php?empresa=11 y digite el respectivo código, para que visualice la imagen generada al momento de su expedición. La verificación se puede realizar de manera ilimitada, durante 60 días calendario contados a partir de la fecha de su expedición. ';

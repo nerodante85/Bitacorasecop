@@ -5017,11 +5017,29 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
   }
 
+  // Fila de encabezados de una hoja. Antes era "la primera con >=2 celdas", y un
+  // título de 2 celdas arriba (nombre de la persona + una cifra, p. ej. el SMMLV)
+  // se tomaba por encabezado: la hoja entera quedaba "vacía" sin avisar (en un
+  // Excel real, 13 de 19 hojas con contratos se perdían). Ahora se busca, en las
+  // primeras 40 filas, la primera que traiga nombres de columna reconocibles
+  // (objeto + al menos 2 campos más); si no hay ninguna, se mantiene el criterio de siempre.
+  function indiceFilaEncabezado(filas){
+    const limite = Math.min((filas || []).length, 40);
+    for (let i = 0; i < limite; i++){
+      const celdas = (filas[i] || []).map(c => String(c == null ? '' : c).trim());
+      if (celdas.filter(c => c !== '').length < 2) continue;
+      const cols = detectarColumnas(celdas, DICC_CONTRATO);
+      const n = Object.keys(cols).filter(k => cols[k] != null).length;
+      if (cols.objeto != null && n >= 3) return i;
+    }
+    return (filas || []).findIndex(f => f.filter(c => String(c).trim() !== '').length >= 2);
+  }
+
   function leerHojaPorNombre(workbook, nombreHoja){
     const hoja = workbook.Sheets[nombreHoja];
     fechasDeHojaAISO(window.XLSX, hoja);
     const filas = window.XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
-    const idxHeader = filas.findIndex(f => f.filter(c => String(c).trim() !== '').length >= 2);
+    const idxHeader = indiceFilaEncabezado(filas);
     if (idxHeader === -1) return { headers: [], rows: [], hojaNombre: nombreHoja };
     const headers = filas[idxHeader].map(h => String(h || '').trim());
     const rows = filas.slice(idxHeader + 1).filter(f => f.some(c => String(c).trim() !== ''));
@@ -5355,7 +5373,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // cifra en NO DETERMINABLE.
     'acumulado','acumulada','acumulados','acumuladas',
     'millones','millon','pesos','cuantia','monto','menos','acredite','acrediten','presentar','aportar','certificar',
-    'uno','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','veinte']);
+    'uno','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce','trece','catorce','quince','veinte','establecido','establecida','seleccion','presente','proceso']);
 
   function palabrasClaveDe(texto){
     return Array.from(new Set(normHeader(texto).split(' ').filter(w => w.length > 3 && !STOPWORDS_ES.has(w))));
