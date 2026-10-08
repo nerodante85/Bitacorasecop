@@ -5126,6 +5126,32 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return { contratos: out, duplicados: duplicados, totales: totales, vacios: vacios };
   }
 
+  // Una celda numérica de Excel llega como número JS: String(4381823607.525) = "4381823607.525" y parseNumCO lee ".525"
+  // como separador de miles (valor x1000: un contrato de $4.381 millones pasaba a 4,38 billones y "0,125" de participación
+  // a 125). Se entrega con coma decimal, que no es ambigua; el texto de una celda de texto se deja tal cual.
+  function textoDeCelda(v){
+    if (typeof v === 'number' && isFinite(v)) return Number.isInteger(v) ? String(v) : String(v).replace('.', ',');
+    return String(v == null ? '' : v);
+  }
+  // Valor de una celda: un número JS es ese número (sin pasar por texto, donde "0,125" o "12,345" se tomarían por ambiguos o por
+  // miles); el texto se interpreta como siempre. 0 y negativos siguen siendo "sin dato".
+  function valorDeCelda(v){
+    if (typeof v === 'number' && isFinite(v)) return v > 0 ? { valor: v, unidad: 'COP' } : null;
+    return parseValorUnidad(textoDeCelda(v || ''));
+  }
+
+  // Columnas como "VALOR CONTRATO ACTUALIZADO (Según % Participación) SMMLV $ 1.750.905": el valor ya NO está en pesos del año
+  // del contrato sino en pesos del año de actualización (SMMLV del contrato x 1.750.905). Dividirlo entre el SMMLV del año de
+  // terminación lo inflaba (un contrato de 2017: x2,4 -> CUMPLE falso). Si el encabezado trae la cifra del SMMLV de actualización
+  // (y es una cifra de la tabla de SMMLV) se devuelve; si el encabezado dice "actualizado" sin esa base, null: no se convierte.
+  function esColumnaActualizada(h){ return /act(?:ua|au)liz/i.test(normHeader(String(h || ''))); }
+  function baseSmmlvDeActualizacion(h){
+    const cifras = (String(h || '').match(/\d{1,3}(?:[.,]\d{3})+/g) || []).map(x => parseInt(x.replace(/\D/g, ''), 10));
+    const tabla = Object.keys(SMMLV_POR_ANIO).map(k => SMMLV_POR_ANIO[k]);
+    const validas = cifras.filter(n => tabla.indexOf(n) !== -1);
+    return validas.length === 1 ? validas[0] : null;
+  }
+
   function parsearExperienciaDeFilas(datos){
     const headers = datos.headers, rows = datos.rows;
     const colsBase = detectarColumnas(headers, DICC_CONTRATO);
@@ -5140,17 +5166,19 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const get = (row, campo) => (cols[campo] != null ? row[cols[campo]] : undefined);
     const hValor = cols.valor != null ? normHeader(headers[cols.valor] || '') : '';
     const valorAjustado = /valor/.test(hValor) && (/actualiz/.test(hValor) || /participac/.test(hValor));
+    const valorActualizado = cols.valor != null && esColumnaActualizada(headers[cols.valor]);
+    const baseSmmlvActualizacion = valorActualizado ? baseSmmlvDeActualizacion(headers[cols.valor]) : null;
     const contratos = rows.map((row, i) => {
-      let valorObj = parseValorUnidad(String(get(row, 'valor') || ''));
+      let valorObj = valorDeCelda(get(row, 'valor'));
       let valorRawFila = (get(row, 'valor') || '').toString().trim() || null;
       let ajustadoFila = valorAjustado, nominalFila = false;
       // Solo en filas que son contratos de verdad (con objeto o contratante): un código suelto en esa columna no es un contrato.
       const esContrato = !!((get(row, 'objeto') || '').toString().trim() || (get(row, 'contratante') || '').toString().trim());
       if (!valorObj && idxNominal !== -1 && esContrato){
-        const nominal = parseValorUnidad(String(row[idxNominal] || ''));
+        const nominal = valorDeCelda(row[idxNominal]);
         if (nominal){ valorObj = nominal; valorRawFila = String(row[idxNominal]).trim() || null; ajustadoFila = false; nominalFila = true; }
       }
-      const cantidadObj = parseValorUnidad(String(get(row, 'cantidad') || ''));
+      const cantidadObj = valorDeCelda(get(row, 'cantidad'));
       const tipoRaw = normHeader(String(get(row, 'tipo') || ''));
       let tipo = 'no-clasificado';
       if (/especif/.test(tipoRaw)) tipo = 'especifica';
@@ -5163,6 +5191,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         valorRaw: valorRawFila,
         valorAjustado: ajustadoFila,
         valorNominal: nominalFila,
+        // valor expresado en pesos del año de actualización del encabezado (no del año del contrato) y, si se pudo leer, el SMMLV usado
+        valorActualizado: valorActualizado && !nominalFila,
+        baseSmmlvActualizacion: (valorActualizado && !nominalFila) ? baseSmmlvActualizacion : null,
         fechaInicio: parseFechaExcel(get(row, 'fechaInicio')),
         fechaFin: parseFechaExcel(get(row, 'fechaFin')),
         // "En Ejecución" (texto) en la columna de terminación: el contrato todavía no acredita experiencia (ver contratoEnEjecucion).
@@ -5173,7 +5204,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         tipo: tipo,
         actividades: (get(row, 'actividades') || '').toString().trim() || null,
         numeroContrato: (get(row, 'numeroContrato') || '').toString().trim() || null,
-        participacion: parseValorUnidad(String(get(row, 'participacion') || ''))
+        participacion: valorDeCelda(get(row, 'participacion'))
       };
     });
     const dep = depurarContratos(contratos);
@@ -5491,6 +5522,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // tabla, devuelve null: no se adivina con qué salario mínimo convertir.
   function valorContratoEnSmmlv(c, regla){
     if (!c || c.valor == null) return null;
+    // Valor ya actualizado a pesos de otro año: SMMLV = valor / SMMLV de actualización (equivale al precio del contrato en
+    // SMMLV de su fecha, con la participación aplicada). Sin esa base no hay forma segura de convertirlo.
+    if (c.valorActualizado) return c.baseSmmlvActualizacion ? { smmlv: c.valor / c.baseSmmlvActualizacion, anio: null, actualizado: true } : null;
     const fecha = regla === 'fecha_terminacion' ? c.fechaFin : (regla === 'fecha_inicio' ? c.fechaInicio : null);
     if (!fecha) return null;
     const anio = parseInt(String(fecha).slice(0, 4), 10);
@@ -5763,7 +5797,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const cntTxt = celdas.minContratos ? null : minContratosDeTexto(criterioTexto);
     const minContratos = celdas.minContratos ? parseNumCO(String(celdas.minContratos)) : (cntTxt ? cntTxt.valor : null);
     const contratosAmbiguo = (cntTxt && cntTxt.ambiguo) ? cntTxt.fragmento : null;
-    let minValor = parseValorUnidad(String(celdas.minValor || '')) || (function(){
+    let minValor = parseValorUnidad(textoDeCelda(celdas.minValor || '')) || (function(){
       // Auditoría (motor de extracción): igual que minContratos, "valor
       // mínimo de quince mil (15.000) SMMLV" no se reconocía -- solo la
       // forma con dígito suelto. Se agrega la misma convención legal como
@@ -5784,7 +5818,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // celda de Excel explícita -- en un PDF/Word, o un Excel sin esa
     // columna, una cantidad mínima con unidad CONTABLE se perdía en
     // silencio; con unidad DIMENSIONAL, ver condicionNoVerificable abajo).
-    const minCantidad = parseValorUnidad(String(celdas.minCantidad || '')) || extraerCantidadConUnidadContable(criterioTexto);
+    const minCantidad = parseValorUnidad(textoDeCelda(celdas.minCantidad || '')) || extraerCantidadConUnidadContable(criterioTexto);
     const acumulableRaw = normHeader(String(celdas.acumulable || '') + ' ' + criterioTexto);
     const acumulable = /acumul|sumatoria|suma de los? contratos?/.test(acumulableRaw);
     const palabras = palabrasClaveDe(criterioTexto);
@@ -6144,7 +6178,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           const redondear = n => Math.round(n * 10) / 10;
           evidencia.push((req.acumulable ? 'Suma de los contratos relevantes: ' : 'Mejor contrato individual: ') +
             redondear(req.acumulable ? suma : mejorIndividual) + ' SMMLV (valor en pesos convertido con el SMMLV del año de ' +
-            (req.reglaSmmlv === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' de cada contrato; exige ' + redondearMin(req.minValor.valor) + ' SMMLV' +
+            (req.reglaSmmlv === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' de cada contrato' + (convertidos.some(x => x.actualizado) ? ' (los contratos cuya columna de valor ya viene "actualizada" se dividieron entre el SMMLV de esa actualización indicado en el encabezado del Excel)' : '') + '; exige ' + redondearMin(req.minValor.valor) + ' SMMLV' +
             (req.acumulable ? ', acumulable entre contratos' : ', por contrato individual') + ').');
           if (req.minValor.derivadoDe) evidencia.push('Mínimo por contrato: ' + req.minValor.derivadoDe + '.');
           if (dec.evidencia) evidencia.push(dec.evidencia);

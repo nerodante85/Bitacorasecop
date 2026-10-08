@@ -3052,6 +3052,57 @@ await check('regla UNSPSC: si el objeto de los contratos coincide pero ninguno t
   assert(!/Ningún contrato del Excel de experiencia comparte palabras clave/.test(r2.justificacion), 'mensaje engañoso (otros códigos): ' + r2.justificacion);
 });
 
+await check('Excel: una celda numérica con exactamente 3 decimales (típico del valor ajustado por % de participación) NO se infla x1000 (4.381.823.607,525 se leía 4,38 billones)', () => {
+  const r = expEngine.parsearExcelExperiencia(fakeWorkbook(['Objeto', 'Contratante', 'Valor'], [
+    ['Construcción de acueducto veredal', 'Municipio A', 4381823607.525],
+    ['Construcción de alcantarillado', 'Municipio B', 2680795576.32],
+    ['Construcción de tanque', 'Municipio C', '1.591.644.037'],
+    ['Mejoramiento de vía', 'Municipio D', '4.381.823.607,525']
+  ])).contratos;
+  assert(r[0].valor === 4381823607.525, 'celda numérica con 3 decimales: ' + r[0].valor);
+  assert(r[1].valor === 2680795576.32, 'celda numérica con 2 decimales: ' + r[1].valor);
+  assert(r[2].valor === 1591644037, 'texto con puntos de miles (formato colombiano) se conserva: ' + r[2].valor);
+  assert(r[3].valor === 4381823607.525, 'texto colombiano con coma decimal: ' + r[3].valor);
+});
+
+await check('Excel: la participación numérica 0,125 (12,5%) no se lee como 125 y una cantidad numérica con 3 decimales tampoco se infla', () => {
+  const r = expEngine.parsearExcelExperiencia(fakeWorkbook(['Objeto', 'Contratante', 'Valor', 'Participación', 'Cantidad'], [
+    ['Construcción de acueducto veredal', 'Municipio A', 500000000, 0.125, 1250.123]
+  ])).contratos[0];
+  assert(r.participacion && r.participacion.valor === 0.125, 'participación: ' + JSON.stringify(r.participacion));
+  assert(r.cantidad && r.cantidad.valor === 1250.123, 'cantidad: ' + JSON.stringify(r.cantidad));
+});
+
+// ---- Columna "VALOR CONTRATO ACTUALIZADO ... SMMLV $ 1.750.905" (Egida y Dora): el valor ya está en pesos de 2026 ----
+const H_ACTUALIZADO = ['Objeto', 'Contratante', 'VALOR CONTRATO ACTUALIZADO (Según % Participacion) SMMLV $ 1.750.905', 'Fecha de terminación'];
+function evaluarSmmlv(headers, valor, fechaFin, minSmmlv) {
+  const cs = expEngine.parsearExcelExperiencia(fakeWorkbook(headers, [['Construcción de acueducto veredal', 'Municipio A', valor, fechaFin]])).contratos;
+  const req = expEngine.construirRequisitoDesdeTexto('Experiencia general: un (1) contrato de acueducto por valor mínimo de ' + minSmmlv + ' SMMLV', 0, {});
+  req.palabrasDistintivas = ['acueducto']; req.reglaSmmlv = 'fecha_terminacion'; req.tipo = 'general';
+  return expEngine.evaluarRequisito(req, cs, HOY_AUD, CTX_OCANA);
+}
+
+await check('valor ACTUALIZADO a pesos de 2026: 175.090.500 son 100 SMMLV (/1.750.905), no 237 (/SMMLV 2017) -> un mínimo de 150 SMMLV NO se cumple (antes: CUMPLE falso)', () => {
+  const r = evaluarSmmlv(H_ACTUALIZADO, 175090500, '2017-09-28', 150);
+  assert(r.resultado === 'NO CUMPLE', 'se esperaba NO CUMPLE, fue ' + r.resultado + ': ' + r.justificacion);
+  assert(/100(?:[.,]0)? SMMLV/.test(r.justificacion + ' ' + r.evidencia.join(' ')), 'debe mostrar 100 SMMLV: ' + r.evidencia.join(' | '));
+});
+
+await check('valor ACTUALIZADO: con 100 SMMLV reales y un mínimo de 80 SMMLV sí cumple (la conversión correcta no bloquea de más)', () => {
+  const r = evaluarSmmlv(H_ACTUALIZADO, 175090500, '2017-09-28', 80);
+  assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('valor ACTUALIZADO sin la base en SMMLV del encabezado ("actualizado a 2013"): no se puede convertir -> NO DETERMINABLE, nunca CUMPLE', () => {
+  const r = evaluarSmmlv(['Objeto', 'Contratante', 'VALOR ACTUALIZADO CONTRATO A 2013 (Según % Participacion)', 'Fecha de terminación'], 175090500, '2017-09-28', 80);
+  assert(r.resultado === 'NO DETERMINABLE', 'se esperaba NO DETERMINABLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('valor NOMINAL (columna "Valor del contrato"): se sigue convirtiendo con el SMMLV del año de terminación (control: 175.090.500 / 737.717 = 237 SMMLV)', () => {
+  const r = evaluarSmmlv(['Objeto', 'Contratante', 'Valor del contrato', 'Fecha de terminación'], 175090500, '2017-09-28', 150);
+  assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
 await check('regla de conversión a SMMLV del pliego: "del año correspondiente a la fecha de terminación del contrato" -> fecha_terminacion; ambiguo o ausente -> null', () => {
   const t1 = 'B. Conversión a SMMLV. Se emplearán los valores históricos de SMMLV señalados por el Banco de la República, del año correspondiente a la fecha de terminación del contrato.';
   assert(expEngine.reglaConversionSmmlvDePliego(t1) === 'fecha_terminacion', 'terminación: ' + expEngine.reglaConversionSmmlvDePliego(t1));
