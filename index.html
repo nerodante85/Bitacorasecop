@@ -6718,6 +6718,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return Math.max(0, score);
   }
 
+  // La viabilidad por alertas legales es el TECHO: solo se alcanza si todo lo pendiente resulta favorable.
+  // Cada requisito que sigue "No determinable" baja el PISO (4 puntos c/u, tope 40). Sin pendientes
+  // el rango colapsa a un solo valor. Una cifra única con requisitos sin verificar sugeriría un
+  // buen resultado que la app no puede afirmar.
+  function rangoViabilidad(techo, nSinDeterminar){
+    const max = Math.max(0, Math.min(100, techo));
+    const n = Math.max(0, nSinDeterminar || 0);
+    const min = Math.max(0, max - Math.min(40, n * 4));
+    return { min: min, max: max, exacta: min === max, sinDeterminar: n };
+  }
+
   // Devuelve el texto completo del pliego ya analizado de un `entry`,
   // cualquiera haya sido el camino que lo produjo (capa de texto normal o
   // OCR por tandas) -- un solo punto de lectura en vez de que cada llamador
@@ -9852,12 +9863,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         : '<ul class="analysis-list"><li>No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialRF ? ' (solo ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas): las demás no se revisaron' : '') + '.</li></ul>') +
       '';
 
-    const viabilidadHtml = (entry.viabilidad != null
+    const nSinDeterminarViab = evalParaCompat ? matrizRequisitos(entry, evalParaCompat.mejor.gates).filter(f => f.resultado === 'NO DETERMINABLE').length : 0;
+    const rangoViab = entry.viabilidad != null ? rangoViabilidad(entry.viabilidad, nSinDeterminarViab) : null;
+    const viabilidadHtml = (rangoViab
         ? '<span><span style="font-size:22px;font-weight:700;color:' +
-          (entry.viabilidad >= 80 ? 'var(--success)' : (entry.viabilidad >= 50 ? 'var(--warning)' : 'var(--danger)')) +
-          ';">' + entry.viabilidad + '/100</span> <span style="color:var(--text-muted);font-size:12.5px;">viabilidad orientativa' +
+          (rangoViab.min >= 80 ? 'var(--success)' : (rangoViab.min >= 50 ? 'var(--warning)' : 'var(--danger)')) +
+          ';">' + (rangoViab.exacta ? rangoViab.max : rangoViab.min + '–' + rangoViab.max) + '/100</span> <span style="color:var(--text-muted);font-size:12.5px;">viabilidad orientativa' +
+          (rangoViab.exacta ? '' : ' <strong>· ' + rangoViab.sinDeterminar + ' requisito(s) sin verificar</strong>') +
           (parcialRF ? ' <strong>— solo con las ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas leídas</strong>' : '') +
-          '<details class="info-tip"><summary aria-label="Cómo se calcula"></summary><p>100 menos una penalización fija por cada alerta — no es una certificación.</p></details></span></span>'
+          '<details class="info-tip"><summary aria-label="Cómo se calcula"></summary><p>El máximo es 100 menos una penalización fija por cada alerta legal. El mínimo baja 4 puntos por cada requisito que sigue sin poder determinarse (tope 40): el máximo solo se alcanza si todo lo pendiente resulta favorable. No es una certificación.</p></details></span></span>'
         : '');
 
     const perfilesHtml = comps.length
@@ -11121,7 +11135,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
     const alertasTxt = alertasDelPliego(entry, it);
     if (Array.isArray(alertasTxt)){
-      L.push('ALERTAS DEL PLIEGO' + (entry.viabilidad != null ? ' (viabilidad orientativa: ' + entry.viabilidad + '/100)' : ''));
+      L.push('ALERTAS DEL PLIEGO' + (entry.viabilidad != null ? ' (viabilidad orientativa: ' + entry.viabilidad + '/100 como máximo; baja según los requisitos sin verificar)' : ''));
       if (!alertasTxt.length){
         const parcialTxt = lecturaParcial(entry);
         L.push('  No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialTxt ? ' (solo ' + parcialTxt.pagesRead + ' de ' + parcialTxt.numPages + ' páginas): las demás no se revisaron' : '') + '.');
