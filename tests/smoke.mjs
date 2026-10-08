@@ -649,6 +649,20 @@ await check('Justificación de NO DETERMINABLE con un criterio largo/ruidoso (t�
   assert(/y \d+ más/.test(just), 'con 28 palabras ruidosas se esperaba el sufijo "y N más" recortando la lista, justificación: ' + just);
 });
 
+await check('coincidencia parcial: "falta al menos" muestra como máximo 4 palabras y "y N más" (no una pared de texto)', () => {
+  const ev = evaluar(
+    ['Requisito', 'Obligatoriedad'],
+    [['Experiencia en alcantarillado pluvial sanitario hospitalario educativo deportivo cultural vial portuario aeroportuario ferroviario fluvial', 'Obligatorio']],
+    ['Objeto', 'Contratante', 'Valor'],
+    [['Construcción de alcantarillado', 'Alcaldía', '100000000']]
+  );
+  const just = ev.resultados[0].justificacion;
+  assert(/falta al menos: /.test(just), 'se esperaba la lista de faltantes: ' + just);
+  const lista = just.match(/falta al menos: ([^)]*)\)/)[1];
+  assert(/ y \d+ más$/.test(lista), 'la lista de faltantes debe cortarse con "y N más": ' + lista);
+  assert(lista.split(' y ')[0].split(',').length <= 4, 'como máximo 4 palabras antes del "y N más": ' + lista);
+});
+
 // 22-29) Word (.docx) y PDF/texto libre también para "Experiencia del
 // proponente" -- pedido del usuario. A diferencia de la matriz, un
 // contrato tiene MUCHOS campos (objeto, contratante, valor, 2 fechas,

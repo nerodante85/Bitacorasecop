@@ -6044,7 +6044,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const motivosAct = Array.from(new Set(parciales.map(r => r.motivoActividad).filter(Boolean)));
         justificacion = (motivosAct.length ? 'Coinciden las palabras del objeto, pero la actividad no es equivalente: ' + motivosAct.join('; ') + '. ' : '') + 'Hay ' + parciales.length + ' contrato(s) que comparten ALGUNAS palabras distintivas del requisito (' +
           listaAcotada(distintivasEncontradas, 12) + ' -- de ' + req.palabrasDistintivas.length + ' en total), pero no todas' +
-          (distintivasFaltantes.length ? ' (falta al menos: ' + listaAcotada(distintivasFaltantes, 12) + ')' : '') +
+          (distintivasFaltantes.length ? ' (falta al menos: ' + listaAcotada(distintivasFaltantes, 4) + ')' : '') +
           '. Una coincidencia parcial no basta para confirmar que el alcance sea equivalente -- podría tratarse de una condición distinta (ej. "urbanas" vs "rurales") -- requiere revisión humana del objeto completo.';
         faltantes.push('Confirmar a mano si alguno de esos contratos, pese a no compartir todas las palabras distintivas, sí corresponde exactamente al alcance exigido.');
       } else if (soloGenericos.length){
