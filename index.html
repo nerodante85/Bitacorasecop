@@ -5511,7 +5511,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // >= 15.000 -> CUMPLE), un falso positivo latente. Valores confirmados en
   // varias fuentes (Wikipedia "Anexo:Salario mínimo en Colombia", Actualícese,
   // Decreto 159 de 2026 para 2026).
+  // 2001-2014 se agregaron después: cada cifra coincide en la tabla oficial de la ANI (anexo 9, tabla de conversión), en
+  // consultorcontable.com y en Wikipedia ("Anexo:Salario mínimo en Colombia"); 2013 = 589.500 (ANI y consultorcontable;
+  // Wikipedia trae 589.000, un error de transcripción). 1995-2000 NO se incluyen: las fuentes difieren entre sí.
   const SMMLV_POR_ANIO = {
+    2001: 286000, 2002: 309000, 2003: 332000, 2004: 358000, 2005: 381500, 2006: 408000, 2007: 433700, 2008: 461500,
+    2009: 496900, 2010: 515000, 2011: 535600, 2012: 566700, 2013: 589500, 2014: 616000,
     2015: 644350, 2016: 689455, 2017: 737717, 2018: 781242, 2019: 828116, 2020: 877803,
     2021: 908526, 2022: 1000000, 2023: 1160000, 2024: 1300000, 2025: 1423500, 2026: 1750905
   };

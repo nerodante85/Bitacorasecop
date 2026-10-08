@@ -1413,7 +1413,7 @@ await check('valorContratoEnSmmlv: sin regla, sin fecha o con un año fuera de l
   const c = { valor: 1000000000, fechaFin: '2022-03-15', fechaInicio: '2021-01-10' };
   assert(expEngine.valorContratoEnSmmlv(c, null) === null, 'sin regla debe ser null');
   assert(expEngine.valorContratoEnSmmlv({ valor: 1e9 }, 'fecha_terminacion') === null, 'sin fecha debe ser null');
-  assert(expEngine.valorContratoEnSmmlv({ valor: 1e9, fechaFin: '2003-01-01' }, 'fecha_terminacion') === null, 'año fuera de la tabla debe ser null');
+  assert(expEngine.valorContratoEnSmmlv({ valor: 1e9, fechaFin: '1999-01-01' }, 'fecha_terminacion') === null, 'año fuera de la tabla (antes de 2001) debe ser null');
   const r = expEngine.valorContratoEnSmmlv(c, 'fecha_inicio');
   assert(r && r.anio === 2021 && Math.abs(r.smmlv - 1000000000 / 908526) < 1e-6, 'fecha_inicio debe usar el SMMLV de 2021, fue ' + JSON.stringify(r));
 });
@@ -3101,6 +3101,24 @@ await check('valor ACTUALIZADO sin la base en SMMLV del encabezado ("actualizado
 await check('valor NOMINAL (columna "Valor del contrato"): se sigue convirtiendo con el SMMLV del año de terminación (control: 175.090.500 / 737.717 = 237 SMMLV)', () => {
   const r = evaluarSmmlv(['Objeto', 'Contratante', 'Valor del contrato', 'Fecha de terminación'], 175090500, '2017-09-28', 150);
   assert(r.resultado === 'CUMPLE', 'se esperaba CUMPLE, fue ' + r.resultado + ': ' + r.justificacion);
+});
+
+await check('tabla de SMMLV 2001-2014 (ANI anexo 9 + consultorcontable + Wikipedia): un contrato nominal de 2012 y otro de 2013 se convierten con el salario de su año', () => {
+  const mk = (valor, fechaFin) => ({ valor, fechaFin, fechaInicio: '2010-01-01' });
+  const r12 = expEngine.valorContratoEnSmmlv(mk(566700000, '2012-05-09'), 'fecha_terminacion');
+  assert(r12 && Math.abs(r12.smmlv - 1000) < 1e-9, '2012: ' + JSON.stringify(r12));
+  const r13 = expEngine.valorContratoEnSmmlv(mk(589500000, '2013-03-01'), 'fecha_terminacion');
+  assert(r13 && Math.abs(r13.smmlv - 1000) < 1e-9, '2013 (589.500, no 589.000): ' + JSON.stringify(r13));
+  const r01 = expEngine.valorContratoEnSmmlv(mk(286000000, '2001-02-15'), 'fecha_terminacion');
+  assert(r01 && Math.abs(r01.smmlv - 1000) < 1e-9, '2001: ' + JSON.stringify(r01));
+});
+
+await check('tabla de SMMLV: cada año sube respecto al anterior y no hay años salteados entre 2001 y 2026 (atrapa una cifra mal digitada)', () => {
+  const ref = { 2001: 286000, 2002: 309000, 2003: 332000, 2004: 358000, 2005: 381500, 2006: 408000, 2007: 433700, 2008: 461500, 2009: 496900, 2010: 515000, 2011: 535600, 2012: 566700, 2013: 589500, 2014: 616000, 2015: 644350, 2016: 689455, 2017: 737717, 2018: 781242, 2019: 828116, 2020: 877803, 2021: 908526, 2022: 1000000, 2023: 1160000, 2024: 1300000, 2025: 1423500, 2026: 1750905 };
+  for (let y = 2001; y <= 2026; y++) {
+    const r = expEngine.valorContratoEnSmmlv({ valor: ref[y], fechaFin: y + '-06-30' }, 'fecha_terminacion');
+    assert(r && Math.abs(r.smmlv - 1) < 1e-9, 'SMMLV ' + y + ' debería ser ' + ref[y] + ': ' + JSON.stringify(r));
+  }
 });
 
 await check('regla de conversión a SMMLV del pliego: "del año correspondiente a la fecha de terminación del contrato" -> fecha_terminacion; ambiguo o ausente -> null', () => {
