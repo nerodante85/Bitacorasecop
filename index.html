@@ -6162,6 +6162,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       evalSet = evalSetBruto.map(c => c.valor == null ? c : Object.assign({}, c, { valor: valorAcreditable(c) }));
       if (evalSetBruto.some(c => c.valor != null && valorAcreditable(c) !== c.valor)) evidencia.push('Valor ponderado por el % de participación en consorcio/UT de los contratos (solo cuenta la parte de tu empresa).');
       if (evalSet.length === 0){
+        evidencia.push(req.minValor.derivadoDe ? 'Mínimo por contrato: ' + req.minValor.derivadoDe + '.' : 'Valor mínimo exigido: ' + redondearMin(req.minValor.valor) + ' ' + req.minValor.unidad + '.');
         faltantes.push('No hay contratos relevantes por objeto para comparar contra el valor mínimo exigido (' + redondearMin(req.minValor.valor) + ' ' + req.minValor.unidad + ').');
       } else if (evalSet.every(c => c.valor == null)){
         faltantes.push('Los contratos relevantes no tienen un valor reconocido en el Excel (columna de valor no detectada o vacía).');
@@ -6232,12 +6233,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       faltantes.push(sinFechaTemporal + ' contrato(s) relevante(s) no tienen una fecha de terminación confiable (vacía, futura, invertida o inexistente); con esa fecha el resultado podría cambiar.');
     }
 
+    if (req.reglaParticipacion) evidencia.push('Regla del pliego sobre consorcios/UT y moneda extranjera (el sistema no la verifica automáticamente): «' + String(req.reglaParticipacion).replace(/\s+/g, ' ').trim() + '»');
     let resultado, justificacion;
     const sinCriteriosNumericos = (req.minContratos == null && req.minValor == null && req.minCantidad == null);
 
     if (relevantes.length === 0){
       resultado = 'NO DETERMINABLE';
-      if (parciales.length){
+      if (exigeUnspsc && (sinCodigoUnspsc + otroCodigoUnspsc) > 0){
+        // El objeto SÍ coincide por completo; lo que bloquea es la clasificación UNSPSC. Esta explicación va primero:
+        // un contrato que solo comparta "obra" no debe tapar que hay contratos del sector pendientes de código, y
+        // decir "ningún contrato comparte palabras clave" llevaría a creer que la experiencia no existe.
+        justificacion = 'Hay ' + (sinCodigoUnspsc + otroCodigoUnspsc) + ' contrato(s) cuyo objeto coincide con el requisito, pero ninguno acredita todavía la clasificación UNSPSC exigida' +
+          (sinCodigoUnspsc ? ' (' + sinCodigoUnspsc + ' sin códigos UNSPSC cargados)' : '') + '.';
+        faltantes.push('Confirmar con el RUP / Formato Maestro los códigos UNSPSC de esos contratos: sin ellos el sistema no puede afirmar que acreditan el requisito.');
+      } else if (parciales.length){
         // Coincidencia PARCIAL: la señal más fuerte disponible, pero
         // nunca suficiente por sí sola -- se explica EXACTAMENTE qué
         // palabra(s) distintiva(s) faltó/faltaron (ej. "urbanas"), no solo
@@ -6256,12 +6265,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           (req.palabrasDistintivas.length ? ' (' + listaAcotada(req.palabrasDistintivas, 12) + ')' : '') +
           '. No es suficiente para confirmar que el objeto realmente coincide -- requiere revisión humana del objeto completo.';
         faltantes.push('Revisar manualmente si alguno de esos contratos, pese a no compartir palabra distintiva, sí corresponde al alcance exigido.');
-      } else if (exigeUnspsc && (sinCodigoUnspsc + otroCodigoUnspsc) > 0){
-        // El objeto SÍ coincide; lo que bloquea es la clasificación UNSPSC. Decir "ningún contrato comparte palabras
-        // clave" sería falso y llevaría a creer que la experiencia no existe.
-        justificacion = 'Hay ' + (sinCodigoUnspsc + otroCodigoUnspsc) + ' contrato(s) cuyo objeto coincide con el requisito, pero ninguno acredita todavía la clasificación UNSPSC exigida' +
-          (sinCodigoUnspsc ? ' (' + sinCodigoUnspsc + ' sin códigos UNSPSC cargados)' : '') + '.';
-        faltantes.push('Confirmar con el RUP / Formato Maestro los códigos UNSPSC de esos contratos: sin ellos el sistema no puede afirmar que acreditan el requisito.');
       } else {
         justificacion = 'Ningún contrato del Excel de experiencia comparte palabras clave con este requisito. Puede que la experiencia no exista, o que esté descrita con términos distintos a los del requisito.';
         faltantes.push('Confirmar si existe experiencia relacionada descrita con otras palabras, o si el requisito realmente no se cumple.');
@@ -7236,12 +7239,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     texto = String(texto || '');
     const g = /Experiencia\s+general\s*\./i.exec(texto);
     const e = /Experiencia\s+espec[ií]fica\s*\./i.exec(texto);
-    if (!g || !e || e.index <= g.index) return [texto];
+    if (!g || !e || e.index <= g.index) return { piezas: [texto], cola: '' };
     const cola = /Cuando\s+se\s+presenten\s+contratos\s+realizados\s+bajo\s+la\s+modalidad/i.exec(texto.slice(e.index));
-    return [
-      texto.slice(g.index, e.index).trim(),
-      texto.slice(e.index, cola ? e.index + cola.index : texto.length).trim()
-    ];
+    return {
+      piezas: [
+        texto.slice(g.index, e.index).trim(),
+        texto.slice(e.index, cola ? e.index + cola.index : texto.length).trim()
+      ],
+      cola: cola ? texto.slice(e.index + cola.index).trim() : ''
+    };
   }
 
   function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
@@ -7266,13 +7272,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         if (seSolapaMucho(absInicio, absFin)) return;
         const textoChunk = huboLimpieza ? chunk.texto.replace(/\s{2,}/g, ' ') : chunk.texto;
         let acepto = false;
-        partirGeneralYEspecifica(textoChunk).forEach(pieza => {
+        const partido = partirGeneralYEspecifica(textoChunk);
+        partido.piezas.forEach(pieza => {
           const req = construirRequisitoDesdeTexto(pieza, requisitos.length, {});
           if (!req.criterio || esRequisitoDePersonal(pieza) || !pareceRequisitoDeExperienciaReal(req)) return;
           acepto = true;
           req.fuente = fuenteLabel;
           req.pagina = paginaDeOffset(paginaOffsets, absInicio);
           req.anclaDetectada = zona.ancla;
+          // Regla de consorcios/UT y moneda extranjera: no es alcance técnico (no cuenta para la coincidencia), pero se muestra.
+          if (partido.cola) req.reglaParticipacion = partido.cola.slice(0, 600);
           // El valor se exige en SMMLV: el pliego dice con qué salario mínimo convertir (fecha de terminación / inicio).
           if (reglaSmmlvPliego && !req.reglaSmmlv && ((req.minValor && req.minValor.unidad === 'SMMLV') || (req.valorRelativo && req.valorRelativo.unidad === 'SMMLV'))) req.reglaSmmlv = reglaSmmlvPliego;
           requisitos.push(req);

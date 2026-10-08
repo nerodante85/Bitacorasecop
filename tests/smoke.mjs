@@ -3190,6 +3190,25 @@ await check('un contrato de acueducto con 3 contratos buenos: la general de Oca�
   const res = expEngine.evaluarRequisito(r, [c('A'), c('B'), c('C')], new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
   assert(/UNSPSC/i.test(res.justificacion) && res.resultado !== 'CUMPLE', 'sin UNSPSC no puede ser CUMPLE y debe explicar la clasificación: ' + res.resultado + ' | ' + res.justificacion.slice(0, 200));
 });
+const reqOcanaGeneral = () => expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA, [], 'Pliego de Condiciones').requisitos.find(x => x.tipo === 'general');
+const acueductoSinCodigo = n => ({ objeto: 'CONSTRUCCION DEL ACUEDUCTO VEREDA ' + n, tipo: 'no-clasificado', valor: 300000000, fechaFin: new Date('2024-05-01'), participacion: 1 });
+await check('con contratos de acueducto sin UNSPSC y otro que solo comparte "obra", la explicación habla de la clasificación UNSPSC, no de "palabras genéricas" (caso Dora)', () => {
+  const otro = { objeto: 'MANTENIMIENTO DE OBRA CIVIL DE UNA ESCUELA', tipo: 'no-clasificado', valor: 100000000, fechaFin: new Date('2024-05-01'), participacion: 1 };
+  const res = expEngine.evaluarRequisito(reqOcanaGeneral(), [acueductoSinCodigo('A'), acueductoSinCodigo('B'), otro], new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
+  assert(res.resultado === 'NO DETERMINABLE', 'debe seguir NO DETERMINABLE: ' + res.resultado);
+  assert(/clasificaci[óo]n UNSPSC/.test(res.justificacion) && !/gen[ée]ricas/.test(res.justificacion), 'la explicación debe ser la de UNSPSC: ' + res.justificacion.slice(0, 220));
+});
+await check('aunque ningún contrato sea relevante, la Exigencia muestra el valor mínimo por contrato derivado del presupuesto (79,26 SMMLV)', () => {
+  const res = expEngine.evaluarRequisito(reqOcanaGeneral(), [{ objeto: 'CONSTRUCCION DE UN PUENTE', tipo: 'no-clasificado', valor: 1e9, fechaFin: new Date('2024-05-01'), participacion: 1 }], new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
+  assert(/79[.,]26 SMMLV/.test(res.evidencia.join(' ')), 'la evidencia debe traer el mínimo: ' + JSON.stringify(res.evidencia));
+});
+await check('la regla del pliego sobre consorcios/UT y moneda extranjera no cuenta para la coincidencia pero sí se muestra como nota en la evidencia', () => {
+  const r = expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA, [], 'Pliego de Condiciones').requisitos;
+  const e = r.find(x => x.tipo === 'especifica');
+  assert(!e.palabrasDistintivas.includes('consorcio'), 'no debe contar para la coincidencia');
+  const res = expEngine.evaluarRequisito(e, [], new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
+  assert(/consorcio/i.test(res.evidencia.join(' ')) && /moneda extranjera/i.test(res.evidencia.join(' ')), 'la nota debe aparecer en la evidencia: ' + JSON.stringify(res.evidencia));
+});
 await check('regla de conversión a SMMLV del pliego: "del año correspondiente a la fecha de terminación del contrato" -> fecha_terminacion; ambiguo o ausente -> null', () => {
   const t1 = 'B. Conversión a SMMLV. Se emplearán los valores históricos de SMMLV señalados por el Banco de la República, del año correspondiente a la fecha de terminación del contrato.';
   assert(expEngine.reglaConversionSmmlvDePliego(t1) === 'fecha_terminacion', 'terminación: ' + expEngine.reglaConversionSmmlvDePliego(t1));
