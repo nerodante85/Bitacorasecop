@@ -2872,6 +2872,13 @@ await check('PDF real: una cifra partida por el extractor ("0,0 3") se lee como 
   assert(ex.rentabilidadPatrimonio && /0,03/.test(ex.rentabilidadPatrimonio.motivo || ''), 'el motivo cita 0,03: ' + JSON.stringify(ex.rentabilidadPatrimonio));
 });
 
+await check('palabras geográficas/administrativas (norte, santander, secretaría, municipio...) no cuentan como distintivas del requisito', () => {
+  const r = expEngine.construirRequisitoDesdeTexto('Experiencia específica en vías urbanas del municipio, Secretaría de Infraestructura de Norte de Santander, mínimo 2 contratos', 0, {});
+  const d = r.palabrasDistintivas || [];
+  assert(d.includes('vias') && d.includes('urbanas'), 'conserva lo técnico: ' + JSON.stringify(d));
+  ['norte', 'santander', 'secretaria', 'municipio'].forEach(w => assert(!d.includes(w), w + ' no es distintiva: ' + JSON.stringify(d)));
+});
+
 await check('evaluarProceso: límite -- sin K residual en el perfil, todo lo demás en verde, el veredicto NUNCA es GO (RT-004, probado de punta a punta)', () => {
   const res = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz({ kResidual: null }), entryFeliz(), CTX_EVAL);
   assert(res.veredicto === 'REVISAR', 'sin K residual el veredicto máximo es REVISAR, fue ' + res.veredicto);
