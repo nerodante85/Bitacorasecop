@@ -7606,7 +7606,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // endeudamiento ≤ 0,70 Razón de cobertura ≥ 1,0 ..."): sin cortar, la ventana de cada uno veía las
   // cifras de sus vecinos y todos salían "varias cifras" (NO DETERMINABLE). Se corta donde empieza
   // OTRO indicador; si el corte deja la ventana sin cifras se usa la ventana completa (comportamiento previo).
-  const RE_OTRO_INDICADOR = /[íi]ndice\s+de\s+(?:liquidez|endeudamiento)|raz[óo]n\s+de\s+(?:liquidez|cobertura)|nivel\s+de\s+endeudamiento|liquidez\s+corriente|cobertura\s+de\s+intereses|capital\s+de\s+trabajo|patrimonio|rentabilidad|capacidad\s+residual|k\s*residual/i;
+  const RE_OTRO_INDICADOR = /(?:[íi]ndice|indicador)\s+de\s+(?:liquidez|endeudamiento)|raz[óo]n\s+de\s+(?:liquidez|cobertura)|nivel\s+de\s+endeudamiento|liquidez\s+corriente|cobertura\s+de\s+intereses|capital\s+de\s+trabajo|patrimonio|rentabilidad|capacidad\s+residual|k\s*residual/i;
   function buscarUmbralCerca(t, etqRe, valRe){
     const propias = new RegExp('^(?:' + etqRe + ')$', 'i');
     const ventanas = ventanasDeEtiqueta(t, etqRe, 110).map(w => {
@@ -7928,8 +7928,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return r ? { valor: r.valor, raw: truncate(r.raw, 160), porcentaje: r.porcentaje, motivo: r.motivo || null } : null;
     };
     return {
-      liquidez: cerca('[íi]ndice\\s+de\\s+liquidez|raz[óo]n\\s+de\\s+liquidez|liquidez\\s+corriente', num),
-      endeudamiento: cerca('[íi]ndice\\s+de\\s+endeudamiento|nivel\\s+de\\s+endeudamiento', num),
+      liquidez: cerca('[íi]ndice\\s+de\\s+liquidez|indicador\\s+de\\s+liquidez|raz[óo]n\\s+de\\s+liquidez|liquidez\\s+corriente', num),
+      endeudamiento: cerca('[íi]ndice\\s+de\\s+endeudamiento|indicador\\s+de\\s+endeudamiento|nivel\\s+de\\s+endeudamiento', num),
       cobertura: cerca('raz[óo]n\\s+de\\s+cobertura\\s+de\\s+intereses|cobertura\\s+de\\s+intereses', num),
       kResidual: extraerKResidualUmbral(t),
       participacionConsorcio: extraerParticipacionConsorcio(t)

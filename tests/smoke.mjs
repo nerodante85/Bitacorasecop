@@ -2001,6 +2001,18 @@ await check('MC-005: varias cifras sin operador que desempate -> ambiguo (no se 
 });
 
 const kres = t => expEngine.extraerKResidualUmbral(t.replace(/\s+/g, ' '));
+
+// Tabla de indicadores del pliego de Ocaña (etiqueta "Indicador de endeudamiento", filas contiguas).
+await check('indicadores financieros: la ventana de un indicador no invade la fila siguiente y reconoce "Indicador de..."', () => {
+  const t = 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 15,00 Indicador de endeudamiento ≤ 0,30 Razón de cobertura de intereses ≥ 20,00';
+  const liq = expEngine.buscarUmbralCerca(t, '[íi]ndice\\s+de\\s+liquidez|indicador\\s+de\\s+liquidez', '');
+  const end = expEngine.buscarUmbralCerca(t, '[íi]ndice\\s+de\\s+endeudamiento|indicador\\s+de\\s+endeudamiento', '');
+  const cob = expEngine.buscarUmbralCerca(t, 'raz[óo]n\\s+de\\s+cobertura\\s+de\\s+intereses', '');
+  assert(liq && liq.valor === 15, 'liquidez debe ser 15, fue ' + JSON.stringify(liq));
+  assert(end && end.valor === 0.3, 'endeudamiento debe ser 0,30, fue ' + JSON.stringify(end));
+  assert(cob && cob.valor === 20, 'cobertura debe ser 20, fue ' + JSON.stringify(cob));
+});
+
 await check('MC-006: K residual RELATIVA ("1,5 veces el presupuesto", "100% del presupuesto de $3.200M") ya no se lee como $1,5 / $100 (antes: falso ok)', () => {
   const a = kres('K residual mínimo: 1,5 veces el presupuesto oficial');
   assert(a.valor === null && a.relativo && a.relativo.factor === 1.5 && a.baseValor === null, 'factor 1,5 sin base: ' + JSON.stringify(a));
