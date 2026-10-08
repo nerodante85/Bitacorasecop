@@ -5328,6 +5328,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const PALABRAS_META_REQUISITO = new Set(['experiencia','especifica','especifico','general','minimo','minima','maximo','maxima',
     // 4.ª tanda: cláusula del valor en SMMLV ("expresado en salarios mínimos mensuales legales vigentes") y lista de códigos UNSPSC
     'expresado','expresada','expresados','minimos','minimas','maximos','maximas','mensual','mensuales','legal','legales','vigente','vigentes','codigo','codigos','siguiente','siguientes','clasificado','clasificados','clasificada','clasificadas','unspsc',
+    // Relleno de las cláusulas de experiencia de los pliegos (5.ª tanda): redactan CÓMO se acredita, no el tipo de obra.
+    'objeto','aportado','aportados','aportada','aportadas','debe','deben','estar','relacionado','relacionados','relacionada','sector','todos','todas','corresponder','cual','cuando','presenten','realizados','realizado','bajo','modalidad',
     'obligatorio','obligatoria','opcional','complementario','complementaria','alternativo','alternativa',
     'acumulable','acumulativo','acumulativa','contratos','contrato','smmlv','smlmv','salarios','salario',
     'acreditar','acreditada','acreditado','acreditacion','exigido','exigida','exige','exigencia',
@@ -7225,6 +7227,23 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return chars.join('');
   }
 
+  // Cuando el mismo trozo trae "Experiencia general." y luego "Experiencia específica." como encabezados de
+  // oración, son dos exigencias distintas (la general se evalúa con el sector/UNSPSC y el valor; la específica
+  // con una actividad concreta y sus cantidades). Mezcladas, el requisito heredaba las palabras de ambas y
+  // ningún contrato real podía coincidir con todas. La cola de consorcios / moneda extranjera es una regla
+  // de participación, no el alcance técnico: se recorta de la específica.
+  function partirGeneralYEspecifica(texto){
+    texto = String(texto || '');
+    const g = /Experiencia\s+general\s*\./i.exec(texto);
+    const e = /Experiencia\s+espec[ií]fica\s*\./i.exec(texto);
+    if (!g || !e || e.index <= g.index) return [texto];
+    const cola = /Cuando\s+se\s+presenten\s+contratos\s+realizados\s+bajo\s+la\s+modalidad/i.exec(texto.slice(e.index));
+    return [
+      texto.slice(g.index, e.index).trim(),
+      texto.slice(e.index, cola ? e.index + cola.index : texto.length).trim()
+    ];
+  }
+
   function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
     const limpio = limpiarRepetidosDePagina(text, paginaOffsets);
     const huboLimpieza = limpio !== String(text || '');
@@ -7246,15 +7265,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const absFin = absInicio + chunk.texto.length;
         if (seSolapaMucho(absInicio, absFin)) return;
         const textoChunk = huboLimpieza ? chunk.texto.replace(/\s{2,}/g, ' ') : chunk.texto;
-        const req = construirRequisitoDesdeTexto(textoChunk, requisitos.length, {});
-        if (!req.criterio || esRequisitoDePersonal(textoChunk) || !pareceRequisitoDeExperienciaReal(req)) return;
+        let acepto = false;
+        partirGeneralYEspecifica(textoChunk).forEach(pieza => {
+          const req = construirRequisitoDesdeTexto(pieza, requisitos.length, {});
+          if (!req.criterio || esRequisitoDePersonal(pieza) || !pareceRequisitoDeExperienciaReal(req)) return;
+          acepto = true;
+          req.fuente = fuenteLabel;
+          req.pagina = paginaDeOffset(paginaOffsets, absInicio);
+          req.anclaDetectada = zona.ancla;
+          // El valor se exige en SMMLV: el pliego dice con qué salario mínimo convertir (fecha de terminación / inicio).
+          if (reglaSmmlvPliego && !req.reglaSmmlv && ((req.minValor && req.minValor.unidad === 'SMMLV') || (req.valorRelativo && req.valorRelativo.unidad === 'SMMLV'))) req.reglaSmmlv = reglaSmmlvPliego;
+          requisitos.push(req);
+        });
+        if (!acepto) return;
         aceptados.push([absInicio, absFin]);
-        req.fuente = fuenteLabel;
-        req.pagina = paginaDeOffset(paginaOffsets, absInicio);
-        req.anclaDetectada = zona.ancla;
-        // El valor se exige en SMMLV: el pliego dice con qué salario mínimo convertir (fecha de terminación / inicio).
-        if (reglaSmmlvPliego && !req.reglaSmmlv && ((req.minValor && req.minValor.unidad === 'SMMLV') || (req.valorRelativo && req.valorRelativo.unidad === 'SMMLV'))) req.reglaSmmlv = reglaSmmlvPliego;
-        requisitos.push(req);
         aceptadosEnZona++;
       });
       if (!aceptadosEnZona && REGEX_MENCION_TABLA_EXPERIENCIA.test(zona.texto)){

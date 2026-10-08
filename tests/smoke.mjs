@@ -3172,6 +3172,24 @@ await check('extraerRequisitosDePliego: el pie de página que pdf.js deja en MED
   assert(req.pagina === 3, 'página real 3, fue ' + req.pagina);
 });
 
+const CLAUSULA_OCANA_COMPLETA = 'experiencia general y específica, se tiene en cuenta la experiencia con las actividades a ejecutar y los servicios previstos en el alcance. ' + CLAUSULA_OCANA_GENERAL.split(' Secretaría de Vías')[0] + ' Experiencia específica. Uno de los contratos aportados como experiencia general, debe corresponder a la construcción de baterías (unidades) sanitarias en el cual se acredite la ejecución de las siguientes actividades de obra: Actividad Excavación. En una cantidad igual o superior al 100% del establecido para el presente proceso de selección: 4,99 mts³ Vigas de cimentación en concreto. En una cantidad igual o superior al 100% del establecido para el presente proceso de selección: 36,30 mts² Cuando se presenten contratos realizados bajo la modalidad de consorcio o unión temporal, la Entidad tomará para la evaluación y calificación correspondiente, el porcentaje (%) de participación en la ejecución del contrato del integrante del consorcio. Cuando se trate de contratos celebrados en moneda extranjera, el de los mismos será convertido a pesos colombianos a la tasa representativa del mercado vigente.';
+await check('pliego con "Experiencia general." y "Experiencia específica.": se parten en dos requisitos y la general no arrastra palabras de relleno ni de la específica (Ocaña)', () => {
+  const r = expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA, [], 'Pliego de Condiciones').requisitos;
+  assert(r.length === 2, 'se esperaban 2 requisitos y salieron ' + r.length);
+  const g = r.find(x => x.tipo === 'general'), e = r.find(x => x.tipo === 'especifica');
+  assert(g && e, 'faltan los tipos general/específica');
+  assert(g.minContratos === 3 && g.valorRelativo && g.codigosUnspsc.length === 5, 'la general conserva 3 contratos, valor relativo y UNSPSC');
+  assert(JSON.stringify(g.palabrasDistintivas) === JSON.stringify(['acueducto']), 'la general debe quedar solo con "acueducto": ' + g.palabrasDistintivas.join(','));
+  assert(e.palabrasDistintivas.includes('baterias') && e.palabrasDistintivas.includes('sanitarias'), 'la específica trae baterías sanitarias');
+  assert(!e.palabrasDistintivas.some(w => ['consorcio', 'moneda', 'tasa', 'colombianos'].includes(w)), 'la específica no arrastra la cola de consorcios/moneda');
+  assert(!!e.condicionNoVerificable, 'las cantidades por actividad siguen bloqueando CUMPLE en la específica');
+});
+await check('un contrato de acueducto con 3 contratos buenos: la general de Ocaña ya no queda en "0 relevantes"', () => {
+  const r = expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA, [], 'Pliego de Condiciones').requisitos.find(x => x.tipo === 'general');
+  const c = n => ({ objeto: 'CONSTRUCCION DE ACUEDUCTO VEREDA ' + n, tipo: 'no-clasificado', valor: 300000000, fechaFin: new Date('2024-05-01'), participacion: 1 });
+  const res = expEngine.evaluarRequisito(r, [c('A'), c('B'), c('C')], new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
+  assert(/UNSPSC/i.test(res.justificacion) && res.resultado !== 'CUMPLE', 'sin UNSPSC no puede ser CUMPLE y debe explicar la clasificación: ' + res.resultado + ' | ' + res.justificacion.slice(0, 200));
+});
 await check('regla de conversión a SMMLV del pliego: "del año correspondiente a la fecha de terminación del contrato" -> fecha_terminacion; ambiguo o ausente -> null', () => {
   const t1 = 'B. Conversión a SMMLV. Se emplearán los valores históricos de SMMLV señalados por el Banco de la República, del año correspondiente a la fecha de terminación del contrato.';
   assert(expEngine.reglaConversionSmmlvDePliego(t1) === 'fecha_terminacion', 'terminación: ' + expEngine.reglaConversionSmmlvDePliego(t1));
