@@ -90,6 +90,6 @@ Empresa: Dora Garay (consorcio con Gilli para capacidad financiera). Resultado e
 | Pozos de inspección (19 UND) | NO DETERMINABLE | C-0170: 30 UND completo; 15 UND prorrateado |
 | Conexiones domiciliarias (129 UND) | NO DETERMINABLE | Sin soporte: sillas yee y cajas domiciliarias no son conexiones |
 | Entibados (solo acreditar) | NO DETERMINABLE | Sin contrato que lo acredite en lo cargado |
-| Longitud de vía (70 %: 2.004,64 ml) | NO DETERMINABLE | No modelado en `magnitudes.js` |
+| Longitud de vía (70 %: 2.004,64 ml) | NO DETERMINABLE | Sin contratos con ítems de vía cargados (desde 2026-10-09 `magnitudes.js` lo modela: km→ml, no suma capas, no asume base en consorcio) |
 
 Pendiente del caso: respuesta de la entidad a la observación sobre la base de cantidades en consorcio; contratos con conexiones y entibados; completar las filas financieras con revisor.

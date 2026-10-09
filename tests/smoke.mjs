@@ -5269,5 +5269,23 @@ await check('RD-003: la vista de análisis muestra el resumen de decisión justo
   assert(/hero \+ decisionHtml \+ siguientePaso/.test(html), 'orden: resultado global, decisión, siguiente paso');
 });
 
+await check('MG-012: longitud de vía — km se convierten, m² no cuentan, las capas del mismo tramo no se suman y el consorcio no asume base', () => {
+  const ex = fichaTol().filas.find(x => x.requisito === 'Específica: longitud intervenida').dato.exigencia;
+  assert(ex.actividad === 'via' && ex.cifra === 2004.64 && ex.ambiguo === false, JSON.stringify(ex));
+  const mk = (id, items, p) => ({ numeroContrato: id, participacion: p ? { valor: p } : null, formatoMaestro: { cantidades: items.map(([i, c, u]) => ({ item: i, cantidad: c, unidad: u })) } });
+  const ev = (cs, o) => Magnitudes.evaluar(ex, cs, o || {});
+  assert(ev([mk('A', [['Mejoramiento de vía placa huella', 2.5, 'km']])]).estado === 'CUMPLE', '2,5 km = 2.500 ml alcanza');
+  assert(/Verifica que el contrato sea de la actividad de vías/.test(ev([mk('A', [['Mejoramiento de vía', 2500, 'ml']])]).detalle), 'el CUMPLE pide verificar la actividad del contrato');
+  assert(ev([mk('B', [['Pavimento rígido vía', 1500, 'ml']])]).estado === 'NO CUMPLE', '1.500 ml no alcanza');
+  const capas = ev([mk('C', [['Base granular vía', 1200, 'ml'], ['Carpeta asfáltica vía', 1200, 'ml']])]);
+  assert(capas.estado === 'NO DETERMINABLE' && /capas o frentes del mismo tramo/.test(capas.detalle), 'capas no se suman: ' + capas.detalle);
+  assert(ev([mk('D', [['Pavimento rígido', 9000, 'm2']])]).estado === 'NO DETERMINABLE', 'm² no es longitud');
+  assert(ev([mk('F', [['Cuneta en concreto vía', 3000, 'ml'], ['Tubería PVC 12"', 3000, 'ml']])]).estado === 'NO DETERMINABLE', 'cunetas y tubería no son vía');
+  assert(ev([mk('E', [['Vía mejoramiento', 2500, 'ml']], 50)]).estado === 'NO DETERMINABLE', 'consorcio sin base: no se asume');
+  assert(ev([mk('E', [['Vía mejoramiento', 2500, 'ml']], 50)], { base: 'total' }).estado === 'CUMPLE' && ev([mk('E', [['Vía mejoramiento', 2500, 'ml']], 50)], { base: 'prorrata' }).estado !== 'CUMPLE', 'según la base');
+  const inc = Magnitudes.parsearExigencia('Por lo menos uno (1) debe contar con una longitud Intervenida correspondiente a por lo menos el 70% de la longitud de carretera a intervenir. para los cuales el valor referente es 2863,77 ML. 3.000,00 ml');
+  assert(inc.ambiguo === true && /no coincide con el 70 %/.test(inc.avisoCifra), 'cifra que no es el 70 % del total: ' + JSON.stringify(inc));
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

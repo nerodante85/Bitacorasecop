@@ -21,6 +21,7 @@
   'use strict';
 
   const UNIDAD_LONGITUD = /^(ml|m|mts?|metros?|metros?\s+lineales?|m\.l\.?)$/i;
+  const UNIDAD_KM = /^(km|kms|kil[oó]metros?)$/i;
   const UNIDAD_CONTEO = /^(und|un|u|unid(?:ades?)?|uni|no\.?|n[°º]|conexi[oó]n(?:es)?|pozos?)$/i;
 
   const norm = s => String(s == null ? '' : s).normalize('NFKC').replace(/\s+/g, ' ').trim();
@@ -85,6 +86,10 @@
       return { actividad: 'conexiones', certeza: alta ? 'alta' : 'baja', nota: alta ? '' : 'El ítem no dice que sea de alcantarillado.' };
     }
     if (/\bpozos?\b/.test(s) && !/adecuacion|reparacion|tapa|cuerpo\s+de/.test(s)) return { actividad: 'pozos', certeza: 'alta' };
+    // Longitud de vía: solo ítems medidos en longitud (ml, m, km) que hablan de vía/carretera/pavimento. Los medidos en m² o m³ no dan longitud.
+    if ((UNIDAD_LONGITUD.test(u) || UNIDAD_KM.test(u)) && /\b(vias?|viales?|vial|carreteras?|calzadas?|pavimentos?|placa\s*huella|carpeta\s+asfaltica)\b/.test(s) &&
+        !/tuber|colector|alcantarill|acueduct|bordill|sardinel|anden|cuneta|ducto|cable|cerca|senaliz|demarcacion|baranda|muro|box\s*culvert|alcantarilla/.test(s))
+      return { actividad: 'via', certeza: 'alta' };
     const matsPrev = materialDe(t);
     const pareceTuberia = /tuber|colector|interceptor|emisario/.test(s) || (UNIDAD_LONGITUD.test(u) && matsPrev.length === 1 && diametroPulgadas(t) != null && /alcantarill|sanitari|pluvial|colector/.test(s));
     if (pareceTuberia && (UNIDAD_LONGITUD.test(u) || !u)) {
@@ -118,6 +123,22 @@
       out.actividad = 'pozos';
       const c = ultimaCifra(/(\d[\d.,]*)\s*(?:und|unid(?:ades)?)\b/gi);
       if (c) { const n = numero(c[1]); out.cifra = n.valor; out.unidad = 'und'; out.ambiguo = n.ambiguo; }
+      return out;
+    }
+    if (/longitud\s+intervenida/.test(s)) {
+      out.actividad = 'via';
+      const c = ultimaCifra(/(\d[\d.,]*)\s*(?:ml|km)\b/gi);
+      if (c) { const n = numero(c[1]); out.cifra = n.valor; out.unidad = 'ml'; out.ambiguo = n.ambiguo; }
+      const pctM = f.match(/(\d{1,3}(?:[.,]\d+)?)\s*%/);
+      const totM = f.match(/(?:valor\s+referente\s+es|la\s+cual\s+es\s+de|equivale\s+a)\s*\(?\s*(\d[\d.,]*)\s*ml/i);
+      if (pctM && totM && out.cifra != null) {
+        const tot = numero(totM[1]).valor, pct = numero(pctM[1]).valor;
+        if (tot != null && pct != null) {
+          const esperado = pct / 100 * tot;
+          if (Math.abs(out.cifra - esperado) <= 1) out.ambiguo = false;
+          else { out.ambiguo = true; out.avisoCifra = 'La cifra exigida (' + fmt(out.cifra) + ' ml) no coincide con el ' + pctM[1] + ' % del total declarado (' + fmt(tot) + ' ml = ' + fmt(esperado) + ' ml): el pliego tiene una incoherencia, pídele aclaración a la entidad.'; }
+        }
+      }
       return out;
     }
     if (/longitud\s+de\s+tuber/.test(s)) {
@@ -158,15 +179,16 @@
     const items = (c.formatoMaestro && c.formatoMaestro.cantidades) || [];
     const id = c.numeroContrato || (c.formatoMaestro && c.formatoMaestro.idContrato) || (c.objeto || '').slice(0, 40) || 'contrato';
     if (!items.length) return { id: id, estado: 'sin_datos', detalle: 'no tiene cantidades cargadas.' };
-    let total = 0, usados = [], dudosos = [], descartados = [];
+    let total = 0, usados = [], dudosos = [], descartados = [], viaCants = [], viaItems = [];
     items.forEach(it => {
       const cl = clasificarItem(it.item, it.unidad);
       if (cl.actividad !== ex.actividad) {
         if (ex.actividad === 'conexiones' && cl.actividad === 'accesorio_domiciliario') descartados.push(it.item + ' (accesorio: no es una conexión certificada)');
         return;
       }
-      const cant = typeof it.cantidad === 'number' ? it.cantidad : numero(it.cantidad).valor;
+      let cant = typeof it.cantidad === 'number' ? it.cantidad : numero(it.cantidad).valor;
       if (cant == null || cant <= 0) return;
+      if (ex.actividad === 'via' && UNIDAD_KM.test(norm(it.unidad))) cant = cant * 1000;
       let ok = cl.certeza === 'alta';
       let motivo = cl.nota || '';
       if (ex.actividad === 'tuberia' && ok) {
@@ -181,8 +203,18 @@
       }
       if (ex.actividad === 'tuberia' && cl.certeza !== 'alta') { dudosos.push(it.item + ' — ' + (motivo || 'no se pudo leer material o diámetro') + ' (' + cant + ' ' + (it.unidad || '') + ')'); return; }
       if (!ok) { dudosos.push(it.item + ' — ' + (motivo || 'no reconocido') + ' (' + cant + ' ' + (it.unidad || '') + ')'); return; }
+      if (ex.actividad === 'via') { viaCants.push(cant); viaItems.push(it.item + ' ' + fmt(cant) + ' ml'); return; }
       total += cant; usados.push(it.item + ' ' + cant + ' ' + (it.unidad || ''));
     });
+    // Vía: ítems de longitud del mismo contrato pueden ser capas o frentes del MISMO tramo (base, subbase, carpeta), así que no se suman:
+    // se toma el mayor (nunca sobrestima). Si solo la suma alcanzaría, no se asume: queda para confirmar.
+    if (ex.actividad === 'via' && viaCants.length) {
+      const mx = Math.max.apply(null, viaCants), suma = viaCants.reduce((x, y) => x + y, 0);
+      total = mx; usados.push(viaItems[viaCants.indexOf(mx)]);
+      if (ex.cifra != null && mx < ex.cifra && suma >= ex.cifra) {
+        return { id: id, estado: 'item_dudoso', detalle: 'sus ítems de vía (' + viaItems.join('; ') + ') solo alcanzan ' + fmt(ex.cifra) + ' ml si se suman, y podrían ser capas o frentes del mismo tramo: confirma la longitud intervenida del contrato.', dudosos: viaItems };
+      }
+    }
     if (ex.soloAcreditar) {
       return usados.length
         ? { id: id, estado: 'cumple', detalle: 'tiene ' + usados.join('; ') + '.' }
@@ -206,7 +238,7 @@
     if (pct == null && consorcio === false && base === 'prorrata') return { id: id, estado: 'sin_datos', detalle: 'sin porcentaje de participación para prorratear.' };
     const q = baseUsada === 'prorrata' ? prorrata : total;
     if (q == null) return { id: id, estado: 'sin_datos', detalle: 'sin porcentaje de participación para prorratear.' };
-    if (q >= cifra) return { id: id, estado: 'cumple', detalle: resumen + ' (base: ' + (baseUsada === 'prorrata' ? 'prorrateado' : 'completo') + ').', total: total, prorrata: prorrata };
+    if (q >= cifra) return { id: id, estado: 'cumple', detalle: resumen + ' (base: ' + (baseUsada === 'prorrata' ? 'prorrateado' : 'completo') + ').' + (ex.actividad === 'via' ? ' Verifica que el contrato sea de la actividad de vías que pide el pliego.' : ''), total: total, prorrata: prorrata };
     return { id: id, estado: dudosos.length ? 'item_dudoso' : 'insuficiente', detalle: resumen + ' — no alcanza ' + fmt(cifra) + '.' + (dudosos.length ? ' Hay ítems dudosos: ' + dudosos.join('; ') : ''), total: total, prorrata: prorrata, dudosos: dudosos };
   }
 
@@ -236,7 +268,7 @@
       const sinDatos = por.filter(x => x.estado === 'sin_datos').length;
       const dudosos = falta.filter(x => x.estado === 'item_dudoso');
       const conDatos = por.length - sinDatos;
-      let det = conDatos === 0 ? 'Ningún contrato tiene cantidades cargadas (0 de ' + por.length + ').' : 'Solo ' + conDatos + ' de ' + por.length + ' contratos tienen cantidades cargadas.';
+      let det = conDatos === 0 ? 'Ningún contrato tiene cantidades cargadas (0 de ' + por.length + ').' : (conDatos === por.length ? 'Todos los contratos tienen cantidades cargadas.' : 'Solo ' + conDatos + ' de ' + por.length + ' contratos tienen cantidades cargadas.');
       if (dudosos.length) det += ' Ítems dudosos: ' + dudosos.slice(0, 3).map(x => x.id + ' (' + x.detalle + ')').join(' · ') + (dudosos.length > 3 ? ' …' : '') + '.';
       else if (conDatos > 0) det += ' Ninguno de los cargados tiene ítems de esta actividad.';
       return { estado: 'NO DETERMINABLE', detalle: det + ' Carga las cantidades de los contratos que podrían acreditarlo.' + nota, porContrato: por };
