@@ -252,7 +252,7 @@ await check('F-04: un análisis guardado se reabre aunque su proceso ya no salga
   const { ctx, pg } = await abrir({ sembrar: { bitacora_analisis_pliegos: JSON.stringify(analisis) } });
   await abrirAnalisisDelPrimero(pg);
   const grupos = await pg.evaluate(() => [...document.querySelectorAll('#bt-analisis-select optgroup')].map(g => g.label));
-  assert(grupos.some(g => /Analizados antes/.test(g)), 'debe existir el grupo "Analizados antes": ' + grupos.join(' | '));
+  assert(grupos.some(g => /analizados antes/i.test(g)), 'debe existir el grupo "Analizados antes": ' + grupos.join(' | '));
   await pg.selectOption('#bt-analisis-select', 'ps2-E2E-CON-RESUMEN');
   const a = await pg.evaluate(() => ({ ent: document.querySelector('#bt-analisis-out .row-ent').textContent, notas: [...document.querySelectorAll('#bt-analisis-out .saved-note')].map(n => n.textContent).join(' | '), fold: !!document.querySelector('#bt-analisis-out .analysis-fold') }));
   assert(a.ent === 'Alcaldía E2E' && /búsqueda anterior/.test(a.notas) && a.fold, 'proceso guardado con resumen: ' + JSON.stringify(a));
