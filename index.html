@@ -7498,23 +7498,31 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   }
 
   function lotesDeTexto(t){
-    const porId = {};
+    let porId = {}, plazoId = {};
     const re = /LOTE\s+(?:No\.?|N[°º])?\s*(\d{1,2})\s+El\s+valor\s+estimado[^$]{0,520}?\$\s*(\d{1,3}(?:\.\d{3}){2,})/ig;
     let m;
     while ((m = re.exec(t))){ const v = parseInt(m[2].replace(/\./g, ''), 10); if (v >= 50000000 && !porId[m[1]]) porId[m[1]] = v; }
+    if (Object.keys(porId).length < 2){
+      // Formato "etapas" (llave en mano): "Lote No. 2 PLAZO DE LA ETAPA ... ETAPA I ... ETAPA II ... TOTAL Ocho (08) meses $ 4.044.717.622,00".
+      const p2 = {}, pl2 = {};
+      const re2 = /LOTE\s+(?:No\.?|N[°º])?\s*(\d{1,2})\.?\s+PLAZO\s+DE\s+LA\s+ETAPA[\s\S]{0,700}?TOTAL\s+[^$()]{0,60}\((\d{1,2})\)\s*MESES\s+\$\s*(\d{1,3}(?:\.\d{3}){2,})/ig;
+      while ((m = re2.exec(t))){ const v = parseInt(m[3].replace(/\./g, ''), 10); if (v >= 50000000 && !p2[m[1]]){ p2[m[1]] = v; pl2[m[1]] = parseInt(m[2], 10); } }
+      if (Object.keys(p2).length >= 2){ porId = p2; plazoId = pl2; }
+    }
     const ids = Object.keys(porId);
     if (ids.length < 2 || new Set(ids.map(i => porId[i])).size < 2) return [];
-    return ids.sort((x, y) => x - y).map(i => ({ id: i, presupuesto: porId[i] }));
+    return ids.sort((x, y) => x - y).map(i => plazoId[i] ? { id: i, presupuesto: porId[i], plazo: plazoId[i] } : { id: i, presupuesto: porId[i] });
   }
   // Tramo del texto donde empieza la experiencia del lote (hasta el encabezado de otro lote o la clasificación UNSPSC).
   function segmentoDeLote(t, id){
-    const cab = n => new RegExp('LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s*[–-]\\s*GRUPO\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s+ACTIVIDAD\\s+PRINCIPAL', 'i');
-    const m = cab(id).exec(t);
+    // Dos formatos de encabezado: "LOTE No 1 – GRUPO No 1 ACTIVIDAD PRINCIPAL" y "LOTE NO. 2. SAN CAYETANO ACTIVIDAD PRINCIPAL".
+    const reCab = n => new RegExp('LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s*[–-]\\s*GRUPO\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s+ACTIVIDAD\\s+PRINCIPAL|LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\.?\\s+[A-ZÁÉÍÓÚÑ ]{3,40}?\\s+ACTIVIDAD\\s+PRINCIPAL', 'i');
+    const m = reCab(id).exec(t);
     if (!m) return null;
     let fin = t.length;
-    const sig = t.slice(m.index + 30).search(/LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\s*[–-]\s*GRUPO\s+(?:No\.?|N[°º])?\s*\d{1,2}\s+ACTIVIDAD\s+PRINCIPAL/i);
+    const sig = t.slice(m.index + 30).search(/LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\s*[–-]\s*GRUPO\s+(?:No\.?|N[°º])?\s*\d{1,2}\s+ACTIVIDAD\s+PRINCIPAL|LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\.?\s+[A-ZÁÉÍÓÚÑ ]{3,40}?\s+ACTIVIDAD\s+PRINCIPAL/i);
     if (sig >= 0) fin = m.index + 30 + sig;
-    const cl = t.slice(m.index).search(/CLASIFICACI[ÓO]N\s+DE\s+LA\s+EXPERIENCIA/i);
+    const cl = t.slice(m.index).search(/CLASIFICACI[ÓO]N\s+DE\s+LA\s+EXPERIENCIA|3\.5\.3\.?\s+CONSIDERACIONES/i);
     if (cl >= 0) fin = Math.min(fin, m.index + cl);
     return { inicio: m.index, fin: fin };
   }
@@ -7549,7 +7557,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (lotes.length >= 2 && !loteSel && !ctxPres) avisos.push('El documento se divide en ' + lotes.length + ' lotes con presupuestos distintos: elige el lote al que te presentas para calcular las cifras (SMMLV, capital de trabajo, plazo y experiencia del lote).');
     else if (distintos.length > 1 && lotes.length < 2 && !ctxPres) avisos.push('El documento trae varios valores de presupuesto oficial (por ejemplo grupos o fases): la ficha no convierte a SMMLV ni calcula capital de trabajo ni capacidad residual. Identifica cuál es el del proceso al que te presentas.');
     if (loteSel){
-      const mOL = t.match(new RegExp('OBJETO\\s+LOTE\\s+(?:No\\.?|N[°º])?\\s*' + loteSel.id + ':?\\s+(.{15,260}?)(?=\\s+OBJETO\\s+LOTE|\\s+\\d\\.\\d+\\.?\\s+[A-ZÁÉÍÓÚ]|$)', 'i'));
+      const mOL = t.match(new RegExp('OBJETO\\s+LOTE\\s+(?:No\\.?|N[°º])?\\s*' + loteSel.id + ':?\\s+(.{15,260}?)(?=\\s+OBJETO\\s+LOTE|[,\\s]*en\\s+adelante\\s+el\\s+[“"]contrato|\\s+\\d\\.\\d+\\.?\\s+[A-ZÁÉÍÓÚ]|$)', 'i'));
       if (mOL) add('Datos del proceso', 'Objeto del Lote ' + loteSel.id, mOL[1].trim(), '', { pagina: pagina(mOL.index) });
     }
     const anio = (ctx && ctx.anio) || new Date().getFullYear();
@@ -7562,7 +7570,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (loteSel){
       const mPL = t.match(new RegExp('LOTE\\s+(?:No\\.?|N[°º])?\\s*' + loteSel.id + '\\s*[–-]\\s*GRUPO\\s+(?:No\\.?|N[°º])?\\s*' + loteSel.id + '\\s+El\\s+plazo[\\s\\S]{0,500}?\\((\\d{1,2})\\)\\s*MESES', 'i'));
       if (mPL){ plazo = parseInt(mPL[1], 10); idxPlazo = mPL.index; }
-      else { plazo = null; idxPlazo = null; }
+      else { plazo = loteSel.plazo || null; idxPlazo = null; }
     }
     if (plazo == null){
       // Documentos tipo: el plazo va en la tabla "OBJETO, PRESUPUESTO OFICIAL, PLAZO Y UBICACIÓN" ("4 MESES").
@@ -7571,7 +7579,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (mT){ plazo = parseInt(mT[1], 10); idxPlazo = iTab; }
     }
     if (plazo) add('Datos del proceso', 'Plazo de ejecución', plazo + ' meses', '', { pagina: pagina(idxPlazo) });
-    const sinAnticipo = /no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:ning[úu]n\s+)?anticipo/i.test(t);
+    const sinAnticipo = /no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:al\s+contratista\s+)?(?:ning[úu]n\s+)?anticipo/i.test(t);
     const conAnticipo = !sinAnticipo && /anticipo\s+del\s+\d/i.test(t);
     if (sinAnticipo) add('Datos del proceso', 'Anticipo', 'No hay anticipo ni pago anticipado', '');
     const anticipo = 0;
@@ -7614,9 +7622,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const clave = frase.slice(0, 220).toLowerCase();
         if (vistas[clave] || /presupuesto\s+oficial|luz\s+principal/i.test(frase)) continue;
         const cifra = Array.from(frase.matchAll(/(\d[\d.,]*)\s*(ml|m3|m³|und|unid(?:ades)?|metros|m2|m²|kg|l\/s)\b/gi)).pop();
-        if (!cifra && !/entibad/i.test(frase)) continue;
+        if (!cifra && !/entibad|sedimentador/i.test(frase)) continue;
         vistas[clave] = true;
-        const act = /conexiones?\s+domiciliarias?/i.test(frase) ? 'conexiones domiciliarias' : /pozos?\s+de\s+inspecci[óo]n/i.test(frase) ? 'pozos de inspección' : /entibados?/i.test(frase) ? 'entibados' : /tuber[íi]a/i.test(frase) ? 'tubería' : /tanque/i.test(frase) ? 'tanque de almacenamiento' : /longitud/i.test(frase) ? 'longitud intervenida' : 'magnitud';
+        const act = /conexiones?\s+domiciliarias?/i.test(frase) ? 'conexiones domiciliarias' : /pozos?\s+de\s+inspecci[óo]n/i.test(frase) ? 'pozos de inspección' : /entibados?/i.test(frase) ? 'entibados' : /sedimentador/i.test(frase) ? 'sedimentadores' : /tuber[íi]a/i.test(frase) ? 'tubería' : /tanque/i.test(frase) ? 'tanque de almacenamiento' : /longitud/i.test(frase) ? 'longitud intervenida' : 'magnitud';
         add('Experiencia', 'Específica: ' + act, frase.length > 330 ? frase.slice(0, 330) + '…' : frase, cifra ? 'Cifra del documento: ' + cifra[1] + ' ' + cifra[2] : '', { pagina: pagina(mm.index) });
       }
     }
