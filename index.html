@@ -8915,9 +8915,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (isNaN(d.getTime()) || y < 2015 || y > 2035) return null;
       return Math.ceil((d.getTime() - ahoraMs) / 86400000);
     };
-    return Object.keys(analisisMap || {})
+    // Analizados + guardados en "Mis procesos" aunque aún no se hayan analizado (si no, "Ver proceso" abría otro).
+    const idsPipeline = Object.keys(historialMap || {}).filter(id => historialMap[id] && historialMap[id].snapshot && !(analisisMap && analisisMap[id]));
+    const tsDe = id => (analisisMap && analisisMap[id] && analisisMap[id].ts) || (historialMap && historialMap[id] && historialMap[id].ts) || 0;
+    return Object.keys(analisisMap || {}).concat(idsPipeline)
       .filter(id => !idsEnLista.has(id))
-      .sort((a, b) => ((analisisMap[b] && analisisMap[b].ts) || 0) - ((analisisMap[a] && analisisMap[a].ts) || 0))
+      .sort((a, b) => tsDe(b) - tsDe(a))
       .map(id => {
         const e = analisisMap[id] || {};
         const hs = historialMap && historialMap[id] && historialMap[id].snapshot;
@@ -11561,7 +11564,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     };
     analisisSelectEl.innerHTML = guardados.length
       ? (enBusqueda.length ? '<optgroup label="En tu búsqueda actual">' + enBusqueda.map(opcion).join('') + '</optgroup>' : '') +
-        '<optgroup label="Analizados antes (ya no salen en la búsqueda)">' + guardados.map(opcion).join('') + '</optgroup>'
+        '<optgroup label="Guardados o analizados antes (ya no salen en la búsqueda)">' + guardados.map(opcion).join('') + '</optgroup>'
       : enBusqueda.map(opcion).join('');
     analisisSelectEl.value = analisisSelId;
     const sel = lista.find(x => x.item.id === analisisSelId);

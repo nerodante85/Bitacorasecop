@@ -5172,5 +5172,13 @@ await check('MG-008: selector de base de cantidades en consorcio — solo total/
   assert(/en\.baseCantidades = baseBtn\.getAttribute\('data-ficha-base'\) \|\| null/.test(html), 'el botón "Sin definir" debe volver a null');
 });
 
+await check('NAV-001: un proceso guardado en Mis procesos sin análisis ni búsqueda activa también está en la lista de Análisis (Ver proceso abre ese, no otro)', () => {
+  const snap = { entidad: 'Empresa Toledo', objeto: 'Alcantarillado Toledo', valor: 3185389625, closingRaw: '2026-11-20T00:00:00Z', fuente: 'II', referencia: 'LP-SAPSB-03215-2026' };
+  const r = expEngine.procesosAnalizadosFueraDeLista({}, { 'T1': { etapa: 'por_revisar', ts: 5, snapshot: snap } }, new Set(['otro']), Date.now());
+  assert(r.length === 1 && r[0].item.id === 'T1' && r[0].guardado.origen === 'pipeline', 'el guardado sin análisis debe aparecer: ' + JSON.stringify(r.map(x => x.item.id)));
+  const r2 = expEngine.procesosAnalizadosFueraDeLista({ 'T1': { ts: 9, fileName: 'x.pdf' } }, { 'T1': { snapshot: snap } }, new Set(), Date.now());
+  assert(r2.length === 1, 'sin duplicar si está analizado y guardado');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
