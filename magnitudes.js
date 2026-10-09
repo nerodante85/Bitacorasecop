@@ -211,15 +211,22 @@
       return { estado: 'NO DETERMINABLE', detalle: 'Contrato ' + x.id + ': ' + x.detalle + ' El pliego no dice cómo se cuentan las cantidades en consorcio: confirma con la entidad.', porContrato: por };
     }
     const falta = por.filter(x => x.estado === 'sin_datos' || x.estado === 'item_dudoso');
+    const nota = ex.soloAcreditar ? ' El pliego solo pide acreditar esta experiencia (no exige cantidad): registra un ítem de ' + ex.actividad + ' en la hoja CANTIDADES del contrato que lo acredite.' : '';
     if (falta.length) {
-      return { estado: 'NO DETERMINABLE', detalle: falta.length + ' contrato(s) sin cantidades legibles para esta actividad: ' + falta.slice(0, 3).map(x => x.id + ' (' + x.detalle + ')').join(' · ') + (falta.length > 3 ? ' …' : ''), porContrato: por };
+      const sinDatos = por.filter(x => x.estado === 'sin_datos').length;
+      const dudosos = falta.filter(x => x.estado === 'item_dudoso');
+      const conDatos = por.length - sinDatos;
+      let det = conDatos === 0 ? 'Ningún contrato tiene cantidades cargadas (0 de ' + por.length + ').' : 'Solo ' + conDatos + ' de ' + por.length + ' contratos tienen cantidades cargadas.';
+      if (dudosos.length) det += ' Ítems dudosos: ' + dudosos.slice(0, 3).map(x => x.id + ' (' + x.detalle + ')').join(' · ') + (dudosos.length > 3 ? ' …' : '') + '.';
+      else if (conDatos > 0) det += ' Ninguno de los cargados tiene ítems de esta actividad.';
+      return { estado: 'NO DETERMINABLE', detalle: det + ' Carga las cantidades de los contratos que podrían acreditarlo.' + nota, porContrato: por };
     }
     const alguno = por.filter(x => x.estado === 'insuficiente');
     if (alguno.length) {
       const mejor = alguno.slice().sort((a, b) => (b.total || 0) - (a.total || 0))[0];
       return { estado: 'NO CUMPLE', detalle: 'Con las cantidades cargadas ningún contrato alcanza. El más cercano: ' + mejor.id + ': ' + mejor.detalle, porContrato: por };
     }
-    return { estado: 'NO DETERMINABLE', detalle: 'Ningún contrato cargado tiene ítems de esta actividad (' + por.length + ' revisado(s)). Registra las cantidades en la hoja CANTIDADES.', porContrato: por };
+    return { estado: 'NO DETERMINABLE', detalle: 'Ningún contrato cargado tiene ítems de esta actividad (' + por.length + ' revisado(s)). Registra las cantidades en la hoja CANTIDADES.' + nota, porContrato: por };
   }
 
   const Magnitudes = { numero: numero, clasificarItem: clasificarItem, parsearExigencia: parsearExigencia, evaluar: evaluar, evaluarContrato: evaluarContrato };

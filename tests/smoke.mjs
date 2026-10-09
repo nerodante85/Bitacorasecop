@@ -5180,5 +5180,14 @@ await check('NAV-001: un proceso guardado en Mis procesos sin análisis ni búsq
   assert(r2.length === 1, 'sin duplicar si está analizado y guardado');
 });
 
+await check('MG-009: sin cantidades cargadas, la nota resume (N de M) en vez de listar contratos, y en entibados dice que solo se acredita', () => {
+  const cs = []; for (let i = 0; i < 73; i++) cs.push({ id: 'X' + i, formatoMaestro: { cantidades: [] } });
+  cs.push({ id: 'C1', formatoMaestro: { cantidades: [{ item: 'PVC para alcantarillado 12"', cantidad: 10, unidad: 'ml' }] } });
+  const r = Magnitudes.evaluar(Magnitudes.parsearExigencia('conexiones domiciliarias 129 UND'), cs, {});
+  assert(r.estado === 'NO DETERMINABLE' && /1 de 74/.test(r.detalle) && !/X1\b/.test(r.detalle), 'resumen: ' + r.detalle);
+  const e = Magnitudes.evaluar(Magnitudes.parsearExigencia('entibados'), cs, {});
+  assert(e.estado === 'NO DETERMINABLE' && /solo pide acreditar/.test(e.detalle), 'entibados: ' + e.detalle);
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
