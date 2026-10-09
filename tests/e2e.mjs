@@ -394,6 +394,25 @@ await check('Análisis: arranca con el resultado y su explicación, resume la vi
   await ctx.close();
 });
 
+await check('Informe del análisis: la tarjeta de decisión baja un Word con el análisis sin botones ni filtros; el PDF abre una ventana imprimible', async () => {
+  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
+  await abrirAnalisisSembrado(pg);
+  const dec = await pg.evaluate(() => { const d = document.querySelector('#bt-analisis-out [data-decision]'); return d ? { h3: d.querySelector('h3').textContent, botones: d.querySelectorAll('[data-informe-doc]').length } : null; });
+  assert(dec && /^Decisión: /.test(dec.h3) && dec.botones === 2, 'la tarjeta de decisión trae los 2 botones: ' + JSON.stringify(dec));
+  const [word] = await Promise.all([pg.waitForEvent('download', { timeout: 8000 }), pg.locator('#bt-analisis-out [data-informe-doc="word"]').click()]);
+  assert(/^analisis-.*\.doc$/.test(word.suggestedFilename()), 'nombre del Word: ' + word.suggestedFilename());
+  const ruta = await word.path();
+  const html = (await readFile(ruta, 'utf8'));
+  assert(/Decisión: /.test(html) && /Resumen de viabilidad/.test(html) && /Orientativo/.test(html) && /Fuente: /.test(html), 'el informe trae decisión, viabilidad, aviso y fuente');
+  assert(!/<button/i.test(html) && !/data-matriz-filtro/.test(html), 'sin botones ni filtros');
+  const [popup] = await Promise.all([pg.waitForEvent('popup', { timeout: 8000 }), pg.locator('#bt-analisis-out [data-informe-doc="pdf"]').click()]);
+  await popup.waitForLoadState('domcontentloaded');
+  const titulo = await popup.title();
+  assert(/^Análisis de proceso/.test(titulo), 'ventana imprimible: ' + titulo);
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
 await check('Evidencia: el panel lateral muestra requisito, exigencia, fuente, página, cita textual y dato de la empresa; abre la página del documento; Escape lo cierra y devuelve el foco', async () => {
   const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
   await abrirAnalisisSembrado(pg);

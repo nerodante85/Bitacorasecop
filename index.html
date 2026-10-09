@@ -10717,7 +10717,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const cr = emp && f.filas.length ? cruceFichaEmpresa(f.filas, emp) : {};
       ficha = Object.keys(cr).map(k => ({ requisito: k, estado: cr[k].estado, detalle: cr[k].detalle }));
     } catch (e) { ficha = []; }
-    const item = (typeof procesoPorId === 'function') ? procesoPorId(entry.id) : null;
+    const sProc = (typeof procesoPorId === 'function') ? procesoPorId(entry.id) : null;
+    const item = sProc ? sProc.item : null;
     const cierre = (item && item.closingRaw) || (entry.proceso && entry.proceso.closingRaw) || null;
     const r = Evaluacion.resumenDecision({
       veredicto: veredicto, hayPliego: hayPliego, diasRestantes: diasRestantesDe(cierre), ficha: ficha,
@@ -10734,7 +10735,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div class="resultado-expl">' + escapeHtml(r.recomendacion) + '</div>' + plazo +
       (r.aviso ? '<div class="alerta-item revisar" role="alert"><span class="alerta-nivel">▲ URGENTE</span><span>' + escapeHtml(r.aviso) + '</span></div>' : '') +
       ((bl || pr) ? '<ul class="decision-lista">' + bl + pr + '</ul>' + mas : '') +
-      '<div class="resultado-meta">' + r.cumple + ' de ' + r.total + ' requisito(s) evaluados cumplen según los datos cargados. Orientativo: confirma con el pliego oficial.</div></div>';
+      '<div class="resultado-meta">' + r.cumple + ' de ' + r.total + ' requisito(s) evaluados cumplen según los datos cargados. Orientativo: confirma con el pliego oficial.</div>' +
+      '<div class="mb-8" data-informe-acciones="1"><button type="button" class="link-btn" data-informe-doc="pdf" data-informe-doc-id="' + escapeHtml(entry.id || '') + '">⬇ Informe para imprimir o guardar en PDF</button> ' +
+      '<button type="button" class="link-btn" data-informe-doc="word" data-informe-doc-id="' + escapeHtml(entry.id || '') + '">⬇ Informe en Word (.doc)</button></div></div>';
   }
   // Cabecera del análisis: resultado global + explicación, resumen de viabilidad, alertas y matriz.
   function resultadoAnalisisHtml(entry, evalParaCompat){
@@ -10802,7 +10805,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const m = evalParaCompat.mejor;
     const p = perfiles[m.perfilId] || null;
     const ex = Object.assign({}, entry.exigencias || {}, entry.exigenciasIA || {});
-    const item = (typeof procesoPorId === 'function') ? procesoPorId(entry.id) : null;
+    const sProc = (typeof procesoPorId === 'function') ? procesoPorId(entry.id) : null;
+    const item = sProc ? sProc.item : null;
     const mat = p ? matrizCapacidad(p) : null;
     const incompletos = (mat && mat.capacidadEstimada && mat.capacidadEstimada.incompletos) || 0;
     const cmp = comparacionCapacidadResidual(ex.kResidual || null, mat ? mat.kResidual : null, { valorProceso: item && item.valor, incompletos: incompletos });
@@ -12178,6 +12182,59 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
     if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
+  }
+
+  // Informe del análisis para compartir fuera de la app (PDF por impresión del navegador, o Word .doc): es la MISMA pantalla de análisis,
+  // sin botones ni filtros, con el pie de fuente y fecha. Sin librerías: el PDF lo genera el diálogo de impresión.
+  function informeDocumentoHtml(entry, contenedor, formato){
+    const clon = contenedor.cloneNode(true);
+    clon.querySelectorAll('[data-informe-acciones], .matriz-filtros, [data-matriz-vacia], [hidden], script').forEach(n => n.remove());
+    clon.querySelectorAll('.ficha-lotes').forEach(g => {
+      const elegidos = Array.from(g.querySelectorAll('button[aria-pressed="true"]')).map(b => b.textContent.trim()).join(', ');
+      const rot = g.querySelector('span');
+      const p = document.createElement('p');
+      p.textContent = (rot ? rot.textContent.trim() : 'Selección') + ' ' + (elegidos || 'sin definir');
+      g.replaceWith(p);
+    });
+    clon.querySelectorAll('button').forEach(b => b.remove());
+    const sp = (typeof procesoPorId === 'function') ? procesoPorId(entry.id) : null;
+    const it = (sp && sp.item) || entry.proceso || {};
+    const fecha = new Date().toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short' });
+    const titulo = 'Análisis de proceso — ' + (it.entidad || 'entidad no indicada') + (it.referencia ? ' (' + it.referencia + ')' : '');
+    const pie = pieFuenteDatos(modoDatos(), new Date().toISOString(), fmtDate(DATA_SNAPSHOT_DATE + 'T00:00:00.000'));
+    const cabecera = '<h1>' + escapeHtml(titulo) + '</h1>' + (it.objeto ? '<p>' + escapeHtml(truncate(it.objeto, 400)) + '</p>' : '') +
+      '<p><small>Generado por Bitácora SECOP el ' + escapeHtml(fecha) + '. ' + escapeHtml(AVISO_ORIENTATIVO) + '</small></p>';
+    const css = 'body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;color:#111;margin:24px}h1{font-size:18pt}h3{font-size:13pt;margin:18px 0 6px;border-bottom:1px solid #999}' +
+      'table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #888;padding:4px 6px;vertical-align:top;font-size:10pt;text-align:left}th{background:#eee}' +
+      '.resultado-global,.alerta-item{border:1px solid #888;padding:6px 8px;margin:6px 0}.resultado-nombre{font-size:16pt;font-weight:bold}ul{list-style:none;padding:0}.alerta-nivel{font-weight:bold;margin-right:6px}' +
+      '.saved-note,.resultado-meta{font-size:9pt;color:#444}@media print{body{margin:0}h3{page-break-after:avoid}tr{page-break-inside:avoid}}';
+    const ns = formato === 'word' ? ' xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"' : '';
+    return '<!DOCTYPE html><html lang="es"' + ns + '><head><meta charset="utf-8"><title>' + escapeHtml(titulo) + '</title><style>' + css + '</style></head><body>' +
+      cabecera + clon.innerHTML + '<hr><p><small>' + escapeHtml(pie) + '</small></p></body></html>';
+  }
+  function descargarInformeDocumento(entry, contenedor, formato){
+    const html = informeDocumentoHtml(entry, contenedor, formato);
+    const sp = (typeof procesoPorId === 'function') ? procesoPorId(entry.id) : null;
+    const it = (sp && sp.item) || entry.proceso || {};
+    const base = 'analisis-' + slugArchivo(it.referencia || it.entidad || entry.id);
+    if (formato === 'word'){
+      const blob = new Blob(['﻿' + html], { type: 'application/msword;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = base + '.doc';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      return;
+    }
+    const w = window.open('', '_blank');
+    if (!w){ // el navegador bloqueó la ventana: se baja como .html para abrirlo e imprimirlo desde ahí
+      const blob = new Blob(['﻿' + html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = base + '.html';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      return;
+    }
+    w.document.open(); w.document.write(html); w.document.close();
+    w.focus();
+    setTimeout(function(){ try { w.print(); } catch (e) { /* el usuario puede imprimir con Ctrl+P */ } }, 400);
   }
 
   function descargarTexto(nombreArchivo, texto){
@@ -14136,6 +14193,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const iaCancelBtn = e.target.closest('.analysis-ia-cancelar-btn');
     if (iaCancelBtn){
       iaAutoLeerCancelado[iaCancelBtn.getAttribute('data-ia-cancelar-id')] = true;
+      return;
+    }
+
+    // Informe del análisis para compartir (PDF por impresión / Word)
+    const docBtn = e.target.closest('[data-informe-doc]');
+    if (docBtn){
+      const en = analisis[docBtn.getAttribute('data-informe-doc-id')], cont = docBtn.closest('.analysis-resumen');
+      if (!en || !cont){ alert('No se encontró el análisis para generar el informe. Vuelve a abrir el análisis.'); return; }
+      descargarInformeDocumento(en, cont, docBtn.getAttribute('data-informe-doc'));
       return;
     }
 

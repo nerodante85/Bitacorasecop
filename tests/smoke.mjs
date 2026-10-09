@@ -5287,5 +5287,13 @@ await check('MG-012: longitud de vía — km se convierten, m² no cuentan, las 
   assert(inc.ambiguo === true && /no coincide con el 70 %/.test(inc.avisoCifra), 'cifra que no es el 70 % del total: ' + JSON.stringify(inc));
 });
 
+await check('INF-001: el informe del análisis (PDF por impresión / Word) usa la pantalla sin botones y lleva aviso orientativo, fecha y fuente', () => {
+  assert(/function informeDocumentoHtml\(entry, contenedor, formato\)/.test(html) && /function descargarInformeDocumento\(/.test(html), 'funciones del informe');
+  assert(/clon\.querySelectorAll\('button'\)\.forEach\(b => b\.remove\(\)\)/.test(html), 'el informe no lleva botones');
+  assert(/AVISO_ORIENTATIVO/.test(html.slice(html.indexOf('function informeDocumentoHtml'), html.indexOf('function descargarInformeDocumento'))) && /pieFuenteDatos\(modoDatos\(\)/.test(html), 'aviso y fuente');
+  assert(/data-informe-doc="pdf"/.test(html) && /data-informe-doc="word"/.test(html) && /data-informe-doc-id/.test(html), 'botones en la tarjeta de decisión');
+  assert(!/data-informe-id="[^"]*" data-informe-doc/.test(html), 'no choca con el informe .txt (data-informe-id)');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
