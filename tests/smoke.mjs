@@ -5306,5 +5306,27 @@ await check('RD-004: el mismo requisito en la ficha y en la matriz no se repite;
   assert(/RUP/.test(r.porResolver.find(x => x.requisito === 'Capital de trabajo demandado').accion), 'acción de cargar el RUP');
 });
 
+await check('RD-005: la acción de Experiencia dice qué comparar, no «verifica la cita»', () => {
+  const R = Evaluacion.resumenDecision;
+  const r = R({ veredicto: 'REVISAR', hayPliego: true, ficha: [],
+    requisitos: [
+      { requisito: 'Experiencia (Matriz 1): La experiencia a solicitar', resultado: 'NO DETERMINABLE', detalle: 'Sin contratos de tu empresa que lo acrediten. Entre los 148 contrato(s) cargados de las empresas marcadas, 3 comparten ALGUNAS palabras distintivas del requisito (alcantarillado). Verifica la cita.' },
+      { requisito: 'Experiencia: Obras de acueducto', resultado: 'NO DETERMINABLE', detalle: 'Ningún contrato del Excel de experiencia comparte palabras clave con este requisito.' }] });
+  const a = r.porResolver[0].accion, b = r.porResolver[1].accion;
+  assert(/objeto, valor en SMMLV y fecha/.test(a) && !/cita en el documento/.test(a), 'parcial: ' + a);
+  assert(/otras palabras/.test(b), 'sin coincidencias: ' + b);
+});
+
+await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabezado «MATRIZ N – EXPERIENCIA»', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const i = html.indexOf('function etiquetaRequisitoExperiencia'), j = html.indexOf('function empresaParaFicha');
+  assert(i > 0 && j > i, 'no se encontró la función');
+  const et = new Function('PATRON_MATRIZ_EXPERIENCIA', 'truncate', html.slice(i, j) + '\nreturn etiquetaRequisitoExperiencia;')(
+    'matriz\\s*(?:n?[°º]?\\s*\\d+)?\\s*[-–—:]?\\s*(?:de\\s+)?experiencia', (t, n) => t.length > n ? t.slice(0, n) + '…' : t);
+  const x = et('MATRIZ 1 – EXPERIENCIA La experiencia a solicitar en el mencionado proyecto se establece de la siguiente manera:');
+  assert(x === 'Experiencia (Matriz 1): La experiencia a solicitar en el mencionado proyecto se establece de la siguiente manera:', x);
+  assert(et('Haber ejecutado obras de alcantarillado') === 'Experiencia: Haber ejecutado obras de alcantarillado', 'sin encabezado queda igual');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

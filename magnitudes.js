@@ -268,7 +268,7 @@
       const sinDatos = por.filter(x => x.estado === 'sin_datos').length;
       const dudosos = falta.filter(x => x.estado === 'item_dudoso');
       const conDatos = por.length - sinDatos;
-      let det = conDatos === 0 ? 'Ningún contrato tiene cantidades cargadas (0 de ' + por.length + ').' : (conDatos === por.length ? 'Todos los contratos tienen cantidades cargadas.' : 'Solo ' + conDatos + ' de ' + por.length + ' contratos tienen cantidades cargadas.');
+      let det = conDatos === 0 ? 'Ningún contrato del perfil tiene cantidades cargadas (0 de ' + por.length + ').' : (conDatos === por.length ? 'Todos los contratos del perfil tienen cantidades cargadas.' : 'Solo ' + conDatos + ' de ' + por.length + ' contratos del perfil tienen cantidades cargadas.');
       if (dudosos.length) det += ' Ítems dudosos: ' + dudosos.slice(0, 3).map(x => x.id + ' (' + x.detalle + ')').join(' · ') + (dudosos.length > 3 ? ' …' : '') + '.';
       else if (conDatos > 0) det += ' Ninguno de los cargados tiene ítems de esta actividad.';
       return { estado: 'NO DETERMINABLE', detalle: det + ' Carga las cantidades de los contratos que podrían acreditarlo.' + nota, porContrato: por };

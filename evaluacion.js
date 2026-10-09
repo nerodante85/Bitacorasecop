@@ -556,6 +556,10 @@
     const accionDe = it => {
       const d = (it.detalle || '').toLowerCase();
       if (/confirma con la entidad|incoherencia|aclar/.test(d)) return 'Pregunta a la entidad en el periodo de observaciones.';
+      if (/^experiencia/i.test(String(it.requisito || ''))) {
+        if (/algunas palabras|solo palabras gen|actividad no es equivalente/.test(d)) return 'Revisa a mano cuál de tus contratos (objeto, valor en SMMLV y fecha) corresponde al alcance que cita el pliego.';
+        if (/ning[uú]n contrato/.test(d)) return 'Confirma si tienes experiencia descrita con otras palabras; si no, este requisito no se cumple.';
+      }
       if (/hoja cantidades|cantidades cargadas|sin cantidades/.test(d)) return 'Carga las cantidades de tus contratos (hoja CANTIDADES del Formato Maestro).';
       if (/cita|verific/.test(d)) return 'Verifica la cita en el documento.';
       if (/no tiene contratos de experiencia/.test(d)) return 'Carga los contratos de experiencia de tu empresa (Formato Maestro).';

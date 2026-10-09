@@ -6423,7 +6423,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const distintivasEncontradas = Array.from(new Set(parciales.flatMap(r => r.distMatch)));
         const distintivasFaltantes = req.palabrasDistintivas.filter(p => !distintivasEncontradas.includes(p));
         const motivosAct = Array.from(new Set(parciales.map(r => r.motivoActividad).filter(Boolean)));
-        justificacion = (motivosAct.length ? 'Coinciden las palabras del objeto, pero la actividad no es equivalente: ' + motivosAct.join('; ') + '. ' : '') + 'Hay ' + parciales.length + ' contrato(s) que comparten ALGUNAS palabras distintivas del requisito (' +
+        justificacion = (motivosAct.length ? 'Coinciden las palabras del objeto, pero la actividad no es equivalente: ' + motivosAct.join('; ') + '. ' : '') + 'Entre los ' + contratos.length + ' contrato(s) cargados de las empresas marcadas, ' + parciales.length + ' comparten ALGUNAS palabras distintivas del requisito (' +
           listaAcotada(distintivasEncontradas, 12) + ' -- de ' + req.palabrasDistintivas.length + ' en total), pero no todas' +
           (distintivasFaltantes.length ? ' (falta al menos: ' + listaAcotada(distintivasFaltantes, 4) + ')' : '') +
           '. Una coincidencia parcial no basta para confirmar que el alcance sea equivalente -- podría tratarse de una condición distinta (ej. "urbanas" vs "rurales") -- requiere revisión humana del objeto completo.';
@@ -10598,7 +10598,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       ev.resultados.forEach((r, i) => {
         const contratos = (r.contratosEvaluados || []).map(c => 'Fila ' + c.fila + (c.objeto ? ': ' + truncate(c.objeto, 70) : '') + (c.valor != null ? ' · valor ' + c.valor : '')).join('; ');
         filas.push({
-          clave: 'exp-' + i, requisito: 'Experiencia: ' + truncate(r.requisito.criterio || '', 160), exigencia: (r.evidencia || []).join(' ') || '—', nota: r.nota || '',
+          clave: 'exp-' + i, requisito: etiquetaRequisitoExperiencia(r.requisito.criterio), exigencia: (r.evidencia || []).join(' ') || '—', nota: r.nota || '',
           empresa: (contratos ? 'Contratos de tu empresa: ' + contratos + '. ' : 'Sin contratos de tu empresa que lo acrediten. ') + (r.justificacion || ''),
           resultado: ESTADOS_REQ.indexOf(r.resultado) !== -1 ? r.resultado : 'NO DETERMINABLE',
           evidencia: { documento: r.requisito.fuente || dePliego, pagina: r.requisito.pagina || null, cita: r.requisito.criterio || '', verificada: true, confirmada: false, bloqueo: null, modificadaPorAdenda: false, origen: 'texto' }
@@ -10659,6 +10659,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return { filas: filas, avisos: avisos, lotes: lotes };
   }
   // Datos de la mejor empresa registrada, normalizados para cruceFichaEmpresa (null si no hay ninguna).
+  // Etiqueta legible de un requisito de experiencia: quita el encabezado "MATRIZ N – EXPERIENCIA" que el pliego pega al primer renglón.
+  function etiquetaRequisitoExperiencia(criterio){
+    let t = String(criterio || '').replace(/\s+/g, ' ').trim();
+    let pref = 'Experiencia';
+    const m = new RegExp('^' + PATRON_MATRIZ_EXPERIENCIA, 'i').exec(t);
+    if (m){ const n = /(\d+)/.exec(m[0]); if (n) pref += ' (Matriz ' + n[1] + ')'; t = t.slice(m[0].length).replace(/^[\s\-–—:]+/, ''); }
+    return pref + ': ' + truncate(t, 160);
+  }
   function empresaParaFicha(entry){
     try {
       const ctx = itemYScorePara(entry.id);
