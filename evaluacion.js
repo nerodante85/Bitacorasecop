@@ -532,7 +532,56 @@
     };
   }
 
-  const Evaluacion = { crear: crear };
+  // Resumen de decisión (Go/No-Go) de UN proceso: función pura. Nunca produce un "avanza" si el veredicto no es GO ni
+  // queda ningún requisito sin resolver; todo lo que no está verificado aparece como "por resolver", no como cumplido.
+  // entrada: { veredicto, requisitos:[{requisito, resultado, detalle}], ficha:[{requisito, estado, detalle}], areas:[{nombre, estado, motivo}], diasRestantes, hayPliego }
+  function resumenDecision(entrada) {
+    const e = entrada || {};
+    const veredicto = ['GO', 'REVISAR', 'NO-GO', 'NO DETERMINABLE'].indexOf(e.veredicto) !== -1 ? e.veredicto : 'NO DETERMINABLE';
+    const vistos = new Set();
+    const items = [];
+    const agrega = (requisito, estado, detalle, origen) => {
+      const k = String(requisito || '').trim().toLowerCase();
+      if (!k || vistos.has(k + '|' + origen)) return;
+      vistos.add(k + '|' + origen);
+      items.push({ requisito: String(requisito).trim(), estado: estado, detalle: String(detalle || '').trim(), origen: origen });
+    };
+    (e.ficha || []).forEach(x => agrega(x.requisito, x.estado, x.detalle, 'ficha'));
+    (e.requisitos || []).forEach(x => agrega(x.requisito, x.resultado, x.detalle, 'matriz'));
+    const accionDe = it => {
+      const d = (it.detalle || '').toLowerCase();
+      if (/confirma con la entidad|incoherencia|aclar/.test(d)) return 'Pregunta a la entidad en el periodo de observaciones.';
+      if (/hoja cantidades|cantidades cargadas|sin cantidades/.test(d)) return 'Carga las cantidades de tus contratos (hoja CANTIDADES del Formato Maestro).';
+      if (/cita|verific/.test(d)) return 'Verifica la cita en el documento.';
+      if (/perfil|empresa|carg|registr/.test(d)) return 'Completa los datos de tu empresa y vuelve a analizar.';
+      return 'Confírmalo en el pliego.';
+    };
+    const norm = x => (x.estado === 'NO CUMPLE' || x.estado === 'CUMPLE' || x.estado === 'REVISAR') ? x.estado : 'NO DETERMINABLE';
+    const bloqueantes = items.filter(x => norm(x) === 'NO CUMPLE').map(x => ({ requisito: x.requisito, detalle: x.detalle }));
+    const porResolver = items.filter(x => norm(x) !== 'NO CUMPLE' && norm(x) !== 'CUMPLE').map(x => ({ requisito: x.requisito, estado: norm(x), detalle: x.detalle, accion: accionDe(x) }));
+    const cumple = items.filter(x => norm(x) === 'CUMPLE').length;
+    const dias = (typeof e.diasRestantes === 'number' && isFinite(e.diasRestantes)) ? e.diasRestantes : null;
+    let titulo, recomendacion;
+    if (veredicto === 'NO-GO') {
+      titulo = 'NO-GO'; recomendacion = 'Hay requisitos que tu empresa aparentemente no cumple. Solo tiene sentido participar con un aliado que los cubra (consorcio o unión temporal) o si la entidad aclara el requisito.';
+    } else if (bloqueantes.length) {
+      titulo = 'REVISAR'; recomendacion = 'Hay requisitos que aparentemente no cumples (abajo, marcados como bloqueantes). Confírmalos en el documento antes de decidir; si se confirman, el resultado es NO-GO salvo que sumes un aliado.';
+    } else if (veredicto === 'GO' && !porResolver.length && e.hayPliego !== false) {
+      titulo = 'GO'; recomendacion = 'Con la información analizada no hay incumplimientos ni requisitos sin resolver. Confirma con el pliego oficial antes de preparar la oferta.';
+    } else if (veredicto === 'NO DETERMINABLE' || e.hayPliego === false) {
+      titulo = 'NO DETERMINABLE'; recomendacion = e.hayPliego === false ? 'Todavía no se analizó el documento del proceso: sin él no hay evidencia para decidir.' : 'Falta evidencia para decidir. Resuelve los puntos pendientes de abajo.';
+    } else {
+      titulo = 'REVISAR'; recomendacion = 'No hay incumplimientos confirmados, pero quedan puntos sin resolver. No decidas hasta cerrarlos.';
+    }
+    const urgente = dias != null && dias >= 0 && dias <= 5;
+    return {
+      titulo: titulo, recomendacion: recomendacion, bloqueantes: bloqueantes, porResolver: porResolver, cumple: cumple, total: items.length,
+      plazo: dias == null ? null : { dias: dias, urgente: urgente, vencido: dias < 0 },
+      aviso: urgente && (bloqueantes.length || porResolver.length) ? 'El cierre está cerca y hay puntos sin resolver: si dependes de una respuesta de la entidad, pídela ya.' : ''
+    };
+  }
+
+  const Evaluacion = { crear: crear, resumenDecision: resumenDecision };
   if (typeof module !== 'undefined' && module.exports) module.exports = Evaluacion;
   else root.Evaluacion = Evaluacion;
 })(typeof window !== 'undefined' ? window : globalThis);

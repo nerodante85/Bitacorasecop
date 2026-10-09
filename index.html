@@ -320,7 +320,7 @@
     #bitacora-root .viabilidad-tabla td { border: 0; padding: 2px 8px; }
     #bitacora-root .viabilidad-tabla td:first-child { white-space: normal; }
   }
-  #bitacora-root .alertas-analisis { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  #bitacora-root .alertas-analisis, #bitacora-root .decision-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
   #bitacora-root .alerta-item { display: flex; gap: 10px; align-items: flex-start; border: 1px solid; border-radius: var(--radius-sm); padding: 9px 12px; font-size: 14px; overflow-wrap: anywhere; }
   #bitacora-root .alerta-item.critica { background: var(--danger-bg); border-color: var(--danger-border); }
   #bitacora-root .alerta-item.revisar { background: var(--warning-bg); border-color: var(--warning-border); }
@@ -10709,6 +10709,33 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div class="resultado-meta">Cifras calculadas por el sistema a partir del documento (SMMLV ' + new Date().getFullYear() + '); confírmalas en el pliego definitivo.</div></div>';
   }
 
+  // Resumen de decisión (Go/No-Go): qué bloquea, qué falta resolver y qué hacer, en un solo lugar. La lógica es pura (Evaluacion.resumenDecision).
+  function resumenDecisionHtml(entry, filasMatriz, veredicto, hayPliego){
+    let ficha = [];
+    try {
+      const emp = empresaParaFicha(entry), f = fichaHabilitanteDe(entry);
+      const cr = emp && f.filas.length ? cruceFichaEmpresa(f.filas, emp) : {};
+      ficha = Object.keys(cr).map(k => ({ requisito: k, estado: cr[k].estado, detalle: cr[k].detalle }));
+    } catch (e) { ficha = []; }
+    const item = (typeof procesoPorId === 'function') ? procesoPorId(entry.id) : null;
+    const cierre = (item && item.closingRaw) || (entry.proceso && entry.proceso.closingRaw) || null;
+    const r = Evaluacion.resumenDecision({
+      veredicto: veredicto, hayPliego: hayPliego, diasRestantes: diasRestantesDe(cierre), ficha: ficha,
+      requisitos: (filasMatriz || []).map(x => ({ requisito: x.requisito, resultado: x.resultado, detalle: x.empresa }))
+    });
+    const li = (cls, rotulo, x) => '<li class="alerta-item ' + cls + '"><span class="alerta-nivel">' + rotulo + '</span><span><b>' + escapeHtml(truncate(x.requisito, 120)) + '</b>' +
+      (x.detalle ? ' — ' + escapeHtml(truncate(x.detalle, 220)) : '') + (x.accion ? '<div class="saved-note">→ ' + escapeHtml(x.accion) + '</div>' : '') + '</span></li>';
+    const tope = 6;
+    const bl = r.bloqueantes.slice(0, tope).map(x => li('critica', '● BLOQUEA', x)).join('');
+    const pr = r.porResolver.slice(0, tope).map(x => li('revisar', '▲ POR RESOLVER', x)).join('');
+    const mas = (r.bloqueantes.length > tope ? '<div class="saved-note">Y ' + (r.bloqueantes.length - tope) + ' bloqueante(s) más en la matriz.</div>' : '') + (r.porResolver.length > tope ? '<div class="saved-note">Y ' + (r.porResolver.length - tope) + ' punto(s) más por resolver en la matriz.</div>' : '');
+    const plazo = r.plazo ? '<div class="resultado-meta">' + (r.plazo.vencido ? 'El proceso ya cerró.' : 'Cierre en ' + r.plazo.dias + ' día(s).') + '</div>' : '';
+    return '<div class="analisis-seccion" data-decision="1"><h3>Decisión: ' + escapeHtml(r.titulo) + '</h3>' +
+      '<div class="resultado-expl">' + escapeHtml(r.recomendacion) + '</div>' + plazo +
+      (r.aviso ? '<div class="alerta-item revisar" role="alert"><span class="alerta-nivel">▲ URGENTE</span><span>' + escapeHtml(r.aviso) + '</span></div>' : '') +
+      ((bl || pr) ? '<ul class="decision-lista">' + bl + pr + '</ul>' + mas : '') +
+      '<div class="resultado-meta">' + r.cumple + ' de ' + r.total + ' requisito(s) evaluados cumplen según los datos cargados. Orientativo: confirma con el pliego oficial.</div></div>';
+  }
   // Cabecera del análisis: resultado global + explicación, resumen de viabilidad, alertas y matriz.
   function resultadoAnalisisHtml(entry, evalParaCompat){
     const lp = lecturaParcial(entry);
@@ -10747,7 +10774,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           '<td><button type="button" class="link-btn" data-ev-id="' + idE + '" data-ev-fila="' + escapeHtml(f.clave) + '">Ver evidencia</button></td></tr>').join('') +
         '</tbody></table></div><div class="matriz-vacia" data-matriz-vacia hidden>Ningún requisito con ese resultado.</div>'
       : '<div class="matriz-vacia">Todavía no hay requisitos para mostrar: ' + (entry.requisitosIA ? 'la lectura no encontró requisitos habilitantes (confírmalo en el documento).' : 'extrae los requisitos del documento.') + '</div>';
-    return '<div class="analysis-resumen">' + hero + siguientePaso + fichaHabilitanteHtml(entry) +
+    const decisionHtml = resumenDecisionHtml(entry, filas, v, !!m.conPliego);
+    return '<div class="analysis-resumen">' + hero + decisionHtml + siguientePaso + fichaHabilitanteHtml(entry) +
       '<div class="analisis-seccion"><h3>Resumen de viabilidad</h3>' + tabViab + '</div>' +
       '<div class="analisis-seccion"><h3>Capacidad Residual</h3>' + capacidadResidualAnalisisHtml(entry, evalParaCompat, filas) + '</div>' +
       '<div class="analisis-seccion"><h3>Alertas</h3>' + alertasHtml + '</div>' +

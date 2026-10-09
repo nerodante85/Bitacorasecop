@@ -5237,5 +5237,37 @@ await check('FICHA-ZAPATOCA: estudio previo de alcaldía — objeto tras «cuyo 
   assert(sinAnticipo && !f.filas.some(x => x.requisito === 'Anticipo'), 'sin mención de anticipo no se afirma que no lo haya');
 });
 
+await check('RD-001: resumen de decisión — nunca GO con puntos sin resolver, bloqueantes visibles y acciones concretas', () => {
+  const R = Evaluacion.resumenDecision;
+  const nd = { requisito: 'Específica: tubería', estado: 'NO DETERMINABLE', detalle: 'El pliego no dice cómo se cuentan las cantidades en consorcio: confirma con la entidad.' };
+  const sinCant = { requisito: 'Específica: conexiones domiciliarias', estado: 'NO DETERMINABLE', detalle: 'Ningún contrato cargado tiene ítems. Registra las cantidades en la hoja CANTIDADES.' };
+  const ok = { requisito: 'Capital de trabajo demandado', estado: 'CUMPLE', detalle: 'alcanza' };
+  const a = R({ veredicto: 'GO', hayPliego: true, ficha: [ok, nd] });
+  assert(a.titulo === 'REVISAR' && a.porResolver.length === 1 && /entidad/.test(a.porResolver[0].accion), 'GO con un punto sin resolver baja a REVISAR: ' + JSON.stringify(a));
+  assert(R({ veredicto: 'GO', hayPliego: true, ficha: [ok] }).titulo === 'GO', 'GO limpio se mantiene');
+  assert(R({ veredicto: 'GO', hayPliego: false, ficha: [ok] }).titulo === 'NO DETERMINABLE', 'sin pliego analizado nunca es GO');
+  assert(R({ veredicto: 'GO', hayPliego: true, ficha: [sinCant] }).porResolver[0].accion.indexOf('CANTIDADES') !== -1, 'acción de cargar cantidades');
+  const b = R({ veredicto: 'REVISAR', hayPliego: true, ficha: [{ requisito: 'Patrimonio', estado: 'NO CUMPLE', detalle: 'falta $1' }, ok] });
+  assert(b.titulo === 'REVISAR' && b.bloqueantes.length === 1 && b.cumple === 1, 'bloqueante visible sin contradecir el veredicto global: ' + JSON.stringify(b));
+  assert(R({ veredicto: 'NO-GO', hayPliego: true, ficha: [] }).titulo === 'NO-GO', 'NO-GO se respeta');
+  assert(R({ veredicto: 'raro', hayPliego: true, ficha: [ok] }).titulo !== 'GO', 'un veredicto desconocido nunca es GO');
+});
+
+await check('RD-002: plazo del cierre y aviso de urgencia; sin duplicar requisitos entre ficha y matriz', () => {
+  const R = Evaluacion.resumenDecision;
+  const nd = { requisito: 'X', estado: 'NO DETERMINABLE', detalle: '' };
+  const u = R({ veredicto: 'REVISAR', hayPliego: true, diasRestantes: 3, ficha: [nd] });
+  assert(u.plazo.dias === 3 && u.plazo.urgente === true && /cierre está cerca/.test(u.aviso), JSON.stringify(u.plazo));
+  assert(R({ veredicto: 'GO', hayPliego: true, diasRestantes: -2, ficha: [] }).plazo.vencido === true, 'vencido');
+  assert(R({ veredicto: 'GO', hayPliego: true, ficha: [] }).plazo === null, 'sin fecha no se inventa');
+  const d = R({ veredicto: 'REVISAR', hayPliego: true, ficha: [nd], requisitos: [{ requisito: 'x', resultado: 'NO DETERMINABLE', detalle: '' }] });
+  assert(d.total === 2, 'ficha y matriz son fuentes distintas: ' + d.total);
+});
+
+await check('RD-003: la vista de análisis muestra el resumen de decisión justo después del resultado global', () => {
+  assert(/function resumenDecisionHtml\(entry, filasMatriz, veredicto, hayPliego\)/.test(html) && /Evaluacion\.resumenDecision\(\{/.test(html), 'debe usar la función pura');
+  assert(/hero \+ decisionHtml \+ siguientePaso/.test(html), 'orden: resultado global, decisión, siguiente paso');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
