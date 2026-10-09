@@ -27,6 +27,8 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const Coincidencia = (await import(pathToFileURL(path.join(ROOT, 'coincidencia.js')).href)).default;
 const Evaluacion = (await import(pathToFileURL(path.join(ROOT, 'evaluacion.js')).href)).default;
 const FormatoMaestro = (await import(pathToFileURL(path.join(ROOT, 'formatomaestro.js')).href)).default;
+const Magnitudes = (await import(pathToFileURL(path.join(ROOT, 'magnitudes.js')).href)).default;
+globalThis.Magnitudes = Magnitudes; // index.html lo carga como script global; el motor extraído lo busca en el scope global
 const HTML_PATH = path.join(ROOT, 'index.html');
 const html = readFileSync(HTML_PATH, 'utf8');
 
@@ -5081,6 +5083,88 @@ await check('RR-004: si TODOS los contratos que acreditan están fuera del RUP, 
   const r = evaluarFilaIA(FILA_RUP, contratosConRup(['no', 'no']));
   assert(r.resultado === 'CUMPLE', 'sigue sin bloquear: ' + r.resultado);
   assert(/ninguno|todos/i.test(r.justificacion) && /RUP/.test(r.justificacion), r.justificacion);
+});
+
+
+// ---- Magnitudes de experiencia específica por cantidades (magnitudes.js) -------------------------
+const MG_C170 = { numeroContrato: 'C-0170', participacion: { valor: 50 }, formatoMaestro: { cantidades: [
+  { item: 'PVC para alcantarillado 12"', cantidad: 1378, unidad: 'ML' }, { item: 'Pozo tipo III', cantidad: 12, unidad: 'UND' }, { item: 'Pozo tipo IV', cantidad: 18, unidad: 'UND' }] } };
+const MG_C169 = { numeroContrato: 'C-0169', participacion: { valor: 60 }, formatoMaestro: { cantidades: [
+  { item: 'Suministro e instalación tubería de 16"', cantidad: 1185, unidad: 'ML' },
+  { item: 'Suministro e instalación tubería NOVAFORD D=160 MM', cantidad: 320, unidad: 'ML' },
+  { item: 'Pozos de inspección H>2 m', cantidad: 6, unidad: 'UND' },
+  { item: 'Suministro e instalación silla yee PVC alcantarillado 400*160 mm', cantidad: 90, unidad: 'UND' }] } };
+const MG_C171 = { numeroContrato: 'C-0171', participacion: { valor: 10 }, formatoMaestro: { cantidades: [
+  { item: 'Cajas domiciliarias', cantidad: 146, unidad: 'UND' }, { item: 'Tubería gres Ø8" alcantarillado', cantidad: 300, unidad: 'ML' }] } };
+const mgEx = () => {
+  const f = expEngine.fichaHabilitante(FICHA_TOLEDO_PAGINAS.join('\n'), { anio: 2026 });
+  const por = n => f.filas.find(x => x.requisito === 'Específica: ' + n);
+  return { f: f, tub: por('tubería'), con: por('conexiones domiciliarias'), poz: por('pozos de inspección'), ent: por('entibados') };
+};
+
+await check('MG-001: la ficha de Toledo trae cada exigencia de magnitud ya estructurada (actividad, cifra, material y diámetro mínimo)', () => {
+  const m = mgEx();
+  const e = x => x && x.dato && x.dato.tipo === 'magnitud' && x.dato.exigencia;
+  assert(e(m.tub) && e(m.tub).actividad === 'tuberia' && e(m.tub).cifra === 965.21 && e(m.tub).material === 'PVC' && e(m.tub).diametroMinPulg === 8, 'tubería: ' + JSON.stringify(m.tub && m.tub.dato));
+  assert(e(m.con) && e(m.con).actividad === 'conexiones' && e(m.con).cifra === 129, 'conexiones: ' + JSON.stringify(m.con && m.con.dato));
+  assert(e(m.poz) && e(m.poz).actividad === 'pozos' && e(m.poz).cifra === 19, 'pozos: ' + JSON.stringify(m.poz && m.poz.dato));
+  assert(e(m.ent) && e(m.ent).actividad === 'entibados' && e(m.ent).soloAcreditar === true, 'entibados: ' + JSON.stringify(m.ent && m.ent.dato));
+});
+
+await check('MG-002: en consorcio, si el resultado cambia según se prorratee o no, es NO DETERMINABLE (no se asume la base)', () => {
+  const m = mgEx(), ex = x => x.dato.exigencia;
+  const t = Magnitudes.evaluar(ex(m.tub), [MG_C170]);
+  assert(t.estado === 'NO DETERMINABLE' && /consorcio|prorrate/i.test(t.detalle), t.estado + ' ' + t.detalle);
+  assert(Magnitudes.evaluar(ex(m.tub), [MG_C170], { base: 'total' }).estado === 'CUMPLE', 'base total: 1.378 ml >= 965,21');
+  assert(Magnitudes.evaluar(ex(m.tub), [MG_C170], { base: 'prorrata' }).estado !== 'CUMPLE', 'prorrateado 689 ml < 965,21 nunca CUMPLE');
+  const p = Magnitudes.evaluar(ex(m.poz), [MG_C170], { base: 'prorrata' });
+  assert(p.estado === 'NO CUMPLE' && /15/.test(p.detalle) && /19/.test(p.detalle), 'pozos prorrateados 15 < 19: ' + p.estado + ' ' + p.detalle);
+});
+
+await check('MG-003: tubería sin material, de otro material o accesorios no suman: nunca CUMPLE por ítems dudosos', () => {
+  const m = mgEx(), ex = x => x.dato.exigencia;
+  const sinC170 = Magnitudes.evaluar(ex(m.tub), [MG_C169, MG_C171], { base: 'total' });
+  assert(sinC170.estado === 'NO DETERMINABLE', 'tubería de 16" sin material + Novafort + gres: ' + sinC170.estado + ' ' + sinC170.detalle);
+  assert(/no dice el material/i.test(sinC170.detalle) && /GRES/.test(sinC170.detalle) === false, 'el gres es material distinto y conocido: se descarta, no queda en duda: ' + sinC170.detalle);
+  const con = Magnitudes.evaluar(ex(m.con), [MG_C169, MG_C171], { base: 'total' });
+  assert(con.estado === 'NO DETERMINABLE' && !/CUMPLE/.test(con.estado), 'sillas yee y cajas no son conexiones: ' + con.estado + ' ' + con.detalle);
+});
+
+await check('MG-004: entibados y longitud de vía no se dan por cumplidos sin evidencia; sin contratos cargados tampoco', () => {
+  const m = mgEx();
+  const ent = Magnitudes.evaluar(m.ent.dato.exigencia, [MG_C169, MG_C170, MG_C171]);
+  assert(ent.estado === 'NO DETERMINABLE', 'sin ítem de entibado: ' + ent.estado);
+  const conEnt = Object.assign({}, MG_C170, { formatoMaestro: { cantidades: [{ item: 'Entibado de zanja', cantidad: 120, unidad: 'ML' }] } });
+  assert(Magnitudes.evaluar(m.ent.dato.exigencia, [conEnt]).estado === 'CUMPLE', 'con ítem de entibado y cantidad > 0');
+  const via = expEngine.fichaHabilitante(FICHA_TOLEDO_PAGINAS.join('\n'), { anio: 2026 }).filas.find(x => /longitud\s+intervenida/i.test(x.requisito));
+  assert(!via || Magnitudes.evaluar(via.dato && via.dato.exigencia, [MG_C169]).estado === 'NO DETERMINABLE', 'la longitud de vía no se cruza sola');
+  assert(Magnitudes.evaluar(m.poz.dato.exigencia, []).estado === 'NO DETERMINABLE', 'sin contratos: no determinable');
+});
+
+await check('MG-005: cifras con separadores ambiguos no se asumen; los contratos en ejecución no acreditan', () => {
+  assert(Magnitudes.numero('2.004,64').valor === 2004.64 && Magnitudes.numero('965.21').valor === 965.21 && Magnitudes.numero('1,5').valor === 1.5, 'formatos');
+  assert(Magnitudes.numero('1.378').ambiguo === true, '"1.378" puede ser 1378 o 1,378');
+  const ambiguo = Magnitudes.parsearExigencia('Por lo menos uno (1) de los contratos válidos ... pozos de inspección ... 38 UND. (1.900 UND)');
+  assert(Magnitudes.evaluar(ambiguo, [MG_C170]).estado === 'NO DETERMINABLE', 'cifra ambigua');
+  const enEjec = Object.assign({}, MG_C170, { enEjecucion: true });
+  assert(Magnitudes.evaluar(mgEx().poz.dato.exigencia, [enEjec], { base: 'total' }).estado === 'NO DETERMINABLE', 'en ejecución no acredita');
+});
+
+await check('MG-006: cruceFichaEmpresa cruza las magnitudes con los contratos del perfil (emp.contratos y emp.baseCantidades)', () => {
+  const m = mgEx();
+  const r = expEngine.cruceFichaEmpresa(m.f.filas, { contratos: [MG_C170], baseCantidades: 'total' });
+  assert(r['Específica: tubería'] && r['Específica: tubería'].estado === 'CUMPLE', JSON.stringify(r['Específica: tubería']));
+  assert(r['Específica: pozos de inspección'].estado === 'CUMPLE', 'pozos con base total');
+  assert(r['Específica: conexiones domiciliarias'].estado === 'NO DETERMINABLE', 'conexiones sin ítems');
+  const sinBase = expEngine.cruceFichaEmpresa(m.f.filas, { contratos: [MG_C170] });
+  assert(sinBase['Específica: tubería'].estado === 'NO DETERMINABLE', 'sin base explícita en consorcio: no determinable');
+});
+
+await check('MG-007: magnitudes.js se carga en index.html antes del script principal y pages.yml lo copia y sella', () => {
+  assert(/<script src="magnitudes\.js"><\/script>/.test(html), 'index.html debe cargar magnitudes.js');
+  assert(html.indexOf('<script src="magnitudes.js">') < html.indexOf('Magnitudes.parsearExigencia('), 'debe cargarse antes de usarlo');
+  const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
+  assert(/cp index\.html [^\n]*magnitudes\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro\|magnitudes/.test(yml), 'pages.yml debe copiar y sellar magnitudes.js');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

@@ -1978,6 +1978,7 @@
 <script src="evaluacion.js"></script>
 <script src="coincidencia.js"></script>
 <script src="formatomaestro.js"></script>
+<script src="magnitudes.js"></script>
 <script>
 // Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
 const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII } = Coincidencia;
@@ -7492,6 +7493,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           }
         }
       }
+      else if (d.tipo === 'magnitud'){
+        // Cantidades por ítem de los contratos de la empresa (hoja CANTIDADES del Formato Maestro): ver magnitudes.js.
+        r = (typeof Magnitudes !== 'undefined') ? Magnitudes.evaluar(d.exigencia, emp.contratos || [], { base: emp.baseCantidades || null }) : { estado: 'NO DETERMINABLE', detalle: 'El cruce de cantidades no está disponible.' };
+      }
       if (r) out[f.requisito] = r;
     });
     return out;
@@ -7625,7 +7630,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         if (!cifra && !/entibad|sedimentador/i.test(frase)) continue;
         vistas[clave] = true;
         const act = /conexiones?\s+domiciliarias?/i.test(frase) ? 'conexiones domiciliarias' : /pozos?\s+de\s+inspecci[óo]n/i.test(frase) ? 'pozos de inspección' : /entibados?/i.test(frase) ? 'entibados' : /sedimentador/i.test(frase) ? 'sedimentadores' : /tuber[íi]a/i.test(frase) ? 'tubería' : /tanque/i.test(frase) ? 'tanque de almacenamiento' : /longitud/i.test(frase) ? 'longitud intervenida' : 'magnitud';
-        add('Experiencia', 'Específica: ' + act, frase.length > 330 ? frase.slice(0, 330) + '…' : frase, cifra ? 'Cifra del documento: ' + cifra[1] + ' ' + cifra[2] : '', { pagina: pagina(mm.index) });
+        add('Experiencia', 'Específica: ' + act, frase.length > 330 ? frase.slice(0, 330) + '…' : frase, cifra ? 'Cifra del documento: ' + cifra[1] + ' ' + cifra[2] : '', { pagina: pagina(mm.index), dato: { tipo: 'magnitud', exigencia: (typeof Magnitudes !== 'undefined') ? Magnitudes.parsearExigencia(frase) : null } });
       }
     }
     const reCl = /CLASIFICACI[ÓO]N\s+DE\s+LA\s+EXPERIENCIA/ig;
@@ -10629,7 +10634,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         if (mat.kResidual.unidad === 'COP') k = mat.kResidual.valor;
         else if (/smmlv/i.test(mat.kResidual.unidad || '') && SMMLV_POR_ANIO[new Date().getFullYear()]) k = mat.kResidual.valor * SMMLV_POR_ANIO[new Date().getFullYear()];
       }
-      return { nombre: mat.nombre, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
+      const expP = expevalPorPerfil[res.mejor.perfilId];
+      const contratosExp = (expP && expP.contratos && expP.contratos.contratos) || [];
+      return { nombre: mat.nombre, contratos: contratosExp, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
         kIncompleto: !!(mat.capacidadEstimada && mat.capacidadEstimada.incompletos > 0) };
     } catch (e) { return null; }
   }
@@ -10655,7 +10662,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return '<div class="analisis-seccion" data-ficha-seccion="1"><h3>Requisitos habilitantes del proceso</h3>' + selLote +
       '<div class="expeval-table-wrap"><table class="matriz-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th>' + (hayCruce ? '<th scope="col">Tu empresa' + (emp.nombre ? ' (' + escapeHtml(emp.nombre) + ')' : '') + '</th>' : '') + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
       (f.avisos.length ? '<ul class="alertas-analisis">' + f.avisos.map(function(a){ return '<li class="alerta-item revisar"><span class="alerta-nivel">▲ REVISAR</span><span>' + escapeHtml(a) + '</span></li>'; }).join('') + '</ul>' : '') +
-      (hayCruce ? '<div class="resultado-meta" role="status">Cruce financiero con tu perfil: ' + cuentas['CUMPLE'] + ' cumple · ' + cuentas['NO CUMPLE'] + ' no cumple · ' + cuentas['REVISAR'] + ' por revisar · ' + cuentas['NO DETERMINABLE'] + ' no determinable. Solo compara capital de trabajo, patrimonio, K e índices; la experiencia se evalúa en la matriz.</div>' : '') +
+      (hayCruce ? '<div class="resultado-meta" role="status">Cruce financiero con tu perfil: ' + cuentas['CUMPLE'] + ' cumple · ' + cuentas['NO CUMPLE'] + ' no cumple · ' + cuentas['REVISAR'] + ' por revisar · ' + cuentas['NO DETERMINABLE'] + ' no determinable. Compara capital de trabajo, patrimonio, K e índices y, en la experiencia específica, las cantidades por ítem que cargaste en la hoja CANTIDADES (tubería, pozos, conexiones, entibados); el resto de la experiencia se evalúa en la matriz.</div>' : '') +
       '<div class="resultado-meta">Cifras calculadas por el sistema a partir del documento (SMMLV ' + new Date().getFullYear() + '); confírmalas en el pliego definitivo.</div></div>';
   }
 

@@ -59,10 +59,10 @@ jobs:
       - name: Preparar el sitio
         run: |
           mkdir -p _site/vendor
-          cp index.html lectura.js evaluacion.js coincidencia.js formatomaestro.js 404.html privacidad.html snapshot.json sitemap.xml _site/
+          cp index.html lectura.js evaluacion.js coincidencia.js formatomaestro.js magnitudes.js 404.html privacidad.html snapshot.json sitemap.xml _site/
           cp vendor/*.js _site/vendor/
           # Sella los scripts propios con el commit: sin esto el navegador puede cruzar un index.html nuevo con un script viejo en caché.
-          sed -i -E "s#<script src=\"(lectura|evaluacion|coincidencia|formatomaestro)\.js\">#<script src=\"\1.js?v=${GITHUB_SHA}\">#" _site/index.html
+          sed -i -E "s#<script src=\"(lectura|evaluacion|coincidencia|formatomaestro|magnitudes)\.js\">#<script src=\"\1.js?v=${GITHUB_SHA}\">#" _site/index.html
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: _site
