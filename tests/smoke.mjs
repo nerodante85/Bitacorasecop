@@ -5225,5 +5225,17 @@ await check('LOTES-003: tabla «Lote / Municipio / Valor Fase I / Fase II / Valo
   assert(!sinTotal.lotes || sinTotal.lotes.length === 0, 'una sola fila no forma lotes');
 });
 
+await check('FICHA-ZAPATOCA: estudio previo de alcaldía — objeto tras «cuyo objeto es:» y plazo en letras solo si coincide con el número', () => {
+  const base = 'Alcaldía Municipal de Zapatoca. En virtud de las normas legales precitadas, el municipio adelantará el presente proceso de selección por la modalidad de Licitación de Obra Pública No. LP-006-2026, cuyo objeto es: OPTIMIZACIÓN Y MEJORAMIENTO DEL SISTEMA DE ACUEDUCTO DEL MUNICIPIO DE ZAPATOCA, SANTANDER. 2. DESCRIPCIÓN DE LA NECESIDAD ';
+  const f = expEngine.fichaHabilitante(base + '3.5 PLAZO DE EJECUCIÓN El plazo de duración del presente contrato será de DOS MESES (2 MESES), sin superar la vigencia fiscal 2026.', { anio: 2026 });
+  const ob = f.filas.find(x => x.requisito === 'Objeto'), pz = f.filas.find(x => x.requisito === 'Plazo de ejecución');
+  assert(ob && /ACUEDUCTO DEL MUNICIPIO DE ZAPATOCA, SANTANDER$/.test(ob.exige), 'objeto: ' + (ob && ob.exige));
+  assert(pz && pz.exige === '2 meses', 'plazo: ' + JSON.stringify(pz));
+  const mal = expEngine.fichaHabilitante(base + 'El plazo de duración del presente contrato será de DOS MESES (3 MESES)', { anio: 2026 });
+  assert(!mal.filas.some(x => x.requisito === 'Plazo de ejecución'), 'si la palabra y el número no coinciden no se elige ninguno');
+  const sinAnticipo = f.avisos.some(a => /anticipo/i.test(a));
+  assert(sinAnticipo && !f.filas.some(x => x.requisito === 'Anticipo'), 'sin mención de anticipo no se afirma que no lo haya');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

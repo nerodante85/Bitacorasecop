@@ -7563,7 +7563,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Datos del proceso
     const mObj = t.match(/\bOBJETO:\s*(.{20,420}?)(?=\s+\d\.\d+\.?\s+ALCANCE|\s+ALCANCE\s+DEL\s+OBJETO)/i);
     if (mObj) add('Datos del proceso', 'Objeto', mObj[1].trim(), '', { pagina: pagina(mObj.index) });
-    else { const mO2 = t.match(/ejecutar\s+el\s+contrato\s+de\s+obra\s+p[úu]blica\s+para\s+(.{15,260}?),?\s+en\s+adelante\s+el\s+[“"]contrato/i); if (mO2) add('Datos del proceso', 'Objeto', mO2[1].trim(), '', { pagina: pagina(mO2.index) }); }
+    else {
+      const mO2 = t.match(/ejecutar\s+el\s+contrato\s+de\s+obra\s+p[úu]blica\s+para\s+(.{15,260}?),?\s+en\s+adelante\s+el\s+[“"]contrato/i);
+      if (mO2) add('Datos del proceso', 'Objeto', mO2[1].trim(), '', { pagina: pagina(mO2.index) });
+      else {
+        // Estudios previos: "... Licitación de Obra Pública No. LP-006-2026, cuyo objeto es: OPTIMIZACIÓN ... ZAPATOCA, SANTANDER."
+        const mO3 = t.match(/cuyo\s+objeto\s+es:?\s+([A-ZÁÉÍÓÚÑ][^.]{15,300}?)\.(?=\s|$)/);
+        if (mO3) add('Datos del proceso', 'Objeto', mO3[1].trim(), '', { pagina: pagina(mO3.index) });
+      }
+    }
     // Presupuesto: solo se usa si el documento trae UN único valor grande junto a "presupuesto oficial". Con varios valores
     // (lotes, grupos, fases) no se elige ninguno: sería inventar cuál es el del proceso del usuario.
     const montosPO = []; { const rePO = /presupuesto\s+oficial[^$]{0,360}?\$\s*(\d{1,3}(?:\.\d{3}){2,})/ig; let mm; while ((mm = rePO.exec(t))){ const v = parseInt(mm[1].replace(/\./g, ''), 10); if (v >= 50000000) montosPO.push({ v: v, i: mm.index }); } }
@@ -7596,6 +7604,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const iTab = t.search(/OBJETO,\s+PRESUPUESTO\s+OFICIAL,\s+PLAZO\s+Y\s+UBICACI[ÓO]N\s+El\s+objeto/i);
       const mT = iTab >= 0 ? t.slice(iTab, iTab + 900).match(/\b(\d{1,2})\s+(?:[A-ZÁÉÍÓÚÑ,.]+\s+){0,24}MESES\b/) : null;
       if (mT){ plazo = parseInt(mT[1], 10); idxPlazo = iTab; }
+    }
+    if (plazo == null){
+      // Estudios previos de alcaldías: "El plazo de duración del presente contrato será de DOS MESES (2 MESES)". Solo se acepta si la
+      // palabra y el número coinciden; si no cuadran, no se elige ninguno.
+      const mZ = t.match(/plazo\s+de\s+(?:duraci[óo]n|ejecuci[óo]n)\s+del\s+(?:presente\s+)?contrato\s+ser[áa]\s+de\s+([A-Za-zÁÉÍÓÚÑáéíóúñ ]{2,40}?)\s*\((\d{1,3})\s*\)?\s*mes/i);
+      if (mZ){
+        const PAL = { un: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15, dieciseis: 16, dieciocho: 18, veinte: 20, veinticuatro: 24 };
+        const palabra = mZ[1].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+meses?$/, '').trim();
+        const n = parseInt(mZ[2], 10);
+        if (PAL[palabra] === n){ plazo = n; idxPlazo = mZ.index; }
+      }
     }
     if (plazo) add('Datos del proceso', 'Plazo de ejecución', plazo + ' meses', '', { pagina: pagina(idxPlazo) });
     const sinAnticipo = /no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:al\s+contratista\s+)?(?:ning[úu]n\s+)?anticipo/i.test(t);
