@@ -5189,5 +5189,41 @@ await check('MG-009: sin cantidades cargadas, la nota resume (N de M) en vez de 
   assert(e.estado === 'NO DETERMINABLE' && /solo pide acreditar/.test(e.detalle), 'entibados: ' + e.detalle);
 });
 
+const EPC_TUB_BASE = 'Por lo menos uno (1) de los contratos válidos aportados como experiencia general debe contar con una longitud de tubería equivalente al (50%) de la longitud total establecida en el presente proceso de selección la cual es de ';
+const EPC_TUB_L1 = EPC_TUB_BASE + '7.254 ml, y que contemple como mínimo las mismas condiciones técnicas (entiéndase como mismas condiciones técnicas la instalación según tipo de tubería: PVC, HD, PEAD, GRP, ACCP, otras) el cual corresponde a PVC o PEAD, por lo anterior se requiere que acredite una longitud de tubería de 3.627 ml en tubería PVC, PEAD en diámetros entre 8” y 12”.';
+const EPC_TUB_INCOHERENTE = EPC_TUB_BASE + '4.143 ml, y que contemple como mínimo las mismas condiciones técnicas el cual corresponde a PVC, por lo anterior se requiere que acredite una longitud de tubería de 2.701 ml en tubería PVC, en diámetros entre 8” y 12”.';
+
+await check('MG-010: dos materiales («PVC o PEAD»), rango de diámetros y control cruzado cifra = N % del total', () => {
+  const e = Magnitudes.parsearExigencia(EPC_TUB_L1);
+  assert(e.cifra === 3627 && e.ambiguo === false && e.materiales.join(',') === 'PVC,PEAD' && e.diametroMinPulg === 8 && e.diametroMaxPulg === 12, JSON.stringify(e));
+  const c = (id, item, ml) => ({ id, formatoMaestro: { cantidades: [{ item, cantidad: ml, unidad: 'ml' }] } });
+  assert(Magnitudes.evaluar(e, [c('A', 'PEAD alcantarillado 10"', 4000)], {}).estado === 'CUMPLE', 'PEAD 10" de 4.000 ml acredita');
+  assert(Magnitudes.evaluar(e, [c('B', 'PVC alcantarillado 24"', 9000)], {}).estado !== 'CUMPLE', 'un diámetro fuera del rango no acredita');
+  assert(Magnitudes.evaluar(e, [c('C', 'Tubería concreto 10"', 9000)], {}).estado !== 'CUMPLE', 'otro material no acredita');
+  const t = fichaTol().filas.find(x => x.requisito === 'Específica: tubería').dato.exigencia;
+  assert(t.cifra === 965.21 && t.ambiguo === false && !t.avisoCifra, 'Toledo (50 % de 1930.42 = 965.21) sigue sin aviso: ' + JSON.stringify(t));
+});
+
+await check('MG-011: si la cifra exigida no es el N % del total que declara el pliego, se avisa y es NO DETERMINABLE', () => {
+  const e = Magnitudes.parsearExigencia(EPC_TUB_INCOHERENTE);
+  assert(e.ambiguo === true && /no coincide con el 50 %/.test(e.avisoCifra), JSON.stringify(e));
+  const r = Magnitudes.evaluar(e, [{ id: 'A', formatoMaestro: { cantidades: [{ item: 'PVC alcantarillado 10"', cantidad: 9999, unidad: 'ml' }] } }], {});
+  assert(r.estado === 'NO DETERMINABLE' && /incoherencia/.test(r.detalle), 'nunca CUMPLE con una exigencia incoherente: ' + r.detalle);
+  const f = expEngine.fichaHabilitante('OBJETO: x\n' + EPC_TUB_INCOHERENTE, { anio: 2026 });
+  const fila = f.filas.find(x => x.requisito === 'Específica: tubería');
+  assert(fila && /incoherencia/.test(fila.aviso), 'la ficha muestra el aviso');
+});
+
+const EPC2_LOTES = 'ESTUDIO PREVIO 2.3 PLAZO 1 Ubaque Tres (03) Meses Diez (10) Meses Trece (13) Meses 2 San Cayetano Tres (03) Meses Cinco (05) Meses Ocho (08) Meses 2.4. VALOR DEL PRESUPUESTO: Por lo anterior el valor de cada lote es el siguiente: Valor Fase I Valor Fase II Lote Municipio (Apropiación) (Obra) Valor Total 1 Ubaque $ 250.214.162,00 $ 21.625.501.015,00 $ 21.875.715.177,00 2 San Cayetano $ 267.879.894,00 $ 3.776.837.728,00 $ 4.044.717.622,00 TOTAL $ 25.920.432.799,00 2.5. FORMA DE PAGO:';
+await check('LOTES-003: tabla «Lote / Municipio / Valor Fase I / Fase II / Valor Total» con plazo por lote (estudio previo de EPC)', () => {
+  const f = expEngine.fichaHabilitante(EPC2_LOTES, { anio: 2026, lote: '2' });
+  assert(f.lotes && f.lotes.length === 2 && f.lotes[0].presupuesto === 21875715177 && f.lotes[1].presupuesto === 4044717622, JSON.stringify(f.lotes));
+  assert(f.lotes[0].plazo === 13 && f.lotes[1].plazo === 8, 'plazos por lote: ' + JSON.stringify(f.lotes));
+  const po = f.filas.find(x => /^Presupuesto oficial del Lote 2/.test(x.requisito));
+  assert(po && /4\.044\.717\.622/.test(po.exige), 'con el lote elegido la ficha usa su presupuesto');
+  const sinTotal = expEngine.fichaHabilitante('Lote Municipio Valor Total 1 Ubaque $ 1,00', { anio: 2026 });
+  assert(!sinTotal.lotes || sinTotal.lotes.length === 0, 'una sola fila no forma lotes');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

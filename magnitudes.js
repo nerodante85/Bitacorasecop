@@ -105,7 +105,7 @@
   // frase: texto de "Por lo menos uno (1) de los contratos válidos aportados ..."
   function parsearExigencia(frase) {
     const f = norm(frase), s = sinTildes(f).toLowerCase();
-    const out = { actividad: null, cifra: null, unidad: null, material: null, diametroMinPulg: null, soloAcreditar: false, ambiguo: false };
+    const out = { actividad: null, cifra: null, unidad: null, material: null, diametroMinPulg: null, diametroMaxPulg: null, materiales: null, soloAcreditar: false, ambiguo: false };
     const ultimaCifra = re => { const all = Array.from(f.matchAll(re)); return all.length ? all[all.length - 1] : null; };
     if (/entibad/.test(s)) { out.actividad = 'entibados'; out.soloAcreditar = true; return out; }
     if (/conexion(?:es)?\s+domiciliari/.test(s)) {
@@ -124,10 +124,28 @@
       out.actividad = 'tuberia';
       const c = ultimaCifra(/(\d[\d.,]*)\s*ml\b/gi);
       if (c) { const n = numero(c[1]); out.cifra = n.valor; out.unidad = 'ml'; out.ambiguo = n.ambiguo; }
-      const mm = f.match(/el\s+cual\s+corresponde\s+a\s+([A-ZÁÉÍÓÚ]{2,12})/i);
-      if (mm) out.material = mm[1].toUpperCase();
+      // Control cruzado: la cifra exigida debe ser el N % del total que el propio pliego declara.
+      // Confirma el separador de miles (3.627 = 50 % de 7.254) y detecta cifras que no cuadran.
+      const pctM = f.match(/\((\d{1,3}(?:[.,]\d+)?)\s*%\)/);
+      const totM = f.match(/(?:la\s+cual\s+es\s+de|es\s+de|equivale\s+a)\s*\(?\s*(\d[\d.,]*)\s*ml/i);
+      if (pctM && totM && out.cifra != null) {
+        const tot = numero(totM[1]).valor, pct = numero(pctM[1]).valor;
+        if (tot != null && pct != null) {
+          const esperado = pct / 100 * tot;
+          if (Math.abs(out.cifra - esperado) <= 1) out.ambiguo = false;
+          else { out.ambiguo = true; out.avisoCifra = 'La cifra exigida (' + fmt(out.cifra) + ' ml) no coincide con el ' + pctM[1] + ' % del total declarado (' + fmt(tot) + ' ml = ' + fmt(esperado) + ' ml): el pliego tiene una incoherencia, pídele aclaración a la entidad.'; }
+        }
+      }
+      const mm = f.match(/el\s+cual\s+corresponde\s+a\s+([^.;]{2,60}?)(?=,|\.|;|\s+por\s+lo\s+anterior|\s+y\s+cuyo|$)/i);
+      if (mm) {
+        const mats = Array.from(new Set((mm[1].toUpperCase().match(/\b(PVC|PEAD|PEX|HD|GRP|ACCP|CONCRETO|GRES|ACERO)\b/g) || [])));
+        if (mats.length) { out.materiales = mats; out.material = mats[0]; }
+        else { const m1 = mm[1].match(/^([A-ZÁÉÍÓÚ]{2,12})/i); if (m1) out.material = m1[1].toUpperCase(); }
+      }
       const md = f.match(/(?:mayor\s+o\s+igual\s+a|igual\s+o\s+superior\s+a|>=|≥)\s*(\d+(?:[.,]\d+)?)\s*("|”|''|pulg)/i);
       if (md) out.diametroMinPulg = numero(md[1]).valor;
+      const mr = f.match(/(?:di[aá]metros?[^.]{0,40}?)?entre\s+(?:el\s+siguiente\s+rango\s+)?(?:de\s+)?(\d+(?:[.,]\d+)?)\s*(?:"|”|''|pulg(?:adas?)?)?\s*y\s*(\d+(?:[.,]\d+)?)\s*("|”|''|pulg)/i);
+      if (mr) { const lo = numero(mr[1]).valor, hi = numero(mr[2]).valor; if (lo != null && hi != null && lo <= hi) { out.diametroMinPulg = lo; out.diametroMaxPulg = hi; } }
       return out;
     }
     return out; // no modelada (p. ej. longitud de vía): el cruce responde NO DETERMINABLE
@@ -152,12 +170,14 @@
       let ok = cl.certeza === 'alta';
       let motivo = cl.nota || '';
       if (ex.actividad === 'tuberia' && ok) {
-        if (ex.material && cl.material !== ex.material) {
-          ok = false; motivo = 'material ' + (cl.material || '?') + ' (se exige ' + ex.material + ')';
-          if (cl.material !== 'NOVAFORT') { descartados.push(it.item + ': ' + motivo); return; } // material conocido y distinto: no es dudoso, no cuenta
+        const mats = ex.materiales && ex.materiales.length ? ex.materiales : (ex.material ? [ex.material] : []);
+        if (mats.length && mats.indexOf(cl.material) === -1) {
+          ok = false; motivo = 'material ' + (cl.material || '?') + ' (se exige ' + mats.join(' o ') + ')';
+          if (!(cl.material === 'NOVAFORT' && mats.indexOf('PVC') !== -1)) { descartados.push(it.item + ': ' + motivo); return; } // material conocido y distinto: no es dudoso, no cuenta
           motivo += '; Novafort es tubería corrugada de PVC pero confirma si el pliego la acepta como tal';
         }
         else if (ex.diametroMinPulg != null && cl.diametroPulg < ex.diametroMinPulg) { ok = false; motivo = 'diámetro ' + cl.diametroPulg + '" (se exige ≥ ' + ex.diametroMinPulg + '")'; if (cl.diametroPulg != null) { descartados.push(it.item + ': ' + motivo); return; } }
+        else if (ex.diametroMaxPulg != null && cl.diametroPulg > ex.diametroMaxPulg) { ok = false; motivo = 'diámetro ' + cl.diametroPulg + '" (se exige entre ' + ex.diametroMinPulg + '" y ' + ex.diametroMaxPulg + '")'; descartados.push(it.item + ': ' + motivo); return; }
       }
       if (ex.actividad === 'tuberia' && cl.certeza !== 'alta') { dudosos.push(it.item + ' — ' + (motivo || 'no se pudo leer material o diámetro') + ' (' + cant + ' ' + (it.unidad || '') + ')'); return; }
       if (!ok) { dudosos.push(it.item + ' — ' + (motivo || 'no reconocido') + ' (' + cant + ' ' + (it.unidad || '') + ')'); return; }
@@ -196,7 +216,7 @@
   function evaluar(ex, contratos, opciones) {
     const base = opciones && opciones.base || null;
     if (!ex || !ex.actividad) return { estado: 'NO DETERMINABLE', detalle: 'Esta exigencia de magnitud no se cruza automáticamente: verifícala contra las cantidades de tus contratos.', porContrato: [] };
-    if (!ex.soloAcreditar && (ex.cifra == null || ex.ambiguo)) return { estado: 'NO DETERMINABLE', detalle: ex.ambiguo ? 'La cifra del documento es ambigua (separador de miles o decimales): confírmala en el pliego.' : 'No se leyó la cifra exigida.', porContrato: [] };
+    if (!ex.soloAcreditar && (ex.cifra == null || ex.ambiguo)) return { estado: 'NO DETERMINABLE', detalle: ex.ambiguo ? (ex.avisoCifra || 'La cifra del documento es ambigua (separador de miles o decimales): confírmala en el pliego.') : 'No se leyó la cifra exigida.', porContrato: [] };
     if (ex.actividad === 'tuberia' && (!ex.material || ex.diametroMinPulg == null)) return { estado: 'NO DETERMINABLE', detalle: 'No se leyó con certeza el material o el diámetro mínimo exigidos.', porContrato: [] };
     const lista = (contratos || []).filter(c => c && c.enEjecucion !== true);
     if (!lista.length) return { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene contratos de experiencia cargados.', porContrato: [] };

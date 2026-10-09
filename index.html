@@ -7514,6 +7514,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       while ((m = re2.exec(t))){ const v = parseInt(m[3].replace(/\./g, ''), 10); if (v >= 50000000 && !p2[m[1]]){ p2[m[1]] = v; pl2[m[1]] = parseInt(m[2], 10); } }
       if (Object.keys(p2).length >= 2){ porId = p2; plazoId = pl2; }
     }
+    if (Object.keys(porId).length < 2){
+      // Formato "tabla por lote": "Lote Municipio Valor Fase I Valor Fase II Valor Total 1 Ubaque $ 250.214.162,00 $ 21.625.501.015,00 $ 21.875.715.177,00 2 San Cayetano ... TOTAL $ ...".
+      const p3 = {}, pl3 = {};
+      const re3 = /(?:^|\s)(\d{1,2})\s+[A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-zÁÉÍÓÚÑáéíóúñ ]{2,30}?\s+\$\s*\d{1,3}(?:\.\d{3})+,\d{2}\s+\$\s*\d{1,3}(?:\.\d{3})+,\d{2}\s+\$\s*(\d{1,3}(?:\.\d{3}){2,})/g;
+      let m3;
+      while ((m3 = re3.exec(t))){ const v = parseInt(m3[2].replace(/\./g, ''), 10); if (v >= 50000000 && !p3[m3[1]]) p3[m3[1]] = v; }
+      if (Object.keys(p3).length >= 2){
+        // Plazo total por lote: "1 Ubaque Tres (03) Meses Diez (10) Meses Trece (13) Meses".
+        const rePl = /(?:^|\s)(\d{1,2})\s+[A-Za-zÁÉÍÓÚÑáéíóúñ][A-Za-zÁÉÍÓÚÑáéíóúñ ]{2,30}?\s+[A-Za-zÁÉÍÓÚÑáéíóúñ ]{2,20}\(\d{1,2}\)\s*Meses\s+[A-Za-zÁÉÍÓÚÑáéíóúñ ]{2,20}\(\d{1,2}\)\s*Meses\s+[A-Za-zÁÉÍÓÚÑáéíóúñ ]{2,20}\((\d{1,2})\)\s*Meses/g;
+        let mp;
+        while ((mp = rePl.exec(t))){ if (p3[mp[1]] && !pl3[mp[1]]) pl3[mp[1]] = parseInt(mp[2], 10); }
+        porId = p3; plazoId = pl3;
+      }
+    }
     const ids = Object.keys(porId);
     if (ids.length < 2 || new Set(ids.map(i => porId[i])).size < 2) return [];
     return ids.sort((x, y) => x - y).map(i => plazoId[i] ? { id: i, presupuesto: porId[i], plazo: plazoId[i] } : { id: i, presupuesto: porId[i] });
@@ -7521,11 +7535,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Tramo del texto donde empieza la experiencia del lote (hasta el encabezado de otro lote o la clasificación UNSPSC).
   function segmentoDeLote(t, id){
     // Dos formatos de encabezado: "LOTE No 1 – GRUPO No 1 ACTIVIDAD PRINCIPAL" y "LOTE NO. 2. SAN CAYETANO ACTIVIDAD PRINCIPAL".
-    const reCab = n => new RegExp('LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s*[–-]\\s*GRUPO\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s+ACTIVIDAD\\s+PRINCIPAL|LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\.?\\s+[A-ZÁÉÍÓÚÑ ]{3,40}?\\s+ACTIVIDAD\\s+PRINCIPAL', 'i');
+    const reCab = n => new RegExp('LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s*[–-]\\s*GRUPO\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s+ACTIVIDAD\\s+PRINCIPAL|LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\.?\\s+[A-ZÁÉÍÓÚÑ ]{3,40}?\\s+ACTIVIDAD\\s+PRINCIPAL|LOTE\\s+(?:No\\.?|N[°º])?\\s*' + n + '\\s*[–-]\\s*[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ]{2,30}?\\s+ACTIVIDAD\\s+PRINCIPAL', 'i');
     const m = reCab(id).exec(t);
     if (!m) return null;
     let fin = t.length;
-    const sig = t.slice(m.index + 30).search(/LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\s*[–-]\s*GRUPO\s+(?:No\.?|N[°º])?\s*\d{1,2}\s+ACTIVIDAD\s+PRINCIPAL|LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\.?\s+[A-ZÁÉÍÓÚÑ ]{3,40}?\s+ACTIVIDAD\s+PRINCIPAL/i);
+    const sig = t.slice(m.index + 30).search(/LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\s*[–-]\s*GRUPO\s+(?:No\.?|N[°º])?\s*\d{1,2}\s+ACTIVIDAD\s+PRINCIPAL|LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\.?\s+[A-ZÁÉÍÓÚÑ ]{3,40}?\s+ACTIVIDAD\s+PRINCIPAL|LOTE\s+(?:No\.?|N[°º])?\s*\d{1,2}\s*[–-]\s*[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ]{2,30}?\s+ACTIVIDAD\s+PRINCIPAL/i);
     if (sig >= 0) fin = m.index + 30 + sig;
     const cl = t.slice(m.index).search(/CLASIFICACI[ÓO]N\s+DE\s+LA\s+EXPERIENCIA|3\.5\.3\.?\s+CONSIDERACIONES/i);
     if (cl >= 0) fin = Math.min(fin, m.index + cl);
@@ -7630,7 +7644,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         if (!cifra && !/entibad|sedimentador/i.test(frase)) continue;
         vistas[clave] = true;
         const act = /conexiones?\s+domiciliarias?/i.test(frase) ? 'conexiones domiciliarias' : /pozos?\s+de\s+inspecci[óo]n/i.test(frase) ? 'pozos de inspección' : /entibados?/i.test(frase) ? 'entibados' : /sedimentador/i.test(frase) ? 'sedimentadores' : /tuber[íi]a/i.test(frase) ? 'tubería' : /tanque/i.test(frase) ? 'tanque de almacenamiento' : /longitud/i.test(frase) ? 'longitud intervenida' : 'magnitud';
-        add('Experiencia', 'Específica: ' + act, frase.length > 330 ? frase.slice(0, 330) + '…' : frase, cifra ? 'Cifra del documento: ' + cifra[1] + ' ' + cifra[2] : '', { pagina: pagina(mm.index), dato: { tipo: 'magnitud', exigencia: (typeof Magnitudes !== 'undefined') ? Magnitudes.parsearExigencia(frase) : null } });
+        const exgMag = (typeof Magnitudes !== 'undefined') ? Magnitudes.parsearExigencia(frase) : null;
+        add('Experiencia', 'Específica: ' + act, frase.length > 330 ? frase.slice(0, 330) + '…' : frase, cifra ? 'Cifra del documento: ' + cifra[1] + ' ' + cifra[2] : '', { pagina: pagina(mm.index), aviso: (exgMag && exgMag.avisoCifra) || '', dato: { tipo: 'magnitud', exigencia: exgMag } });
       }
     }
     const reCl = /CLASIFICACI[ÓO]N\s+DE\s+LA\s+EXPERIENCIA/ig;
