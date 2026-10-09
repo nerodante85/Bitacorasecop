@@ -26,6 +26,23 @@ Un solo falso CUMPLE bloquea la liberación, sin importar el resto.
 
 Criterios para elegir cada pliego: proceso real de SECOP II ya publicado, pliego completo, que tu empresa o un aliado pudiera presentarse (para tener soporte), y que no sea trivial (al menos 6 requisitos habilitantes).
 
+### 2.1 Documentos recibidos el 2026-10-09 (primera pasada, solo detección)
+
+Los 4 PDF son del sector agua potable y saneamiento básico (APSB); ninguno es de vías, edificación ni interventoría, así que esos tipos siguen pendientes. Dos son estudios previos de EPC (entidad departamental con lotes), uno es el borrador del pliego de Toledo y otro el estudio previo de Zapatoca. «Detectó la app» es lo que sale hoy de la ficha, no un resultado validado.
+
+| Caso | Documento | Proceso | Valor / plazo | Qué detectó la app | Brecha vs. lectura del documento |
+|---|---|---|---|---|---|
+| G-01 | Borrador pliego Toledo (23 sep, 74 págs.) | LP-SAPSB-03215-2026, Gobernación de Norte de Santander | $3.185.389.625 · 4 meses · sin anticipo | 15 filas: objeto, presupuesto, plazo, anticipo, sumatoria 75/120/150 %, 5 específicas, UNSPSC 721511, capital de trabajo y K | Ninguna conocida. Comparar contra el pliego definitivo (puede haber cambiado). |
+| G-02 | Estudio previo EPC con apropiación (124 págs.) | Acueductos y alcantarillados, Cundinamarca, 2 lotes (Grupo 1 y 2) | $34.261.036.316 en total; lote 1 $28.456.095.935 | 5 filas: anticipo, sumatoria, UNSPSC, aviso de 2 lotes | **No detecta** la experiencia específica de tubería (lote 1: 7.254 ml, 50 % = 3.627 ml en PVC o PEAD, 8\" a 12\"; lote 2: 993 ml, 3\" a 4\"); tampoco el valor por lote, capital de trabajo (CT ≥ 10 % del PO) ni la capacidad residual |
+| G-03 | Estudio previo EPC, alcantarillado y PTAR (84 págs.) | Plan maestro Ubaque fase II y PTAR San Cayetano, 2 lotes | $25.920.432.799 en total | 8 filas: sumatoria, magnitud (13 l/s), tubería (2.701 ml), sedimentadores, UNSPSC | **No detecta que son 2 lotes** (lista de lotes vacía) y por eso avisa «varios presupuestos» sin dejar elegir lote; no calcula capital de trabajo ni K |
+| G-04 | Estudio previo Zapatoca (35 págs.) | LP-006-2026, optimización y mejoramiento del acueducto | $1.046.012.009 · 2 meses | 2 filas: presupuesto y UNSPSC (72151100, 72151900) | Es un estudio previo: solo nombra los requisitos (RUP, experiencia, liquidez, endeudamiento, cobertura, capital de trabajo, ROE, ROA, capacidad residual) **sin cifras**, así que NO DETERMINABLE es lo correcto. Falta leer el plazo cuando está en letras («DOS MESES») y el objeto |
+
+Qué enseña este lote:
+1. Los estudios previos de EPC repiten el texto de la plantilla CCE con huecos sin llenar («(F%)», «[la Entidad establecerá…]»). La app debe leer solo el bloque «Requisito de Experiencia a acreditar» con cifras reales y nunca los huecos.
+2. EPC admite dos materiales («PVC o PEAD») y rango de diámetros (8\" a 12\"); `magnitudes.js` hoy solo modela un material y un diámetro mínimo.
+3. Con lotes, la ficha debe dejar elegir lote y recalcular valor, capital de trabajo, K y magnitud por lote.
+4. Una cifra en letras («DOS MESES», «TREINTA Y CUATRO MIL…») no se lee hoy.
+
 ## 3. Empresas de prueba
 
 - Dora Garay y Gilli (Formato Maestro cargado; soporte documental de Dora en Drive).
