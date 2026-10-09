@@ -10636,7 +10636,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
       const expP = expevalPorPerfil[res.mejor.perfilId];
       const contratosExp = (expP && expP.contratos && expP.contratos.contratos) || [];
-      return { nombre: mat.nombre, contratos: contratosExp, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
+      return { nombre: mat.nombre, contratos: contratosExp, baseCantidades: (entry.baseCantidades === 'total' || entry.baseCantidades === 'prorrata') ? entry.baseCantidades : null, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
         kIncompleto: !!(mat.capacidadEstimada && mat.capacidadEstimada.incompletos > 0) };
     } catch (e) { return null; }
   }
@@ -10659,7 +10659,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }).join('');
     const selLote = f.lotes ? '<div class="ficha-lotes" role="group" aria-label="Lote al que te presentas"><span>Lote:</span> ' +
       f.lotes.map(function(l){ return '<button type="button" class="matriz-filtro" data-ficha-lote="' + escapeHtml(String(l.id)) + '" aria-pressed="' + (String(entry.loteFicha) === String(l.id) ? 'true' : 'false') + '">Lote ' + escapeHtml(String(l.id)) + '</button>'; }).join(' ') + '</div>' : '';
-    return '<div class="analisis-seccion" data-ficha-seccion="1"><h3>Requisitos habilitantes del proceso</h3>' + selLote +
+    const hayMag = f.filas.some(function(x){ return x.dato && x.dato.tipo === 'magnitud'; });
+    const bc = entry.baseCantidades;
+    const selBase = (hayMag && hayCruce) ? '<div class="ficha-lotes" role="group" aria-label="Cómo cuenta el pliego las cantidades en consorcio"><span>Cantidades en consorcio:</span> ' +
+      [['', 'Sin definir'], ['total', 'Cuenta el contrato completo'], ['prorrata', 'Prorrateado por participación']].map(function(o){
+        return '<button type="button" class="matriz-filtro" data-ficha-base="' + o[0] + '" aria-pressed="' + ((bc || '') === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>'; }).join(' ') +
+      '<div class="saved-note">Elige solo si el pliego o la entidad lo confirman por escrito; sin definir, el resultado es NO DETERMINABLE.</div></div>' : '';
+    return '<div class="analisis-seccion" data-ficha-seccion="1"><h3>Requisitos habilitantes del proceso</h3>' + selLote + selBase +
       '<div class="expeval-table-wrap"><table class="matriz-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th>' + (hayCruce ? '<th scope="col">Tu empresa' + (emp.nombre ? ' (' + escapeHtml(emp.nombre) + ')' : '') + '</th>' : '') + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
       (f.avisos.length ? '<ul class="alertas-analisis">' + f.avisos.map(function(a){ return '<li class="alerta-item revisar"><span class="alerta-nivel">▲ REVISAR</span><span>' + escapeHtml(a) + '</span></li>'; }).join('') + '</ul>' : '') +
       (hayCruce ? '<div class="resultado-meta" role="status">Cruce financiero con tu perfil: ' + cuentas['CUMPLE'] + ' cumple · ' + cuentas['NO CUMPLE'] + ' no cumple · ' + cuentas['REVISAR'] + ' por revisar · ' + cuentas['NO DETERMINABLE'] + ' no determinable. Compara capital de trabajo, patrimonio, K e índices y, en la experiencia específica, las cantidades por ítem que cargaste en la hoja CANTIDADES (tubería, pozos, conexiones, entibados); el resto de la experiencia se evalúa en la matriz.</div>' : '') +
@@ -13641,6 +13647,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Análisis: evidencia de una fila de la matriz, filtro de la matriz y salto a una sección plegada.
     const evBtn = e.target.closest('[data-ev-fila]');
     if (evBtn){ abrirEvidencia(evBtn.getAttribute('data-ev-id'), evBtn.getAttribute('data-ev-fila'), evBtn); return; }
+    const baseBtn = e.target.closest('[data-ficha-base]');
+    if (baseBtn){
+      const en = analisis[analisisSelId], sec = baseBtn.closest('[data-ficha-seccion]');
+      if (en && sec){ en.baseCantidades = baseBtn.getAttribute('data-ficha-base') || null; sec.outerHTML = fichaHabilitanteHtml(en); saveAnalisis(analisisSelId); }
+      return;
+    }
     const loteBtn = e.target.closest('[data-ficha-lote]');
     if (loteBtn){
       const en = analisis[analisisSelId], sec = loteBtn.closest('[data-ficha-seccion]');

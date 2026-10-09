@@ -5167,5 +5167,10 @@ await check('MG-007: magnitudes.js se carga en index.html antes del script princ
   assert(/cp index\.html [^\n]*magnitudes\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro\|magnitudes/.test(yml), 'pages.yml debe copiar y sellar magnitudes.js');
 });
 
+await check('MG-008: selector de base de cantidades en consorcio — solo total/prorrata llegan al cruce, vacío = sin definir', () => {
+  assert(/data-ficha-base/.test(html) && /baseCantidades: \(entry\.baseCantidades === 'total' \|\| entry\.baseCantidades === 'prorrata'\)/.test(html), 'empresaParaFicha debe filtrar la base');
+  assert(/en\.baseCantidades = baseBtn\.getAttribute\('data-ficha-base'\) \|\| null/.test(html), 'el botón "Sin definir" debe volver a null');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
