@@ -5295,5 +5295,16 @@ await check('INF-001: el informe del análisis (PDF por impresión / Word) usa l
   assert(!/data-informe-id="[^"]*" data-informe-doc/.test(html), 'no choca con el informe .txt (data-informe-id)');
 });
 
+await check('RD-004: el mismo requisito en la ficha y en la matriz no se repite; la acción dice qué cargar', () => {
+  const R = Evaluacion.resumenDecision;
+  const r = R({ veredicto: 'NO-GO', hayPliego: true,
+    ficha: [{ requisito: 'Capacidad residual del proceso (K)', estado: 'NO CUMPLE', detalle: 'Te faltan $185.389.625.' }, { requisito: 'Específica: tubería', estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene contratos de experiencia cargados.' }, { requisito: 'Capital de trabajo demandado', estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene capital de trabajo legible: cárgalo desde el RUP.' }],
+    requisitos: [{ requisito: 'K residual: Capacidad residual', resultado: 'NO CUMPLE', detalle: 'Pliego: ≥ $5.000.000.000' }, { requisito: 'Garantía de cumplimiento', resultado: 'NO DETERMINABLE', detalle: '' }] });
+  assert(r.bloqueantes.length === 1 && /Te faltan/.test(r.bloqueantes[0].detalle), 'un solo bloqueante de K: ' + JSON.stringify(r.bloqueantes));
+  assert(r.porResolver.some(x => x.requisito === 'Garantía de cumplimiento'), 'lo que solo está en la matriz se conserva');
+  assert(/Formato Maestro/.test(r.porResolver.find(x => x.requisito === 'Específica: tubería').accion), 'acción de cargar contratos');
+  assert(/RUP/.test(r.porResolver.find(x => x.requisito === 'Capital de trabajo demandado').accion), 'acción de cargar el RUP');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

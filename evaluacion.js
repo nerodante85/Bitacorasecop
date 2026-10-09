@@ -546,13 +546,20 @@
       vistos.add(k + '|' + origen);
       items.push({ requisito: String(requisito).trim(), estado: estado, detalle: String(detalle || '').trim(), origen: origen });
     };
+    // La ficha y la matriz pueden hablar del MISMO requisito con otro nombre (p. ej. «Capacidad residual del proceso (K)» y «K residual: …»):
+    // si la ficha ya lo trae se usa la ficha (con su cifra y su motivo) y no se repite.
+    const concepto = r => { const t = String(r || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return /residual/.test(t) ? 'k' : /capital de trabajo/.test(t) ? 'ct' : /patrimonio/.test(t) ? 'patrimonio' : /liquidez/.test(t) ? 'liquidez' : /endeudamiento/.test(t) ? 'endeudamiento' : /cobertura/.test(t) ? 'cobertura' : /unspsc/.test(t) ? 'unspsc' : null; };
+    const enFicha = new Set((e.ficha || []).map(x => concepto(x.requisito)).filter(Boolean));
     (e.ficha || []).forEach(x => agrega(x.requisito, x.estado, x.detalle, 'ficha'));
-    (e.requisitos || []).forEach(x => agrega(x.requisito, x.resultado, x.detalle, 'matriz'));
+    (e.requisitos || []).filter(x => !enFicha.has(concepto(x.requisito))).forEach(x => agrega(x.requisito, x.resultado, x.detalle, 'matriz'));
     const accionDe = it => {
       const d = (it.detalle || '').toLowerCase();
       if (/confirma con la entidad|incoherencia|aclar/.test(d)) return 'Pregunta a la entidad en el periodo de observaciones.';
       if (/hoja cantidades|cantidades cargadas|sin cantidades/.test(d)) return 'Carga las cantidades de tus contratos (hoja CANTIDADES del Formato Maestro).';
       if (/cita|verific/.test(d)) return 'Verifica la cita en el documento.';
+      if (/no tiene contratos de experiencia/.test(d)) return 'Carga los contratos de experiencia de tu empresa (Formato Maestro).';
+      if (/capital de trabajo legible|no tiene (?:patrimonio|liquidez)|desde el rup/.test(d)) return 'Carga el RUP o los indicadores financieros de tu empresa.';
       if (/perfil|empresa|carg|registr/.test(d)) return 'Completa los datos de tu empresa y vuelve a analizar.';
       return 'Confírmalo en el pliego.';
     };
