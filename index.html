@@ -1003,6 +1003,12 @@
   #bitacora-root .pipeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
   #bitacora-root .pipeline-card-urgente { border-color: var(--danger); }
   #bitacora-root .pipeline-card-ent { font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
+  /* Entidad (2 líneas) y objeto (3 líneas) se recortan SOLO visualmente; el texto completo está en la página y «Ver más» lo abre. */
+  #bitacora-root .pipeline-card-ent-txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #bitacora-root .pipeline-card-obj { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  #bitacora-root .pipeline-card.abierto .pipeline-card-ent-txt, #bitacora-root .pipeline-card.abierto .pipeline-card-obj { display: block; overflow: visible; }
+  #bitacora-root .pipeline-card-mas { align-self: flex-start; padding: 2px 0; }
+  #bitacora-root .pipeline-card-mas[hidden] { display: none; }
   #bitacora-root .pipeline-card-obj { font-size: 12.5px; color: var(--text-muted); overflow-wrap: anywhere; }
   #bitacora-root .pipeline-card-meta { font-size: 12px; }
   #bitacora-root .pipeline-card-plazo { font-size: 12px; font-weight: 700; }
@@ -3100,6 +3106,20 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       e.avisos.map(a => '<div class="saved-note">⚠ ' + escapeHtml(a) + '</div>').join('');
   }
 
+  // Tarjetas de Mis procesos con la entidad/objeto desplegados («Ver más»): sobreviven a los redibujados de la vista.
+  const pipelineAbiertas = new Set();
+  // «Ver más» solo si el texto de verdad no cabe con el ancho actual. Si la vista aún no se ve (alto 0) no se puede medir: el botón se deja.
+  function ajustarVerMasPipeline(raiz){
+    if (!raiz) return;
+    raiz.querySelectorAll('.pipeline-card').forEach(card => {
+      const b = card.querySelector('[data-pipeline-mas]');
+      if (!b) return;
+      if (card.classList.contains('abierto')){ b.hidden = false; return; }
+      const textos = [card.querySelector('.pipeline-card-ent-txt'), card.querySelector('.pipeline-card-obj')].filter(Boolean);
+      if (!textos.some(t => t.clientHeight > 0)) return;
+      b.hidden = !textos.some(t => t.scrollHeight > t.clientHeight + 1);
+    });
+  }
   function renderPipelineCardHtml(id, h){
     const sn = h.snapshot || {};
     const vivo = (estadosVivosEstado === 'listo' && estadosVivos[id]) || null; // el cierre vigente en SECOP manda sobre el guardado
@@ -3116,9 +3136,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       : 'Pliego sin analizar todavía';
     const opciones = ETAPAS_PIPELINE.map(e => '<option value="' + e.id + '"' + (e.id === h.etapa ? ' selected' : '') + '>' + escapeHtml(e.label) + '</option>').join('');
     const safeUrl = sn.url && /^https?:\/\//i.test(sn.url) ? escapeHtml(sn.url) : null;
-    return '<div class="pipeline-card' + (vencePronto ? ' pipeline-card-urgente' : '') + '" data-pipeline-card-id="' + escapeHtml(id) + '">' +
-      '<div class="pipeline-card-ent">' + escapeHtml(truncate(sn.entidad || 'Entidad no especificada', 60)) + ' ' + chip + '</div>' +
-      '<div class="pipeline-card-obj">' + escapeHtml(truncate(sn.objeto || '', 140)) + '</div>' +
+    return '<div class="pipeline-card' + (vencePronto ? ' pipeline-card-urgente' : '') + (pipelineAbiertas.has(id) ? ' abierto' : '') + '" data-pipeline-card-id="' + escapeHtml(id) + '">' +
+      '<div class="pipeline-card-ent"><span class="pipeline-card-ent-txt">' + escapeHtml(truncate(sn.entidad || 'Entidad no especificada', 300)) + '</span> ' + chip + '</div>' +
+      '<div class="pipeline-card-obj">' + escapeHtml(truncate(sn.objeto || '', 2500)) + '</div>' +
+      '<button type="button" class="link-btn pipeline-card-mas" data-pipeline-mas aria-expanded="' + (pipelineAbiertas.has(id) ? 'true' : 'false') + '">' + (pipelineAbiertas.has(id) ? 'Ver menos' : 'Ver más') + '</button>' +
       '<div class="pipeline-card-meta">' + (sn.valor ? escapeHtml(fmtMoney(sn.valor) || '') : '') + (sn.valor && modTxt ? ' · ' : '') + (modTxt ? '<span class="tag fuente">' + escapeHtml(modTxt) + '</span>' : '') + '</div>' +
       (conPlazo ? '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' : '') +
       '<div class="saved-note">' + escapeHtml(estadoAnalisis) + '</div>' +
@@ -3199,6 +3220,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }).join('');
     notaRedibujando = false;
     if (borrador) abrirEditorNota(boardEl, borrador.id, borrador.valor, borrador.pos);
+    ajustarVerMasPipeline(boardEl);
   }
 
   let notaRedibujando = false; // true mientras la vista se redibuja: un campo de nota que desaparece no cuenta como «salir del campo»
@@ -3227,7 +3249,19 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Delegado único para Mis procesos (abrir, cambiar de estado, quitar).
   const pipelineBoardEl = document.getElementById('bt-pipeline-board');
   if (pipelineBoardEl){
+    window.addEventListener('resize', function(){ ajustarVerMasPipeline(pipelineBoardEl); });
     pipelineBoardEl.addEventListener('click', function(e){
+      const masBtn = e.target.closest('[data-pipeline-mas]');
+      if (masBtn){
+        const card = masBtn.closest('.pipeline-card'), cid = card && card.getAttribute('data-pipeline-card-id');
+        if (!card) return;
+        const abierta = card.classList.toggle('abierto');
+        if (cid){ if (abierta) pipelineAbiertas.add(cid); else pipelineAbiertas.delete(cid); }
+        masBtn.setAttribute('aria-expanded', abierta ? 'true' : 'false');
+        masBtn.textContent = abierta ? 'Ver menos' : 'Ver más';
+        if (!abierta) ajustarVerMasPipeline(pipelineBoardEl);
+        return;
+      }
       const quitarBtn = e.target.closest('[data-pipeline-quitar-id]');
       if (quitarBtn){
         quitarDePipeline(quitarBtn.getAttribute('data-pipeline-quitar-id'));
