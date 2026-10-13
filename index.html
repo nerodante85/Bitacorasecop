@@ -3085,6 +3085,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         '<button type="button" class="btn-mini analizar" data-pipeline-abrir-id="' + escapeHtml(id) + '">' + (entry ? 'Ver análisis' : 'Ver proceso') + '</button>' +
         '<select aria-label="Estado de este proceso" data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opciones + '</select>' +
         (safeUrl ? '<a class="link-btn" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+        '<button type="button" class="link-btn" data-compartir="' + escapeHtml(id) + '" aria-live="polite" title="Comparte o copia un resumen corto del proceso">Compartir</button>' +
+        (codigoSecopDeId(id) ? '<button type="button" class="link-btn" data-copiar-codigo="' + escapeHtml(codigoSecopDeId(id)) + '" aria-live="polite" title="Copia el código del proceso en SECOP II">Copiar código</button>' : '') +
         '<button type="button" class="link-btn" data-pipeline-quitar-id="' + escapeHtml(id) + '">Quitar</button>' +
       '</div>' +
     '</div>';
@@ -3194,6 +3196,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         renderPipelineView();
         return;
       }
+      const compartirBtn = e.target.closest('[data-compartir]');
+      if (compartirBtn){
+        const idc = compartirBtn.getAttribute('data-compartir');
+        const vivo = (estadosVivosEstado === 'listo' && estadosVivos[idc]) || null;
+        const r = itemParaCompartirDeMisProcesos(historial[idc], vivo, Date.now());
+        if (r) accionCompartir(compartirBtn, r.item, r.daysLeft);
+        return;
+      }
+      const copiarBtn = e.target.closest('[data-copiar-codigo]');
+      if (copiarBtn){ accionCopiarCodigo(copiarBtn); return; }
       const editarNota = e.target.closest('[data-nota-editar]');
       if (editarNota){
         const c = editarNota.closest('[data-nota-id]');
@@ -10815,33 +10827,39 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Se registra por CLIC en el summary, no por el evento toggle: toggle también dispara cuando la
   // tarjeta se pinta con "open" y eso guardaría los valores por defecto como si fueran del usuario.
   // El clic corre antes de que el navegador cambie d.open, por eso el nuevo estado es !d.open.
-  enContenedoresDeProceso('click', async e => {
-    const cs = e.target.closest && e.target.closest('[data-compartir]');
-    if (!cs) return;
-    const sc = procesoPorId(cs.getAttribute('data-compartir'));
-    if (!sc || !sc.item) return;
-    const texto = resumenParaCompartir(sc.item, sc.daysLeft === undefined ? null : sc.daysLeft);
-    const orig = cs.dataset.textoOriginal || cs.textContent;
-    cs.dataset.textoOriginal = orig;
-    const poner = (t, ms) => { cs.textContent = t; clearTimeout(cs._t); cs._t = setTimeout(() => { cs.textContent = orig; }, ms); };
+  // Compartir: en pantallas táctiles abre el menú nativo; si no, copia el resumen. Lo usan Buscar/Análisis y Mis procesos.
+  async function accionCompartir(btn, item, daysLeft){
+    if (!item) return;
+    const texto = resumenParaCompartir(item, daysLeft === undefined ? null : daysLeft);
+    const orig = btn.dataset.textoOriginal || btn.textContent;
+    btn.dataset.textoOriginal = orig;
+    const poner = (t, ms) => { btn.textContent = t; clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = orig; }, ms); };
     const tactil = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
     if (puedeCompartirNativo(navigator, tactil)){
-      try { await navigator.share({ title: sc.item.entidad || 'Proceso SECOP', text: texto }); return; }
+      try { await navigator.share({ title: item.entidad || 'Proceso SECOP', text: texto }); return; }
       catch(err){ if (err && err.name === 'AbortError') return; /* otro error: se copia */ }
     }
     const ok = await copiarTexto(texto);
     poner(ok ? 'Resumen copiado ✓' : 'No se pudo copiar', ok ? 2000 : 4000);
-  });
-  enContenedoresDeProceso('click', async e => {
-    const cp = e.target.closest && e.target.closest('[data-copiar-codigo]');
-    if (!cp) return;
-    const codigo = cp.getAttribute('data-copiar-codigo');
-    const orig = cp.dataset.textoOriginal || cp.textContent;
-    cp.dataset.textoOriginal = orig;
+  }
+  async function accionCopiarCodigo(btn){
+    const codigo = btn.getAttribute('data-copiar-codigo');
+    const orig = btn.dataset.textoOriginal || btn.textContent;
+    btn.dataset.textoOriginal = orig;
     const ok = await copiarTexto(codigo);
-    cp.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar: ' + codigo;
-    clearTimeout(cp._t);
-    cp._t = setTimeout(() => { cp.textContent = orig; }, ok ? 2000 : 6000);
+    btn.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar: ' + codigo;
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.textContent = orig; }, ok ? 2000 : 6000);
+  }
+  enContenedoresDeProceso('click', e => {
+    const cs = e.target.closest && e.target.closest('[data-compartir]');
+    if (cs){
+      const sc = procesoPorId(cs.getAttribute('data-compartir'));
+      if (sc && sc.item) accionCompartir(cs, sc.item, sc.daysLeft);
+      return;
+    }
+    const cp = e.target.closest && e.target.closest('[data-copiar-codigo]');
+    if (cp) accionCopiarCodigo(cp);
   });
   enContenedoresDeProceso('click', e => {
     const mas = e.target.closest && e.target.closest('[data-obj-mas]');
@@ -11926,6 +11944,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (ubic) L.push('Ubicación: ' + ubic);
     if (it && it.modalidad) L.push('Modalidad: ' + it.modalidad);
     return L.join('\n');
+  }
+  // Lo que se comparte de una tarjeta de Mis procesos: sale del resumen guardado (con el cierre y la modalidad vigentes de SECOP si
+  // ya se consultó). El plazo relativo solo se dice mientras el proceso sigue en decisión.
+  function itemParaCompartirDeMisProcesos(h, vivo, ahoraMs){
+    const sn = h && h.snapshot;
+    if (!sn) return null;
+    const closingRaw = (vivo && vivo.closingRaw) || sn.closingRaw;
+    const item = { entidad: sn.entidad, objeto: sn.objeto, valor: sn.valor, closingRaw: closingRaw, modalidad: sn.modalidad || (vivo && vivo.modalidad) || null, departamento: sn.departamento, ciudad: sn.ciudad };
+    let daysLeft = null;
+    if (etapaConPlazo(h.etapa) && closingRaw && isPlausibleDate(closingRaw)) daysLeft = Math.ceil((new Date(closingRaw).getTime() - ahoraMs) / 86400000);
+    return { item: item, daysLeft: daysLeft };
   }
   // El menú nativo de compartir solo en pantallas táctiles (celular/tableta); en computador se copia el texto.
   function puedeCompartirNativo(nav, esTactil){

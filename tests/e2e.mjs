@@ -292,6 +292,28 @@ await check('Mis procesos: si ningún proceso cierra pronto el filtro lo dice y 
   await pg.click('#bt-pipeline-board [data-quitar-filtro-pronto]');
   assert(await pg.evaluate(() => document.querySelectorAll('.pipeline-card').length === 1 && !document.getElementById('bt-pipeline-solo-pronto').checked), 'quitar el filtro devuelve la lista');
 });
+await check('Mis procesos: Compartir copia el resumen del proceso guardado y Copiar código copia su código SECOP II (los de hash no lo ofrecen)', async () => {
+  const ahora = Date.now();
+  const hist = {
+    'ps2-CO1.REQ.921': { etapa: 'viable', etapaTs: ahora, snapshot: { entidad: 'ENTIDAD UNO', objeto: 'Construcción de vías', valor: 2500000000, modalidad: 'Licitación pública', closingRaw: new Date(ahora + 4 * 86400000).toISOString().slice(0, 19), fuente: 'II' } },
+    'hs2-abc123': { etapa: 'por_revisar', etapaTs: ahora, snapshot: { entidad: 'ENTIDAD HASH', objeto: 'Sin código', fuente: 'II' } }
+  };
+  const { pg } = await abrir({ sembrar: { bitacora_historial: JSON.stringify(hist) } });
+  await pg.evaluate(() => document.getElementById('bt-nav-procesos').click());
+  await pg.evaluate(() => { window.__copiado = []; Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => { window.__copiado.push(t); return Promise.resolve(); } }, configurable: true }); });
+  const hay = await pg.evaluate(() => [...document.querySelectorAll('.pipeline-card')].map(c => ({ ent: c.querySelector('.pipeline-card-ent').textContent.trim(), compartir: !!c.querySelector('[data-compartir]'), codigo: (c.querySelector('[data-copiar-codigo]') || {}).dataset ? c.querySelector('[data-copiar-codigo]').dataset.copiarCodigo : null })));
+  const uno = hay.find(x => x.ent.startsWith('ENTIDAD UNO')), hash = hay.find(x => x.ent.startsWith('ENTIDAD HASH'));
+  assert(uno.compartir && uno.codigo === 'CO1.REQ.921', 'la tarjeta con código ofrece Compartir y Copiar código: ' + JSON.stringify(uno));
+  assert(hash.compartir && hash.codigo === null, 'la de hash ofrece Compartir pero no Copiar código: ' + JSON.stringify(hash));
+  await pg.click('.pipeline-card:has-text("ENTIDAD UNO") [data-compartir]');
+  await pg.waitForFunction(() => window.__copiado.length === 1);
+  await pg.click('.pipeline-card:has-text("ENTIDAD UNO") [data-copiar-codigo]');
+  await pg.waitForFunction(() => window.__copiado.length === 2);
+  const r = await pg.evaluate(() => ({ c: window.__copiado }));
+  assert(r.c[1] === 'CO1.REQ.921', 'copió el código exacto: ' + r.c[1]);
+  const lineas = r.c[0].split('\n');
+  assert(lineas[0] === 'ENTIDAD UNO' && /Construcción de vías/.test(lineas[1]) && /Cuantía: \$2\.500\.000\.000/.test(r.c[0]) && /Cierre: .*\(4 días\)/.test(r.c[0]) && /Modalidad: Licitación pública/.test(r.c[0]), 'resumen del proceso guardado: ' + r.c[0]);
+});
 await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
   const { pg } = await abrir();
   await pg.click('#bt-nav-buscar');

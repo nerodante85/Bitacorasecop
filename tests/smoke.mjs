@@ -4720,6 +4720,30 @@ await check('Mis procesos: el filtro «cierra en 7 días» usa la misma regla qu
   assert(/id="bt-pipeline-solo-pronto"/.test(html), 'el control del filtro existe en el HTML');
   assert(/procesoCierraPronto\(/.test(cortar('function resumenMisProcesos', '\n  function ')), 'una sola regla: el resumen usa la misma función');
 });
+await check('Mis procesos: Compartir y Copiar código en cada tarjeta — el resumen sale del proceso guardado (cierre vigente, plazo solo si sigue en decisión) y el código solo existe para ids de SECOP II', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const lib = cortar('function isPlausibleDate', 'function fmtDate') + cortar('function fmtDate', '// Auditoría UX/UI (cálculos financieros)') + cortar('function fmtMoney', 'function normalize(');
+  const src = cortar('function etapaConPlazo', '\n  function ') + '\n' + cortar('function resumenParaCompartir', '\n  function ') + '\n' + cortar('function itemParaCompartirDeMisProcesos', '\n  function ');
+  const { itemParaCompartirDeMisProcesos, resumenParaCompartir } = new Function(lib + '\n' + src + '\nreturn { itemParaCompartirDeMisProcesos, resumenParaCompartir };')();
+  const ahora = Date.parse('2026-10-13T12:00:00');
+  const dia = n => new Date(ahora + n * 86400000).toISOString().slice(0, 19);
+  const h = { etapa: 'viable', snapshot: { entidad: 'ALCALDÍA X', objeto: 'Pavimentación', valor: 1500000000, closingRaw: dia(10), modalidad: 'Licitación pública' } };
+  const a = itemParaCompartirDeMisProcesos(h, null, ahora);
+  assert(a.item.entidad === 'ALCALDÍA X' && a.item.valor === 1500000000 && a.item.modalidad === 'Licitación pública' && a.daysLeft === 10, 'resumen del guardado: ' + JSON.stringify(a));
+  const b = itemParaCompartirDeMisProcesos(h, { closingRaw: dia(3), modalidad: 'Otra' }, ahora);
+  assert(b.daysLeft === 3 && b.item.closingRaw === dia(3) && b.item.modalidad === 'Licitación pública', 'manda el cierre vigente; la modalidad guardada no se pisa: ' + JSON.stringify(b));
+  const sinMod = itemParaCompartirDeMisProcesos({ etapa: 'viable', snapshot: { entidad: 'X', objeto: 'Y' } }, { modalidad: 'Mínima cuantía' }, ahora);
+  assert(sinMod.item.modalidad === 'Mínima cuantía', 'si no hay modalidad guardada usa la vigente');
+  const pres = itemParaCompartirDeMisProcesos({ etapa: 'presentada', snapshot: { entidad: 'X', objeto: 'Y', closingRaw: dia(-4) } }, null, ahora);
+  assert(pres.daysLeft === null, 'presentados: sin plazo relativo');
+  const texto = resumenParaCompartir(pres.item, pres.daysLeft);
+  assert(/Cierre: /.test(texto) && !/venció|días|hoy|mañana/.test(texto), 'el texto compartido de un presentado no dice «venció»: ' + texto);
+  assert(itemParaCompartirDeMisProcesos(null, null, ahora) === null && itemParaCompartirDeMisProcesos({ etapa: 'viable' }, null, ahora) === null, 'sin resumen guardado no hay qué compartir');
+  const card = cortar('function renderPipelineCardHtml', '// Mis procesos: una sección');
+  assert(/data-compartir="/.test(card) && /data-copiar-codigo="/.test(card) && /codigoSecopDeId\(id\)/.test(card), 'la tarjeta trae los dos botones (el de código solo con código SECOP II)');
+  assert(/accionCompartir\(/.test(cortar("if (e.target.closest('[data-quitar-filtro-pronto]'))", 'const abrirBtn')) && /accionCopiarCodigo\(/.test(cortar("if (e.target.closest('[data-quitar-filtro-pronto]'))", 'const abrirBtn')), 'el tablero atiende los dos botones');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');
