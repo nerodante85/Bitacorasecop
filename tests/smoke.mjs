@@ -4622,6 +4622,44 @@ await check('Deshacer al descartar: restaura exactamente el registro anterior (o
   assert(/descartarConDeshacer\(id\)/.test(copiaEnClic), 'el botón Descartar pasa por descartarConDeshacer');
   assert(/<div[^>]*id="bt-deshacer"[^>]*role="status"[^>]*aria-live="polite"|<div[^>]*role="status"[^>]*id="bt-deshacer"/.test(html), 'el aviso es una región de estado accesible (role=status, aria-live)');
 });
+await check('Mis procesos: el resumen cuenta por estado y señala cierran en 7 días, vencidos sin presentar y novedades en SECOP — solo de los procesos activos, con el cierre vigente si se consultó', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const lib = cortar('function isPlausibleDate', 'function fmtDate') + cortar('function fmtDate', '// Auditoría UX/UI (cálculos financieros)') + cortar('function fmtMoney', 'function normalize(');
+  const src = cortar('function estadoVivoDeProceso', 'let estadosVivos') + '\n' + cortar('function resumenMisProcesos', '\n  function ');
+  const ETAPAS = ['por_revisar', 'en_analisis', 'viable', 'no_viable', 'presentada'].map(id => ({ id, label: id }));
+  const { resumenMisProcesos } = new Function('ETAPAS_PIPELINE', 'esEstadoNoVigente', lib + '\n' + src + '\nreturn { resumenMisProcesos };')(ETAPAS, Coincidencia.esEstadoNoVigente);
+  const ahora = Date.parse('2026-10-13T12:00:00');
+  const dia = n => new Date(ahora + n * 86400000).toISOString().slice(0, 19);
+  const h = {
+    a: { etapa: 'por_revisar', snapshot: { closingRaw: dia(3) } },
+    b: { etapa: 'viable', snapshot: { closingRaw: dia(7) } },
+    c: { etapa: 'en_analisis', snapshot: { closingRaw: dia(8) } },
+    d: { etapa: 'en_analisis', snapshot: { closingRaw: dia(-2) } },
+    e: { etapa: 'presentada', snapshot: { closingRaw: dia(-5) } },
+    f: { etapa: 'no_viable', snapshot: { closingRaw: dia(2) } },
+    g: { etapa: 'viable', snapshot: {} },
+    x: { status: 'visto' }, y: { etapa: 'raro', snapshot: { closingRaw: dia(1) } }
+  };
+  const r = resumenMisProcesos(h, null, ahora);
+  assert(r.total === 7 && r.porEtapa.por_revisar === 1 && r.porEtapa.en_analisis === 2 && r.porEtapa.viable === 2 && r.porEtapa.presentada === 1 && r.porEtapa.no_viable === 1, 'conteo por estado: ' + JSON.stringify(r));
+  assert(r.cierranSemana === 2, 'cierran en ≤7 días solo de los activos (a y b; no c, f ni e): ' + r.cierranSemana);
+  assert(r.vencidos === 1, 'vencidos sin presentar: solo d (e está presentada): ' + r.vencidos);
+  assert(r.cambios === null, 'sin consulta a SECOP no se inventan novedades: ' + r.cambios);
+  const vivos = {
+    a: { estado: 'Abierto', closingRaw: dia(12) },
+    b: { estado: 'Seleccionado', adjudicado: true, proveedor: 'X', closingRaw: dia(7) },
+    c: false,
+    d: { estado: 'Cancelado' },
+    f: { estado: 'Cancelado' }
+  };
+  const r2 = resumenMisProcesos(h, vivos, ahora);
+  assert(r2.cierranSemana === 1, 'con la consulta manda el cierre vigente (a ahora cierra en 12 días): ' + r2.cierranSemana);
+  assert(r2.cambios === 3, 'novedades: a (cierre cambió), b (adjudicado), d (cancelado); c sin registro y f no activo no cuentan: ' + r2.cambios);
+  assert(resumenMisProcesos({}, null, ahora).total === 0 && resumenMisProcesos(null, null, ahora).total === 0, 'vacío no falla');
+  const card = cortar('function renderPipelineView', '// Delegado único para Mis procesos');
+  assert(/resumenMisProcesos\(/.test(card) && /bt-pipeline-resumen/.test(html), 'la vista dibuja el resumen arriba');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');

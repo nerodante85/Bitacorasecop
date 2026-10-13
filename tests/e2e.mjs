@@ -186,6 +186,18 @@ await check('Deshacer al descartar: Descartar saca la tarjeta, avisa con «Desha
   const r = await pg.evaluate((id) => ({ fila: !!document.querySelector('#bt-results .row[data-id="' + id + '"]'), desc: !!document.querySelector('#bt-results .row.descartado'), oculto: document.getElementById('bt-deshacer').hidden, total: document.querySelectorAll('#bt-results .row').length }), id);
   assert(r.fila && !r.desc && r.oculto && r.total === total, 'deshacer devuelve la tarjeta y esconde el aviso: ' + JSON.stringify(r) + ' (antes ' + total + ')');
 });
+await check('Mis procesos: el resumen de arriba cuenta lo guardado, y desaparece cuando no hay nada guardado', async () => {
+  const { pg } = await abrir();
+  await pg.evaluate(() => document.getElementById('bt-nav-procesos').click());
+  const vacio = await pg.evaluate(() => { const r = document.getElementById('bt-pipeline-resumen'); return r.hidden || !r.textContent.trim(); });
+  assert(vacio, 'sin procesos guardados no hay resumen');
+  await pg.click('#bt-nav-buscar');
+  await pg.click('#bt-results .row [data-agregar-pipeline]');
+  await pg.evaluate(() => document.getElementById('bt-nav-procesos').click());
+  const r = await pg.evaluate(() => { const el = document.getElementById('bt-pipeline-resumen'); return { hid: el.hidden, tarjetas: [...el.querySelectorAll('.stat-card')].map(c => c.querySelector('.stat-card-label').textContent + '=' + c.querySelector('.stat-card-value').textContent) }; });
+  assert(!r.hid && r.tarjetas.length === 4 && r.tarjetas[0] === 'Guardados=1', 'el resumen muestra 1 guardado: ' + JSON.stringify(r));
+  assert(/Novedades en SECOP=(—|0)/.test(r.tarjetas[3]), 'sin respuesta de SECOP no inventa novedades: ' + r.tarjetas[3]);
+});
 await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
   const { pg } = await abrir();
   await pg.click('#bt-nav-buscar');
