@@ -8127,6 +8127,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /Matriz\s*2/i.test(t) && /[ÍI]ndice\s+de\s+liquidez|capacidad\s+organizacional/i.test(t)) avisos.push('Los indicadores financieros y organizacionales remiten a la «Matriz 2», cuyos valores no vienen en el texto leído: consúltalos en esa matriz (anexo del proceso).');
 
+    // Encabezado y pie de página repetidos (se cuelan en medio de una tabla o lista que cruza de página): se quitan antes de leer.
+    const quitarPies = x => String(x)
+      .replace(/\s+(?:MANTENIMIENTO|CONSTRUCCI[ÓO]N|MEJORAMIENTO|REHABILITACI[ÓO]N|OPTIMIZACI[ÓO]N)\s+[^a-záéíóúñ]{20,}?C[óo]digo\s+CCE-[A-Za-z0-9-]+(?:\s+[A-ZÁÉÍÓÚÑ]+(?:\s+[A-ZÁÉÍÓÚÑ]+)*)?\s+Versi[óo]n\s+\d+(?:\s+SA-[A-Za-z0-9-]+\s+ANEXO\s+\d+)?/g, ' ')
+      .replace(/ANEXO\s+1\s*[–—-]\s*ANEXO\s+T[ÉE]CNICO\s+[A-ZÁÉÍÓÚÑ\s()0-9-]*?P[áa]gina\s+\d+\s+de\s+\d+\s+C[óo]digo\s+Versi[óo]n\s+No\.\s*\d+/g, ' ');
     // Personal y maquinaria
     const CARGOS = ['DIRECTOR DE OBRA', 'DIRECTOR DE PROYECTO', 'RESIDENTE DE OBRA', 'RESIDENTE', 'ESPECIALISTA ESTRUCTURAL', 'ESPECIALISTA GEOT[ÉE]CNICO', 'ESPECIALISTA HIDR[ÁA]ULICO', 'INSPECTOR DE OBRA', 'RESPONSABLE SG-SST', 'PROFESIONAL SST', 'PROFESIONAL AMBIENTAL', 'PROFESIONAL SOCIAL', 'TOP[ÓO]GRAFO'];
     const iPers = t.search(/Requisitos\s+del\s+personal/i);
@@ -8164,8 +8168,28 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         hechas.push({ nombre: mc.nombre, contratos: cs.length === 1 ? cs[0][1] : null, anos: ys.length === 1 ? ys[0][1] : null });
         desde = mc.i + mc.nombre.length;
       });
-      const titulo = x => (x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()).replace(/sg-sst/i, 'SG-SST');
+      const titulo = x => (x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()).replace(/sg-sst/i, 'SG-SST').replace(/\bsst\b/i, 'SST');
       const vistos = {};
+      const KEYS = ['residente', 'director', 'inspector', 'hidraul', 'pavimento', 'sst', 'social', 'ambiental', 'topograf', 'estructural', 'geotecn'];
+      const claveDe = x => { const n = norm(x); return KEYS.find(k => n.indexOf(k) !== -1) || n; };
+      const tablaFilas = hechas.length ? [] : (function(){
+        // Tabla «Profesional | Requisitos de formación | Requisitos de experiencia específica»: cada fila empieza con un cargo SEGUIDO de una
+        // formación («Profesional en…», «Ingeniero…»), lo que evita cortar en «…experiencia como director de obra en proyectos…».
+        const v = quitarPies(ventana).replace(/Requisitos\s+(?:General|Espec[íi]fica)\s+de\s+Experiencia/gi, ' ').replace(/\s{2,}/g, ' ');
+        const reF = /\b(?:(?:Ingeniero\s+)?(?:Director|Residente|Inspector)(?:\s+de\s+Obra)?|(?:Ingeniero\s+)?Especialista(?:\s+en)?\s+[A-Za-zÁÉÍÓÚáéíóúñ]+|Ingeniero\s+Hidr[áa]ulico|Ingeniero\s+Hidraulico|Profesional\s+(?:SST|Social|Ambiental)|Top[óo]grafo|Responsable\s+SG-SST|Coordinador\s+[A-Za-záéíóú]+)(?=\s+(?:Profesional\s+en|Ingenier[oí]|Arquitect|T[ée]cnic|Tecn[óo]log|Abogad))/gi;
+        const ms = Array.from(v.matchAll(reF));
+        return ms.map((m, k) => {
+          const txt = v.slice(m.index + m[0].length, k + 1 < ms.length ? ms[k + 1].index : v.length).trim();
+          const iE = txt.search(/\b(?:Experiencia\s+(?:como|en)\b|Haber\s+participado|Acreditar)/i);
+          const cap = (x, n) => { x = x.trim().replace(/\s+[a-z]\.$/, ''); return x.length > n ? x.slice(0, n).replace(/\s+\S*$/, '') + '…' : x; };
+          return { cargo: m[0], formacion: cap(iE >= 0 ? txt.slice(0, iE) : txt, 170), especifica: iE >= 0 ? cap(txt.slice(iE), 230) : '' };
+        });
+      })();
+      // «El personal requerido es el siguiente: Un (1) Ingeniero Residente de Obra, con dedicación del 100% …»
+      const listaDed = [];
+      if (tablaFilas.length && iLista >= 0 && iLista < iPers){
+        for (const m of t.slice(iLista, iPers).matchAll(/(?:Un|Una|Dos|Tres|Cuatro|Cinco)\s*\((\d{1,2})\)\s+([^,.;•●]{3,80}?),?\s+con\s+dedicaci[óo]n\s+(?:del\s+)?(\d{1,3})\s*%/gi)) listaDed.push({ cant: m[1], cargo: m[2].trim(), dedic: m[3] });
+      }
       if (hechas.length){
         const coincide = (h, l) => { const a = norm(h.nombre), b = norm(l.cargo); return b.indexOf(a) !== -1 || a.indexOf(b) !== -1; };
         // Primero los cargos en el orden de la lista del documento; los que la lista no trae, al final.
@@ -8179,6 +8203,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           add('Personal', titulo(h.nombre), l ? l.cant + ' · ' + l.formacion : 'Cargo exigido', partes.join(' · ') || 'años y contratos: ver la tabla del documento', { pagina: pagina(iPers), aviso: noHab ? 'Según el documento, las hojas de vida se verifican después de adjudicar y no se piden como criterio habilitante.' : '' });
         });
         avisos.push('Los años y contratos de cada cargo se leyeron de una tabla en columnas: solo se muestran cuando el texto los separa sin ambigüedad, y la lista de cargos puede estar incompleta. Confírmalos contra el original.');
+      } else if (tablaFilas.length){
+        tablaFilas.forEach(fl => {
+          const clave = claveDe(fl.cargo); if (vistos[clave]) return; vistos[clave] = true;
+          const l = listaDed.find(x => claveDe(x.cargo) === clave);
+          const partes = [];
+          if (l) partes.push('dedicación ' + l.dedic + '%');
+          if (fl.especifica) partes.push(fl.especifica);
+          add('Personal', titulo(fl.cargo), (l ? l.cant + ' · ' : '') + fl.formacion, partes.join(' · ') || 'ver la tabla del documento', { pagina: pagina(iPers), aviso: noHab ? 'Según el documento, las hojas de vida se verifican después de adjudicar y no se piden como criterio habilitante.' : '' });
+        });
+        const extras = tablaFilas.filter(fl => !listaDed.some(x => claveDe(x.cargo) === claveDe(fl.cargo))).map(fl => titulo(fl.cargo));
+        if (listaDed.length && extras.length) avisos.push('El documento dice «El personal requerido es el siguiente» y lista solo ' + listaDed.map(x => x.cargo).join(', ') + ', pero su tabla de requisitos trae también ' + extras.join(', ') + ': confirma con la entidad cuál es el personal exigido.');
       } else {
         const vv = {};
         CARGOS.forEach(c => {
@@ -8194,8 +8229,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     const iMaq = t.search(/Maquinaria\s+m[íi]nima\s+del\s+proyecto|equipo\s+m[íi]nimo\s+requerido/i);
     if (iMaq >= 0){
-      const bloque = t.slice(iMaq, iMaq + 1500).split(/[●•]/).slice(1).map(x => x.trim()).filter(x => x.length > 3);
-      const items = bloque.map(x => x.split(/\.\s/)[0].replace(/\.$/, '').slice(0, 110));
+      // Lista con viñetas (• ●) o numerada (1. 2. 3.), la que aparezca primero. Se corta donde termina la lista: el primer elemento que ya
+      // es otra cosa (título en mayúsculas, una obligación «deberá/garantizar…») o la frase que sigue al último elemento.
+      const cola = quitarPies(t.slice(iMaq, iMaq + 2600));
+      const iB = cola.search(/[●•]/), iN = cola.search(/\b1\.\s+(?=[A-ZÁÉÍÓÚ])/);
+      const trozos = (iN >= 0 && (iB < 0 || iN < iB)) ? cola.slice(iN).split(/\b\d{1,2}\.\s+(?=[A-ZÁÉÍÓÚ])/).slice(1) : (iB >= 0 ? cola.slice(iB).split(/[●•]/).slice(1) : []);
+      const items = [];
+      for (const tr of trozos){
+        const it = tr.trim().split(/\.\s/)[0].replace(/\s+(?:Toda\s+la\s+maquinaria|La\s+maquinaria\s+m[íi]nima|El\s+contratista|Los\s+equipos)\b[\s\S]*$/i, '').replace(/[.;:\s]+$/, '').slice(0, 110);
+        if (it.length <= 3 || /^[A-ZÁÉÍÓÚÑ\s]{12,}/.test(it) || /deber[áa]|garantizar|asumir|ser[áa]n?\s|responsable/i.test(it)) break;
+        items.push(it);
+      }
       if (items.length) add('Maquinaria', 'Equipo mínimo', items.join('; '), items.length + ' equipos', { pagina: pagina(iMaq) });
       if (/maquinaria\s+m[íi]nima\s+requerida\s+ser[áa]\s+verificada\s+una\s+vez\s+se\s+adjudique[^.]{0,200}no\s+podr[áa]\s+ser\s+pedida[^.]{0,200}habilitante/i.test(t)){
         const f = filas[filas.length - 1]; if (f && f.grupo === 'Maquinaria') f.aviso = 'Según el documento se verifica después de adjudicar el contrato: no es un requisito habilitante ni da puntaje.';
