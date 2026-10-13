@@ -330,8 +330,9 @@
   #bitacora-root .matriz-filtros { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
   #bitacora-root .matriz-filtro { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted); border-radius: var(--radius-sm); padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
   #bitacora-root .matriz-filtro[aria-pressed="true"] { background: var(--accent-button); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  #bitacora-root .ficha-tabla { min-width: 640px; }
   #bitacora-root .ficha-obs { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
-  #bitacora-root .ficha-obs summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+  #bitacora-root .ficha-obs summary { cursor: pointer; padding: 12px 0; line-height: 1.4; overflow-wrap: anywhere; }
   #bitacora-root .ficha-obs ol { margin: 8px 0 8px 18px; padding: 0; overflow-wrap: anywhere; }
   #bitacora-root .ficha-obs-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
   #bitacora-root .ficha-obs-acciones .link-btn { min-height: 44px; display: inline-flex; align-items: center; }
@@ -7925,7 +7926,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // Un monto «derivado» (p. ej. el 60% del presupuesto) no es otro presupuesto; uno que no es un porcentaje redondo del de la tabla, sí es una discrepancia.
       const raros = distintos.filter(v => v !== zonaPO.v && ![5, 10, 15, 20, 25, 30, 33, 40, 50, 60, 70, 75, 80, 90, 100].some(pc => Math.abs(v - zonaPO.v * pc / 100) <= zonaPO.v * 0.001));
       if (raros.length) avisos.push('El documento cita ' + raros.map(v => '$' + v.toLocaleString('es-CO')).join(' y ') + ' junto a «presupuesto oficial», pero la tabla 1.1 dice $' + zonaPO.v.toLocaleString('es-CO') + ' (es el que se usó): hay una discrepancia en el documento, pregúntala a la entidad.');
-      raros.forEach(v => { const mr = montosPO.find(x => x.v === v); obs('Presupuesto oficial', 'El numeral 1.1 fija el presupuesto oficial en $' + zonaPO.v.toLocaleString('es-CO') + ', pero otra parte del documento' + (mr ? ' (p. ' + pagina(mr.i) + ')' : '') + ' cita $' + v.toLocaleString('es-CO') + ' junto a «presupuesto oficial». Solicitamos aclarar cuál es el valor correcto y ajustar el documento en lo que corresponda.', zonaPO.i); });
+      raros.forEach(v => { const mr = montosPO.find(x => x.v === v); obs('Presupuesto oficial', 'El numeral 1.1 fija el presupuesto oficial en $' + zonaPO.v.toLocaleString('es-CO') + ', pero otra parte del documento' + (mr && pagina(mr.i) ? ' (p. ' + pagina(mr.i) + ')' : '') + ' cita $' + v.toLocaleString('es-CO') + ' junto a «presupuesto oficial». Solicitamos aclarar cuál es el valor correcto y ajustar el documento en lo que corresponda.', zonaPO.i); });
     }
     if (lotes.length >= 2 && !loteSel && !ctxPres) avisos.push('El documento se divide en ' + lotes.length + ' lotes con presupuestos distintos: elige el lote al que te presentas para calcular las cifras (SMMLV, capital de trabajo, plazo y experiencia del lote).');
     else if (distintos.length > 1 && lotes.length < 2 && !ctxPres && !zonaPO) avisos.push('El documento trae varios valores de presupuesto oficial (por ejemplo grupos o fases): la ficha no convierte a SMMLV ni calcula capital de trabajo ni capacidad residual. Identifica cuál es el del proceso al que te presentas.');
