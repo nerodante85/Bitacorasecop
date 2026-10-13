@@ -723,6 +723,15 @@
     #bitacora-root .link-btn, #bitacora-root .tag-tip, #bitacora-root .row-link a, #bitacora-root summary { position: relative; }
     #bitacora-root .link-btn::after, #bitacora-root .tag-tip::after, #bitacora-root .row-link a::after, #bitacora-root summary::after { content: ''; position: absolute; inset: -14px -4px; }
     #bitacora-root input[type=checkbox], #bitacora-root input[type=radio] { width: 24px; height: 24px; }
+    /* En la pantalla de análisis los botones de texto, los filtros de la matriz y los encabezados plegables crecen de verdad
+       (están juntos y sus zonas ampliadas se pisarían): así no se toca uno por otro. */
+    #bitacora-root #bt-analisis-out button.link-btn, #bitacora-root #bt-analisis-out .matriz-filtro { min-height: 44px; display: inline-flex; align-items: center; }
+    #bitacora-root #bt-analisis-out .analysis-fold > summary { min-height: 44px; align-items: center; padding-top: 0; padding-bottom: 0; }
+  }
+  /* Los puntos de «Decisión» y las alertas: la etiqueta (BLOQUEA / POR RESOLVER) va ARRIBA del texto en pantalla angosta; en fila dejaba
+     una columna de texto de ~110 px y frases cortas de 10 líneas. */
+  @media (max-width: 560px) {
+    #bitacora-root .decision-lista .alerta-item, #bitacora-root .alertas-analisis .alerta-item { flex-direction: column; gap: 4px; }
   }
   /* Reducir movimiento NO apaga el feedback: sin animaciones ni desplazamiento suave, pero los cambios
      de estado (color, borde, sombra, opacidad) se siguen viendo -- solo sin transform. */

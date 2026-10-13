@@ -139,6 +139,7 @@ sincronización, Edge Functions de IA y correo).
 - Reutiliza clases existentes (`.titleblock`, `.row`, `.tag`, `.analysis-*`, `.expeval-*`, `.stat-card`, `.info-tip`,
   `.analysis-fold`) antes de crear CSS nuevo. Si cambias el texto de un botón, busca dónde el JS reescribe su `textContent`.
 - Cada ítem nuevo de navegación obliga a volver a medir el menú en celular.
+- En la pantalla de análisis (`#bt-analisis-out`) a ≤ 560 px: la etiqueta de cada punto de `.decision-lista` / `.alertas-analisis` va ARRIBA del texto (en fila dejaba ~110 px de texto), y los botones de texto, los filtros de la matriz y los encabezados plegables miden 44 px reales (están juntos y sus zonas ampliadas con pseudo-elemento se pisarían). Medido por e2e («Análisis en celular»). Los tags con tip y los enlaces sueltos siguen con la zona ampliada por pseudo-elemento: `getBoundingClientRect` los mide pequeños aunque el área táctil sea de 44 px.
 - `mostrarVista(nombre, { enfocar:false })`: si el foco se perdió al cambiar de vista (cuerpo, vista oculta o control que dejó de verse), pasa al `h1` de la vista nueva (`tabindex=-1`); nunca se mueve si sigue en un control visible (las flechas del menú dependen de eso) y la carga inicial no lo roba.
 
 ## Cosas aprendidas por las malas (no las repitas)

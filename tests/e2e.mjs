@@ -615,6 +615,25 @@ await check('Observaciones: la ficha lista los puntos para preguntar a la entida
   assert(/Alcaldía E2E/.test(cuerpo) && /\$100\.000\.000/.test(cuerpo) && /\$138\.776\.810/.test(cuerpo) && /Solicitamos/.test(cuerpo) && /Empresa A/.test(cuerpo), 'el borrador trae entidad, cifras, solicitud y la empresa: ' + cuerpo.slice(0, 300));
   await ctx.close();
 });
+await check('Análisis en celular (375 px): los puntos de «Decisión» apilan etiqueta y texto (el texto usa casi todo el ancho) y los botones, filtros y secciones plegables miden al menos 44 px', async () => {
+  const { ctx, pg } = await abrir({ viewport: { width: 375, height: 812 }, hasTouch: true, sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
+  await pg.click('#bt-nav-toggle'); // en celular el menú va plegado
+  await abrirAnalisisSembrado(pg);
+  const m = await pg.evaluate(() => {
+    const raiz = document.querySelector('#bt-analisis-out');
+    const items = [...raiz.querySelectorAll('.decision-lista .alerta-item')].map(li => {
+      const [a, b] = li.children, ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(), rl = li.getBoundingClientRect();
+      return { apilado: rb.top >= ra.bottom - 1, anchoTexto: Math.round(100 * rb.width / rl.width) };
+    });
+    const bajos = [...raiz.querySelectorAll('button.link-btn, .matriz-filtro, .analysis-fold > summary')].filter(el => el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height < 43.5).map(el => (el.textContent || '').trim().slice(0, 35) + ' h=' + Math.round(el.getBoundingClientRect().height));
+    return { items: items, bajos: bajos, desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  });
+  assert(m.items.length >= 2, 'hay puntos de decisión: ' + m.items.length);
+  assert(m.items.every(i => i.apilado && i.anchoTexto >= 85), 'etiqueta arriba y texto a casi todo el ancho: ' + JSON.stringify(m.items));
+  assert(m.bajos.length === 0, 'controles de menos de 44 px: ' + m.bajos.join(' | '));
+  assert(m.desborde <= 0, 'sin desborde horizontal: ' + m.desborde);
+  await ctx.close();
+});
 await check('Informe del análisis: la tarjeta de decisión baja un Word con el análisis sin botones ni filtros; el PDF abre una ventana imprimible', async () => {
   const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
   await abrirAnalisisSembrado(pg);
