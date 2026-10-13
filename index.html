@@ -596,18 +596,6 @@
   #bitacora-root .row.vencido { opacity: .6; }
   #bitacora-root .row.descartado { opacity: .45; }
   #bitacora-root .row.vence-pronto { border-left-color: var(--danger); box-shadow: 0 0 0 1.5px var(--danger-border), var(--shadow-sm); }
-  #bitacora-root .expire-alert {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: .2px;
-    color: var(--danger);
-    background: var(--danger-bg);
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
-    margin: -16px -18px 12px;
-    display: inline-block;
-    border-bottom-left-radius: 0; border-bottom-right-radius: 0;
-  }
 
   #bitacora-root .row-head {
     display: flex;
@@ -622,6 +610,7 @@
     color: var(--text-heading);
   }
   #bitacora-root .row-head-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  @media (max-width: 520px) { #bitacora-root .row-head { flex-direction: column; gap: 6px; } #bitacora-root .row-head-tags { justify-content: flex-start; flex-shrink: 1; max-width: 100%; } }
 
   /* Badge unificado: fondo con tinte + texto del mismo color de familia +
      borde a juego. Es la base visual de TODOS los estados del sistema
@@ -11536,8 +11525,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const vistoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'visto').length;
     const descartadoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'descartado').length;
     const venceProntoCount = scored.filter(s => {
-      const h = historial[s.item.id];
-      return h && h.status === 'visto' && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
+      return s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
     }).length;
 
     if (hideDiscarded && !buscandoProceso) paso('descartados', '"Ocultar descartados"', s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
@@ -11604,6 +11592,37 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       : '');
   }
 
+  // Alertas del encabezado de la tarjeta (Buscar procesos): cierre próximo (para TODOS, no solo los vistos),
+  // y si el proceso es nuevo o se actualizó hace poco. Pura: sin fechas válidas no hay alerta (nunca se inventa).
+  function alertasDeEncabezado(it, daysLeft, ahoraMs){
+    const out = [];
+    if (daysLeft !== null && daysLeft !== undefined && daysLeft >= 0 && daysLeft <= 3){
+      out.push({ tipo: 'cierre', texto: daysLeft === 0 ? 'Cierra hoy' : daysLeft === 1 ? 'Cierra mañana' : 'Cierra en ' + daysLeft + ' días' });
+    }
+    const haceDias = raw => (raw && isPlausibleDate(raw)) ? Math.floor((ahoraMs - new Date(raw).getTime()) / 86400000) : null;
+    const cuando = (n, pref) => pref + (n === 0 ? ' hoy' : n === 1 ? ' ayer' : ' hace ' + n + ' días');
+    const dPub = haceDias(it && it.pubRaw), dUlt = haceDias(it && it.ultimaRaw);
+    if (dPub !== null && dPub >= 0 && dPub <= 3){
+      out.push({ tipo: 'nuevo', texto: cuando(dPub, 'Publicado') });
+    } else if (dUlt !== null && dUlt >= 0 && dUlt <= 2 && (dPub === null || dPub - dUlt >= 1)){
+      out.push({ tipo: 'actualizado', texto: cuando(dUlt, 'Actualizado') });
+    }
+    return out;
+  }
+  // Modalidad en pocas palabras para el encabezado; una modalidad que no reconoce se acorta, no se reinterpreta.
+  function modalidadCorta(modalidad){
+    const t = String(modalidad == null ? '' : modalidad).trim();
+    if (!t) return null;
+    const n = t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (/^licitacion/.test(n)) return 'Licitación';
+    if (/menor cuantia/.test(n)) return 'Menor cuantía';
+    if (/^seleccion abreviada/.test(n)) return 'Selección abreviada';
+    if (/minima cuantia/.test(n)) return 'Mínima cuantía';
+    if (/^concurso de meritos/.test(n)) return 'Concurso de méritos';
+    if (/^contratacion directa/.test(n)) return 'Directa';
+    return t.length > 28 ? t.slice(0, 27).trimEnd() + '…' : t;
+  }
+
   // Tarjeta de un proceso en dos modos:
   //  - 'lista' (vista "Buscar procesos"): solo lo importante del proceso (entidad, objeto, valor, plazo,
   //    ubicación, sello de cumplimiento) y los botones de gestión; el análisis del pliego vive en la
@@ -11645,10 +11664,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         : 'Proceso guardado de una búsqueda anterior' + (cuando ? ' (visto el ' + escapeHtml(cuando) + ')' : '') + ': el plazo y el estado pueden haber cambiado -- confírmalos en SECOP antes de decidir.' + modoTxt) + '</div>';
     }
 
-    const venceProto = isVisto && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
-    const venceAlertHtml = venceProto
-      ? '<div class="expire-alert">⚠ VISTO Y VENCE ' + (s.daysLeft === 0 ? 'HOY' : ('EN ' + s.daysLeft + (s.daysLeft === 1 ? ' DÍA' : ' DÍAS'))) + '</div>'
-      : '';
+    const alertasEnc = alertasDeEncabezado(it, s.daysLeft, Date.now());
+    const venceProto = alertasEnc.some(a => a.tipo === 'cierre');
+    const alertasEncHtml = alertasEnc.map(a => '<span class="tag ' + (a.tipo === 'cierre' ? 'redflag-alta' : a.tipo === 'nuevo' ? 'nuevo' : 'visto') + '">' + escapeHtml(a.texto) + '</span>').join('');
+    const modCorta = modalidadCorta(it.modalidad);
 
     // "Analizar Estudio Previo" -- algunos procesos (sobre todo en etapa temprana) todavía no
     // tienen Pliego de Condiciones publicado, solo Estudio Previo. Solo se ofrece ANTES de que
@@ -11709,7 +11728,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     '</dl>' + franja('competencia', 'Competencia y adjudicación') + franja('avance', 'En Mis procesos');
 
     return '<div class="row' + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
-      venceAlertHtml +
       '<div class="row-head"><div class="row-ent">' + escapeHtml(it.entidad) + '</div>' +
         // Auditoría UX/UI: la tarjeta muestra dos "semáforos" (GO/REVISAR/
         // NO-GO de cumplimiento, y ALTA/MEDIA/BAJA de prioridad por palabra
@@ -11721,7 +11739,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         // (mismo texto que title), tapeable: revela el mismo texto en
         // una nota debajo de la tarjeta (ver el listener delegado
         // "tag-tip-note" y su CSS).
-        '<div class="row-head-tags">' + (enAnalisis ? evalChipHtml(s.evaluacion) : '') + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + (enAnalisis ? '<span class="tag fuente">SECOP ' + it.fuente + '</span>' : '') + '</div>' +
+        '<div class="row-head-tags">' + alertasEncHtml + (modCorta ? '<span class="tag fuente">' + escapeHtml(modCorta) + '</span>' : '') + (enAnalisis ? evalChipHtml(s.evaluacion) : '') + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + (enAnalisis ? '<span class="tag fuente">SECOP ' + it.fuente + '</span>' : '') + '</div>' +
       '</div>' +
       '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 600)) + '</div>' +
       (enAnalisis ? (      '<div class="row-meta">' +

@@ -4513,6 +4513,36 @@ await check('Mis procesos: estado vivo en SECOP — código consultable solo par
   assert(/estadoVivoHtml\(id, sn\)/.test(card) && /estadoVivoDeProceso\(info, sn\.closingRaw\)/.test(html), 'la tarjeta de Mis procesos muestra el estado vivo');
   assert(/if \(nombre === 'procesos'\)\{ renderPipelineView\(\); actualizarEstadosVivos\(\); \}/.test(html), 'al abrir Mis procesos se consulta el estado en SECOP');
 });
+await check('Encabezado de la tarjeta: alerta de cierre próximo para TODOS los procesos, «Nuevo»/«Actualizado» solo si es reciente, y modalidad corta (sin inventar)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const lib = cortar('function isPlausibleDate', 'function fmtDate');
+  const src = cortar('function alertasDeEncabezado', '\n  function ') + '\n' + cortar('function modalidadCorta', '\n  function ');
+  const { alertasDeEncabezado, modalidadCorta } = new Function(lib + '\n' + src + '\nreturn { alertasDeEncabezado, modalidadCorta };')();
+  const ahora = Date.parse('2026-10-13T15:00:00Z');
+  const dia = n => new Date(ahora - n * 86400000).toISOString().slice(0, 19);
+  const tx = (it, dl) => alertasDeEncabezado(it, dl, ahora).map(a => a.tipo + ':' + a.texto);
+  assert(tx({}, null).length === 0, 'sin datos no hay alertas');
+  assert(tx({}, 0)[0] === 'cierre:Cierra hoy' && tx({}, 1)[0] === 'cierre:Cierra mañana' && tx({}, 3)[0] === 'cierre:Cierra en 3 días', 'cierre próximo: ' + tx({}, 3));
+  assert(tx({}, 4).length === 0 && tx({}, -1).length === 0, 'más de 3 días o vencido no alerta de cierre');
+  assert(tx({ pubRaw: dia(0) }, null)[0] === 'nuevo:Publicado hoy' && tx({ pubRaw: dia(2) }, null)[0] === 'nuevo:Publicado hace 2 días' && tx({ pubRaw: dia(1) }, null)[0] === 'nuevo:Publicado ayer', 'nuevo: ' + tx({ pubRaw: dia(2) }, null));
+  assert(tx({ pubRaw: dia(10) }, null).length === 0, 'una publicación de hace 10 días no es nueva');
+  assert(tx({ pubRaw: dia(20), ultimaRaw: dia(1) }, null)[0] === 'actualizado:Actualizado ayer', 'actualizado: ' + tx({ pubRaw: dia(20), ultimaRaw: dia(1) }, null));
+  assert(tx({ pubRaw: dia(1), ultimaRaw: dia(1) }, null).length === 1, 'recién publicado no se repite como actualizado');
+  assert(tx({ pubRaw: dia(20), ultimaRaw: dia(6) }, null).length === 0, 'actualizado hace 6 días ya no se avisa');
+  assert(tx({ pubRaw: '1961-01-01T00:00:00', ultimaRaw: '2999-01-01T00:00:00' }, null).length === 0, 'fechas basura no generan alertas');
+  assert(tx({ pubRaw: dia(-5) }, null).length === 0, 'una publicación futura no es "nuevo"');
+  const m = x => modalidadCorta(x);
+  assert(m('Licitación pública Obra Publica') === 'Licitación' && m('Licitación Pública') === 'Licitación', 'licitación');
+  assert(m('Selección Abreviada de Menor Cuantía') === 'Menor cuantía' && m('Selección abreviada') === 'Selección abreviada', 'selección abreviada / menor cuantía');
+  assert(m('Mínima cuantía') === 'Mínima cuantía' && m('Concurso de méritos abierto') === 'Concurso de méritos' && m('Contratación directa') === 'Directa', 'otras modalidades');
+  assert(m(null) === null && m('') === null, 'sin modalidad no hay etiqueta');
+  const larga = m('Asociación Público Privada de Iniciativa Privada especial extra larga');
+  assert(larga && larga.length <= 29 && /…$/.test(larga), 'una modalidad desconocida se acorta, no se inventa: ' + larga);
+  const card = cortar('function tarjetaProcesoHtml', 'function truncate(');
+  assert(/alertasDeEncabezado\(it, s\.daysLeft/.test(card) && /modalidadCorta\(it\.modalidad\)/.test(card), 'la tarjeta usa las alertas y la modalidad corta');
+  assert(!/VISTO Y VENCE/.test(card), 'la alerta de cierre ya no depende de haber marcado el proceso como visto');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');
