@@ -245,6 +245,20 @@ await check('Notas propias: agregar en la tarjeta de Mis procesos, se guarda al 
   const resto = await pg.evaluate(() => localStorage.getItem('bitacora_historial') || '');
   assert(!/otra nota/.test(resto), 'quitar el proceso de Mis procesos borra también su nota');
 });
+await check('Mis procesos: un proceso presentado o no viable ya no muestra el plazo ni «Venció»; uno en decisión sí', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  await pg.click('#bt-results .row [data-agregar-pipeline]');
+  await pg.evaluate(() => document.getElementById('bt-nav-procesos').click());
+  assert(await pg.evaluate(() => !!document.querySelector('.pipeline-card .pipeline-card-plazo')), 'por revisar muestra el plazo');
+  for (const etapa of ['presentada', 'no_viable']) {
+    await pg.selectOption('.pipeline-card select', etapa);
+    const r = await pg.evaluate(() => ({ plazo: !!document.querySelector('.pipeline-card .pipeline-card-plazo'), urgente: !!document.querySelector('.pipeline-card-urgente') }));
+    assert(!r.plazo && !r.urgente, etapa + ' no debe mostrar plazo ni alarma: ' + JSON.stringify(r));
+  }
+  await pg.selectOption('.pipeline-card select', 'viable');
+  assert(await pg.evaluate(() => !!document.querySelector('.pipeline-card .pipeline-card-plazo')), 'volver a una etapa activa devuelve el plazo');
+});
 await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
   const { pg } = await abrir();
   await pg.click('#bt-nav-buscar');
