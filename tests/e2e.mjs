@@ -148,6 +148,41 @@ await check('Buscar procesos solo busca y muestra la ficha (sin análisis); Guar
   await ctx.close();
 });
 
+await check('Copiar código: el botón copia el código SECOP II del proceso y confirma con «Copiado ✓»', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  await pg.evaluate(() => { window.__copiado = null; Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => { window.__copiado = t; return Promise.resolve(); } }, configurable: true }); });
+  const antes = await pg.evaluate(() => { const f = document.querySelector('#bt-results .row'); const b = f.querySelector('[data-copiar-codigo]'); return { hay: !!b, codigo: b && b.getAttribute('data-copiar-codigo'), fichaTiene: [...f.querySelectorAll('.ficha dd')].some(d => b && d.textContent.trim() === b.getAttribute('data-copiar-codigo')) }; });
+  assert(antes.hay && antes.codigo && antes.fichaTiene, 'la primera tarjeta debe traer el botón con el mismo código de su ficha: ' + JSON.stringify(antes));
+  await pg.click('#bt-results .row [data-copiar-codigo]');
+  await pg.waitForFunction(() => window.__copiado !== null);
+  const r = await pg.evaluate(() => ({ copiado: window.__copiado, txt: document.querySelector('#bt-results .row [data-copiar-codigo]').textContent }));
+  assert(r.copiado === antes.codigo, 'debe copiar el código exacto: ' + r.copiado);
+  assert(/Copiado/.test(r.txt), 'el botón confirma la copia: ' + r.txt);
+});
+await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  const r = await pg.evaluate(() => {
+    const filas = [...document.querySelectorAll('#bt-results .row')];
+    const f = filas.find(x => x.querySelector('.row-obj-mas'));
+    if (!f) return { hay: false, truncadas: filas.filter(x => /…$/.test(x.querySelector('.row-obj').textContent)).length };
+    const obj = f.querySelector('.row-obj'), b = f.querySelector('.row-obj-mas');
+    const antes = { clamp: obj.scrollHeight > obj.clientHeight + 1, exp: b.getAttribute('aria-expanded'), t: b.textContent };
+    b.click();
+    const despues = { abierto: obj.classList.contains('abierto'), exp: b.getAttribute('aria-expanded'), t: b.textContent, completo: obj.scrollHeight <= obj.clientHeight + 1 };
+    b.click();
+    return { hay: true, antes, despues, vuelve: !obj.classList.contains('abierto') && b.getAttribute('aria-expanded') === 'false' };
+  });
+  if (r.hay){
+    assert(r.antes.clamp && r.antes.exp === 'false' && r.antes.t === 'Ver más', 'cerrado: recortado y «Ver más»: ' + JSON.stringify(r.antes));
+    assert(r.despues.abierto && r.despues.exp === 'true' && r.despues.t === 'Ver menos' && r.despues.completo, 'abierto: texto completo y «Ver menos»: ' + JSON.stringify(r.despues));
+    assert(r.vuelve, '«Ver menos» vuelve a recortar');
+  } else {
+    assert(r.truncadas === 0, 'sin objetos largos, ninguna tarjeta debe mostrar el texto cortado con «…»');
+  }
+});
+
 await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agrupa 3 pestañas; "evaluacion" y "pipeline" guardados abren Análisis y Mis procesos', async () => {
   let { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
   const m = await pg.evaluate(() => ({

@@ -596,18 +596,6 @@
   #bitacora-root .row.vencido { opacity: .6; }
   #bitacora-root .row.descartado { opacity: .45; }
   #bitacora-root .row.vence-pronto { border-left-color: var(--danger); box-shadow: 0 0 0 1.5px var(--danger-border), var(--shadow-sm); }
-  #bitacora-root .expire-alert {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: .2px;
-    color: var(--danger);
-    background: var(--danger-bg);
-    border-radius: var(--radius-sm);
-    padding: 5px 10px;
-    margin: -16px -18px 12px;
-    display: inline-block;
-    border-bottom-left-radius: 0; border-bottom-right-radius: 0;
-  }
 
   #bitacora-root .row-head {
     display: flex;
@@ -622,6 +610,7 @@
     color: var(--text-heading);
   }
   #bitacora-root .row-head-tags { display: flex; align-items: center; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  @media (max-width: 520px) { #bitacora-root .row-head { flex-direction: column; gap: 6px; } #bitacora-root .row-head-tags { justify-content: flex-start; flex-shrink: 1; max-width: 100%; } }
 
   /* Badge unificado: fondo con tinte + texto del mismo color de familia +
      borde a juego. Es la base visual de TODOS los estados del sistema
@@ -735,6 +724,10 @@
     margin: 8px 0 10px;
     color: var(--text-muted);
   }
+  #bitacora-root .row-obj-corto { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
+  #bitacora-root .row-obj-corto.abierto { display: block; overflow: visible; }
+  #bitacora-root .row-obj-mas { margin: 0 0 10px; padding: 4px 0; }
+  #bitacora-root .row-obj mark.kw { background: var(--accent-soft); color: var(--text); border-radius: 3px; padding: 0 2px; }
   #bitacora-root .row-meta {
     display: flex;
     flex-wrap: wrap;
@@ -747,6 +740,11 @@
   /* Ficha del proceso en Buscar procesos: solo datos (etiqueta + valor), sin análisis. */
   #bitacora-root .ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px 18px; margin: 0 0 12px; }
   #bitacora-root .ficha > div { min-width: 0; }
+  #bitacora-root .ficha > div.ficha-ancho { grid-column: 1 / -1; }
+  #bitacora-root .ficha-franja { border-top: 1px solid var(--border, rgba(127,127,127,.25)); padding-top: 8px; margin: 0 0 12px; }
+  #bitacora-root .ficha-franja .ficha { margin-bottom: 0; }
+  #bitacora-root .ficha-franja-t { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 6px; }
+  @media (max-width: 520px) { #bitacora-root .ficha { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; } }
   #bitacora-root .ficha dt { font-size: 12px; color: var(--text-muted); margin: 0 0 2px; }
   #bitacora-root .ficha dd { margin: 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
   #bitacora-root .ficha dd.ficha-valor { font-weight: 600; }
@@ -964,6 +962,8 @@
   #bitacora-root .pipeline-card-obj { font-size: 12.5px; color: var(--text-muted); overflow-wrap: anywhere; }
   #bitacora-root .pipeline-card-meta { font-size: 12px; }
   #bitacora-root .pipeline-card-plazo { font-size: 12px; font-weight: 700; }
+  #bitacora-root .pipeline-card-estado { font-size: 12px; overflow-wrap: anywhere; }
+  #bitacora-root .pipeline-card-estado .tag { white-space: normal; max-width: 100%; }
   #bitacora-root .pipeline-card-urgente-texto { color: var(--danger); }
   #bitacora-root .pipeline-card-acciones { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
   #bitacora-root .pipeline-card-acciones select { flex: 1; min-width: 0; }
@@ -2846,9 +2846,93 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return res ? etiquetaVeredicto(res.mejor.veredictoGlobal) : null;
   }
 
+  // Estado VIVO en SECOP de los procesos guardados (Mis procesos). El resumen guardado se queda como estaba al
+  // guardar; esto vuelve a consultar el dataset por código de proceso y solo AVISA (nunca cambia la etapa del
+  // usuario ni inventa un estado: sin registro o sin consulta se dice así).
+  // 'ps2-CO1.REQ.123' → 'CO1.REQ.123'. Los ids por hash ('hs2-…') o con caracteres raros no se consultan
+  // (el código va dentro de una consulta SoQL, por eso solo letras, números, punto y guion).
+  function codigoSecopDeId(id){
+    const m = /^ps2-([A-Za-z0-9][A-Za-z0-9._-]{0,60})$/.exec(String(id == null ? '' : id));
+    return m ? m[1] : null;
+  }
+  // Un mismo código puede traer varias publicaciones: vale la más reciente.
+  function elegirRegistroVivo(items){
+    if (!items || !items.length) return null;
+    return items.reduce((mejor, x) => (String(x.ultimaRaw || '') > String(mejor.ultimaRaw || '') ? x : mejor), items[0]);
+  }
+  function estadoVivoDeProceso(item, cierreGuardadoRaw){
+    if (!item) return null;
+    const avisos = [];
+    let texto = item.estado || 'Sin estado reportado';
+    let tono = item.estado ? 'ok' : 'neutro';
+    if (item.adjudicado){
+      texto = 'Adjudicado' + (item.proveedor ? ' a ' + item.proveedor + (item.valorAdj ? ' · ' + fmtMoney(item.valorAdj) : '') : '');
+      tono = 'aviso';
+    } else if (item.estado && esEstadoNoVigente(item.estado)){
+      tono = 'aviso';
+    }
+    const nuevo = fmtDate(item.closingRaw), viejo = fmtDate(cierreGuardadoRaw);
+    if (nuevo && viejo && String(item.closingRaw).slice(0, 10) !== String(cierreGuardadoRaw).slice(0, 10)){
+      avisos.push('El cierre cambió: ahora ' + nuevo + ' (guardado: ' + viejo + ').');
+    }
+    return { texto: texto, tono: tono, avisos: avisos };
+  }
+  let estadosVivos = {}, estadosVivosEstado = 'idle'; // idle | cargando | listo | error
+  async function actualizarEstadosVivos(){
+    if (estadosVivosEstado === 'cargando') return;
+    const porCodigo = {};
+    Object.keys(historial).forEach(id => { if (historial[id] && historial[id].etapa){ const c = codigoSecopDeId(id); if (c) (porCodigo[c] = porCodigo[c] || []).push(id); } });
+    const codigos = Object.keys(porCodigo);
+    if (!codigos.length){ estadosVivosEstado = 'idle'; return; }
+    estadosVivosEstado = 'cargando';
+    redibujarPipelineSiVisible();
+    try {
+      const nuevos = {};
+      for (let i = 0; i < codigos.length; i += 40){
+        const lote = codigos.slice(i, i + 40);
+        const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?$limit=500&$where=' +
+          encodeURIComponent('id_del_proceso in(' + lote.map(c => "'" + c + "'").join(',') + ')');
+        let data = cacheSocrata.get(url);
+        if (!data){
+          const res = await withTimeout(fetch(url, socrataFetchOptions()), 12000, 'La consulta del estado en SECOP');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          data = await res.json();
+          if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+          cacheSocrata.set(url, data);
+        }
+        const porId = {};
+        data.forEach(r => { const it = normalize(r); if (it.codigo) (porId[it.codigo] = porId[it.codigo] || []).push(it); });
+        lote.forEach(c => { const reg = elegirRegistroVivo(porId[c] || []); porCodigo[c].forEach(id => { nuevos[id] = reg || false; }); });
+      }
+      estadosVivos = nuevos;
+      estadosVivosEstado = 'listo';
+    } catch(e){
+      estadosVivosEstado = 'error';
+    }
+    redibujarPipelineSiVisible();
+  }
+  function redibujarPipelineSiVisible(){
+    const vp = document.getElementById('view-procesos');
+    if (vp && !vp.hidden) renderPipelineView();
+  }
+
+  function estadoVivoHtml(id, sn){
+    if (!codigoSecopDeId(id)) return '';
+    const fila = t => '<div class="pipeline-card-estado">' + t + '</div>';
+    if (estadosVivosEstado === 'cargando') return fila('Consultando el estado en SECOP…');
+    if (estadosVivosEstado === 'error') return fila('No se pudo consultar el estado en SECOP. <button type="button" class="link-btn" data-pipeline-refrescar>Reintentar</button>');
+    if (estadosVivosEstado !== 'listo' || !(id in estadosVivos)) return '';
+    const info = estadosVivos[id];
+    if (!info) return fila('No apareció en la consulta de hoy (SECOP actualiza sus datos una vez al día). Revísalo en SECOP.');
+    const e = estadoVivoDeProceso(info, sn.closingRaw);
+    return fila('Estado en SECOP: <span class="tag ' + (e.tono === 'aviso' ? 'nuevo' : 'fuente') + '">' + escapeHtml(e.texto) + '</span>') +
+      e.avisos.map(a => '<div class="saved-note">⚠ ' + escapeHtml(a) + '</div>').join('');
+  }
+
   function renderPipelineCardHtml(id, h){
     const sn = h.snapshot || {};
-    const dias = diasRestantesDe(sn.closingRaw);
+    const vivo = (estadosVivosEstado === 'listo' && estadosVivos[id]) || null; // el cierre vigente en SECOP manda sobre el guardado
+    const dias = diasRestantesDe((vivo && vivo.closingRaw) || sn.closingRaw);
     const vencePronto = dias !== null && dias >= 0 && dias <= 3;
     const plazoTexto = dias === null ? 'Sin fecha de cierre reportada' : (dias < 0 ? 'Venció' : (dias + ' día(s) para el cierre'));
     const entry = analisis[id];
@@ -2865,6 +2949,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div class="pipeline-card-meta">' + (sn.valor ? escapeHtml(fmtMoney(sn.valor) || '') + ' · ' : '') + '<span class="tag fuente">SECOP ' + escapeHtml(sn.fuente || '') + '</span></div>' +
       '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' +
       '<div class="saved-note">' + escapeHtml(estadoAnalisis) + '</div>' +
+      estadoVivoHtml(id, sn) +
       '<div class="pipeline-card-acciones">' +
         '<button type="button" class="btn-mini analizar" data-pipeline-abrir-id="' + escapeHtml(id) + '">' + (entry ? 'Ver análisis' : 'Ver proceso') + '</button>' +
         '<select aria-label="Estado de este proceso" data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opciones + '</select>' +
@@ -2912,6 +2997,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         quitarDePipeline(quitarBtn.getAttribute('data-pipeline-quitar-id'));
         return;
       }
+      if (e.target.closest('[data-pipeline-refrescar]')){ estadosVivosEstado = 'idle'; actualizarEstadosVivos(); return; }
       const abrirBtn = e.target.closest('[data-pipeline-abrir-id]');
       if (abrirBtn) abrirAnalisis(abrirBtn.getAttribute('data-pipeline-abrir-id'));
     });
@@ -10505,6 +10591,26 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Se registra por CLIC en el summary, no por el evento toggle: toggle también dispara cuando la
   // tarjeta se pinta con "open" y eso guardaría los valores por defecto como si fueran del usuario.
   // El clic corre antes de que el navegador cambie d.open, por eso el nuevo estado es !d.open.
+  enContenedoresDeProceso('click', async e => {
+    const cp = e.target.closest && e.target.closest('[data-copiar-codigo]');
+    if (!cp) return;
+    const codigo = cp.getAttribute('data-copiar-codigo');
+    const orig = cp.dataset.textoOriginal || cp.textContent;
+    cp.dataset.textoOriginal = orig;
+    const ok = await copiarTexto(codigo);
+    cp.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar: ' + codigo;
+    clearTimeout(cp._t);
+    cp._t = setTimeout(() => { cp.textContent = orig; }, ok ? 2000 : 6000);
+  });
+  enContenedoresDeProceso('click', e => {
+    const mas = e.target.closest && e.target.closest('[data-obj-mas]');
+    if (!mas) return;
+    const obj = mas.previousElementSibling;
+    if (!obj) return;
+    const abierto = obj.classList.toggle('abierto');
+    mas.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    mas.textContent = abierto ? 'Ver menos' : 'Ver más';
+  });
   enContenedoresDeProceso('click', e => {
     const sm = e.target.closest && e.target.closest('.analysis-fold > summary');
     if (!sm) return;
@@ -11265,7 +11371,40 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const durU = findField(record, ['unidad_de_duracion'], '');
     const duracion = durN && Number(durN) > 0 ? (durN + (durU && durU !== 'No definido' ? ' ' + String(durU).toLowerCase() : '')) : null;
 
-    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente, codigo, tipoContrato, ultimaRaw, duracion };
+    // Cronograma y competencia (columnas reales de p6dx-8zbt; todas opcionales).
+    const fechaDe = re => { const d = dates.find(x => re.test(x.key.toLowerCase())); return d ? d.val : null; };
+    const aperturaRaw = fechaDe(/^fecha_de_apertura_efectiva$/) || fechaDe(/^fecha_de_apertura_de_respuesta$/);
+    const adjudicacionRaw = fechaDe(/^fecha_adjudicacion$/);
+    const adjTxt = String(findField(record, ['adjudicado'], '') || '').toLowerCase().trim();
+    const adjudicado = adjTxt === 'si' || adjTxt === 'sí';
+    const proveedor = findField(record, ['nombre_del_proveedor'], '') || null;
+    const valorAdjN = Number(findField(record, ['valor_total_adjudicacion'], ''));
+    const valorAdj = valorAdjN > 0 ? valorAdjN : null;
+    const ofertasN = Number(findField(record, ['respuestas_al_procedimiento'], ''));
+    const ofertas = ofertasN > 0 ? ofertasN : null;
+
+    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente, codigo, tipoContrato, ultimaRaw, duracion, aperturaRaw, adjudicacionRaw, adjudicado, proveedor, valorAdj, ofertas };
+  }
+
+  // Filas extra de la ficha (cronograma, competencia y avance propio). Pura: cada fila solo sale si hay dato
+  // (nunca se inventa); el proveedor y el valor adjudicado solo si el dataset marca el proceso como adjudicado.
+  // `avance` = { etapa: nombre legible, desdeTs } cuando el proceso está guardado en Mis procesos.
+  function fichaExtraProceso(it, avance, ahoraMs){
+    const out = [];
+    // g = grupo de la franja aparte de la ficha ('competencia' | 'avance'); sin g va con los datos del proceso. ancho = ocupa la fila entera.
+    const add = (k, v, g, ancho) => { if (v) out.push({ k: k, v: v, g: g || '', ancho: !!ancho }); };
+    add('Apertura de ofertas', fmtDate(it.aperturaRaw));
+    if (it.adjudicado){
+      const cuanto = fmtMoney(it.valorAdj);
+      add('Adjudicado a', it.proveedor ? (it.proveedor + (cuanto ? ' · ' + cuanto : '')) : '', 'competencia', true);
+      add('Fecha de adjudicación', fmtDate(it.adjudicacionRaw), 'competencia');
+    }
+    if (it.ofertas > 0) add('Ofertas recibidas', String(it.ofertas), 'competencia');
+    if (avance && avance.etapa){
+      const dias = avance.desdeTs ? Math.max(0, Math.floor((ahoraMs - avance.desdeTs) / 86400000)) : null;
+      add('Mi avance', avance.etapa + (dias === null ? '' : ' · ' + (dias === 0 ? 'hoy' : dias === 1 ? 'hace 1 día' : 'hace ' + dias + ' días')), 'avance');
+    }
+    return out;
   }
 
   // refNow: momento contra el que se miden "días restantes" y "días desde
@@ -11312,7 +11451,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return 'baja';
   }
 
+  let palabrasBusquedaActual = []; // las de la última búsqueda pintada: la tarjeta de la lista las resalta en el objeto
   function render(records, keywords, geos, municipios, minV, maxV, numProceso){
+    palabrasBusquedaActual = (keywords || []).slice();
     const hideClosed = hideClosedEl.checked;
     const hideOld = hideOldEl.checked;
     const onlyLicitacion = onlyLicitacionEl.checked;
@@ -11410,8 +11551,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const vistoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'visto').length;
     const descartadoCount = scored.filter(s => historial[s.item.id] && historial[s.item.id].status === 'descartado').length;
     const venceProntoCount = scored.filter(s => {
-      const h = historial[s.item.id];
-      return h && h.status === 'visto' && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
+      return s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
     }).length;
 
     if (hideDiscarded && !buscandoProceso) paso('descartados', '"Ocultar descartados"', s => !(historial[s.item.id] && historial[s.item.id].status === 'descartado'));
@@ -11476,6 +11616,97 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     resultsEl.innerHTML = scored.map(s => tarjetaProcesoHtml(s, flujoListoParaPliego, 'lista')).join('') + (totalFiltrados > scored.length
       ? '<div style="text-align:center;margin:14px 0;"><button type="button" class="btn-secondary" id="bt-mas-resultados">Mostrar ' + Math.min(40, totalFiltrados - scored.length) + ' más (quedan ' + (totalFiltrados - scored.length) + ')</button></div>'
       : '');
+    ajustarVerMasObjetos(resultsEl);
+  }
+
+  // Marca en el texto del objeto las palabras de la búsqueda: por raíz de 6 letras (pavimento ≈ PAVIMENTACIÓN, igual que el
+  // filtro), sin importar tildes ni mayúsculas, solo al comienzo de una palabra y solo palabras de 4 letras o más.
+  // Devuelve HTML ya escapado (el texto viene de SECOP y nunca se inserta crudo).
+  function resaltarPalabras(texto, palabras){
+    const t = String(texto == null ? '' : texto);
+    const esc = x => x.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const sinTilde = x => x.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const raices = [];
+    (palabras || []).forEach(p => sinTilde(String(p == null ? '' : p).toLowerCase()).split(/[^a-z0-9]+/).forEach(w => {
+      if (w.length >= 4 && raices.indexOf(w.slice(0, 6)) === -1) raices.push(w.slice(0, 6));
+    }));
+    if (!raices.length) return esc(t);
+    let norm = '';
+    for (let i = 0; i < t.length; i++) norm += t.charAt(i).normalize('NFD').charAt(0).toLowerCase(); // un carácter por carácter: los índices coinciden con t
+    const esLetra = c => /[a-z0-9]/.test(c);
+    const rangos = [];
+    raices.forEach(r => {
+      let i = norm.indexOf(r);
+      while (i !== -1){
+        if (i === 0 || !esLetra(norm.charAt(i - 1))){
+          let fin = i + r.length;
+          while (fin < norm.length && esLetra(norm.charAt(fin))) fin++;
+          rangos.push([i, fin]);
+        }
+        i = norm.indexOf(r, i + 1);
+      }
+    });
+    if (!rangos.length) return esc(t);
+    rangos.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+    let out = '', pos = 0;
+    rangos.forEach(([a, b]) => {
+      if (a < pos){ if (b > pos){ out += '<mark class="kw">' + esc(t.slice(pos, b)) + '</mark>'; pos = b; } return; }
+      out += esc(t.slice(pos, a)) + '<mark class="kw">' + esc(t.slice(a, b)) + '</mark>';
+      pos = b;
+    });
+    return out + esc(t.slice(pos));
+  }
+  // Copia al portapapeles; si el navegador no deja (permiso, página no segura), cae al método antiguo con un campo oculto.
+  async function copiarTexto(texto){
+    try { await navigator.clipboard.writeText(texto); return true; } catch(e){ /* sigue con el respaldo */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return !!ok;
+    } catch(e){ return false; }
+  }
+  // «Ver más» solo si el objeto de verdad pasa de 3 líneas con el ancho actual: si cabe entero, se quita el recorte y el botón.
+  function ajustarVerMasObjetos(raiz){
+    if (!raiz) return;
+    raiz.querySelectorAll('.row-obj-corto').forEach(o => {
+      if (o.classList.contains('abierto') || o.scrollHeight > o.clientHeight + 1) return;
+      o.classList.remove('row-obj-corto');
+      const b = o.nextElementSibling;
+      if (b && b.hasAttribute('data-obj-mas')) b.remove();
+    });
+  }
+  // Alertas del encabezado de la tarjeta (Buscar procesos): cierre próximo (para TODOS, no solo los vistos),
+  // y si el proceso es nuevo o se actualizó hace poco. Pura: sin fechas válidas no hay alerta (nunca se inventa).
+  function alertasDeEncabezado(it, daysLeft, ahoraMs){
+    const out = [];
+    if (daysLeft !== null && daysLeft !== undefined && daysLeft >= 0 && daysLeft <= 3){
+      out.push({ tipo: 'cierre', texto: daysLeft === 0 ? 'Cierra hoy' : daysLeft === 1 ? 'Cierra mañana' : 'Cierra en ' + daysLeft + ' días' });
+    }
+    const haceDias = raw => (raw && isPlausibleDate(raw)) ? Math.floor((ahoraMs - new Date(raw).getTime()) / 86400000) : null;
+    const cuando = (n, pref) => pref + (n === 0 ? ' hoy' : n === 1 ? ' ayer' : ' hace ' + n + ' días');
+    const dPub = haceDias(it && it.pubRaw), dUlt = haceDias(it && it.ultimaRaw);
+    if (dPub !== null && dPub >= 0 && dPub <= 3){
+      out.push({ tipo: 'nuevo', texto: cuando(dPub, 'Publicado') });
+    } else if (dUlt !== null && dUlt >= 0 && dUlt <= 2 && (dPub === null || dPub - dUlt >= 1)){
+      out.push({ tipo: 'actualizado', texto: cuando(dUlt, 'Actualizado') });
+    }
+    return out;
+  }
+  // Modalidad en pocas palabras para el encabezado; una modalidad que no reconoce se acorta, no se reinterpreta.
+  function modalidadCorta(modalidad){
+    const t = String(modalidad == null ? '' : modalidad).trim();
+    if (!t) return null;
+    const n = t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    if (/^licitacion/.test(n)) return 'Licitación';
+    if (/menor cuantia/.test(n)) return 'Menor cuantía';
+    if (/^seleccion abreviada/.test(n)) return 'Selección abreviada';
+    if (/minima cuantia/.test(n)) return 'Mínima cuantía';
+    if (/^concurso de meritos/.test(n)) return 'Concurso de méritos';
+    if (/^contratacion directa/.test(n)) return 'Directa';
+    return t.length > 28 ? t.slice(0, 27).trimEnd() + '…' : t;
   }
 
   // Tarjeta de un proceso en dos modos:
@@ -11519,10 +11750,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         : 'Proceso guardado de una búsqueda anterior' + (cuando ? ' (visto el ' + escapeHtml(cuando) + ')' : '') + ': el plazo y el estado pueden haber cambiado -- confírmalos en SECOP antes de decidir.' + modoTxt) + '</div>';
     }
 
-    const venceProto = isVisto && s.daysLeft !== null && s.daysLeft >= 0 && s.daysLeft <= 3;
-    const venceAlertHtml = venceProto
-      ? '<div class="expire-alert">⚠ VISTO Y VENCE ' + (s.daysLeft === 0 ? 'HOY' : ('EN ' + s.daysLeft + (s.daysLeft === 1 ? ' DÍA' : ' DÍAS'))) + '</div>'
-      : '';
+    const alertasEnc = alertasDeEncabezado(it, s.daysLeft, Date.now());
+    const venceProto = alertasEnc.some(a => a.tipo === 'cierre');
+    const alertasEncHtml = alertasEnc.map(a => '<span class="tag ' + (a.tipo === 'cierre' ? 'redflag-alta' : a.tipo === 'nuevo' ? 'nuevo' : 'visto') + '">' + escapeHtml(a.texto) + '</span>').join('');
+    const modCorta = modalidadCorta(it.modalidad);
+    // El objeto se muestra entero (tope de seguridad 2500) y, si es largo, se recorta a 3 líneas con «Ver más».
+    const copiarCodigoHtml = it.codigo ? '<button type="button" class="link-btn" data-copiar-codigo="' + escapeHtml(it.codigo) + '" aria-live="polite" title="Copia el código del proceso en SECOP II (' + escapeHtml(it.codigo) + ')">Copiar código</button>' : '';
+    const objTexto = truncate(it.objeto, 2500);
+    const objLargo = objTexto.length > 220;
+    const objetoHtml = '<div class="row-obj' + (objLargo ? ' row-obj-corto' : '') + '">' + resaltarPalabras(objTexto, enAnalisis ? [] : palabrasBusquedaActual) + '</div>' +
+      (objLargo ? '<button type="button" class="link-btn row-obj-mas" aria-expanded="false" data-obj-mas>Ver más</button>' : '');
 
     // "Analizar Estudio Previo" -- algunos procesos (sobre todo en etapa temprana) todavía no
     // tienen Pliego de Condiciones publicado, solo Estudio Previo. Solo se ofrece ANTES de que
@@ -11547,6 +11784,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           '<button class="btn-primary analizar" data-action="analizar" data-id="' + escapeHtml(it.id) + '">' + analizarLabel + '</button>' +
           pipelineBtnHtml +
           (safeUrl ? '<a class="btn-secondary" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+          copiarCodigoHtml +
           epBtnHtml +
           '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
         '</div>' +
@@ -11556,11 +11794,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       : '<div class="row-actions">' +
           pipelineBtnHtml +
           (safeUrl ? '<a class="btn-secondary" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+          copiarCodigoHtml +
           '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
         '</div>';
 
     const dato = (k, v, cls) => v ? '<div><dt>' + k + '</dt><dd' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</dd></div>' : '';
     const ultima = fmtDate(it.ultimaRaw);
+    const extras = fichaExtraProceso(it, (hist && hist.etapa) ? { etapa: ((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa), desdeTs: hist.etapaTs } : null, Date.now());
+    const datoExtra = f => '<div' + (f.ancho ? ' class="ficha-ancho"' : '') + '><dt>' + f.k + '</dt><dd>' + escapeHtml(f.v) + '</dd></div>';
+    const franja = (grupo, titulo) => {
+      const fs = extras.filter(f => f.g === grupo);
+      return fs.length ? '<div class="ficha-franja"><div class="ficha-franja-t">' + titulo + '</div><dl class="ficha">' + fs.map(datoExtra).join('') + '</dl></div>' : '';
+    };
     const fichaHtml = '<dl class="ficha">' +
       dato('Cuantía', money, 'ficha-valor') +
       dato('Ubicación', escapeHtml(loc)) +
@@ -11573,10 +11818,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       dato('Publicación', pub ? escapeHtml(pub) : '') +
       dato('Última actualización', ultima ? escapeHtml(ultima) : '') +
       dato('Duración', it.duracion ? escapeHtml(it.duracion) : '') +
-    '</dl>';
+      extras.filter(f => !f.g).map(datoExtra).join('') +
+    '</dl>' + franja('competencia', 'Competencia y adjudicación') + franja('avance', 'En Mis procesos');
 
     return '<div class="row' + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
-      venceAlertHtml +
       '<div class="row-head"><div class="row-ent">' + escapeHtml(it.entidad) + '</div>' +
         // Auditoría UX/UI: la tarjeta muestra dos "semáforos" (GO/REVISAR/
         // NO-GO de cumplimiento, y ALTA/MEDIA/BAJA de prioridad por palabra
@@ -11588,9 +11833,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         // (mismo texto que title), tapeable: revela el mismo texto en
         // una nota debajo de la tarjeta (ver el listener delegado
         // "tag-tip-note" y su CSS).
-        '<div class="row-head-tags">' + (enAnalisis ? evalChipHtml(s.evaluacion) : '') + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + (enAnalisis ? '<span class="tag fuente">SECOP ' + it.fuente + '</span>' : '') + '</div>' +
+        '<div class="row-head-tags">' + alertasEncHtml + (modCorta ? '<span class="tag fuente">' + escapeHtml(modCorta) + '</span>' : '') + (enAnalisis ? evalChipHtml(s.evaluacion) : '') + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + (enAnalisis ? '<span class="tag fuente">SECOP ' + it.fuente + '</span>' : '') + '</div>' +
       '</div>' +
-      '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 600)) + '</div>' +
+      objetoHtml +
       (enAnalisis ? (      '<div class="row-meta">' +
         '<span>' + escapeHtml(loc) + '</span>' +
         (it.modalidad ? '<span><b>Modalidad:</b> ' + escapeHtml(it.modalidad) + '</span>' : '') +
@@ -11647,6 +11892,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const evalActual = (sel.evaluacion || entry) ? evaluarMejor(sel.item, { daysLeft: sel.daysLeft }, entry) : null;
     const s2 = Object.assign({}, sel, { evaluacion: evalActual });
     analisisOutEl.innerHTML = tarjetaProcesoHtml(s2, estadoFlujoPliego().listo, 'analisis');
+    ajustarVerMasObjetos(analisisOutEl);
   }
   function abrirAnalisis(id){
     analisisSelId = id;
@@ -14409,7 +14655,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       rerender();
       renderAlertasList();
     }
-    if (nombre === 'procesos') renderPipelineView();
+    if (nombre === 'procesos'){ renderPipelineView(); actualizarEstadosVivos(); }
     if (nombre === 'analisis') renderAnalisisView();
     if (nombre === 'documentos') renderDocumentosView();
     if (nombre === 'ajustes') renderAjustesView();
