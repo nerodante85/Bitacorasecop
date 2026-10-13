@@ -7900,11 +7900,27 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const distintos = Array.from(new Set(montosPO.map(x => x.v)));
     const lotes = lotesDeTexto(t);
     const loteSel = (ctx && ctx.lote != null) ? (lotes.find(l => l.id === String(ctx.lote)) || null) : null;
-    const mPres = (distintos.length === 1 && lotes.length < 2) ? { index: montosPO[0].i } : null;
+    // Tabla «1.1 OBJETO, PRESUPUESTO OFICIAL, PLAZO Y UBICACIÓN» (documentos tipo): es la identificación del proceso en el propio documento.
+    // Con un único monto ≥ $50 millones dentro de ella, ese es el presupuesto aunque otras cláusulas citen otros montos junto a
+    // «presupuesto oficial» (se avisa de las que no cuadran). La primera coincidencia suele ser el índice: se prueban todas.
+    const zonasTabla11 = []; { const reT = /OBJETO,\s+PRESUPUESTO\s+OFICIAL(?:\s+ESTIMADO)?,\s+PLAZO\s+Y\s+UBICACI[ÓO]N/ig; let mt; while ((mt = reT.exec(t))) zonasTabla11.push({ i: mt.index, texto: t.slice(mt.index, mt.index + 1100) }); }
     const ctxPres = ctx && Number(ctx.presupuesto) > 0;
-    const presupuesto = ctxPres ? Number(ctx.presupuesto) : (loteSel ? loteSel.presupuesto : ((distintos.length === 1 && lotes.length < 2) ? distintos[0] : null));
+    let zonaPO = null;
+    if (lotes.length < 2 && !ctxPres){
+      for (const z of zonasTabla11){
+        const vs = Array.from(new Set(Array.from(z.texto.matchAll(/\$\s*(\d{1,3}(?:\.\d{3}){2,})/g)).map(x => parseInt(x[1].replace(/\./g, ''), 10)).filter(v => v >= 50000000)));
+        if (vs.length === 1){ zonaPO = { v: vs[0], i: z.i }; break; }
+      }
+    }
+    const mPres = zonaPO ? { index: zonaPO.i } : ((distintos.length === 1 && lotes.length < 2) ? { index: montosPO[0].i } : null);
+    const presupuesto = ctxPres ? Number(ctx.presupuesto) : (loteSel ? loteSel.presupuesto : (zonaPO ? zonaPO.v : ((distintos.length === 1 && lotes.length < 2) ? distintos[0] : null)));
+    if (zonaPO){
+      // Un monto «derivado» (p. ej. el 60% del presupuesto) no es otro presupuesto; uno que no es un porcentaje redondo del de la tabla, sí es una discrepancia.
+      const raros = distintos.filter(v => v !== zonaPO.v && ![5, 10, 15, 20, 25, 30, 33, 40, 50, 60, 70, 75, 80, 90, 100].some(pc => Math.abs(v - zonaPO.v * pc / 100) <= zonaPO.v * 0.001));
+      if (raros.length) avisos.push('El documento cita ' + raros.map(v => '$' + v.toLocaleString('es-CO')).join(' y ') + ' junto a «presupuesto oficial», pero la tabla 1.1 dice $' + zonaPO.v.toLocaleString('es-CO') + ' (es el que se usó): hay una discrepancia en el documento, pregúntala a la entidad.');
+    }
     if (lotes.length >= 2 && !loteSel && !ctxPres) avisos.push('El documento se divide en ' + lotes.length + ' lotes con presupuestos distintos: elige el lote al que te presentas para calcular las cifras (SMMLV, capital de trabajo, plazo y experiencia del lote).');
-    else if (distintos.length > 1 && lotes.length < 2 && !ctxPres) avisos.push('El documento trae varios valores de presupuesto oficial (por ejemplo grupos o fases): la ficha no convierte a SMMLV ni calcula capital de trabajo ni capacidad residual. Identifica cuál es el del proceso al que te presentas.');
+    else if (distintos.length > 1 && lotes.length < 2 && !ctxPres && !zonaPO) avisos.push('El documento trae varios valores de presupuesto oficial (por ejemplo grupos o fases): la ficha no convierte a SMMLV ni calcula capital de trabajo ni capacidad residual. Identifica cuál es el del proceso al que te presentas.');
     if (loteSel){
       const mOL = t.match(new RegExp('OBJETO\\s+LOTE\\s+(?:No\\.?|N[°º])?\\s*' + loteSel.id + ':?\\s+(.{15,260}?)(?=\\s+OBJETO\\s+LOTE|[,\\s]*en\\s+adelante\\s+el\\s+[“"]contrato|\\s+\\d\\.\\d+\\.?\\s+[A-ZÁÉÍÓÚ]|$)', 'i'));
       if (mOL) add('Datos del proceso', 'Objeto del Lote ' + loteSel.id, mOL[1].trim(), '', { pagina: pagina(mOL.index) });
@@ -7927,6 +7943,21 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const mT = iTab >= 0 ? t.slice(iTab, iTab + 900).match(/\b(\d{1,2})\s+(?:[A-ZÁÉÍÓÚÑ,.]+\s+){0,24}MESES\b/) : null;
       if (mT){ plazo = parseInt(mT[1], 10); idxPlazo = iTab; }
     }
+    let plazoDias = null;
+    if (plazo == null){
+      // Tabla 1.1 con el número entre paréntesis: «TRES (03) MESES» o «CINCUENTA (50) DIAS» (el texto puede venir entrelazado con el valor).
+      // Solo se acepta si la palabra y el número coinciden y hay un único candidato; si no, no se elige ninguno.
+      const NUM = { un: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, quince: 15, veinte: 20, treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90, cien: 100 };
+      for (const z of zonasTabla11){
+        const cands = Array.from(z.texto.matchAll(/\b([A-ZÁÉÍÓÚÑ]+)\s*\((\d{1,3})\)\s*(MESES|D[ÍI]AS)\b/g)).filter(c => NUM[c[1].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()] === parseInt(c[2], 10));
+        const distintosC = Array.from(new Set(cands.map(c => c[2] + c[3].toUpperCase().replace('Í', 'I'))));
+        if (distintosC.length === 1){
+          const n = parseInt(cands[0][2], 10);
+          if (/^D/i.test(cands[0][3])){ plazoDias = n; plazo = n / 30; } else plazo = n;
+          idxPlazo = z.i; break;
+        }
+      }
+    }
     if (plazo == null){
       // Estudios previos de alcaldías: "El plazo de duración del presente contrato será de DOS MESES (2 MESES)". Solo se acepta si la
       // palabra y el número coinciden; si no cuadran, no se elige ninguno.
@@ -7938,8 +7969,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         if (PAL[palabra] === n){ plazo = n; idxPlazo = mZ.index; }
       }
     }
-    if (plazo) add('Datos del proceso', 'Plazo de ejecución', plazo + ' meses', '', { pagina: pagina(idxPlazo) });
-    const sinAnticipo = /no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:al\s+contratista\s+)?(?:ning[úu]n\s+)?anticipo/i.test(t);
+    if (plazo) add('Datos del proceso', 'Plazo de ejecución', plazoDias ? plazoDias + ' días' : plazo + ' meses', '', { pagina: pagina(idxPlazo) });
+    const sinAnticipo = /no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:al\s+contratista\s+)?(?:ning[úu]n\s+)?anticipo|anticipo\s+y\/o\s+pago\s+anticipado\s+no\s+aplica/i.test(t);
     const conAnticipo = !sinAnticipo && /anticipo\s+del\s+\d/i.test(t);
     if (sinAnticipo) add('Datos del proceso', 'Anticipo', 'No hay anticipo ni pago anticipado', '');
     const anticipo = 0;
@@ -8020,7 +8051,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
       const mDoc = t.match(/el\s+capital\s+de\s+trabajo\s+es\s+el\s+siguiente:?\s*CT\s*≥\s*(\d{1,2})\s*%/i);
       if (mDoc && porRango.length === 3 && ctd != null && Math.abs(ctd - presupuesto * parseInt(mDoc[1], 10) / 100) > 1) avisos.push('El documento afirma "CT ≥ ' + mDoc[1] + '% del presupuesto oficial", pero su propia tabla da ' + (Math.round(ctd / presupuesto * 100)) + '% para este presupuesto (' + money(ctd) + ' frente a ' + money(presupuesto * parseInt(mDoc[1], 10) / 100) + '). Confírmalo en observaciones.');
-      if (ctd != null){ ctd = Math.min(ctd, presupuesto); add('Capacidad financiera', 'Capital de trabajo demandado', how, money(ctd) + (smmlvAnio ? ' · ' + fmt1(ctd / smmlvAnio) + ' SMMLV' : ''), { dato: { tipo: 'monto', clave: 'capitalTrabajo', min: ctd } }); }
+      if (ctd != null){ ctd = Math.min(ctd, presupuesto); add('Capacidad financiera', 'Capital de trabajo demandado', how, money(ctd) + (smmlvAnio ? ' · ' + fmt1(ctd / smmlvAnio) + ' SMMLV' : ''), { pagina: pagina(t.search(/CTd\s*=/)), dato: { tipo: 'monto', clave: 'capitalTrabajo', min: ctd } }); }
     }
     const mPd = t.match(/Pd\s*=\s*POE\s*x\s*(\d{1,3})\s*%/i);
     if (mPd && presupuesto){
@@ -8036,7 +8067,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const mCr = /CRPC\s*=\s*POE\s*[-−–]\s*Anticipo/i.test(t);
     if (mCr && sinAnticipo && presupuesto && plazo){
       const crpc = plazo <= 12 ? presupuesto - anticipo : (presupuesto - anticipo) / plazo * 12;
-      add('Capacidad financiera', 'Capacidad residual del proceso (K)', plazo <= 12 ? 'Presupuesto oficial completo (plazo de 12 meses o menos)' : 'Presupuesto ÷ plazo × 12', money(crpc) + (smmlvAnio ? ' · ' + fmt1(crpc / smmlvAnio) + ' SMMLV' : ''), { dato: { tipo: 'monto', clave: 'kResidual', min: crpc } });
+      add('Capacidad financiera', 'Capacidad residual del proceso (K)', plazo <= 12 ? 'Presupuesto oficial completo (plazo de 12 meses o menos)' : 'Presupuesto ÷ plazo × 12', money(crpc) + (smmlvAnio ? ' · ' + fmt1(crpc / smmlvAnio) + ' SMMLV' : ''), { pagina: pagina(t.search(/CRPC\s*=/)), dato: { tipo: 'monto', clave: 'kResidual', min: crpc } });
+    }
+    // K que el documento FIJA con una cifra («una capacidad residual o K de contratación igual o superior a $X»): si la fórmula ya la
+    // calculó solo se contrasta; si no hay fórmula, es la fuente. Con cifras distintas en el documento (conflicto) no se elige ninguna.
+    {
+      let ku = null; try { ku = extraerKResidualUmbral(t); } catch (e) { ku = null; }
+      const filaK = filas.find(f => f.requisito === 'Capacidad residual del proceso (K)');
+      if (ku && ku.valor != null && !ku.conflicto && ku.unidad === 'COP' && ku.valor >= 1000000){
+        const idxK = ku.raw ? t.indexOf(String(ku.raw).slice(0, 40)) : -1;
+        if (filaK){
+          if (filaK.dato && Math.abs(filaK.dato.min - ku.valor) > 1) avisos.push('El documento dice que el K debe ser de ' + money(ku.valor) + ', pero su fórmula da ' + money(filaK.dato.min) + ': confirma cuál aplica.');
+        } else if (!(lotes.length >= 2 && !loteSel)){
+          add('Capacidad financiera', 'Capacidad residual del proceso (K)', 'Según el documento: igual o superior a ' + money(ku.valor), smmlvAnio ? fmt1(ku.valor / smmlvAnio) + ' SMMLV' : '', { pagina: pagina(idxK), dato: { tipo: 'monto', clave: 'kResidual', min: ku.valor } });
+          if (presupuesto && Math.abs(ku.valor - presupuesto) > 1 && /presupuesto\s+oficial/i.test(ku.raw || '')) avisos.push('El documento fija el K en ' + money(ku.valor) + ' «igual al presupuesto oficial», pero el presupuesto de su tabla 1.1 es ' + money(presupuesto) + ': discrepancia del documento, pregúntala a la entidad.');
+        }
+      }
     }
     // Indicadores por rango (Matriz 2): Mipyme y demás proponentes.
     if (poSmmlv != null || (ctx && ctx.rango)){
@@ -8056,6 +8102,30 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         add('Capacidad financiera', ind[0] + ' (rango ' + rango + ')', d ? d.op + ' ' + d.v : '—', mi ? 'Mipyme: ' + mi.op + ' ' + mi.v : '', { pagina: pagina(iDem), dato: { tipo: 'indice', clave: ind[0], demas: d ? { op: d.op, v: num(d.v) } : null, mipyme: mi ? { op: mi.op, v: num(mi.v) } : null } });
       });
     }
+
+    // Indicadores con valor directo (tabla «INDICADOR | PARÁMETRO EXIGIDO» y «ÍNDICES | ÍNDICE REQUERIDO»), sin la Matriz 2 de por medio.
+    // Solo se leen detrás de esos encabezados. En rentabilidad, «≥ 0,06 ≥ 0,03 Mipyme» se lee como general y Mipyme (y se avisa).
+    if (!filas.some(f => f.dato && f.dato.tipo === 'indice')){
+      const OP = '([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)';
+      const zonas = []; const reZ = /INDICADOR\s+PAR[ÁA]METRO\s+EXIGIDO|[ÍI]NDICES\s+[ÍI]NDICE\s+REQUERIDO/ig; let mz;
+      while ((mz = reZ.exec(t))) zonas.push({ i: mz.index, texto: t.slice(mz.index, mz.index + 420) });
+      const ya = {};
+      const LEER = [['Índice de liquidez', new RegExp('[ÍI]ndice\\s+de\\s+liquidez\\s*' + OP, 'i')], ['Índice de endeudamiento', new RegExp('(?:[ÍI]ndice|Indicador)\\s+de\\s+endeudamiento\\s*' + OP, 'i')],
+        ['Razón de cobertura de intereses', new RegExp('Raz[óo]n\\s+de\\s+cobertura\\s+de\\s*' + OP, 'i')],
+        ['Rentabilidad del patrimonio', new RegExp('Rentabilidad\\s+del\\s+patrimonio\\s*' + OP + '(?:\\s*' + OP + '\\s*Mipyme)?', 'i'), true], ['Rentabilidad del activo', new RegExp('Rentabilidad\\s+del\\s+activo\\s*' + OP + '(?:\\s*' + OP + '\\s*Mipyme)?', 'i'), true]];
+      zonas.forEach(z => LEER.forEach(L => {
+        if (ya[L[0]]) return;
+        const m = z.texto.match(L[1]); if (!m) return;
+        ya[L[0]] = true;
+        const demas = { op: m[1], v: num(m[2]) }, mi = (L[2] && m[3]) ? { op: m[3], v: num(m[4]) } : null;
+        let aviso = '';
+        if (L[0] === 'Índice de liquidez' && demas.op === '≥' && demas.v >= 5) aviso = 'Una liquidez mínima de ' + m[2] + ' es inusualmente alta (lo habitual es cerca de 1 a 2): confirma que no sea un error del documento, porque dejaría fuera a casi todos los proponentes.';
+        if (L[0] === 'Razón de cobertura de intereses' && demas.op === '≥' && demas.v >= 10) aviso = 'Una cobertura de intereses mínima de ' + m[2] + ' es inusualmente alta: confirma que no sea un error del documento.';
+        if (mi) aviso = (aviso ? aviso + ' ' : '') + 'El documento trae dos valores y se leyó el segundo como el de Mipyme: confírmalo.';
+        add('Capacidad financiera', L[0], demas.op + ' ' + m[2], mi ? 'Mipyme: ' + mi.op + ' ' + m[4] : '', { pagina: pagina(z.i), aviso: aviso, dato: { tipo: 'indice', clave: L[0], demas: demas, mipyme: mi } });
+      }));
+    }
+    if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /Matriz\s*2/i.test(t) && /[ÍI]ndice\s+de\s+liquidez|capacidad\s+organizacional/i.test(t)) avisos.push('Los indicadores financieros y organizacionales remiten a la «Matriz 2», cuyos valores no vienen en el texto leído: consúltalos en esa matriz (anexo del proceso).');
 
     // Personal y maquinaria
     const CARGOS = ['DIRECTOR DE OBRA', 'DIRECTOR DE PROYECTO', 'RESIDENTE DE OBRA', 'RESIDENTE', 'ESPECIALISTA ESTRUCTURAL', 'ESPECIALISTA GEOT[ÉE]CNICO', 'ESPECIALISTA HIDR[ÁA]ULICO', 'INSPECTOR DE OBRA', 'RESPONSABLE SG-SST', 'PROFESIONAL SST', 'PROFESIONAL AMBIENTAL', 'PROFESIONAL SOCIAL', 'TOP[ÓO]GRAFO'];
