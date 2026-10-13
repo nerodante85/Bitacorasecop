@@ -724,6 +724,10 @@
     margin: 8px 0 10px;
     color: var(--text-muted);
   }
+  #bitacora-root .row-obj-corto { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
+  #bitacora-root .row-obj-corto.abierto { display: block; overflow: visible; }
+  #bitacora-root .row-obj-mas { margin: 0 0 10px; padding: 4px 0; }
+  #bitacora-root .row-obj mark.kw { background: var(--accent-soft); color: var(--text); border-radius: 3px; padding: 0 2px; }
   #bitacora-root .row-meta {
     display: flex;
     flex-wrap: wrap;
@@ -10588,6 +10592,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // tarjeta se pinta con "open" y eso guardaría los valores por defecto como si fueran del usuario.
   // El clic corre antes de que el navegador cambie d.open, por eso el nuevo estado es !d.open.
   enContenedoresDeProceso('click', e => {
+    const mas = e.target.closest && e.target.closest('[data-obj-mas]');
+    if (!mas) return;
+    const obj = mas.previousElementSibling;
+    if (!obj) return;
+    const abierto = obj.classList.toggle('abierto');
+    mas.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    mas.textContent = abierto ? 'Ver menos' : 'Ver más';
+  });
+  enContenedoresDeProceso('click', e => {
     const sm = e.target.closest && e.target.closest('.analysis-fold > summary');
     if (!sm) return;
     const row = sm.closest('.row'), d = sm.parentElement, t = sm.querySelector('.fold-title');
@@ -11427,7 +11440,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return 'baja';
   }
 
+  let palabrasBusquedaActual = []; // las de la última búsqueda pintada: la tarjeta de la lista las resalta en el objeto
   function render(records, keywords, geos, municipios, minV, maxV, numProceso){
+    palabrasBusquedaActual = (keywords || []).slice();
     const hideClosed = hideClosedEl.checked;
     const hideOld = hideOldEl.checked;
     const onlyLicitacion = onlyLicitacionEl.checked;
@@ -11590,8 +11605,56 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     resultsEl.innerHTML = scored.map(s => tarjetaProcesoHtml(s, flujoListoParaPliego, 'lista')).join('') + (totalFiltrados > scored.length
       ? '<div style="text-align:center;margin:14px 0;"><button type="button" class="btn-secondary" id="bt-mas-resultados">Mostrar ' + Math.min(40, totalFiltrados - scored.length) + ' más (quedan ' + (totalFiltrados - scored.length) + ')</button></div>'
       : '');
+    ajustarVerMasObjetos(resultsEl);
   }
 
+  // Marca en el texto del objeto las palabras de la búsqueda: por raíz de 6 letras (pavimento ≈ PAVIMENTACIÓN, igual que el
+  // filtro), sin importar tildes ni mayúsculas, solo al comienzo de una palabra y solo palabras de 4 letras o más.
+  // Devuelve HTML ya escapado (el texto viene de SECOP y nunca se inserta crudo).
+  function resaltarPalabras(texto, palabras){
+    const t = String(texto == null ? '' : texto);
+    const esc = x => x.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const sinTilde = x => x.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const raices = [];
+    (palabras || []).forEach(p => sinTilde(String(p == null ? '' : p).toLowerCase()).split(/[^a-z0-9]+/).forEach(w => {
+      if (w.length >= 4 && raices.indexOf(w.slice(0, 6)) === -1) raices.push(w.slice(0, 6));
+    }));
+    if (!raices.length) return esc(t);
+    let norm = '';
+    for (let i = 0; i < t.length; i++) norm += t.charAt(i).normalize('NFD').charAt(0).toLowerCase(); // un carácter por carácter: los índices coinciden con t
+    const esLetra = c => /[a-z0-9]/.test(c);
+    const rangos = [];
+    raices.forEach(r => {
+      let i = norm.indexOf(r);
+      while (i !== -1){
+        if (i === 0 || !esLetra(norm.charAt(i - 1))){
+          let fin = i + r.length;
+          while (fin < norm.length && esLetra(norm.charAt(fin))) fin++;
+          rangos.push([i, fin]);
+        }
+        i = norm.indexOf(r, i + 1);
+      }
+    });
+    if (!rangos.length) return esc(t);
+    rangos.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+    let out = '', pos = 0;
+    rangos.forEach(([a, b]) => {
+      if (a < pos){ if (b > pos){ out += '<mark class="kw">' + esc(t.slice(pos, b)) + '</mark>'; pos = b; } return; }
+      out += esc(t.slice(pos, a)) + '<mark class="kw">' + esc(t.slice(a, b)) + '</mark>';
+      pos = b;
+    });
+    return out + esc(t.slice(pos));
+  }
+  // «Ver más» solo si el objeto de verdad pasa de 3 líneas con el ancho actual: si cabe entero, se quita el recorte y el botón.
+  function ajustarVerMasObjetos(raiz){
+    if (!raiz) return;
+    raiz.querySelectorAll('.row-obj-corto').forEach(o => {
+      if (o.classList.contains('abierto') || o.scrollHeight > o.clientHeight + 1) return;
+      o.classList.remove('row-obj-corto');
+      const b = o.nextElementSibling;
+      if (b && b.hasAttribute('data-obj-mas')) b.remove();
+    });
+  }
   // Alertas del encabezado de la tarjeta (Buscar procesos): cierre próximo (para TODOS, no solo los vistos),
   // y si el proceso es nuevo o se actualizó hace poco. Pura: sin fechas válidas no hay alerta (nunca se inventa).
   function alertasDeEncabezado(it, daysLeft, ahoraMs){
@@ -11668,6 +11731,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const venceProto = alertasEnc.some(a => a.tipo === 'cierre');
     const alertasEncHtml = alertasEnc.map(a => '<span class="tag ' + (a.tipo === 'cierre' ? 'redflag-alta' : a.tipo === 'nuevo' ? 'nuevo' : 'visto') + '">' + escapeHtml(a.texto) + '</span>').join('');
     const modCorta = modalidadCorta(it.modalidad);
+    // El objeto se muestra entero (tope de seguridad 2500) y, si es largo, se recorta a 3 líneas con «Ver más».
+    const objTexto = truncate(it.objeto, 2500);
+    const objLargo = objTexto.length > 220;
+    const objetoHtml = '<div class="row-obj' + (objLargo ? ' row-obj-corto' : '') + '">' + resaltarPalabras(objTexto, enAnalisis ? [] : palabrasBusquedaActual) + '</div>' +
+      (objLargo ? '<button type="button" class="link-btn row-obj-mas" aria-expanded="false" data-obj-mas>Ver más</button>' : '');
 
     // "Analizar Estudio Previo" -- algunos procesos (sobre todo en etapa temprana) todavía no
     // tienen Pliego de Condiciones publicado, solo Estudio Previo. Solo se ofrece ANTES de que
@@ -11741,7 +11809,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         // "tag-tip-note" y su CSS).
         '<div class="row-head-tags">' + alertasEncHtml + (modCorta ? '<span class="tag fuente">' + escapeHtml(modCorta) + '</span>' : '') + (enAnalisis ? evalChipHtml(s.evaluacion) : '') + (isVisto ? '<span class="tag visto">VISTO</span>' : '') + (enAnalisis ? '<span class="tag fuente">SECOP ' + it.fuente + '</span>' : '') + '</div>' +
       '</div>' +
-      '<div class="row-obj">' + escapeHtml(truncate(it.objeto, 600)) + '</div>' +
+      objetoHtml +
       (enAnalisis ? (      '<div class="row-meta">' +
         '<span>' + escapeHtml(loc) + '</span>' +
         (it.modalidad ? '<span><b>Modalidad:</b> ' + escapeHtml(it.modalidad) + '</span>' : '') +
@@ -11798,6 +11866,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const evalActual = (sel.evaluacion || entry) ? evaluarMejor(sel.item, { daysLeft: sel.daysLeft }, entry) : null;
     const s2 = Object.assign({}, sel, { evaluacion: evalActual });
     analisisOutEl.innerHTML = tarjetaProcesoHtml(s2, estadoFlujoPliego().listo, 'analisis');
+    ajustarVerMasObjetos(analisisOutEl);
   }
   function abrirAnalisis(id){
     analisisSelId = id;

@@ -4543,6 +4543,27 @@ await check('Encabezado de la tarjeta: alerta de cierre próximo para TODOS los 
   assert(/alertasDeEncabezado\(it, s\.daysLeft/.test(card) && /modalidadCorta\(it\.modalidad\)/.test(card), 'la tarjeta usa las alertas y la modalidad corta');
   assert(!/VISTO Y VENCE/.test(card), 'la alerta de cierre ya no depende de haber marcado el proceso como visto');
 });
+await check('Objeto del proceso: se resaltan las palabras de la búsqueda (por raíz y sin tildes), el texto se escapa y la tarjeta lo resume con «Ver más» en vez de cortarlo a 600', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('function resaltarPalabras');
+  assert(i !== -1, 'falta resaltarPalabras');
+  const j = html.indexOf('\n  function ', i + 10);
+  const fn = new Function(html.slice(i, j) + '\nreturn resaltarPalabras;')();
+  const esc = s => s;
+  assert(fn('Obra civil', []) === 'Obra civil' && fn('Obra civil', null) === 'Obra civil', 'sin palabras no marca nada');
+  assert(fn('Mantenimiento de PAVIMENTACIÓN urbana', ['pavimento']) === 'Mantenimiento de <mark class="kw">PAVIMENTACIÓN</mark> urbana', 'raíz de 6 letras: pavimento ≈ PAVIMENTACIÓN: ' + fn('Mantenimiento de PAVIMENTACIÓN urbana', ['pavimento']));
+  assert(fn('Obras en Cúcuta', ['cucuta']) === 'Obras en <mark class="kw">Cúcuta</mark>', 'ignora tildes: ' + fn('Obras en Cúcuta', ['cucuta']));
+  assert(fn('Alcantarillado pluvial y sanitario', ['alcantarillado pluvial']) === '<mark class="kw">Alcantarillado</mark> <mark class="kw">pluvial</mark> y sanitario', 'una frase marca cada palabra: ' + fn('Alcantarillado pluvial y sanitario', ['alcantarillado pluvial']));
+  assert(fn('<b>x</b> & pavimento "a"', ['pavimento']) === '&lt;b&gt;x&lt;/b&gt; &amp; <mark class="kw">pavimento</mark> &quot;a&quot;', 'escapa el HTML del texto de SECOP: ' + fn('<b>x</b> & pavimento "a"', ['pavimento']));
+  assert(fn('Construcción de vías', ['de', 'vi']) === 'Construcción de vías', 'palabras de menos de 4 letras no se marcan');
+  assert(fn('Obras obvias', ['vias']) === 'Obras obvias', 'solo al comienzo de una palabra, no en medio');
+  assert(fn('Texto sin coincidencia', ['pavimento']) === 'Texto sin coincidencia', 'sin coincidencia no hay marca');
+  assert(fn('Ñandú y niño', ['nandu']) === '<mark class="kw">Ñandú</mark> y niño', 'ñ y tildes conservan el largo del texto');
+  const card = html.slice(html.indexOf('function tarjetaProcesoHtml'), html.indexOf('function truncate('));
+  assert(!/truncate\(it\.objeto, 600\)/.test(card), 'el objeto ya no se corta a 600 caracteres');
+  assert(/row-obj-mas/.test(card) && /aria-expanded/.test(card), 'la tarjeta trae el botón «Ver más» accesible');
+  assert(/resaltarPalabras\(/.test(card), 'la tarjeta resalta las palabras de la búsqueda');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');

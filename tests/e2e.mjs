@@ -148,6 +148,29 @@ await check('Buscar procesos solo busca y muestra la ficha (sin análisis); Guar
   await ctx.close();
 });
 
+await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  const r = await pg.evaluate(() => {
+    const filas = [...document.querySelectorAll('#bt-results .row')];
+    const f = filas.find(x => x.querySelector('.row-obj-mas'));
+    if (!f) return { hay: false, truncadas: filas.filter(x => /…$/.test(x.querySelector('.row-obj').textContent)).length };
+    const obj = f.querySelector('.row-obj'), b = f.querySelector('.row-obj-mas');
+    const antes = { clamp: obj.scrollHeight > obj.clientHeight + 1, exp: b.getAttribute('aria-expanded'), t: b.textContent };
+    b.click();
+    const despues = { abierto: obj.classList.contains('abierto'), exp: b.getAttribute('aria-expanded'), t: b.textContent, completo: obj.scrollHeight <= obj.clientHeight + 1 };
+    b.click();
+    return { hay: true, antes, despues, vuelve: !obj.classList.contains('abierto') && b.getAttribute('aria-expanded') === 'false' };
+  });
+  if (r.hay){
+    assert(r.antes.clamp && r.antes.exp === 'false' && r.antes.t === 'Ver más', 'cerrado: recortado y «Ver más»: ' + JSON.stringify(r.antes));
+    assert(r.despues.abierto && r.despues.exp === 'true' && r.despues.t === 'Ver menos' && r.despues.completo, 'abierto: texto completo y «Ver menos»: ' + JSON.stringify(r.despues));
+    assert(r.vuelve, '«Ver menos» vuelve a recortar');
+  } else {
+    assert(r.truncadas === 0, 'sin objetos largos, ninguna tarjeta debe mostrar el texto cortado con «…»');
+  }
+});
+
 await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agrupa 3 pestañas; "evaluacion" y "pipeline" guardados abren Análisis y Mis procesos', async () => {
   let { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
   const m = await pg.evaluate(() => ({
