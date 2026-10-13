@@ -734,6 +734,12 @@
     #bitacora-root .link-btn, #bitacora-root .tag-tip, #bitacora-root .row-link a, #bitacora-root summary { position: relative; }
     #bitacora-root .link-btn::after, #bitacora-root .tag-tip::after, #bitacora-root .row-link a::after, #bitacora-root summary::after { content: ''; position: absolute; inset: -14px -4px; }
     #bitacora-root input[type=checkbox], #bitacora-root input[type=radio] { width: 24px; height: 24px; }
+    /* Mis procesos: los enlaces de la tarjeta miden 44 px de verdad (con la zona ampliada por pseudo-elemento, las de «Compartir» y
+       «Quitar» se pisaban y se podía quitar un proceso por error). «Quitar», que borra, va aparte: su propia fila, a la derecha. */
+    #bitacora-root .pipeline-card .link-btn { min-height: 44px; display: inline-flex; align-items: center; padding: 0 8px; }
+    #bitacora-root .pipeline-card .link-btn::after { content: none; }
+    #bitacora-root .pipeline-card-acciones .pipeline-card-quitar { display: flex; flex: 1 1 100%; justify-content: flex-end; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+    #bitacora-root .pipeline-card-acciones .pipeline-card-quitar .link-btn { color: var(--danger); }
     /* En la pantalla de análisis los botones de texto, los filtros de la matriz y los encabezados plegables crecen de verdad
        (están juntos y sus zonas ampliadas se pisarían): así no se toca uno por otro. */
     #bitacora-root #bt-analisis-out button.link-btn, #bitacora-root #bt-analisis-out .matriz-filtro { min-height: 44px; display: inline-flex; align-items: center; }
@@ -1009,6 +1015,7 @@
   #bitacora-root .pipeline-card-urgente-texto { color: var(--danger); }
   #bitacora-root .pipeline-card-acciones { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
   #bitacora-root .pipeline-card-acciones select { flex: 1; min-width: 0; }
+  #bitacora-root .pipeline-card-quitar { display: contents; } /* en pantalla ancha «Quitar» sigue en la misma fila de acciones */
   /* Mismo aspecto que los demás selectores de la app (antes salían con el estilo nativo del navegador y
      recortaban "Análisis de riesgos / RU…"), en tamaño compacto para la tarjeta. */
   #bitacora-root .pipeline-card select {
@@ -3123,7 +3130,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         (safeUrl ? '<a class="link-btn" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
         '<button type="button" class="link-btn" data-compartir="' + escapeHtml(id) + '" aria-live="polite" title="Comparte o copia un resumen corto del proceso">Compartir</button>' +
         (codigoSecopDeId(id) ? '<button type="button" class="link-btn" data-copiar-codigo="' + escapeHtml(codigoSecopDeId(id)) + '" aria-live="polite" title="Copia el código del proceso en SECOP II">Copiar código</button>' : '') +
-        '<button type="button" class="link-btn" data-pipeline-quitar-id="' + escapeHtml(id) + '">Quitar</button>' +
+        '<div class="pipeline-card-quitar"><button type="button" class="link-btn" data-pipeline-quitar-id="' + escapeHtml(id) + '">Quitar</button></div>' +
       '</div>' +
     '</div>';
   }
