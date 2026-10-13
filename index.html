@@ -330,7 +330,17 @@
   #bitacora-root .matriz-filtros { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
   #bitacora-root .matriz-filtro { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted); border-radius: var(--radius-sm); padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
   #bitacora-root .matriz-filtro[aria-pressed="true"] { background: var(--accent-button); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
-  #bitacora-root .ficha-tabla { min-width: 640px; }
+  #bitacora-root .ficha-tabla { min-width: 760px; }
+  /* Las cifras no se parten letra por letra: se rompe solo una palabra que no cabe en TODA la celda, y cada columna tiene un ancho mínimo. */
+  #bitacora-root .ficha-tabla td, #bitacora-root .ficha-tabla th { overflow-wrap: break-word; word-break: normal; }
+  #bitacora-root .ficha-tabla th:nth-child(1), #bitacora-root .ficha-tabla td:nth-child(1) { min-width: 130px; }
+  #bitacora-root .ficha-tabla th:nth-child(2), #bitacora-root .ficha-tabla td:nth-child(2) { min-width: 210px; }
+  #bitacora-root .ficha-tabla th:nth-child(3), #bitacora-root .ficha-tabla td:nth-child(3) { min-width: 130px; }
+  #bitacora-root .ficha-tabla th:nth-child(4), #bitacora-root .ficha-tabla td:nth-child(4) { min-width: 100px; }
+  /* Sombra en el borde que indica que hay más contenido hacia ese lado (solo aparece mientras se puede desplazar). */
+  #bitacora-root .ficha-scroll { background: linear-gradient(to right, var(--surface, #fff) 30%, transparent) left center / 24px 100% no-repeat local, linear-gradient(to left, var(--surface, #fff) 30%, transparent) right center / 24px 100% no-repeat local, radial-gradient(farthest-side at 0 50%, rgba(0,0,0,.45), transparent) left center / 12px 100% no-repeat scroll, radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.45), transparent) right center / 12px 100% no-repeat scroll; }
+  #bitacora-root .ficha-desliza { display: none; font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+  @media (max-width: 900px) { #bitacora-root .ficha-desliza { display: block; } }
   #bitacora-root .ficha-obs { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   #bitacora-root .ficha-obs summary { cursor: pointer; padding: 12px 0; line-height: 1.4; overflow-wrap: anywhere; }
   #bitacora-root .ficha-obs ol { margin: 8px 0 8px 18px; padding: 0; overflow-wrap: anywhere; }
@@ -11435,7 +11445,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         return '<button type="button" class="matriz-filtro" data-ficha-base="' + o[0] + '" aria-pressed="' + ((bc || '') === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>'; }).join(' ') +
       '<div class="saved-note">Elige solo si el pliego o la entidad lo confirman por escrito; sin definir, el resultado es NO DETERMINABLE.</div></div>' : '';
     return '<div class="analisis-seccion" data-ficha-seccion="1"><h3>Requisitos habilitantes del proceso</h3>' + selLote + selBase +
-      '<div class="expeval-table-wrap"><table class="matriz-tabla ficha-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th>' + (hayCruce ? '<th scope="col">Tu empresa' + (emp.nombre ? ' (' + escapeHtml(emp.nombre) + ')' : '') + '</th>' : '') + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
+      '<div class="ficha-desliza" aria-hidden="true">↔ Desliza la tabla hacia los lados para ver todas las columnas</div><div class="expeval-table-wrap ficha-scroll"><table class="matriz-tabla ficha-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th>' + (hayCruce ? '<th scope="col">Tu empresa' + (emp.nombre ? ' (' + escapeHtml(emp.nombre) + ')' : '') + '</th>' : '') + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
       (f.observaciones && f.observaciones.length ? '<div class="ficha-obs" data-ficha-obs-bloque="1"><details><summary><b>' + f.observaciones.length + ' punto(s) para preguntar a la entidad</b> — discrepancias o datos que el documento no trae</summary><ol>' +
         f.observaciones.map(function(o){ return '<li><b>' + escapeHtml(o.tema) + '</b>' + (o.pagina ? ' (p. ' + o.pagina + ')' : '') + ': ' + escapeHtml(o.texto) + '</li>'; }).join('') + '</ol></details>' +
         '<div class="ficha-obs-acciones"><button type="button" class="link-btn" data-ficha-obs="copiar" data-obs-id="' + escapeHtml(entry.id || '') + '">Copiar borrador de observaciones</button> <button type="button" class="link-btn" data-ficha-obs="descargar" data-obs-id="' + escapeHtml(entry.id || '') + '">⬇ Descargar borrador (.txt)</button></div></div>' : '') +
