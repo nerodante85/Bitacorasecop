@@ -566,11 +566,11 @@ await check('Análisis: arranca con el resultado y su explicación, resume la vi
   assert(al[0].startsWith('critica:') && /Capacidad K residual/.test(al[0]), 'la primera alerta es crítica: ' + al[0]);
   assert(al.some(a => a.startsWith('revisar:') && /cita sin verificar|sin verificar/i.test(a)), 'avisa la cita sin verificar: ' + al.join(' | '));
   // matriz: columnas, los 4 resultados y el filtro
-  const cols = await pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla thead th')].map(t => t.textContent));
+  const cols = await pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) thead th')].map(t => t.textContent));
   assert(cols.join('|') === 'Requisito|Exigencia|Empresa|Resultado|Evidencia', 'columnas de la matriz: ' + cols.join('|'));
-  const res = await pg.evaluate(() => Object.fromEntries([...document.querySelectorAll('.matriz-tabla tbody tr')].map(tr => [tr.children[0].textContent.split(':')[0], tr.dataset.resultado])));
+  const res = await pg.evaluate(() => Object.fromEntries([...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) tbody tr')].map(tr => [tr.children[0].textContent.split(':')[0], tr.dataset.resultado])));
   assert(res['Capacidad financiera'] === 'CUMPLE' && res['K residual'] === 'NO CUMPLE' && res['Garantías'] === 'REVISAR' && res['Personal'] === 'NO DETERMINABLE', 'resultados por fila (la cita sin verificar jamás da CUMPLE): ' + JSON.stringify(res));
-  const visibles = () => pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla tbody tr')].filter(t => !t.hidden).length);
+  const visibles = () => pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) tbody tr')].filter(t => !t.hidden).length);
   const total = await visibles();
   await pg.locator('[data-matriz-filtro="NO CUMPLE"]').click();
   assert(await visibles() === 1 && await pg.evaluate(() => document.querySelector('[data-matriz-filtro="NO CUMPLE"]').getAttribute('aria-pressed')) === 'true', 'el filtro deja solo los NO CUMPLE');
@@ -605,7 +605,7 @@ await check('Informe del análisis: la tarjeta de decisión baja un Word con el 
 await check('Evidencia: el panel lateral muestra requisito, exigencia, fuente, página, cita textual y dato de la empresa; abre la página del documento; Escape lo cierra y devuelve el foco', async () => {
   const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
   await abrirAnalisisSembrado(pg);
-  const boton = pg.locator('.matriz-tabla tbody tr', { hasText: 'Índice de liquidez' }).locator('[data-ev-fila]');
+  const boton = pg.locator('.matriz-tabla:not(.ficha-tabla) tbody tr', { hasText: 'Índice de liquidez' }).locator('[data-ev-fila]');
   await boton.focus();
   await boton.press('Enter');
   await pg.waitForFunction(() => !document.getElementById('bt-evidencia-backdrop').hidden);
@@ -622,7 +622,7 @@ await check('Evidencia: el panel lateral muestra requisito, exigencia, fuente, p
   assert(await pg.evaluate(() => document.getElementById('bt-evidencia-backdrop').hidden), 'Escape cierra el panel');
   assert(await pg.evaluate(() => document.activeElement.hasAttribute('data-ev-fila')), 'el foco vuelve al botón "Ver evidencia"');
   // fila sin verificar: lo dice
-  const sinVer = pg.locator('.matriz-tabla tbody tr', { hasText: 'Director de obra' }).locator('[data-ev-fila]');
+  const sinVer = pg.locator('.matriz-tabla:not(.ficha-tabla) tbody tr', { hasText: 'Director de obra' }).locator('[data-ev-fila]');
   await sinVer.click();
   const t2 = await pg.evaluate(() => document.getElementById('bt-evidencia-panel').innerText);
   assert(/Cita sin verificar/.test(t2) && /NO DETERMINABLE/.test(t2) && /no cuenta para decidir/i.test(t2) && /No se compara con los datos de tu empresa/.test(t2), 'una cita sin verificar se declara: ' + t2.slice(0, 600));
