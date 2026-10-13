@@ -8131,6 +8131,73 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const f = filas[filas.length - 1]; if (f && f.grupo === 'Maquinaria') f.aviso = 'Según el documento se verifica después de adjudicar el contrato: no es un requisito habilitante ni da puntaje.';
       }
     }
+    // Garantías exigidas (seriedad, cumplimiento, anticipo, salarios, estabilidad, RC extracontractual): cifra, base y vigencia con la
+    // página. Cada mención toma la cifra de SU propio fragmento, que se corta donde empieza la mención de otra garantía (si no, el 10%
+    // del cumplimiento se le atribuiría a la seriedad). Una mención sin cifra no crea fila; cifras distintas para la misma garantía
+    // se listan todas y no se elige ninguna. No se compara con el mínimo legal: eso lo hace detectarRedFlags.
+    {
+      const AMPARO = '(?:garant[ií]a|amparo)\\s+de\\s+';
+      const GARANTIAS = [
+        { nombre: 'Garantía de seriedad de la oferta', re: /garant[ií]a\s+de\s+seriedad(?:\s+de\s+la\s+(?:oferta|propuesta))?/ig },
+        { nombre: 'Garantía de cumplimiento', re: /(?:garant[ií]a|amparo)\s+(?:[uú]nica\s+)?de\s+cumplimiento/ig },
+        { nombre: 'Garantía de buen manejo y correcta inversión del anticipo', re: new RegExp(AMPARO + '(?:la\\s+)?(?:buen\\s+manejo(?:\\s+y\\s+correcta\\s+inversi[óo]n)?|correcta\\s+inversi[óo]n)\\s+del\\s+anticipo', 'ig') },
+        { nombre: 'Garantía de pago de salarios y prestaciones', re: new RegExp(AMPARO + 'pago\\s+de\\s+salarios', 'ig') },
+        { nombre: 'Garantía de estabilidad y calidad de la obra', re: new RegExp(AMPARO + '(?:la\\s+)?estabilidad(?:\\s+y\\s+calidad)?(?:\\s+de\\s+la\\s+obra)?', 'ig') },
+        { nombre: 'Garantía de responsabilidad civil extracontractual', re: /responsabilidad\s+civil\s+extracontractual/ig, smmlv: true }
+      ];
+      const menciones = [];
+      GARANTIAS.forEach((g, gi) => { for (const m of t.matchAll(g.re)) menciones.push({ g: gi, ini: m.index, fin: m.index + m[0].length }); });
+      menciones.sort((a, b) => a.ini - b.ini);
+      const porGarantia = GARANTIAS.map(() => []);
+      menciones.forEach((m, i) => {
+        const g = GARANTIAS[m.g];
+        const finVentana = Math.min(m.fin + 320, i + 1 < menciones.length ? menciones[i + 1].ini : t.length);
+        const w = t.slice(m.fin, finVentana);
+        const mv = g.smmlv ? w.match(/(\d{1,4}(?:[.,]\d+)?)\)?\s*(?:smmlv|smlmv|salarios?\s+m[íi]nimos)/i) : w.match(/(\d{1,3}(?:[.,]\d+)?)\s*%/);
+        if (!mv) return;
+        const v = parseFloat(mv[1].replace(',', '.')); if (!isFinite(v)) return;
+        const cola = w.slice(mv.index, mv.index + 100);
+        const bPO = /presupuesto\s+oficial/i.test(cola), bCto = /valor\s+(?:total\s+)?(?:del\s+)?contrato/i.test(cola);
+        const mVig = w.match(/vigen(?:cia|te)\s+(?:de|por|igual|hasta|m[íi]nima|no\s+inferior|equivalente)\b[^.;]{0,140}/i);
+        porGarantia[m.g].push({ v: v, ini: m.ini, base: (bPO && !bCto) ? ' del presupuesto oficial' : ((bCto && !bPO) ? ' del valor del contrato' : ''), vig: mVig ? mVig[0].trim() : '' });
+      });
+      const fmtV = v => String(v).replace('.', ',');
+      GARANTIAS.forEach((g, gi) => {
+        const ms = porGarantia[gi]; if (!ms.length) return;
+        const distintos = Array.from(new Set(ms.map(x => x.v)));
+        const u = g.smmlv ? ' SMMLV' : '%';
+        if (distintos.length > 1){
+          add('Garantías', g.nombre, 'Varias cifras en el documento: ' + distintos.map(fmtV).join(u + ' · ') + u, '', { pagina: pagina(ms[0].ini), aviso: 'El documento trae cifras distintas para esta garantía: confirma cuál aplica (no se eligió ninguna).' });
+        } else {
+          const x = ms[0];
+          add('Garantías', g.nombre, fmtV(x.v) + u + x.base, x.vig ? 'Vigencia: ' + x.vig : '', { pagina: pagina(x.ini) });
+        }
+      });
+      if (filas.some(f => f.grupo === 'Garantías')) avisos.push('Las garantías se leen del texto del documento (cifra, base y vigencia). No se comparan con tu póliza ni con el mínimo legal aquí; confirma cada una contra el original.');
+    }
+    // Checklist jurídico: documentos que el texto MENCIONA. No dice que sean obligatorios ni que la empresa cumpla (no hay dato
+    // verificable en el perfil): solo ubica dónde se habla de cada uno para que no se olvide ninguno al armar la propuesta.
+    {
+      const JURIDICO = [
+        ['Carta de presentación de la oferta', /carta\s+de\s+presentaci[óo]n\s+(?:de\s+la\s+)?(?:oferta|propuesta)/ig],
+        ['Certificado de existencia y representación legal', /certificado\s+de\s+existencia\s+y\s+representaci[óo]n\s+legal/ig],
+        ['Registro Único de Proponentes (RUP)', /registro\s+[úu]nico\s+de\s+proponentes|\bRUP\b/ig],
+        ['Registro Único Tributario (RUT)', /registro\s+[úu]nico\s+tributario|\bRUT\b/ig],
+        ['Pago de seguridad social y parafiscales', /seguridad\s+social[^.]{0,120}parafiscales|aportes?\s+parafiscales|art[íi]culo\s+50\s+de\s+la\s+ley\s+789/ig],
+        ['Boletín de responsables fiscales', /bolet[íi]n\s+de\s+responsables\s+fiscales/ig],
+        ['Antecedentes disciplinarios (Procuraduría)', /antecedentes\s+disciplinarios/ig],
+        ['Antecedentes judiciales', /antecedentes\s+judiciales/ig],
+        ['Medidas correctivas (Código de Policía)', /medidas\s+correctivas/ig],
+        ['Compromiso anticorrupción', /compromiso\s+anticorrupci[óo]n/ig],
+        ['Documento de conformación de consorcio o unión temporal', /documento\s+de\s+conformaci[óo]n|acuerdo\s+(?:de\s+)?(?:consorcio|uni[óo]n\s+temporal)/ig],
+        ['Autorización del órgano social', /autorizaci[óo]n\s+(?:de\s+la\s+junta|del\s+[óo]rgano\s+(?:social|competente)|de\s+los\s+socios)/ig]
+      ];
+      JURIDICO.forEach(j => {
+        const ms = Array.from(t.matchAll(j[1])); if (!ms.length) return;
+        add('Requisitos jurídicos', j[0], 'Se menciona en el documento: verifica si hay que aportarlo', ms.length + (ms.length === 1 ? ' mención' : ' menciones'), { pagina: pagina(ms[0].index) });
+      });
+      if (filas.some(f => f.grupo === 'Requisitos jurídicos')) avisos.push('El checklist jurídico solo indica qué documentos se mencionan y en qué página: no confirma que sean obligatorios ni que tu empresa los tenga. Revisa el numeral de requisitos habilitantes jurídicos del original.');
+    }
     return { filas: filas, avisos: avisos, lotes: lotes, lote: loteSel ? loteSel.id : null };
   }
 

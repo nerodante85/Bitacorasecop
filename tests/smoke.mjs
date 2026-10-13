@@ -3490,6 +3490,58 @@ await check('fichaHabilitante: personal por cargo — lee formación, contratos 
   const ra = amb.filas.find(x => x.requisito === 'Residente de obra');
   assert(!/años/.test(ra.cifras) && /2 contrato/.test(ra.cifras), 'con dos cifras de años no inventa: ' + ra.cifras);
 });
+const FICHA_GARANTIAS_TIPO = [
+ "Objeto del proceso de selección. Las partes del contrato deberán constituir las garantías exigidas.",
+ "8.2 GARANTÍA DE SERIEDAD DE LA OFERTA. El proponente debe constituir garantía de seriedad de la oferta por una cuantía equivalente al diez por ciento (10%) del valor del presupuesto oficial, con una vigencia de tres (3) meses contados a partir de la fecha de cierre del proceso.",
+ "GARANTÍA ÚNICA DE CUMPLIMIENTO. Amparo de cumplimiento del contrato por el diez por ciento (10%) del valor del contrato, vigente por el plazo del contrato y seis (6) meses más. Amparo de estabilidad y calidad de la obra por el veinte por ciento (20%) del valor del contrato, vigencia de cinco (5) años contados a partir del recibo a satisfacción. Amparo de pago de salarios, prestaciones sociales e indemnizaciones laborales por el cinco por ciento (5%) del valor del contrato, vigencia del plazo del contrato y tres (3) años más.",
+ "Garantía de responsabilidad civil extracontractual por doscientos (200) SMMLV con vigencia igual al plazo del contrato."
+].join('\n');
+await check('fichaHabilitante: GARANTÍAS exigidas (seriedad, cumplimiento, estabilidad, salarios, RC) con cifra, base, vigencia y página; cada una toma SU cifra y no la de la vecina', () => {
+  const f = expEngine.fichaHabilitante(FICHA_GARANTIAS_TIPO, { anio: 2026 });
+  const g = n => f.filas.find(x => x.grupo === 'Garantías' && x.requisito === n);
+  const se = g('Garantía de seriedad de la oferta'), cu = g('Garantía de cumplimiento'), es = g('Garantía de estabilidad y calidad de la obra'), sa = g('Garantía de pago de salarios y prestaciones'), rc = g('Garantía de responsabilidad civil extracontractual');
+  assert(se && /^10%/.test(se.exige) && /presupuesto oficial/.test(se.exige), 'seriedad: ' + (se && se.exige));
+  assert(/tres \(3\) meses/.test(se.cifras), 'vigencia seriedad: ' + se.cifras);
+  assert(se.pagina === 2, 'página de seriedad: ' + se.pagina);
+  assert(cu && /^10%/.test(cu.exige) && /valor del contrato/.test(cu.exige), 'cumplimiento: ' + (cu && cu.exige));
+  assert(es && /^20%/.test(es.exige), 'estabilidad no toma el 10% del cumplimiento: ' + (es && es.exige));
+  assert(sa && /^5%/.test(sa.exige), 'salarios: ' + (sa && sa.exige));
+  assert(rc && /^200 SMMLV/.test(rc.exige) && rc.pagina === 4, 'RC: ' + (rc && rc.exige) + ' p.' + (rc && rc.pagina));
+  assert(!f.filas.some(x => x.grupo === 'Garantías' && x.requisito === 'Garantía de buen manejo y correcta inversión del anticipo'), 'sin mención de anticipo no se inventa esa garantía');
+});
+await check('fichaHabilitante: GARANTÍAS — cifras contradictorias no se eligen; una mención SIN cifra no crea fila (nunca inventar)', () => {
+  const dos = expEngine.fichaHabilitante('GARANTÍA DE SERIEDAD DE LA OFERTA equivalente al diez por ciento (10%) del presupuesto oficial.\nEn el anexo 4: garantía de seriedad de la oferta por el veinte por ciento (20%) del presupuesto oficial.', { anio: 2026 });
+  const s = dos.filas.find(x => x.requisito === 'Garantía de seriedad de la oferta');
+  assert(s && /Varias cifras/.test(s.exige) && /10%/.test(s.exige) && /20%/.test(s.exige), 'debe listar ambas sin elegir: ' + (s && s.exige));
+  assert(s.aviso && /confirma/i.test(s.aviso), 'debe avisar');
+  const sin = expEngine.fichaHabilitante('El proponente debe presentar la garantía de seriedad de la oferta junto con su propuesta, según el formato del anexo.', { anio: 2026 });
+  assert(!sin.filas.some(x => x.grupo === 'Garantías'), 'sin cifra no hay fila');
+  const otra = expEngine.fichaHabilitante('Garantía de seriedad de la oferta, ver numeral 8. La garantía única de cumplimiento será del 10% del valor del contrato.', { anio: 2026 });
+  assert(!otra.filas.some(x => x.requisito === 'Garantía de seriedad de la oferta'), 'el 10% de la siguiente garantía no se le atribuye a la seriedad');
+  assert(otra.filas.some(x => x.requisito === 'Garantía de cumplimiento' && /^10%/.test(x.exige)), 'el cumplimiento sí');
+});
+const FICHA_JURIDICO_TIPO = [
+ "Carta de presentación de la oferta firmada por el representante legal. Certificado de existencia y representación legal expedido por la Cámara de Comercio.",
+ "El proponente deberá estar inscrito en el Registro Único de Proponentes (RUP), vigente y en firme. Aportar el RUT actualizado.",
+ "Certificación de pago de seguridad social y aportes parafiscales, conforme al artículo 50 de la Ley 789 de 2002. Boletín de responsables fiscales de la Contraloría. Antecedentes disciplinarios de la Procuraduría y antecedentes judiciales.",
+ "Los miembros del consorcio o unión temporal adjuntarán el documento de conformación. Compromiso anticorrupción."
+].join('\n');
+await check('fichaHabilitante: CHECKLIST JURÍDICO — lista los documentos mencionados con página y sin afirmar que cumple; lo no mencionado no aparece', () => {
+  const f = expEngine.fichaHabilitante(FICHA_JURIDICO_TIPO, { anio: 2026 });
+  const j = f.filas.filter(x => x.grupo === 'Requisitos jurídicos');
+  const nom = j.map(x => x.requisito);
+  ['Carta de presentación de la oferta', 'Certificado de existencia y representación legal', 'Registro Único de Proponentes (RUP)', 'Registro Único Tributario (RUT)', 'Pago de seguridad social y parafiscales', 'Boletín de responsables fiscales', 'Antecedentes disciplinarios (Procuraduría)', 'Antecedentes judiciales', 'Documento de conformación de consorcio o unión temporal', 'Compromiso anticorrupción'].forEach(n => assert(nom.indexOf(n) !== -1, 'falta: ' + n + ' | ' + nom.join(', ')));
+  assert(!nom.includes('Medidas correctivas (Código de Policía)') && !nom.includes('Autorización del órgano social'), 'no menciona -> no aparece');
+  assert(j.find(x => x.requisito === 'Registro Único de Proponentes (RUP)').pagina === 2, 'página del RUP');
+  assert(j.find(x => x.requisito === 'Boletín de responsables fiscales').pagina === 3, 'página del boletín');
+  assert(j.every(x => /menciona/i.test(x.exige) && !/cumple/i.test(x.exige)), 'solo dice que se menciona, nunca que cumple/es obligatorio');
+  assert(j.every(x => !x.dato), 'no se cruzan con datos de empresa (no hay dato verificable)');
+});
+await check('fichaHabilitante: garantías y checklist jurídico no cambian el comportamiento previo (texto sin ellos = 0 filas; EP de Silvania sigue con sus filas)', () => {
+  assert(expEngine.fichaHabilitante('Texto sin requisitos.', { anio: 2026 }).filas.length === 0, '0 filas');
+  const f = fichaDe();
+  assert(filaF(f, 'Presupuesto oficial') && filaF(f, 'Capital de trabajo demandado'), 'sigue leyendo lo financiero');
+});
 const FICHA_LOTES_TIPO = [
  "OBJETO LOTE No 1 CONSTRUCCIÓN DE OBRAS DE ALCANTARILLADO EN EL DEPARTAMENTO DE CUNDINAMARCA (GRUPO No 1 – LOTE No 1) – APROPIACIÒN. OBJETO LOTE No 2: CONSTRUCCIÓN DE OBRAS DE PATP Y ACUEDUCTO EN EL DEPARTAMENTO DE CUNDINAMARCA (GRUPO No 2 – LOTE No 2) – APROPIACIÒN. 2.2. ALCANCE DEL OBJETO A CONTRATAR",
  "LOTE No 1 – GRUPO No 1 El plazo establecido para la ejecución del contrato de obra corresponderá al frente que presente el mayor tiempo de ejecución. Para este caso, se tomará como referencia el plazo de DOCE (12) MESES. Frente Municipio Plazo",
