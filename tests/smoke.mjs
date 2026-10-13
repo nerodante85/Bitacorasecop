@@ -4564,6 +4564,15 @@ await check('Objeto del proceso: se resaltan las palabras de la búsqueda (por r
   assert(/row-obj-mas/.test(card) && /aria-expanded/.test(card), 'la tarjeta trae el botón «Ver más» accesible');
   assert(/resaltarPalabras\(/.test(card), 'la tarjeta resalta las palabras de la búsqueda');
 });
+await check('Acciones de la tarjeta: «Copiar código» solo si el proceso trae código SECOP II, en la lista y en el análisis, con el código escapado', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const card = html.slice(html.indexOf('function tarjetaProcesoHtml'), html.indexOf('function truncate('));
+  assert(/it\.codigo \? '<button[^']*data-copiar-codigo="' \+ escapeHtml\(it\.codigo\)/.test(card.replace(/\s+/g, ' ')) || /copiarCodigoHtml/.test(card), 'la tarjeta ofrece copiar el código solo si existe');
+  const usos = (card.match(/copiarCodigoHtml/g) || []).length;
+  assert(usos >= 3, 'el botón va en las dos filas de acciones (lista y análisis): ' + usos);
+  assert(/async function copiarTexto/.test(html) && /execCommand\('copy'\)/.test(html), 'copiarTexto tiene respaldo cuando el portapapeles del navegador falla');
+  assert(/\[data-copiar-codigo\]/.test(html), 'hay un listener delegado para copiar');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');

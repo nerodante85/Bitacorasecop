@@ -10591,6 +10591,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Se registra por CLIC en el summary, no por el evento toggle: toggle también dispara cuando la
   // tarjeta se pinta con "open" y eso guardaría los valores por defecto como si fueran del usuario.
   // El clic corre antes de que el navegador cambie d.open, por eso el nuevo estado es !d.open.
+  enContenedoresDeProceso('click', async e => {
+    const cp = e.target.closest && e.target.closest('[data-copiar-codigo]');
+    if (!cp) return;
+    const codigo = cp.getAttribute('data-copiar-codigo');
+    const orig = cp.dataset.textoOriginal || cp.textContent;
+    cp.dataset.textoOriginal = orig;
+    const ok = await copiarTexto(codigo);
+    cp.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar: ' + codigo;
+    clearTimeout(cp._t);
+    cp._t = setTimeout(() => { cp.textContent = orig; }, ok ? 2000 : 6000);
+  });
   enContenedoresDeProceso('click', e => {
     const mas = e.target.closest && e.target.closest('[data-obj-mas]');
     if (!mas) return;
@@ -11645,6 +11656,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
     return out + esc(t.slice(pos));
   }
+  // Copia al portapapeles; si el navegador no deja (permiso, página no segura), cae al método antiguo con un campo oculto.
+  async function copiarTexto(texto){
+    try { await navigator.clipboard.writeText(texto); return true; } catch(e){ /* sigue con el respaldo */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return !!ok;
+    } catch(e){ return false; }
+  }
   // «Ver más» solo si el objeto de verdad pasa de 3 líneas con el ancho actual: si cabe entero, se quita el recorte y el botón.
   function ajustarVerMasObjetos(raiz){
     if (!raiz) return;
@@ -11732,6 +11755,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const alertasEncHtml = alertasEnc.map(a => '<span class="tag ' + (a.tipo === 'cierre' ? 'redflag-alta' : a.tipo === 'nuevo' ? 'nuevo' : 'visto') + '">' + escapeHtml(a.texto) + '</span>').join('');
     const modCorta = modalidadCorta(it.modalidad);
     // El objeto se muestra entero (tope de seguridad 2500) y, si es largo, se recorta a 3 líneas con «Ver más».
+    const copiarCodigoHtml = it.codigo ? '<button type="button" class="link-btn" data-copiar-codigo="' + escapeHtml(it.codigo) + '" aria-live="polite" title="Copia el código del proceso en SECOP II (' + escapeHtml(it.codigo) + ')">Copiar código</button>' : '';
     const objTexto = truncate(it.objeto, 2500);
     const objLargo = objTexto.length > 220;
     const objetoHtml = '<div class="row-obj' + (objLargo ? ' row-obj-corto' : '') + '">' + resaltarPalabras(objTexto, enAnalisis ? [] : palabrasBusquedaActual) + '</div>' +
@@ -11760,6 +11784,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           '<button class="btn-primary analizar" data-action="analizar" data-id="' + escapeHtml(it.id) + '">' + analizarLabel + '</button>' +
           pipelineBtnHtml +
           (safeUrl ? '<a class="btn-secondary" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+          copiarCodigoHtml +
           epBtnHtml +
           '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
         '</div>' +
@@ -11769,6 +11794,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       : '<div class="row-actions">' +
           pipelineBtnHtml +
           (safeUrl ? '<a class="btn-secondary" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+          copiarCodigoHtml +
           '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
         '</div>';
 

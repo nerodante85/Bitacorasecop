@@ -148,6 +148,18 @@ await check('Buscar procesos solo busca y muestra la ficha (sin análisis); Guar
   await ctx.close();
 });
 
+await check('Copiar código: el botón copia el código SECOP II del proceso y confirma con «Copiado ✓»', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  await pg.evaluate(() => { window.__copiado = null; Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => { window.__copiado = t; return Promise.resolve(); } }, configurable: true }); });
+  const antes = await pg.evaluate(() => { const f = document.querySelector('#bt-results .row'); const b = f.querySelector('[data-copiar-codigo]'); return { hay: !!b, codigo: b && b.getAttribute('data-copiar-codigo'), fichaTiene: [...f.querySelectorAll('.ficha dd')].some(d => b && d.textContent.trim() === b.getAttribute('data-copiar-codigo')) }; });
+  assert(antes.hay && antes.codigo && antes.fichaTiene, 'la primera tarjeta debe traer el botón con el mismo código de su ficha: ' + JSON.stringify(antes));
+  await pg.click('#bt-results .row [data-copiar-codigo]');
+  await pg.waitForFunction(() => window.__copiado !== null);
+  const r = await pg.evaluate(() => ({ copiado: window.__copiado, txt: document.querySelector('#bt-results .row [data-copiar-codigo]').textContent }));
+  assert(r.copiado === antes.codigo, 'debe copiar el código exacto: ' + r.copiado);
+  assert(/Copiado/.test(r.txt), 'el botón confirma la copia: ' + r.txt);
+});
 await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
   const { pg } = await abrir();
   await pg.click('#bt-nav-buscar');
