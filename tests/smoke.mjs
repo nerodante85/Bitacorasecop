@@ -4573,6 +4573,31 @@ await check('Acciones de la tarjeta: «Copiar código» solo si el proceso trae 
   assert(/async function copiarTexto/.test(html) && /execCommand\('copy'\)/.test(html), 'copiarTexto tiene respaldo cuando el portapapeles del navegador falla');
   assert(/\[data-copiar-codigo\]/.test(html), 'hay un listener delegado para copiar');
 });
+await check('Compartir resumen: texto con entidad, objeto, valor, cierre, ubicación y modalidad (solo lo que existe, sin enlace); menú de compartir solo en táctil con navigator.share', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const lib = cortar('function isPlausibleDate', 'function fmtDate') + cortar('function fmtDate', '// Auditoría UX/UI (cálculos financieros)') + cortar('function fmtMoney', 'function normalize(');
+  const src = cortar('function resumenParaCompartir', '\n  function ') + '\n' + cortar('function puedeCompartirNativo', '\n  function ');
+  const { resumenParaCompartir, puedeCompartirNativo } = new Function(lib + '\n' + src + '\nreturn { resumenParaCompartir, puedeCompartirNativo };')();
+  const it = { entidad: 'ALCALDÍA DE CHINACOTA', objeto: 'Mejoramiento de vías urbanas', valor: 1332626814, closingRaw: '2026-10-28T00:00:00.000', departamento: 'Norte de Santander', ciudad: 'Chinácota', modalidad: 'Licitación pública', url: 'https://community.secop.gov.co/x', codigo: 'CO1.REQ.1' };
+  const t = resumenParaCompartir(it, 15);
+  assert(t.split('\n')[0] === 'ALCALDÍA DE CHINACOTA' && /Mejoramiento de vías urbanas/.test(t), 'entidad y objeto: ' + t);
+  assert(/Cuantía: \$1\.332\.626\.814/.test(t) && /Cierre: .*2026.*15 días/.test(t), 'valor y cierre con días: ' + t);
+  assert(/Ubicación: Norte de Santander · Chinácota/.test(t) && /Modalidad: Licitación pública/.test(t), 'ubicación y modalidad: ' + t);
+  assert(!/http|CO1\.REQ/.test(t), 'no lleva enlace ni código (no se pidieron): ' + t);
+  const v = resumenParaCompartir(it, -3);
+  assert(/\(venció\)/.test(v) && !/días/.test(v), 'vencido: ' + v);
+  assert(/\(hoy\)/.test(resumenParaCompartir(it, 0)) && /\(mañana\)/.test(resumenParaCompartir(it, 1)) && /\(1 día\)/.test(resumenParaCompartir(it, 1)) === false, 'hoy / mañana');
+  const min = resumenParaCompartir({ entidad: 'X', objeto: 'Y' }, null);
+  assert(min === 'X\nY', 'sin más datos solo entidad y objeto, sin filas vacías ni inventadas: ' + JSON.stringify(min));
+  const largo = resumenParaCompartir({ entidad: 'X', objeto: 'a'.repeat(900) }, null);
+  assert(largo.length < 520 && /…/.test(largo), 'el objeto se acorta para mensajes: ' + largo.length);
+  assert(resumenParaCompartir({ entidad: '', objeto: '' }, null).length > 0, 'nunca devuelve vacío');
+  assert(puedeCompartirNativo({ share: () => {} }, true) === true && puedeCompartirNativo({ share: () => {} }, false) === false && puedeCompartirNativo({}, true) === false && puedeCompartirNativo(null, true) === false, 'menú nativo solo si hay share y pantalla táctil');
+  const card = cortar('function tarjetaProcesoHtml', 'function truncate(');
+  assert((card.match(/compartirHtml/g) || []).length >= 3 && /data-compartir="/.test(card), 'el botón Compartir va en las dos filas de acciones');
+  assert(/\[data-compartir\]/.test(html) && /AbortError/.test(html), 'listener delegado; cancelar el menú de compartir no es un error');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');
