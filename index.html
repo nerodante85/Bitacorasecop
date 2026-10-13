@@ -11265,7 +11265,39 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const durU = findField(record, ['unidad_de_duracion'], '');
     const duracion = durN && Number(durN) > 0 ? (durN + (durU && durU !== 'No definido' ? ' ' + String(durU).toLowerCase() : '')) : null;
 
-    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente, codigo, tipoContrato, ultimaRaw, duracion };
+    // Cronograma y competencia (columnas reales de p6dx-8zbt; todas opcionales).
+    const fechaDe = re => { const d = dates.find(x => re.test(x.key.toLowerCase())); return d ? d.val : null; };
+    const aperturaRaw = fechaDe(/^fecha_de_apertura_efectiva$/) || fechaDe(/^fecha_de_apertura_de_respuesta$/);
+    const adjudicacionRaw = fechaDe(/^fecha_adjudicacion$/);
+    const adjTxt = String(findField(record, ['adjudicado'], '') || '').toLowerCase().trim();
+    const adjudicado = adjTxt === 'si' || adjTxt === 'sí';
+    const proveedor = findField(record, ['nombre_del_proveedor'], '') || null;
+    const valorAdjN = Number(findField(record, ['valor_total_adjudicacion'], ''));
+    const valorAdj = valorAdjN > 0 ? valorAdjN : null;
+    const ofertasN = Number(findField(record, ['respuestas_al_procedimiento'], ''));
+    const ofertas = ofertasN > 0 ? ofertasN : null;
+
+    return { entidad, objeto, modalidad, estado, departamento, ciudad, valor, url, referencia, closingRaw, pubRaw, searchable, geoSearchable, fuente, codigo, tipoContrato, ultimaRaw, duracion, aperturaRaw, adjudicacionRaw, adjudicado, proveedor, valorAdj, ofertas };
+  }
+
+  // Filas extra de la ficha (cronograma, competencia y avance propio). Pura: cada fila solo sale si hay dato
+  // (nunca se inventa); el proveedor y el valor adjudicado solo si el dataset marca el proceso como adjudicado.
+  // `avance` = { etapa: nombre legible, desdeTs } cuando el proceso está guardado en Mis procesos.
+  function fichaExtraProceso(it, avance, ahoraMs){
+    const out = [];
+    const add = (k, v) => { if (v) out.push({ k: k, v: v }); };
+    add('Apertura de ofertas', fmtDate(it.aperturaRaw));
+    if (it.adjudicado){
+      const cuanto = fmtMoney(it.valorAdj);
+      add('Adjudicado a', it.proveedor ? (it.proveedor + (cuanto ? ' · ' + cuanto : '')) : '');
+      add('Fecha de adjudicación', fmtDate(it.adjudicacionRaw));
+    }
+    if (it.ofertas > 0) add('Ofertas recibidas', String(it.ofertas));
+    if (avance && avance.etapa){
+      const dias = avance.desdeTs ? Math.max(0, Math.floor((ahoraMs - avance.desdeTs) / 86400000)) : null;
+      add('Mi avance', avance.etapa + (dias === null ? '' : ' · ' + (dias === 0 ? 'hoy' : dias === 1 ? 'hace 1 día' : 'hace ' + dias + ' días')));
+    }
+    return out;
   }
 
   // refNow: momento contra el que se miden "días restantes" y "días desde
@@ -11573,6 +11605,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       dato('Publicación', pub ? escapeHtml(pub) : '') +
       dato('Última actualización', ultima ? escapeHtml(ultima) : '') +
       dato('Duración', it.duracion ? escapeHtml(it.duracion) : '') +
+      fichaExtraProceso(it, (hist && hist.etapa) ? { etapa: ((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa), desdeTs: hist.etapaTs } : null, Date.now())
+        .map(f => dato(f.k, escapeHtml(f.v))).join('') +
     '</dl>';
 
     return '<div class="row' + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +

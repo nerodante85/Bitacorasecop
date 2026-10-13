@@ -4457,6 +4457,31 @@ await check('Buscar procesos: la tarjeta de la lista solo trae lo esencial y el 
   assert(/tarjetaProcesoHtml\(s, flujoListoParaPliego, 'lista'\)/.test(html) && /tarjetaProcesoHtml\(s2, .*'analisis'\)/.test(html), 'la lista usa modo lista y la vista nueva modo analisis');
   assert(!/resultsEl\.addEventListener/.test(html), 'los listeners de tarjeta deben colgar de ambos contenedores (enContenedoresDeProceso)');
 });
+await check('Ficha del proceso: trae apertura de ofertas, adjudicación (a quién, cuánto, cuándo), ofertas recibidas y el avance en Mis procesos; sin dato no muestra la fila; "normalize" los lee del dataset', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const lib = cortar('function isPlausibleDate', 'function fmtDate') + cortar('function fmtDate', '// Auditoría UX/UI (cálculos financieros)') + cortar('function fmtMoney', 'function normalize(');
+  const filas = new Function(lib + cortar('function fichaExtraProceso', '\n  function ', ) + '\nreturn fichaExtraProceso;')();
+  const ahora = Date.parse('2026-10-13T12:00:00Z');
+  const vacia = filas({}, null, ahora);
+  assert(Array.isArray(vacia) && vacia.length === 0, 'sin ningún dato no debe haber filas: ' + JSON.stringify(vacia));
+  const adj = filas({ aperturaRaw: '2026-09-01T00:00:00.000', adjudicado: true, proveedor: 'CONSORCIO VIAL', valorAdj: 900000000, adjudicacionRaw: '2026-09-20T00:00:00.000', ofertas: 7 }, null, ahora);
+  const mapa = Object.fromEntries(adj.map(f => [f.k, f.v]));
+  assert(mapa['Apertura de ofertas'] && /2026/.test(mapa['Apertura de ofertas']), 'apertura de ofertas: ' + JSON.stringify(mapa));
+  assert(/CONSORCIO VIAL/.test(mapa['Adjudicado a']) && /900/.test(mapa['Adjudicado a']), 'adjudicado a, con valor: ' + JSON.stringify(mapa));
+  assert(mapa['Fecha de adjudicación'] && mapa['Ofertas recibidas'] === '7', 'fecha de adjudicación y ofertas: ' + JSON.stringify(mapa));
+  const noAdj = filas({ adjudicado: false, proveedor: 'NO DEBE SALIR', valorAdj: 5, ofertas: 0 }, null, ahora);
+  assert(noAdj.length === 0, 'un proceso no adjudicado no muestra proveedor ni 0 ofertas: ' + JSON.stringify(noAdj));
+  const av = Object.fromEntries(filas({}, { etapa: 'En análisis', desdeTs: ahora - 3 * 86400000 }, ahora).map(f => [f.k, f.v]));
+  assert(av['Mi avance'] === 'En análisis · hace 3 días', 'avance en Mis procesos: ' + JSON.stringify(av));
+  const hoy = Object.fromEntries(filas({}, { etapa: 'Por revisar', desdeTs: ahora }, ahora).map(f => [f.k, f.v]));
+  assert(hoy['Mi avance'] === 'Por revisar · hoy', 'avance guardado hoy: ' + JSON.stringify(hoy));
+  const norm = cortar('function normalize(', '\n  }\n');
+  ['aperturaRaw', 'adjudicacionRaw', 'adjudicado', 'proveedor', 'valorAdj', 'ofertas'].forEach(k => assert(norm.indexOf(k) !== -1, 'normalize debe devolver ' + k));
+  assert(/fecha_de_apertura_efectiva/.test(norm) && /fecha_adjudicacion/.test(norm) && /nombre_del_proveedor/.test(norm) && /valor_total_adjudicacion/.test(norm) && /respuestas_al_procedimiento/.test(norm), 'normalize debe leer las columnas reales del dataset');
+  const card = cortar('function tarjetaProcesoHtml', 'function truncate(');
+  assert(/fichaExtraProceso\(/.test(card), 'la ficha debe usar fichaExtraProceso');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');
