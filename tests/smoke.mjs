@@ -4660,6 +4660,14 @@ await check('Mis procesos: el resumen cuenta por estado y señala cierran en 7 d
   const card = cortar('function renderPipelineView', '// Delegado único para Mis procesos');
   assert(/resumenMisProcesos\(/.test(card) && /bt-pipeline-resumen/.test(html), 'la vista dibuja el resumen arriba');
 });
+await check('Mis procesos: la tarjeta muestra la modalidad corta (guardada, o la vigente de SECOP en procesos viejos) en vez de «SECOP II»', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const card = html.slice(html.indexOf('function renderPipelineCardHtml'), html.indexOf('// Mis procesos: una sección'));
+  assert(!/SECOP '\s*\+\s*escapeHtml\(sn\.fuente/.test(card), 'la tarjeta ya no muestra la etiqueta «SECOP II»');
+  assert(/modalidadCorta\(sn\.modalidad \|\| \(vivo && vivo\.modalidad\)\)/.test(card.replace(/\s+/g, ' ')), 'usa la modalidad guardada y, si falta, la que trae la consulta vigente');
+  const ag = html.slice(html.indexOf('function agregarAPipeline'), html.indexOf('function moverEtapaPipeline'));
+  assert(/modalidad: item\.modalidad/.test(ag), 'Guardar conserva la modalidad en el resumen del proceso');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');

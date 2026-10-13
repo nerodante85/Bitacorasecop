@@ -2849,7 +2849,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       etapaTs: Date.now(),
       snapshot: {
         entidad: item.entidad, objeto: item.objeto, valor: item.valor,
-        closingRaw: item.closingRaw, pubRaw: item.pubRaw,
+        closingRaw: item.closingRaw, pubRaw: item.pubRaw, modalidad: item.modalidad,
         fuente: item.fuente, url: item.url, referencia: item.referencia
       }
     });
@@ -3013,6 +3013,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const sn = h.snapshot || {};
     const vivo = (estadosVivosEstado === 'listo' && estadosVivos[id]) || null; // el cierre vigente en SECOP manda sobre el guardado
     const dias = diasRestantesDe((vivo && vivo.closingRaw) || sn.closingRaw);
+    const modTxt = modalidadCorta(sn.modalidad || (vivo && vivo.modalidad)); // procesos guardados antes no la traen: se completa con la consulta vigente
     const vencePronto = dias !== null && dias >= 0 && dias <= 3;
     const plazoTexto = dias === null ? 'Sin fecha de cierre reportada' : (dias < 0 ? 'Venció' : (dias + ' día(s) para el cierre'));
     const entry = analisis[id];
@@ -3026,7 +3027,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return '<div class="pipeline-card' + (vencePronto ? ' pipeline-card-urgente' : '') + '" data-pipeline-card-id="' + escapeHtml(id) + '">' +
       '<div class="pipeline-card-ent">' + escapeHtml(truncate(sn.entidad || 'Entidad no especificada', 60)) + ' ' + chip + '</div>' +
       '<div class="pipeline-card-obj">' + escapeHtml(truncate(sn.objeto || '', 140)) + '</div>' +
-      '<div class="pipeline-card-meta">' + (sn.valor ? escapeHtml(fmtMoney(sn.valor) || '') + ' · ' : '') + '<span class="tag fuente">SECOP ' + escapeHtml(sn.fuente || '') + '</span></div>' +
+      '<div class="pipeline-card-meta">' + (sn.valor ? escapeHtml(fmtMoney(sn.valor) || '') : '') + (sn.valor && modTxt ? ' · ' : '') + (modTxt ? '<span class="tag fuente">' + escapeHtml(modTxt) + '</span>' : '') + '</div>' +
       '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' +
       '<div class="saved-note">' + escapeHtml(estadoAnalisis) + '</div>' +
       estadoVivoHtml(id, sn) +

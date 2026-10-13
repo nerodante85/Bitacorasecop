@@ -198,6 +198,16 @@ await check('Mis procesos: el resumen de arriba cuenta lo guardado, y desaparece
   assert(!r.hid && r.tarjetas.length === 4 && r.tarjetas[0] === 'Guardados=1', 'el resumen muestra 1 guardado: ' + JSON.stringify(r));
   assert(/Novedades en SECOP=(—|0)/.test(r.tarjetas[3]), 'sin respuesta de SECOP no inventa novedades: ' + r.tarjetas[3]);
 });
+await check('Mis procesos: la tarjeta guardada muestra la modalidad corta y no la etiqueta «SECOP II»', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  const mod = await pg.evaluate(() => { const f = document.querySelector('#bt-results .row'); const dt = [...f.querySelectorAll('.ficha dt')].find(x => x.textContent.trim() === 'Modalidad'); return dt ? dt.nextElementSibling.textContent.trim() : ''; });
+  await pg.click('#bt-results .row [data-agregar-pipeline]');
+  await pg.evaluate(() => document.getElementById('bt-nav-procesos').click());
+  const tag = await pg.evaluate(() => { const t = document.querySelector('.pipeline-card .pipeline-card-meta .tag'); return t ? t.textContent.trim() : null; });
+  assert(mod && tag && !/SECOP/.test(tag), 'el tag de la tarjeta es la modalidad (' + mod + '), no SECOP: ' + tag);
+  assert(mod.toLowerCase().indexOf(tag.toLowerCase().replace('…', '').slice(0, 5)) !== -1 || tag.length <= 28, 'el tag corresponde a la modalidad: ' + mod + ' → ' + tag);
+});
 await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
   const { pg } = await abrir();
   await pg.click('#bt-nav-buscar');
