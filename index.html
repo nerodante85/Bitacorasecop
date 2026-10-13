@@ -330,6 +330,11 @@
   #bitacora-root .matriz-filtros { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
   #bitacora-root .matriz-filtro { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted); border-radius: var(--radius-sm); padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
   #bitacora-root .matriz-filtro[aria-pressed="true"] { background: var(--accent-button); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  #bitacora-root .ficha-obs { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  #bitacora-root .ficha-obs summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+  #bitacora-root .ficha-obs ol { margin: 8px 0 8px 18px; padding: 0; overflow-wrap: anywhere; }
+  #bitacora-root .ficha-obs-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+  #bitacora-root .ficha-obs-acciones .link-btn { min-height: 44px; display: inline-flex; align-items: center; }
   #bitacora-root .matriz-tabla { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   #bitacora-root .matriz-tabla th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
   #bitacora-root .matriz-tabla td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
@@ -7875,12 +7880,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const paginasTxt = crudo.split('\n').map(x => x.normalize('NFKC').replace(/\s+/g, ' ').trim());
     const t = paginasTxt.join(' ');
     const inicios = []; { let acc = 0; paginasTxt.forEach(x => { inicios.push(acc); acc += x.length + 1; }); }
-    const filas = [], avisos = [];
+    const filas = [], avisos = [], observaciones = [];
     const money = n => '$' + Math.round(n).toLocaleString('es-CO');
     const fmt1 = n => (Math.round(n * 10) / 10).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
     const pagina = idx => { if (idx == null || idx < 0 || inicios.length < 2) return null; let n = 1; for (let i = 0; i < inicios.length; i++){ if (inicios[i] <= idx) n = i + 1; else break; } return n; };
     const add = (grupo, requisito, exige, cifras, extra) => filas.push(Object.assign({ grupo: grupo, requisito: requisito, exige: exige || '', cifras: cifras || '', aviso: '' }, extra || {}));
     const num = x => parseFloat(String(x).replace(/\./g, '').replace(',', '.'));
+    // Puntos para PREGUNTAR a la entidad (borrador de observaciones): cada uno con su página y redactado como solicitud concreta.
+    const obs = (tema, texto, idx) => observaciones.push({ tema: tema, texto: texto, pagina: (idx != null && idx >= 0) ? pagina(idx) : null });
 
     // Datos del proceso
     const mObj = t.match(/\bOBJETO:\s*(.{20,420}?)(?=\s+\d\.\d+\.?\s+ALCANCE|\s+ALCANCE\s+DEL\s+OBJETO)/i);
@@ -7903,7 +7910,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Tabla «1.1 OBJETO, PRESUPUESTO OFICIAL, PLAZO Y UBICACIÓN» (documentos tipo): es la identificación del proceso en el propio documento.
     // Con un único monto ≥ $50 millones dentro de ella, ese es el presupuesto aunque otras cláusulas citen otros montos junto a
     // «presupuesto oficial» (se avisa de las que no cuadran). La primera coincidencia suele ser el índice: se prueban todas.
-    const zonasTabla11 = []; { const reT = /OBJETO,\s+PRESUPUESTO\s+OFICIAL(?:\s+ESTIMADO)?,\s+PLAZO\s+Y\s+UBICACI[ÓO]N/ig; let mt; while ((mt = reT.exec(t))) zonasTabla11.push({ i: mt.index, texto: t.slice(mt.index, mt.index + 1100) }); }
+    const zonasTabla11 = []; { const reT = /OBJETO,\s+PRESUPUESTO\s+OFICIAL(?:\s+ESTIMADO)?,\s+PLAZO\s+Y\s+UBICACI[ÓO]N/ig; let mt; while ((mt = reT.exec(t))) { let z = t.slice(mt.index, mt.index + 1100); const fin = z.slice(40).search(/\s\d{1,2}\.\d{1,2}\.?\s+[A-ZÁÉÍÓÚÑ]{4}/); if (fin >= 0) z = z.slice(0, fin + 40); zonasTabla11.push({ i: mt.index, texto: z }); } }
     const ctxPres = ctx && Number(ctx.presupuesto) > 0;
     let zonaPO = null;
     if (lotes.length < 2 && !ctxPres){
@@ -7918,6 +7925,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // Un monto «derivado» (p. ej. el 60% del presupuesto) no es otro presupuesto; uno que no es un porcentaje redondo del de la tabla, sí es una discrepancia.
       const raros = distintos.filter(v => v !== zonaPO.v && ![5, 10, 15, 20, 25, 30, 33, 40, 50, 60, 70, 75, 80, 90, 100].some(pc => Math.abs(v - zonaPO.v * pc / 100) <= zonaPO.v * 0.001));
       if (raros.length) avisos.push('El documento cita ' + raros.map(v => '$' + v.toLocaleString('es-CO')).join(' y ') + ' junto a «presupuesto oficial», pero la tabla 1.1 dice $' + zonaPO.v.toLocaleString('es-CO') + ' (es el que se usó): hay una discrepancia en el documento, pregúntala a la entidad.');
+      raros.forEach(v => { const mr = montosPO.find(x => x.v === v); obs('Presupuesto oficial', 'El numeral 1.1 fija el presupuesto oficial en $' + zonaPO.v.toLocaleString('es-CO') + ', pero otra parte del documento' + (mr ? ' (p. ' + pagina(mr.i) + ')' : '') + ' cita $' + v.toLocaleString('es-CO') + ' junto a «presupuesto oficial». Solicitamos aclarar cuál es el valor correcto y ajustar el documento en lo que corresponda.', zonaPO.i); });
     }
     if (lotes.length >= 2 && !loteSel && !ctxPres) avisos.push('El documento se divide en ' + lotes.length + ' lotes con presupuestos distintos: elige el lote al que te presentas para calcular las cifras (SMMLV, capital de trabajo, plazo y experiencia del lote).');
     else if (distintos.length > 1 && lotes.length < 2 && !ctxPres && !zonaPO) avisos.push('El documento trae varios valores de presupuesto oficial (por ejemplo grupos o fases): la ficha no convierte a SMMLV ni calcula capital de trabajo ni capacidad residual. Identifica cuál es el del proceso al que te presentas.');
@@ -8077,10 +8085,16 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (ku && ku.valor != null && !ku.conflicto && ku.unidad === 'COP' && ku.valor >= 1000000){
         const idxK = ku.raw ? t.indexOf(String(ku.raw).slice(0, 40)) : -1;
         if (filaK){
-          if (filaK.dato && Math.abs(filaK.dato.min - ku.valor) > 1) avisos.push('El documento dice que el K debe ser de ' + money(ku.valor) + ', pero su fórmula da ' + money(filaK.dato.min) + ': confirma cuál aplica.');
+          if (filaK.dato && Math.abs(filaK.dato.min - ku.valor) > 1){
+            avisos.push('El documento dice que el K debe ser de ' + money(ku.valor) + ', pero su fórmula da ' + money(filaK.dato.min) + ': confirma cuál aplica.');
+            obs('Capacidad residual (K)', 'El documento indica que la capacidad residual (K) exigida es de ' + money(ku.valor) + ', pero la fórmula del mismo documento da ' + money(filaK.dato.min) + '. Solicitamos aclarar cuál es el valor exigido.', idxK);
+          }
         } else if (!(lotes.length >= 2 && !loteSel)){
           add('Capacidad financiera', 'Capacidad residual del proceso (K)', 'Según el documento: igual o superior a ' + money(ku.valor), smmlvAnio ? fmt1(ku.valor / smmlvAnio) + ' SMMLV' : '', { pagina: pagina(idxK), dato: { tipo: 'monto', clave: 'kResidual', min: ku.valor } });
-          if (presupuesto && Math.abs(ku.valor - presupuesto) > 1 && /presupuesto\s+oficial/i.test(ku.raw || '')) avisos.push('El documento fija el K en ' + money(ku.valor) + ' «igual al presupuesto oficial», pero el presupuesto de su tabla 1.1 es ' + money(presupuesto) + ': discrepancia del documento, pregúntala a la entidad.');
+          if (presupuesto && Math.abs(ku.valor - presupuesto) > 1 && /presupuesto\s+oficial/i.test(ku.raw || '')){
+            avisos.push('El documento fija el K en ' + money(ku.valor) + ' «igual al presupuesto oficial», pero el presupuesto de su tabla 1.1 es ' + money(presupuesto) + ': discrepancia del documento, pregúntala a la entidad.');
+            obs('Capacidad residual (K)', 'El documento fija la capacidad residual (K) en ' + money(ku.valor) + ' «igual al presupuesto oficial», pero el presupuesto oficial del numeral 1.1 es ' + money(presupuesto) + '. Solicitamos aclarar cuál es el valor del K exigido.', idxK);
+          }
         }
       }
     }
@@ -8121,11 +8135,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         let aviso = '';
         if (L[0] === 'Índice de liquidez' && demas.op === '≥' && demas.v >= 5) aviso = 'Una liquidez mínima de ' + m[2] + ' es inusualmente alta (lo habitual es cerca de 1 a 2): confirma que no sea un error del documento, porque dejaría fuera a casi todos los proponentes.';
         if (L[0] === 'Razón de cobertura de intereses' && demas.op === '≥' && demas.v >= 10) aviso = 'Una cobertura de intereses mínima de ' + m[2] + ' es inusualmente alta: confirma que no sea un error del documento.';
-        if (mi) aviso = (aviso ? aviso + ' ' : '') + 'El documento trae dos valores y se leyó el segundo como el de Mipyme: confírmalo.';
+        if (aviso && !mi) obs(L[0], 'El documento exige ' + (L[0] === 'Índice de liquidez' ? 'un índice de liquidez' : 'una razón de cobertura de intereses') + ' de ' + demas.op + ' ' + m[2] + ', un valor muy superior al habitual. Solicitamos confirmar que es el valor correcto, pues restringiría de forma desproporcionada la participación.', z.i);
+        if (mi){
+          aviso = (aviso ? aviso + ' ' : '') + 'El documento trae dos valores y se leyó el segundo como el de Mipyme: confírmalo.';
+          obs(L[0], 'La tabla de ' + L[0].toLowerCase() + ' trae dos valores (' + demas.op + ' ' + m[2] + ' y ' + mi.op + ' ' + m[4] + ' «Mipyme») sin que el encabezado diga a qué tipo de proponente corresponde cada uno. Solicitamos indicarlo.', z.i);
+        }
         add('Capacidad financiera', L[0], demas.op + ' ' + m[2], mi ? 'Mipyme: ' + mi.op + ' ' + m[4] : '', { pagina: pagina(z.i), aviso: aviso, dato: { tipo: 'indice', clave: L[0], demas: demas, mipyme: mi } });
       }));
     }
-    if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /Matriz\s*2/i.test(t) && /[ÍI]ndice\s+de\s+liquidez|capacidad\s+organizacional/i.test(t)) avisos.push('Los indicadores financieros y organizacionales remiten a la «Matriz 2», cuyos valores no vienen en el texto leído: consúltalos en esa matriz (anexo del proceso).');
+    if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /Matriz\s*2/i.test(t) && /[ÍI]ndice\s+de\s+liquidez|capacidad\s+organizacional/i.test(t)) {
+      avisos.push('Los indicadores financieros y organizacionales remiten a la «Matriz 2», cuyos valores no vienen en el texto leído: consúltalos en esa matriz (anexo del proceso).');
+      obs('Indicadores financieros (Matriz 2)', 'Los indicadores financieros y organizacionales exigidos remiten a la «Matriz 2», que no está incluida en los documentos publicados. Solicitamos publicarla o indicar dónde consultarla.', t.search(/Matriz\s*2/i));
+    }
 
     // Encabezado y pie de página repetidos (se cuelan en medio de una tabla o lista que cruza de página): se quitan antes de leer.
     const quitarPies = x => String(x)
@@ -8214,7 +8235,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           add('Personal', titulo(fl.cargo), (l ? l.cant + ' · ' : '') + fl.formacion, partes.join(' · ') || 'ver la tabla del documento', { pagina: pagina(iPers), aviso: noHab ? 'Según el documento, las hojas de vida se verifican después de adjudicar y no se piden como criterio habilitante.' : '' });
         });
         const extras = tablaFilas.filter(fl => !listaDed.some(x => claveDe(x.cargo) === claveDe(fl.cargo))).map(fl => titulo(fl.cargo));
-        if (listaDed.length && extras.length) avisos.push('El documento dice «El personal requerido es el siguiente» y lista solo ' + listaDed.map(x => x.cargo).join(', ') + ', pero su tabla de requisitos trae también ' + extras.join(', ') + ': confirma con la entidad cuál es el personal exigido.');
+        if (listaDed.length && extras.length){
+          avisos.push('El documento dice «El personal requerido es el siguiente» y lista solo ' + listaDed.map(x => x.cargo).join(', ') + ', pero su tabla de requisitos trae también ' + extras.join(', ') + ': confirma con la entidad cuál es el personal exigido.');
+          obs('Personal requerido', 'El documento dice «El personal requerido es el siguiente» y lista solo ' + listaDed.map(x => x.cargo).join(', ') + ', pero su tabla de requisitos del personal trae también ' + extras.join(', ') + '. Solicitamos aclarar cuál es el personal exigido y su dedicación.', iPers);
+        }
       } else {
         const vv = {};
         CARGOS.forEach(c => {
@@ -8295,6 +8319,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
                 { pagina: pagina(iP), aviso: 'Figura bajo «PERSONAL PROFESIONAL (' + puntos + ' puntos)» como factor de calidad con puntaje, aunque dice «como mínimo, oferte»: confirma con la entidad si es requisito habilitante o solo puntaje.' });
             });
             avisos.push('El personal se leyó de la tabla del documento fila por fila: confírmalo contra el original.');
+            obs('Personal profesional: ¿habilitante o puntaje?', 'El personal profesional (' + filasP.map(x => x.cargo).join(', ') + ') figura bajo «PERSONAL PROFESIONAL (' + puntos + ' puntos)» como factor de puntaje, pero el texto dice «como mínimo, oferte». Solicitamos aclarar si es requisito habilitante o solo otorga puntaje, y qué ocurre si el proponente no lo ofrece.', iP);
           } else if (n){
             const completo = cants.length === n;
             const col = arr => (completo && arr.length === n) ? arr : null;
@@ -8309,6 +8334,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
                 { pagina: pagina(iP), aviso: 'Figura bajo «PERSONAL PROFESIONAL (' + puntos + ' puntos)» como factor de calidad con puntaje, aunque dice «como mínimo, oferte»: confirma con la entidad si es requisito habilitante o solo puntaje.' });
             });
             avisos.push('El personal se leyó de una tabla por columnas (cada columna en el orden de los cargos): confírmalo contra el original. La formación académica de cada cargo no se asocia automáticamente' + (completo ? '' : '; la lista de cargos puede estar incompleta') + '.');
+            obs('Personal profesional: ¿habilitante o puntaje?', 'El personal profesional (' + cargos.join(', ') + ') figura bajo «PERSONAL PROFESIONAL (' + puntos + ' puntos)» como factor de puntaje, pero el texto dice «como mínimo, oferte». Solicitamos aclarar si es requisito habilitante o solo otorga puntaje, y qué ocurre si el proponente no lo ofrece.', iP);
           }
         }
       }
@@ -8390,6 +8416,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const distintos = Array.from(new Set(ms.map(x => x.v)));
         if (distintos.length > 1){
           add('Garantías', g.nombre, 'Varias cifras en el documento: ' + distintos.map(fmtV).join(u + ' · ') + u, '', { pagina: pagina(ms[0].ini), aviso: 'El documento trae cifras distintas para esta garantía: confirma cuál aplica (no se eligió ninguna).' });
+          obs(g.nombre, 'El documento indica cifras distintas para la ' + g.nombre.toLowerCase().replace(/^garantía/, 'garantía') + ' (' + distintos.map(fmtV).join(u + ' y ') + u + '). Solicitamos aclarar cuál es la exigida.', ms[0].ini);
         } else {
           const x = ms.find(y => y.vig || y.cond) || ms[0];
           add('Garantías', g.nombre, fmtV(x.v) + u + x.base, [x.vig ? 'Vigencia: ' + x.vig : '', x.cond ? 'Condición: ' + x.cond : ''].filter(Boolean).join(' · '), { pagina: pagina(ms[0].ini) });
@@ -8420,7 +8447,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       });
       if (filas.some(f => f.grupo === 'Requisitos jurídicos')) avisos.push('El checklist jurídico solo indica qué documentos se mencionan y en qué página: no confirma que sean obligatorios ni que tu empresa los tenga. Revisa el numeral de requisitos habilitantes jurídicos del original.');
     }
-    return { filas: filas, avisos: avisos, lotes: lotes, lote: loteSel ? loteSel.id : null };
+    return { filas: filas, avisos: avisos, observaciones: observaciones, lotes: lotes, lote: loteSel ? loteSel.id : null };
   }
 
   function extraerRequisitosDePliego(text, paginaOffsets, fuenteLabel){
@@ -10186,6 +10213,47 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // art. 203) -- dato que esta app no tiene forma de conocer con certeza,
   // así que se deja como una decisión explícita para el usuario en vez de
   // asumir una de las dos.
+  // Borrador de OBSERVACIONES al pliego a partir de lo que la ficha encontró raro o faltante (fichaHabilitante().observaciones). Cada punto ya
+  // viene redactado como solicitud concreta, con su página. Sin observaciones devuelve ''. Los datos que la app no conoce (fecha límite de
+  // observaciones, número de proceso) quedan entre corchetes para completar: nunca se inventan.
+  function observacionesTexto(observaciones, perfil, item){
+    const lista = (observaciones || []).filter(o => o && o.texto);
+    if (!lista.length) return '';
+    const p = perfil || {}, it = item || {};
+    const L = [];
+    L.push('[Nota interna -- borra esto antes de enviar] Borrador generado a partir de la lectura automática del documento: verifica cada punto contra el original (con su página) y elimina los que no apliquen. Envíalo dentro del plazo de observaciones del cronograma.');
+    L.push('');
+    L.push((p.ciudad || '[CIUDAD]') + ', ' + new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }));
+    L.push('');
+    L.push('Señores');
+    L.push(it.entidad || '[ENTIDAD CONTRATANTE]');
+    L.push('');
+    L.push('Referencia: ' + (it.modalidad || '[MODALIDAD]') + (it.referencia ? ' No. ' + it.referencia : ' No. [NÚMERO DE PROCESO]'));
+    L.push('Objeto: ' + (it.objeto || '[OBJETO DEL PROCESO]'));
+    L.push('Asunto: Observaciones al pliego de condiciones');
+    L.push('');
+    L.push('Cordial saludo,');
+    L.push('');
+    L.push((p.nombre || '[RAZÓN SOCIAL]') + (p.nit ? ', identificada con NIT ' + p.nit : ', identificada con NIT [NIT]') + ', interesada en participar en el proceso de la referencia, presenta respetuosamente las siguientes observaciones ' + MARCA_CONFIRMAR + 'dentro del plazo previsto en el cronograma (fecha límite: [FECHA LÍMITE DE OBSERVACIONES]):');
+    L.push('');
+    lista.forEach((o, i) => {
+      L.push((i + 1) + '. ' + String(o.tema || 'Observación').toUpperCase() + (o.pagina ? ' (página ' + o.pagina + (o.documento ? ' del ' + o.documento : '') + ')' : ''));
+      L.push(o.texto);
+      L.push('');
+    });
+    L.push('Agradecemos que las respuestas se publiquen en la plataforma SECOP II, para conocimiento de todos los interesados.');
+    L.push('');
+    L.push('Atentamente,');
+    L.push('');
+    L.push('_______________________________________');
+    L.push(p.representanteLegal || '[REPRESENTANTE LEGAL]');
+    L.push('C.C. No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]'));
+    L.push('Representante Legal');
+    L.push(p.nombre || '[RAZÓN SOCIAL]');
+    L.push('NIT: ' + (p.nit || '[NIT]'));
+    return L.join('\n');
+  }
+
   function generarParafiscalesTexto(perfil, item, sinAviso){
     const p = perfil;
     const L = [];
@@ -11301,7 +11369,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // traen la misma fila, manda el pliego. No depende de la IA ni de los datos de la empresa.
   function fichaHabilitanteDe(entry){
     const fuentes = [['Pliego de Condiciones', textoPliegoDe(entry)], ['Estudio Previo', entry && entry.estudioPrevioText]];
-    const filas = [], avisos = [], vistos = {};
+    const filas = [], avisos = [], vistos = {}, observaciones = [];
     let lotes = null;
     fuentes.forEach(function(f){
       if (!f[1]) return;
@@ -11309,8 +11377,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (!lotes && r.lotes && r.lotes.length > 1) lotes = r.lotes;
       r.filas.forEach(function(x){ if (vistos[x.requisito]) return; vistos[x.requisito] = true; x.documento = f[0]; filas.push(x); });
       r.avisos.forEach(function(a){ if (avisos.indexOf(a) === -1) avisos.push(a); });
+      (r.observaciones || []).forEach(function(o){ if (!observaciones.some(function(x){ return x.texto === o.texto; })) observaciones.push(Object.assign({ documento: f[0] }, o)); });
     });
-    return { filas: filas, avisos: avisos, lotes: lotes };
+    return { filas: filas, avisos: avisos, observaciones: observaciones, lotes: lotes };
   }
   // Datos de la mejor empresa registrada, normalizados para cruceFichaEmpresa (null si no hay ninguna).
   // Etiqueta legible de un requisito de experiencia: quita el encabezado "MATRIZ N – EXPERIENCIA" que el pliego pega al primer renglón.
@@ -11366,6 +11435,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div class="saved-note">Elige solo si el pliego o la entidad lo confirman por escrito; sin definir, el resultado es NO DETERMINABLE.</div></div>' : '';
     return '<div class="analisis-seccion" data-ficha-seccion="1"><h3>Requisitos habilitantes del proceso</h3>' + selLote + selBase +
       '<div class="expeval-table-wrap"><table class="matriz-tabla ficha-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Qué exige</th><th scope="col">Cifras (pesos y SMMLV)</th><th scope="col">Fuente</th>' + (hayCruce ? '<th scope="col">Tu empresa' + (emp.nombre ? ' (' + escapeHtml(emp.nombre) + ')' : '') + '</th>' : '') + '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
+      (f.observaciones && f.observaciones.length ? '<div class="ficha-obs" data-ficha-obs-bloque="1"><details><summary><b>' + f.observaciones.length + ' punto(s) para preguntar a la entidad</b> — discrepancias o datos que el documento no trae</summary><ol>' +
+        f.observaciones.map(function(o){ return '<li><b>' + escapeHtml(o.tema) + '</b>' + (o.pagina ? ' (p. ' + o.pagina + ')' : '') + ': ' + escapeHtml(o.texto) + '</li>'; }).join('') + '</ol></details>' +
+        '<div class="ficha-obs-acciones"><button type="button" class="link-btn" data-ficha-obs="copiar" data-obs-id="' + escapeHtml(entry.id || '') + '">Copiar borrador de observaciones</button> <button type="button" class="link-btn" data-ficha-obs="descargar" data-obs-id="' + escapeHtml(entry.id || '') + '">⬇ Descargar borrador (.txt)</button></div></div>' : '') +
       (f.avisos.length ? '<ul class="ficha-avisos">' + f.avisos.map(function(a){ return '<li class="alerta-item revisar"><span class="alerta-nivel">▲ REVISAR</span><span>' + escapeHtml(a) + '</span></li>'; }).join('') + '</ul>' : '') +
       (hayCruce ? '<div class="resultado-meta" role="status">Cruce financiero con tu perfil: ' + cuentas['CUMPLE'] + ' cumple · ' + cuentas['NO CUMPLE'] + ' no cumple · ' + cuentas['REVISAR'] + ' por revisar · ' + cuentas['NO DETERMINABLE'] + ' no determinable. Compara capital de trabajo, patrimonio, K e índices y, en la experiencia específica, las cantidades por ítem que cargaste en la hoja CANTIDADES (tubería, pozos, conexiones, entibados); el resto de la experiencia se evalúa en la matriz.</div>' : '') +
       '<div class="resultado-meta">Cifras calculadas por el sistema a partir del documento (SMMLV ' + new Date().getFullYear() + '); confírmalas en el pliego definitivo.</div></div>';
@@ -14607,6 +14679,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Análisis: evidencia de una fila de la matriz, filtro de la matriz y salto a una sección plegada.
     const evBtn = e.target.closest('[data-ev-fila]');
     if (evBtn){ abrirEvidencia(evBtn.getAttribute('data-ev-id'), evBtn.getAttribute('data-ev-fila'), evBtn); return; }
+    const obsBtn = e.target.closest('[data-ficha-obs]');
+    if (obsBtn){
+      const id = obsBtn.getAttribute('data-obs-id'), en = analisis[id], sProc = procesoPorId(id);
+      if (!en) return;
+      if (isDemo){ alert('Estás viendo datos de ejemplo (ficticios): no se redacta una observación para un proceso que no existe. Haz una búsqueda real primero.'); return; }
+      const txt = observacionesTexto(fichaHabilitanteDe(en).observaciones, perfilesParaComparar()[0] || {}, sProc ? sProc.item : {});
+      if (!txt) return;
+      if (obsBtn.getAttribute('data-ficha-obs') === 'descargar') descargarTexto('observaciones-' + slugArchivo((sProc && sProc.item && (sProc.item.referencia || sProc.item.entidad)) || 'proceso') + '.txt', txt);
+      else copiarTexto(txt).then(function(ok){ mostrarAvisoGuardado(ok ? 'Borrador de observaciones copiado.' : 'No se pudo copiar: usa «Descargar borrador».'); });
+      return;
+    }
     const baseBtn = e.target.closest('[data-ficha-base]');
     if (baseBtn){
       const en = analisis[analisisSelId], sec = baseBtn.closest('[data-ficha-seccion]');

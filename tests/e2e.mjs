@@ -583,6 +583,23 @@ await check('Análisis: arranca con el resultado y su explicación, resume la vi
   await ctx.close();
 });
 
+await check('Observaciones: la ficha lista los puntos para preguntar a la entidad (discrepancia del K contra el presupuesto) y descarga el borrador con la entidad, la página y la cifra', async () => {
+  const texto = "1.1. OBJETO, PRESUPUESTO OFICIAL, PLAZO Y UBICACIÓN El objeto, presupuesto oficial estimado, plazo y ubicación del proyecto se identifican en la siguiente tabla: Objeto del proyecto ALCANTARILLADO BARRIO EL LIBANO Plazo del contrato Valor presupuesto oficial (pesos incluido IVA) CINCUENTA (50) DIAS $138.776.810,00 Lugar(es) de ejecución del contrato OCAÑA. 3.6 CALCULO LA CAPACIDAD RESIDUAL DEL PROPONENTE. El Proponente debe acreditar una capacidad residual o K de Contratación igual o superior al presupuesto oficial: $100.000.000 El proponente debe presentar un certificado.";
+  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado({ text: texto, paginaOffsets: [{ pagina: 1, hasta: texto.length }] })) }) });
+  await abrirAnalisisSembrado(pg);
+  const bloque = await pg.evaluate(() => { const b = document.querySelector('#bt-analisis-out [data-ficha-obs-bloque]'); return b ? { resumen: b.querySelector('summary').textContent, items: b.querySelectorAll('ol li').length, botones: b.querySelectorAll('[data-ficha-obs]').length } : null; });
+  assert(bloque && /punto\(s\) para preguntar a la entidad/.test(bloque.resumen) && bloque.items >= 1 && bloque.botones === 2, 'bloque de observaciones: ' + JSON.stringify(bloque));
+  await pg.setViewportSize({ width: 375, height: 800 });
+  await pg.locator('#bt-analisis-out [data-ficha-obs-bloque] summary').click();
+  const med = await pg.evaluate(() => ({ desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth, botones: [...document.querySelectorAll('#bt-analisis-out [data-ficha-obs]')].map(b => Math.round(b.getBoundingClientRect().height)) }));
+  assert(med.desborde <= 0, 'sin desborde horizontal a 375 px: ' + med.desborde);
+  assert(med.botones.every(h => h >= 44), 'botones de al menos 44 px de alto en celular: ' + med.botones.join(','));
+  const [dl] = await Promise.all([pg.waitForEvent('download', { timeout: 8000 }), pg.locator('#bt-analisis-out [data-ficha-obs="descargar"]').click()]);
+  assert(/^observaciones-.*\.txt$/.test(dl.suggestedFilename()), 'nombre: ' + dl.suggestedFilename());
+  const cuerpo = await readFile(await dl.path(), 'utf8');
+  assert(/Alcaldía E2E/.test(cuerpo) && /\$100\.000\.000/.test(cuerpo) && /\$138\.776\.810/.test(cuerpo) && /Solicitamos/.test(cuerpo) && /Empresa A/.test(cuerpo), 'el borrador trae entidad, cifras, solicitud y la empresa: ' + cuerpo.slice(0, 300));
+  await ctx.close();
+});
 await check('Informe del análisis: la tarjeta de decisión baja un Word con el análisis sin botones ni filtros; el PDF abre una ventana imprimible', async () => {
   const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
   await abrirAnalisisSembrado(pg);
