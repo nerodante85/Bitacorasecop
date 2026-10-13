@@ -4626,7 +4626,7 @@ await check('Mis procesos: el resumen cuenta por estado y señala cierran en 7 d
   const html = readFileSync(HTML_PATH, 'utf8');
   const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
   const lib = cortar('function isPlausibleDate', 'function fmtDate') + cortar('function fmtDate', '// Auditoría UX/UI (cálculos financieros)') + cortar('function fmtMoney', 'function normalize(');
-  const src = cortar('function estadoVivoDeProceso', 'let estadosVivos') + '\n' + cortar('function resumenMisProcesos', '\n  function ');
+  const src = cortar('function estadoVivoDeProceso', 'let estadosVivos') + '\n' + cortar('function etapaConPlazo', '\n  function ') + '\n' + cortar('function resumenMisProcesos', '\n  function ');
   const ETAPAS = ['por_revisar', 'en_analisis', 'viable', 'no_viable', 'presentada'].map(id => ({ id, label: id }));
   const { resumenMisProcesos } = new Function('ETAPAS_PIPELINE', 'esEstadoNoVigente', lib + '\n' + src + '\nreturn { resumenMisProcesos };')(ETAPAS, Coincidencia.esEstadoNoVigente);
   const ahora = Date.parse('2026-10-13T12:00:00');
@@ -4687,6 +4687,17 @@ await check('Notas propias en Mis procesos: se limpian (recorte, 1000 caracteres
   const card = cortar('function renderPipelineCardHtml', '// Mis procesos: una sección');
   assert(/data-nota-id/.test(card) && /pipeline-card-nota/.test(card) && /data-nota-editar/.test(cortar('function notaVistaHtml', '\n  function ')), 'la tarjeta muestra la nota o el botón para agregarla');
   assert(/notaVistaHtml\(id, h\.nota\)/.test(card) && /escapeHtml\(nota\)/.test(cortar('function notaVistaHtml', '\n  function ')), 'la nota se escapa al mostrarla');
+});
+await check('Mis procesos: el plazo («N días para el cierre» / «Venció») y la alarma de cierre solo se muestran en procesos que siguen en decisión, no en presentados ni no viables', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const etapaConPlazo = new Function(cortar('function etapaConPlazo', '\n  function ') + '\nreturn etapaConPlazo;')();
+  ['por_revisar', 'en_analisis', 'viable'].forEach(e => assert(etapaConPlazo(e) === true, e + ' sí muestra plazo'));
+  ['presentada', 'no_viable', 'raro', '', null, undefined].forEach(e => assert(etapaConPlazo(e) === false, String(e) + ' no muestra plazo'));
+  const card = cortar('function renderPipelineCardHtml', '// Mis procesos: una sección');
+  assert(/etapaConPlazo\(h\.etapa\)/.test(card), 'la tarjeta decide con etapaConPlazo');
+  assert(/const vencePronto = conPlazo &&/.test(card.replace(/\s+/g, ' ')), 'la alarma de cierre tampoco aparece en presentados ni no viables');
+  assert(/ACTIVAS|etapaConPlazo\(h\.etapa\)/.test(cortar('function resumenMisProcesos', '\n  function ')) && !/const ACTIVAS = \[/.test(html), 'una sola fuente de verdad para las etapas activas (resumen y tarjeta)');
 });
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');

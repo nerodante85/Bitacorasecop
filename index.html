@@ -2993,11 +2993,14 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     redibujarPipelineSiVisible();
   }
+  // Etapas en las que el plazo de cierre todavía importa (el proceso sigue en decisión). Una sola lista para el resumen y la tarjeta.
+  function etapaConPlazo(etapa){
+    return etapa === 'por_revisar' || etapa === 'en_analisis' || etapa === 'viable';
+  }
   // Resumen de Mis procesos (puro): conteo por estado y tres señales de urgencia, SOLO sobre los procesos que siguen
   // en decisión (por revisar, en análisis, viable). Con la consulta a SECOP hecha, manda el cierre vigente sobre el
   // guardado; sin consulta, `cambios` es null (nunca se inventan novedades).
   function resumenMisProcesos(hist, vivos, ahoraMs){
-    const ACTIVAS = ['por_revisar', 'en_analisis', 'viable'];
     const porEtapa = {};
     ETAPAS_PIPELINE.forEach(e => { porEtapa[e.id] = 0; });
     const dias = raw => (raw && isPlausibleDate(raw)) ? Math.ceil((new Date(raw).getTime() - ahoraMs) / 86400000) : null;
@@ -3006,7 +3009,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const h = hist[id];
       if (!h || !h.etapa || !(h.etapa in porEtapa)) return;
       total++; porEtapa[h.etapa]++;
-      if (ACTIVAS.indexOf(h.etapa) === -1) return;
+      if (!etapaConPlazo(h.etapa)) return;
       const sn = h.snapshot || {};
       const vivo = (vivos && vivos[id]) || null;
       const d = dias((vivo && vivo.closingRaw) || sn.closingRaw);
@@ -3042,7 +3045,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const vivo = (estadosVivosEstado === 'listo' && estadosVivos[id]) || null; // el cierre vigente en SECOP manda sobre el guardado
     const dias = diasRestantesDe((vivo && vivo.closingRaw) || sn.closingRaw);
     const modTxt = modalidadCorta(sn.modalidad || (vivo && vivo.modalidad)); // procesos guardados antes no la traen: se completa con la consulta vigente
-    const vencePronto = dias !== null && dias >= 0 && dias <= 3;
+    const conPlazo = etapaConPlazo(h.etapa); // presentados y no viables: el cierre ya no importa, no se muestra ni alarma
+    const vencePronto = conPlazo && dias !== null && dias >= 0 && dias <= 3;
     const plazoTexto = dias === null ? 'Sin fecha de cierre reportada' : (dias < 0 ? 'Venció' : (dias + ' día(s) para el cierre'));
     const entry = analisis[id];
     const v = veredictoGlobalDeProceso(id);
@@ -3056,7 +3060,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div class="pipeline-card-ent">' + escapeHtml(truncate(sn.entidad || 'Entidad no especificada', 60)) + ' ' + chip + '</div>' +
       '<div class="pipeline-card-obj">' + escapeHtml(truncate(sn.objeto || '', 140)) + '</div>' +
       '<div class="pipeline-card-meta">' + (sn.valor ? escapeHtml(fmtMoney(sn.valor) || '') : '') + (sn.valor && modTxt ? ' · ' : '') + (modTxt ? '<span class="tag fuente">' + escapeHtml(modTxt) + '</span>' : '') + '</div>' +
-      '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' +
+      (conPlazo ? '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' : '') +
       '<div class="saved-note">' + escapeHtml(estadoAnalisis) + '</div>' +
       estadoVivoHtml(id, sn) +
       '<div class="pipeline-card-nota" data-nota-id="' + escapeHtml(id) + '">' + notaVistaHtml(id, h.nota) + '</div>' +
