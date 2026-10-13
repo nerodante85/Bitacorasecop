@@ -8201,6 +8201,47 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const f = filas[filas.length - 1]; if (f && f.grupo === 'Maquinaria') f.aviso = 'Según el documento se verifica después de adjudicar el contrato: no es un requisito habilitante ni da puntaje.';
       }
     }
+    // Personal en tabla POR COLUMNAS (pre-pliegos de alcaldías: «PERSONAL PROFESIONAL (29,95 puntos) … CANT | CARGO | FORMACIÓN | EXPERIENCIA
+    // GENERAL | ESPECÍFICA | DEDICACIÓN | PUNTAJE»): el texto entrega cada columna completa, una tras otra. Una columna se asocia a los cargos
+    // por orden SOLO si trae exactamente tantos datos como cargos; si no, ese dato no se da. La formación no se asocia (no hay separador).
+    if (!filas.some(f => f.grupo === 'Personal')){
+      const iP = t.search(/PERSONAL\s+PROFESIONAL\s*\(\s*[\d.,]+\s*puntos?\s*\)/i);
+      if (iP >= 0){
+        const z = t.slice(iP, iP + 2600);
+        const pos = re => { const m = re.exec(z); return m ? { i: m.index, f: m.index + m[0].length } : null; };
+        const hCant = pos(/\bCAN\s*T\b/), hCargo = pos(/CARGO\s+A\s+DESEMPE[ÑN]\s*AR/i), hForm = pos(/FORMACI[ÓO]\s*N\s+ACAD[ÉE]MIC\s*A/i), hGen = pos(/EXPERIENCIA\s+GENERAL/i), hEsp = pos(/EXPERIENCIA\s+ESPEC[ÍI]FICA/i), hPun = pos(/PUNTAJ\s*E\b/i);
+        const puntos = (z.match(/\(\s*([\d.,]+)\s*puntos?\s*\)/i) || [])[1];
+        if (hCant && hCargo && hForm && hGen && hEsp && hPun && hCant.i < hCargo.i && hCargo.i < hForm.i && hForm.i < hGen.i && hGen.i < hEsp.i && hEsp.i < hPun.i){
+          const ROL = /Director(?:\s+de\s+(?:Obra|Proyecto))?|Residente(?:\s+de\s+Obra)?|Inspector(?:\s+de\s+Obra)?|Especialista\s+[A-Za-zÁÉÍÓÚáéíóúñ]+|Profesional\s+(?:SST|Ambiental|Social)|Top[óo]grafo|Responsable\s+SG-SST/gi;
+          const cargos = Array.from(z.slice(hCargo.f, hForm.i).matchAll(ROL)).map(m => m[0].trim());
+          const cants = Array.from(z.slice(hCant.f, hCargo.i).matchAll(/\b(\d{1,2})\b/g)).map(m => m[1]);
+          const gens = Array.from(z.slice(hGen.f, hEsp.i).matchAll(/M[íi]nimo\s+de\s+(\d{1,2})\s+a[ñn]os/gi)).map(m => m[1]);
+          const tramoEsp = z.slice(hEsp.f, hPun.i);
+          const conts = Array.from(tramoEsp.matchAll(/al\s+menos\s+(\d{1,2})\s+contratos?/gi)).map(m => m[1]);
+          const deds = Array.from(tramoEsp.matchAll(/\b(\d{1,3})\s*%/g)).map(m => m[1]);
+          const mPun = z.slice(hPun.f).match(/^\s*((?:\d+(?:[.,]\d+)?\s+){0,11}\d+(?:[.,]\d+)?)(?=\s|$)/);
+          const puns = mPun ? mPun[1].trim().split(/\s+/) : [];
+          const n = cargos.length;
+          if (n){
+            const completo = cants.length === n;
+            const col = arr => (completo && arr.length === n) ? arr : null;
+            const g2 = col(gens), c2 = col(conts), d2 = col(deds), p2 = col(puns);
+            cargos.forEach((cg, k) => {
+              const partes = [];
+              if (g2) partes.push(g2[k] + ' años de experiencia general');
+              if (c2) partes.push(c2[k] + ' contrato(s) de experiencia específica');
+              if (d2) partes.push('dedicación ' + d2[k] + '%');
+              if (p2) partes.push('puntaje ' + p2[k]);
+              add('Personal', cg.charAt(0).toUpperCase() + cg.slice(1).toLowerCase(), completo ? cants[k] + ' profesional(es)' : 'Cargo ofertado', partes.join(' · ') || 'ver la tabla del documento',
+                { pagina: pagina(iP), aviso: 'Figura bajo «PERSONAL PROFESIONAL (' + puntos + ' puntos)» como factor de calidad con puntaje, aunque dice «como mínimo, oferte»: confirma con la entidad si es requisito habilitante o solo puntaje.' });
+            });
+            avisos.push('El personal se leyó de una tabla por columnas (cada columna en el orden de los cargos): confírmalo contra el original. La formación académica de cada cargo no se asocia automáticamente' + (completo ? '' : '; la lista de cargos puede estar incompleta') + '.');
+          }
+        }
+      }
+    }
+    if (!filas.some(f => f.grupo === 'Personal' || f.grupo === 'Maquinaria') && /hojas\s+de\s+vida\s+del\s+personal|equipo\s+m[íi]nimo\s+obligatorio/i.test(t))
+      avisos.push('El documento solo menciona las hojas de vida del personal y el equipo mínimo como entregables, sin traer el cuadro de cargos ni de maquinaria con sus requisitos: están en el anexo técnico o en el estudio previo (cárgalo como Estudio Previo para leerlos).');
     // Garantías exigidas (seriedad, cumplimiento, anticipo, salarios, estabilidad, RC extracontractual): cifra, base y vigencia con la
     // página. Cada mención toma la cifra de SU propio fragmento, que se corta donde empieza la mención de otra garantía (si no, el 10%
     // del cumplimiento se le atribuiría a la seriedad). Una mención sin cifra no crea fila; cifras distintas para la misma garantía

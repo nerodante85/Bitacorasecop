@@ -3639,6 +3639,30 @@ await check('fichaHabilitante (pre-pliego real Líbano): plazo en DÍAS, tabla d
   const cruce = expEngine.cruceFichaEmpresa(f.filas, { liquidez: 2.5, endeudamiento: 0.4, cobertura: 30 });
   assert(cruce['Índice de liquidez'] && cruce['Índice de liquidez'].estado === 'NO CUMPLE', 'se cruza con el perfil: liquidez 2,5 < 15');
 });
+const PERSONAL_REAL_COLUMNAS = ["PERSONAL PROFESIONAL (29,95 puntos) Se requiere que el proponente con su oferta como mínimo, oferte el siguiente personal profesional, quienes participaran en ejecución del contrato. EQUIPO DE APOYO: Este factor de la calidad se usa como elemento a ponderar para determinar el ofrecimiento más favorable y se refiere a las obras y los títulos académicos y experiencia del equipo de trabajo del contratista. CAN T 1 1 CARGO A DESEMPEÑ AR Director Residente de Obra FORMACIÓ N ACADÉMIC A Ingeniero Civil o arquitecto Ingeniero Civil EXPERIENCIA GENERAL Mínimo de 10 años, acreditados con la fecha de expedición de la matrícula profesional y la fecha de cierre del plazo del presente proceso Mínimo de 5 años, acreditados con la fecha de expedición de la matrícula profesional y la fecha de cierre del plazo del presente proceso EXPERIENCIA ESPECIFICA DEDIC ACIÓN Acreditar experiencia como contratista, director, o residente en al menos 2 contratos de obra civil 40% Acreditar experiencia como contratista, director, o residente en al menos 2 contratos de obra civil 100% PUNTAJ E 20 9,95 Secretaría de Vías, Infraestructura y Vivienda – Alcaldía Municipal de Ocaña, Norte de Santander Carrera 12 No. 10 - 42 Palacio Municipal Código Postal: 546552 Correo: secretariadevias@ocananortedesantander.gov.co - Teléfono: (607) 5636300 www.ocana-nortedesantander.gov.co", "La experiencia general de los profesionales solicitados se entiende como los años transcurridos desde la fecha de expedición de la matrícula profesional. La responsabilidad del contrato será únicamente del proponente elegido. El proponente deberá presentar par"].join('\n');
+const PERSONAL_REAL_SIN_CUADRO = ["8.1. 6 INFORMACIÓN PARA EL CONTROL DE LA EJECUCIÓN DE LA OBRA El contratista presentará a la supervisión respectiva, dentro de los CINCO (5) días hábiles siguientes a la orden de iniciación del contrato a la para su revisión y aprobación, los documentos que se relacionan a continuación, debidamente diligenciados de conformidad con el pliego de condiciones: 1. 2. 3. 4. 5. 6. Hojas de vida del personal profesional. Relación del equipo mínimo obligatorio. Análisis de precios unitarios correspondientes a la propuesta económica. Programa de obra. Plan de manejo de tránsito- PMT. Los demás que puedan exigirse, derivados del pliego de condiciones. El supervisor revisará los documentos presentados por el contratista de obra en un término no mayor a cinco días calendario. En caso de existir algún requerimiento por escrito por parte del supervisor, el contratista debe atenderlo en un término no ma"].join('\n');
+await check('fichaHabilitante (pre-pliego real Líbano): personal en tabla por columnas — cargos, cantidad, años, contratos, dedicación y puntaje asociados por orden SOLO cuando cada columna trae tantos datos como cargos; avisa que es factor de puntaje', () => {
+  const f = expEngine.fichaHabilitante(PERSONAL_REAL_COLUMNAS, { anio: 2026 });
+  const per = f.filas.filter(x => x.grupo === 'Personal');
+  const d = per.find(x => /^Director$/i.test(x.requisito)), r = per.find(x => /^Residente de obra$/i.test(x.requisito));
+  assert(d && r && per.length === 2, 'cargos: ' + per.map(x => x.requisito).join(', '));
+  assert(/10 años/.test(d.cifras) && /2 contrato/.test(d.cifras) && /40%/.test(d.cifras) && /puntaje 20\b/.test(d.cifras), 'director: ' + d.cifras);
+  assert(/5 años/.test(r.cifras) && /2 contrato/.test(r.cifras) && /100%/.test(r.cifras) && /puntaje 9,95/.test(r.cifras), 'residente: ' + r.cifras);
+  assert(/^1 /.test(d.exige) && /^1 /.test(r.exige), 'cantidades: ' + d.exige + ' / ' + r.exige);
+  assert(per.every(x => /29,95 puntos/.test(x.aviso) && /habilitante/.test(x.aviso)), 'avisa que figura como puntaje y pide confirmar si es habilitante: ' + per[0].aviso);
+  assert(per.every(x => x.pagina), 'con página');
+  assert(f.avisos.some(a => /columnas/.test(a)), 'avisa la lectura por columnas');
+  // Una columna con menos datos que cargos (falta un "Mínimo de N años"): ese dato NO se da, el resto sí.
+  const mal = expEngine.fichaHabilitante(PERSONAL_REAL_COLUMNAS.replace('Mínimo de 5 años', 'Sin mínimo'), { anio: 2026 });
+  const pm = mal.filas.filter(x => x.grupo === 'Personal');
+  assert(pm.length === 2 && pm.every(x => !/años/.test(x.cifras)) && pm.every(x => /contrato/.test(x.cifras)), 'sin años en ninguno, contratos sí: ' + pm.map(x => x.cifras).join(' | '));
+});
+await check('fichaHabilitante (pliego real CCE selección abreviada): el documento NO trae el cuadro de personal ni de maquinaria (solo «hojas de vida» y «equipo mínimo» como entregables tras la adjudicación) — no inventa filas y avisa dónde mirar', () => {
+  const f = expEngine.fichaHabilitante(PERSONAL_REAL_SIN_CUADRO, { anio: 2026 });
+  assert(!f.filas.some(x => x.grupo === 'Personal' || x.grupo === 'Maquinaria'), 'sin cuadro no hay filas: ' + f.filas.map(x => x.grupo + ':' + x.requisito).join(', '));
+  assert(f.avisos.some(a => /personal/i.test(a) && /anexo|estudio previo/i.test(a)), 'debe avisar dónde buscar: ' + f.avisos.join(' || '));
+  assert(!expEngine.fichaHabilitante('Texto sin requisitos.', { anio: 2026 }).avisos.some(a => /personal/i.test(a)), 'sin mención no hay aviso de personal');
+});
 const FICHA_LOTES_TIPO = [
  "OBJETO LOTE No 1 CONSTRUCCIÓN DE OBRAS DE ALCANTARILLADO EN EL DEPARTAMENTO DE CUNDINAMARCA (GRUPO No 1 – LOTE No 1) – APROPIACIÒN. OBJETO LOTE No 2: CONSTRUCCIÓN DE OBRAS DE PATP Y ACUEDUCTO EN EL DEPARTAMENTO DE CUNDINAMARCA (GRUPO No 2 – LOTE No 2) – APROPIACIÒN. 2.2. ALCANCE DEL OBJETO A CONTRATAR",
  "LOTE No 1 – GRUPO No 1 El plazo establecido para la ejecución del contrato de obra corresponderá al frente que presente el mayor tiempo de ejecución. Para este caso, se tomará como referencia el plazo de DOCE (12) MESES. Frente Municipio Plazo",
