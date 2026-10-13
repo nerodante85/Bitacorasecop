@@ -4598,6 +4598,30 @@ await check('Compartir resumen: texto con entidad, objeto, valor, cierre, ubicac
   assert((card.match(/compartirHtml/g) || []).length >= 3 && /data-compartir="/.test(card), 'el botón Compartir va en las dos filas de acciones');
   assert(/\[data-compartir\]/.test(html) && /AbortError/.test(html), 'listener delegado; cancelar el menú de compartir no es un error');
 });
+await check('Deshacer al descartar: restaura exactamente el registro anterior (o lo borra si no había), sin tocar otros procesos ni la etapa de Mis procesos', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('function restaurarEntradaHistorial');
+  assert(i !== -1, 'falta restaurarEntradaHistorial');
+  const j = html.indexOf('\n  function ', i + 10);
+  const restaurar = new Function(html.slice(i, j) + '\nreturn restaurarEntradaHistorial;')();
+  const h1 = { a: { status: 'visto', ts: 1 }, b: { etapa: 'viable', etapaTs: 5, snapshot: { entidad: 'X' } } };
+  h1.a = { status: 'descartado', ts: 99 };
+  restaurar(h1, 'a', { status: 'visto', ts: 1 });
+  assert(h1.a.status === 'visto' && h1.a.ts === 1, 'vuelve a visto con su fecha: ' + JSON.stringify(h1.a));
+  const h2 = { b: { etapa: 'viable', etapaTs: 5 }, c: { status: 'descartado', ts: 2 } };
+  restaurar(h2, 'c', null);
+  assert(!('c' in h2) && h2.b.etapa === 'viable', 'sin registro anterior se borra solo ese proceso');
+  const h3 = { b: { etapa: 'viable', etapaTs: 5, status: 'descartado', ts: 8 } };
+  restaurar(h3, 'b', { etapa: 'viable', etapaTs: 5 });
+  assert(h3.b.etapa === 'viable' && !('status' in h3.b), 'conserva la etapa y quita el descarte: ' + JSON.stringify(h3.b));
+  const original = { status: 'visto', ts: 1 }, h4 = { a: { status: 'descartado' } };
+  restaurar(h4, 'a', original);
+  h4.a.status = 'otro';
+  assert(original.status === 'visto', 'no comparte la referencia con la copia guardada');
+  const copiaEnClic = html.slice(html.indexOf("if (action === 'visto' || action === 'descartar')"), html.indexOf("} else if (action === 'analizar')"));
+  assert(/descartarConDeshacer\(id\)/.test(copiaEnClic), 'el botón Descartar pasa por descartarConDeshacer');
+  assert(/<div[^>]*id="bt-deshacer"[^>]*role="status"[^>]*aria-live="polite"|<div[^>]*role="status"[^>]*id="bt-deshacer"/.test(html), 'el aviso es una región de estado accesible (role=status, aria-live)');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');
