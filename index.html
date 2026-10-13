@@ -1081,6 +1081,10 @@
   #bitacora-root .stat-card-value.pm-aviso { color: var(--warning); }
   #bitacora-root .stat-card-value.pm-peligro { color: var(--danger); }
   #bitacora-root #bt-pipeline-resumen[hidden] { display: none; }
+  #bitacora-root .pipeline-filtro { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 0 0 14px; }
+  #bitacora-root .pipeline-filtro[hidden] { display: none; }
+  #bitacora-root .pipeline-filtro label { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; min-height: 32px; }
+  @media (pointer: coarse), (max-width: 560px) { #bitacora-root .pipeline-filtro label { min-height: 44px; } }
   @media (max-width: 520px) {
     #bitacora-root #bt-pipeline-resumen .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
     #bitacora-root #bt-pipeline-resumen .stat-card { padding: 12px 14px; }
@@ -1832,6 +1836,10 @@
           </div>
           <div class="empty" id="bt-pipeline-empty" hidden>Todavía no has guardado ningún proceso. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button> y usa "Guardar" en el que te interese.</div>
           <div id="bt-pipeline-resumen" hidden></div>
+          <div class="pipeline-filtro" id="bt-pipeline-filtro" hidden>
+            <label><input type="checkbox" id="bt-pipeline-solo-pronto"> Solo los que cierran en 7 días</label>
+            <span class="saved-note" id="bt-pipeline-filtro-nota" role="status" aria-live="polite"></span>
+          </div>
           <div id="bt-pipeline-board"></div>
         </section>
 
@@ -2997,6 +3005,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function etapaConPlazo(etapa){
     return etapa === 'por_revisar' || etapa === 'en_analisis' || etapa === 'viable';
   }
+  // ¿Cierra en los próximos 7 días (hoy incluido)? Solo procesos que siguen en decisión; con la consulta a SECOP manda el cierre
+  // vigente sobre el guardado. Misma regla para el resumen y para el filtro de la vista.
+  function procesoCierraPronto(h, vivo, ahoraMs){
+    if (!h || !etapaConPlazo(h.etapa)) return false;
+    const raw = (vivo && vivo.closingRaw) || (h.snapshot && h.snapshot.closingRaw);
+    if (!raw || !isPlausibleDate(raw)) return false;
+    const d = Math.ceil((new Date(raw).getTime() - ahoraMs) / 86400000);
+    return d >= 0 && d <= 7;
+  }
   // Resumen de Mis procesos (puro): conteo por estado y tres señales de urgencia, SOLO sobre los procesos que siguen
   // en decisión (por revisar, en análisis, viable). Con la consulta a SECOP hecha, manda el cierre vigente sobre el
   // guardado; sin consulta, `cambios` es null (nunca se inventan novedades).
@@ -3013,7 +3030,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const sn = h.snapshot || {};
       const vivo = (vivos && vivos[id]) || null;
       const d = dias((vivo && vivo.closingRaw) || sn.closingRaw);
-      if (d !== null && d >= 0 && d <= 7) cierranSemana++;
+      if (procesoCierraPronto(h, vivo, ahoraMs)) cierranSemana++;
       if (d !== null && d < 0) vencidos++;
       if (vivo){
         const e = estadoVivoDeProceso(vivo, sn.closingRaw);
@@ -3068,6 +3085,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         '<button type="button" class="btn-mini analizar" data-pipeline-abrir-id="' + escapeHtml(id) + '">' + (entry ? 'Ver análisis' : 'Ver proceso') + '</button>' +
         '<select aria-label="Estado de este proceso" data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opciones + '</select>' +
         (safeUrl ? '<a class="link-btn" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+        '<button type="button" class="link-btn" data-compartir="' + escapeHtml(id) + '" aria-live="polite" title="Comparte o copia un resumen corto del proceso">Compartir</button>' +
+        (codigoSecopDeId(id) ? '<button type="button" class="link-btn" data-copiar-codigo="' + escapeHtml(codigoSecopDeId(id)) + '" aria-live="polite" title="Copia el código del proceso en SECOP II">Copiar código</button>' : '') +
         '<button type="button" class="link-btn" data-pipeline-quitar-id="' + escapeHtml(id) + '">Quitar</button>' +
       '</div>' +
     '</div>';
@@ -3080,6 +3099,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const resumenEl = document.getElementById('bt-pipeline-resumen');
     if (!boardEl) return;
     const ids = Object.keys(historial).filter(id => historial[id] && historial[id].etapa);
+    const filtroEl = document.getElementById('bt-pipeline-filtro');
+    const filtroCk = document.getElementById('bt-pipeline-solo-pronto');
+    const filtroNota = document.getElementById('bt-pipeline-filtro-nota');
+    if (filtroEl) filtroEl.hidden = !ids.length;
+    const soloPronto = !!(filtroCk && filtroCk.checked && ids.length);
+    const vivosAhora = estadosVivosEstado === 'listo' ? estadosVivos : null;
+    const ahoraFiltro = Date.now();
+    const visibles = soloPronto ? ids.filter(id => procesoCierraPronto(historial[id], vivosAhora && vivosAhora[id], ahoraFiltro)) : ids;
+    if (filtroNota) filtroNota.textContent = soloPronto ? 'Mostrando ' + visibles.length + ' de ' + ids.length + ' procesos' : '';
     if (resumenEl){
       if (!ids.length){ resumenEl.innerHTML = ''; resumenEl.hidden = true; }
       else {
@@ -3103,6 +3131,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return;
     }
     if (emptyEl) emptyEl.hidden = true;
+    if (soloPronto && !visibles.length){
+      boardEl.innerHTML = '<div class="empty">Ningún proceso guardado cierra en los próximos 7 días. <button type="button" class="link-btn" data-quitar-filtro-pronto>Quitar el filtro</button></div>';
+      return;
+    }
     const orden = (a, b) => {
       const da = diasRestantesDe((historial[a].snapshot || {}).closingRaw);
       const db = diasRestantesDe((historial[b].snapshot || {}).closingRaw);
@@ -3115,7 +3147,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const borrador = campoAbierto ? { id: campoAbierto.closest('[data-nota-id]').getAttribute('data-nota-id'), valor: campoAbierto.value, pos: campoAbierto.selectionStart } : null;
     notaRedibujando = true;
     boardEl.innerHTML = ETAPAS_PIPELINE.map(etapa => {
-      const idsEtapa = ids.filter(id => historial[id].etapa === etapa.id).sort(orden);
+      const idsEtapa = visibles.filter(id => historial[id].etapa === etapa.id).sort(orden);
       if (!idsEtapa.length) return '';
       return '<section class="titleblock pipeline-grupo" aria-label="' + escapeHtml(etapa.label) + '">' +
         '<div class="titleblock-head"><h2>' + escapeHtml(etapa.label) + ' <span class="pipeline-col-count">' + idsEtapa.length + '</span></h2></div>' +
@@ -3147,6 +3179,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     c.innerHTML = notaVistaHtml(id, historial[id].nota);
   }
+  const filtroProntoEl = document.getElementById('bt-pipeline-solo-pronto');
+  if (filtroProntoEl) filtroProntoEl.addEventListener('change', renderPipelineView);
   // Delegado único para Mis procesos (abrir, cambiar de estado, quitar).
   const pipelineBoardEl = document.getElementById('bt-pipeline-board');
   if (pipelineBoardEl){
@@ -3156,6 +3190,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         quitarDePipeline(quitarBtn.getAttribute('data-pipeline-quitar-id'));
         return;
       }
+      if (e.target.closest('[data-quitar-filtro-pronto]')){
+        const ck = document.getElementById('bt-pipeline-solo-pronto');
+        if (ck) ck.checked = false;
+        renderPipelineView();
+        return;
+      }
+      const compartirBtn = e.target.closest('[data-compartir]');
+      if (compartirBtn){
+        const idc = compartirBtn.getAttribute('data-compartir');
+        const vivo = (estadosVivosEstado === 'listo' && estadosVivos[idc]) || null;
+        const r = itemParaCompartirDeMisProcesos(historial[idc], vivo, Date.now());
+        if (r) accionCompartir(compartirBtn, r.item, r.daysLeft);
+        return;
+      }
+      const copiarBtn = e.target.closest('[data-copiar-codigo]');
+      if (copiarBtn){ accionCopiarCodigo(copiarBtn); return; }
       const editarNota = e.target.closest('[data-nota-editar]');
       if (editarNota){
         const c = editarNota.closest('[data-nota-id]');
@@ -10777,33 +10827,39 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Se registra por CLIC en el summary, no por el evento toggle: toggle también dispara cuando la
   // tarjeta se pinta con "open" y eso guardaría los valores por defecto como si fueran del usuario.
   // El clic corre antes de que el navegador cambie d.open, por eso el nuevo estado es !d.open.
-  enContenedoresDeProceso('click', async e => {
-    const cs = e.target.closest && e.target.closest('[data-compartir]');
-    if (!cs) return;
-    const sc = procesoPorId(cs.getAttribute('data-compartir'));
-    if (!sc || !sc.item) return;
-    const texto = resumenParaCompartir(sc.item, sc.daysLeft === undefined ? null : sc.daysLeft);
-    const orig = cs.dataset.textoOriginal || cs.textContent;
-    cs.dataset.textoOriginal = orig;
-    const poner = (t, ms) => { cs.textContent = t; clearTimeout(cs._t); cs._t = setTimeout(() => { cs.textContent = orig; }, ms); };
+  // Compartir: en pantallas táctiles abre el menú nativo; si no, copia el resumen. Lo usan Buscar/Análisis y Mis procesos.
+  async function accionCompartir(btn, item, daysLeft){
+    if (!item) return;
+    const texto = resumenParaCompartir(item, daysLeft === undefined ? null : daysLeft);
+    const orig = btn.dataset.textoOriginal || btn.textContent;
+    btn.dataset.textoOriginal = orig;
+    const poner = (t, ms) => { btn.textContent = t; clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = orig; }, ms); };
     const tactil = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
     if (puedeCompartirNativo(navigator, tactil)){
-      try { await navigator.share({ title: sc.item.entidad || 'Proceso SECOP', text: texto }); return; }
+      try { await navigator.share({ title: item.entidad || 'Proceso SECOP', text: texto }); return; }
       catch(err){ if (err && err.name === 'AbortError') return; /* otro error: se copia */ }
     }
     const ok = await copiarTexto(texto);
     poner(ok ? 'Resumen copiado ✓' : 'No se pudo copiar', ok ? 2000 : 4000);
-  });
-  enContenedoresDeProceso('click', async e => {
-    const cp = e.target.closest && e.target.closest('[data-copiar-codigo]');
-    if (!cp) return;
-    const codigo = cp.getAttribute('data-copiar-codigo');
-    const orig = cp.dataset.textoOriginal || cp.textContent;
-    cp.dataset.textoOriginal = orig;
+  }
+  async function accionCopiarCodigo(btn){
+    const codigo = btn.getAttribute('data-copiar-codigo');
+    const orig = btn.dataset.textoOriginal || btn.textContent;
+    btn.dataset.textoOriginal = orig;
     const ok = await copiarTexto(codigo);
-    cp.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar: ' + codigo;
-    clearTimeout(cp._t);
-    cp._t = setTimeout(() => { cp.textContent = orig; }, ok ? 2000 : 6000);
+    btn.textContent = ok ? 'Copiado ✓' : 'No se pudo copiar: ' + codigo;
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.textContent = orig; }, ok ? 2000 : 6000);
+  }
+  enContenedoresDeProceso('click', e => {
+    const cs = e.target.closest && e.target.closest('[data-compartir]');
+    if (cs){
+      const sc = procesoPorId(cs.getAttribute('data-compartir'));
+      if (sc && sc.item) accionCompartir(cs, sc.item, sc.daysLeft);
+      return;
+    }
+    const cp = e.target.closest && e.target.closest('[data-copiar-codigo]');
+    if (cp) accionCopiarCodigo(cp);
   });
   enContenedoresDeProceso('click', e => {
     const mas = e.target.closest && e.target.closest('[data-obj-mas]');
@@ -11888,6 +11944,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (ubic) L.push('Ubicación: ' + ubic);
     if (it && it.modalidad) L.push('Modalidad: ' + it.modalidad);
     return L.join('\n');
+  }
+  // Lo que se comparte de una tarjeta de Mis procesos: sale del resumen guardado (con el cierre y la modalidad vigentes de SECOP si
+  // ya se consultó). El plazo relativo solo se dice mientras el proceso sigue en decisión.
+  function itemParaCompartirDeMisProcesos(h, vivo, ahoraMs){
+    const sn = h && h.snapshot;
+    if (!sn) return null;
+    const closingRaw = (vivo && vivo.closingRaw) || sn.closingRaw;
+    const item = { entidad: sn.entidad, objeto: sn.objeto, valor: sn.valor, closingRaw: closingRaw, modalidad: sn.modalidad || (vivo && vivo.modalidad) || null, departamento: sn.departamento, ciudad: sn.ciudad };
+    let daysLeft = null;
+    if (etapaConPlazo(h.etapa) && closingRaw && isPlausibleDate(closingRaw)) daysLeft = Math.ceil((new Date(closingRaw).getTime() - ahoraMs) / 86400000);
+    return { item: item, daysLeft: daysLeft };
   }
   // El menú nativo de compartir solo en pantallas táctiles (celular/tableta); en computador se copia el texto.
   function puedeCompartirNativo(nav, esTactil){
