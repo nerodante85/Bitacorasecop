@@ -4470,6 +4470,10 @@ await check('Ficha del proceso: trae apertura de ofertas, adjudicación (a quié
   assert(mapa['Apertura de ofertas'] && /2026/.test(mapa['Apertura de ofertas']), 'apertura de ofertas: ' + JSON.stringify(mapa));
   assert(/CONSORCIO VIAL/.test(mapa['Adjudicado a']) && /900/.test(mapa['Adjudicado a']), 'adjudicado a, con valor: ' + JSON.stringify(mapa));
   assert(mapa['Fecha de adjudicación'] && mapa['Ofertas recibidas'] === '7', 'fecha de adjudicación y ofertas: ' + JSON.stringify(mapa));
+  const g = Object.fromEntries(adj.map(f => [f.k, f]));
+  assert(g['Adjudicado a'].g === 'competencia' && g['Adjudicado a'].ancho && g['Ofertas recibidas'].g === 'competencia' && g['Fecha de adjudicación'].g === 'competencia', 'la competencia va en su propia franja');
+  assert(g['Apertura de ofertas'].g === '', 'la apertura va con los datos del proceso');
+  assert(filas({}, { etapa: 'Viable', desdeTs: ahora }, ahora)[0].g === 'avance', 'el avance va en su franja');
   const noAdj = filas({ adjudicado: false, proveedor: 'NO DEBE SALIR', valorAdj: 5, ofertas: 0 }, null, ahora);
   assert(noAdj.length === 0, 'un proceso no adjudicado no muestra proveedor ni 0 ofertas: ' + JSON.stringify(noAdj));
   const av = Object.fromEntries(filas({}, { etapa: 'En análisis', desdeTs: ahora - 3 * 86400000 }, ahora).map(f => [f.k, f.v]));

@@ -747,6 +747,11 @@
   /* Ficha del proceso en Buscar procesos: solo datos (etiqueta + valor), sin análisis. */
   #bitacora-root .ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px 18px; margin: 0 0 12px; }
   #bitacora-root .ficha > div { min-width: 0; }
+  #bitacora-root .ficha > div.ficha-ancho { grid-column: 1 / -1; }
+  #bitacora-root .ficha-franja { border-top: 1px solid var(--border, rgba(127,127,127,.25)); padding-top: 8px; margin: 0 0 12px; }
+  #bitacora-root .ficha-franja .ficha { margin-bottom: 0; }
+  #bitacora-root .ficha-franja-t { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 6px; }
+  @media (max-width: 520px) { #bitacora-root .ficha { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; } }
   #bitacora-root .ficha dt { font-size: 12px; color: var(--text-muted); margin: 0 0 2px; }
   #bitacora-root .ficha dd { margin: 0; font-size: 14px; color: var(--text); overflow-wrap: anywhere; }
   #bitacora-root .ficha dd.ficha-valor { font-weight: 600; }
@@ -11285,17 +11290,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // `avance` = { etapa: nombre legible, desdeTs } cuando el proceso está guardado en Mis procesos.
   function fichaExtraProceso(it, avance, ahoraMs){
     const out = [];
-    const add = (k, v) => { if (v) out.push({ k: k, v: v }); };
+    // g = grupo de la franja aparte de la ficha ('competencia' | 'avance'); sin g va con los datos del proceso. ancho = ocupa la fila entera.
+    const add = (k, v, g, ancho) => { if (v) out.push({ k: k, v: v, g: g || '', ancho: !!ancho }); };
     add('Apertura de ofertas', fmtDate(it.aperturaRaw));
     if (it.adjudicado){
       const cuanto = fmtMoney(it.valorAdj);
-      add('Adjudicado a', it.proveedor ? (it.proveedor + (cuanto ? ' · ' + cuanto : '')) : '');
-      add('Fecha de adjudicación', fmtDate(it.adjudicacionRaw));
+      add('Adjudicado a', it.proveedor ? (it.proveedor + (cuanto ? ' · ' + cuanto : '')) : '', 'competencia', true);
+      add('Fecha de adjudicación', fmtDate(it.adjudicacionRaw), 'competencia');
     }
-    if (it.ofertas > 0) add('Ofertas recibidas', String(it.ofertas));
+    if (it.ofertas > 0) add('Ofertas recibidas', String(it.ofertas), 'competencia');
     if (avance && avance.etapa){
       const dias = avance.desdeTs ? Math.max(0, Math.floor((ahoraMs - avance.desdeTs) / 86400000)) : null;
-      add('Mi avance', avance.etapa + (dias === null ? '' : ' · ' + (dias === 0 ? 'hoy' : dias === 1 ? 'hace 1 día' : 'hace ' + dias + ' días')));
+      add('Mi avance', avance.etapa + (dias === null ? '' : ' · ' + (dias === 0 ? 'hoy' : dias === 1 ? 'hace 1 día' : 'hace ' + dias + ' días')), 'avance');
     }
     return out;
   }
@@ -11593,6 +11599,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
     const dato = (k, v, cls) => v ? '<div><dt>' + k + '</dt><dd' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</dd></div>' : '';
     const ultima = fmtDate(it.ultimaRaw);
+    const extras = fichaExtraProceso(it, (hist && hist.etapa) ? { etapa: ((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa), desdeTs: hist.etapaTs } : null, Date.now());
+    const datoExtra = f => '<div' + (f.ancho ? ' class="ficha-ancho"' : '') + '><dt>' + f.k + '</dt><dd>' + escapeHtml(f.v) + '</dd></div>';
+    const franja = (grupo, titulo) => {
+      const fs = extras.filter(f => f.g === grupo);
+      return fs.length ? '<div class="ficha-franja"><div class="ficha-franja-t">' + titulo + '</div><dl class="ficha">' + fs.map(datoExtra).join('') + '</dl></div>' : '';
+    };
     const fichaHtml = '<dl class="ficha">' +
       dato('Cuantía', money, 'ficha-valor') +
       dato('Ubicación', escapeHtml(loc)) +
@@ -11605,9 +11617,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       dato('Publicación', pub ? escapeHtml(pub) : '') +
       dato('Última actualización', ultima ? escapeHtml(ultima) : '') +
       dato('Duración', it.duracion ? escapeHtml(it.duracion) : '') +
-      fichaExtraProceso(it, (hist && hist.etapa) ? { etapa: ((ETAPAS_PIPELINE.find(e => e.id === hist.etapa) || {}).label || hist.etapa), desdeTs: hist.etapaTs } : null, Date.now())
-        .map(f => dato(f.k, escapeHtml(f.v))).join('') +
-    '</dl>';
+      extras.filter(f => !f.g).map(datoExtra).join('') +
+    '</dl>' + franja('competencia', 'Competencia y adjudicación') + franja('avance', 'En Mis procesos');
 
     return '<div class="row' + (vencido ? ' vencido' : '') + (isDescartado ? ' descartado' : '') + (venceProto ? ' vence-pronto' : '') + '" data-id="' + escapeHtml(it.id) + '">' +
       venceAlertHtml +
