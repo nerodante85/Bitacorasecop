@@ -173,6 +173,19 @@ await check('Compartir resumen: en computador copia el resumen (entidad, objeto,
   assert(/Cuantía: \$/.test(r.copiado) && /Cierre: /.test(r.copiado), 'lleva valor y cierre: ' + r.copiado);
   assert(/Resumen copiado/.test(r.txt), 'el botón confirma: ' + r.txt);
 });
+await check('Deshacer al descartar: Descartar saca la tarjeta, avisa con «Deshacer» y deshacer la devuelve igual que estaba', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  const id = await pg.evaluate(() => document.querySelector('#bt-results .row').dataset.id);
+  const total = await pg.evaluate(() => document.querySelectorAll('#bt-results .row').length);
+  await pg.click('#bt-results .row[data-id="' + id + '"] [data-action="descartar"]');
+  const d = await pg.evaluate((id) => { const a = document.getElementById('bt-deshacer'); return { visible: !a.hidden && getComputedStyle(a).display !== 'none', txt: a.textContent, sigue: !!document.querySelector('#bt-results .row[data-id="' + id + '"]:not(.descartado)'), rol: a.getAttribute('role') }; }, id);
+  assert(d.visible && /descartado/i.test(d.txt) && /Deshacer/.test(d.txt) && d.rol === 'status', 'aviso accesible con «Deshacer»: ' + JSON.stringify(d));
+  assert(!d.sigue, 'la tarjeta descartada ya no aparece como activa');
+  await pg.click('#bt-deshacer button');
+  const r = await pg.evaluate((id) => ({ fila: !!document.querySelector('#bt-results .row[data-id="' + id + '"]'), desc: !!document.querySelector('#bt-results .row.descartado'), oculto: document.getElementById('bt-deshacer').hidden, total: document.querySelectorAll('#bt-results .row').length }), id);
+  assert(r.fila && !r.desc && r.oculto && r.total === total, 'deshacer devuelve la tarjeta y esconde el aviso: ' + JSON.stringify(r) + ' (antes ' + total + ')');
+});
 await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
   const { pg } = await abrir();
   await pg.click('#bt-nav-buscar');

@@ -724,6 +724,8 @@
     margin: 8px 0 10px;
     color: var(--text-muted);
   }
+  #bitacora-root .deshacer { position: fixed; left: 16px; right: 16px; bottom: 16px; margin: 0 auto; max-width: 520px; z-index: 70; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 14px; background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); font-size: 14px; }
+  #bitacora-root .deshacer[hidden] { display: none; }
   #bitacora-root .row-obj-corto { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
   #bitacora-root .row-obj-corto.abierto { display: block; overflow: visible; }
   #bitacora-root .row-obj-mas { margin: 0 0 10px; padding: 4px 0; }
@@ -1890,6 +1892,9 @@
     <aside class="evidencia-panel" id="bt-evidencia-panel" role="dialog" aria-modal="true" aria-labelledby="bt-evidencia-titulo"></aside>
   </div>
 
+  <!-- Aviso con «Deshacer» tras descartar un proceso (se muestra 8 s; ver mostrarDeshacer). -->
+  <div class="deshacer" id="bt-deshacer" role="status" aria-live="polite" hidden></div>
+
   <!-- Modal de cuenta (Supabase, opcional) -- oculto por defecto (`hidden`) y
        lo abre/cierra JS (ver openAccountModal/closeAccountModal). Vive dentro
        de #bitacora-root para heredar los tokens de diseño (.field, botones),
@@ -2715,6 +2720,44 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
   }
 
+  // Deshacer al descartar: se guarda una copia del registro anterior del proceso y, si el usuario toca «Deshacer»
+  // (aviso de 8 s), se repone EXACTAMENTE esa copia (o se borra el registro si no había ninguno). No toca otros procesos.
+  function restaurarEntradaHistorial(mapa, id, antes){
+    if (antes) mapa[id] = JSON.parse(JSON.stringify(antes));
+    else delete mapa[id];
+    return mapa;
+  }
+  let temporizadorDeshacer = null;
+  function ocultarDeshacer(){
+    clearTimeout(temporizadorDeshacer);
+    const el = document.getElementById('bt-deshacer');
+    if (el){ el.hidden = true; el.textContent = ''; }
+  }
+  function mostrarDeshacer(texto, alDeshacer){
+    const el = document.getElementById('bt-deshacer');
+    if (!el) return;
+    clearTimeout(temporizadorDeshacer);
+    el.textContent = '';
+    const span = document.createElement('span'); span.textContent = texto;
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn-secondary'; btn.textContent = 'Deshacer';
+    btn.addEventListener('click', () => { ocultarDeshacer(); alDeshacer(); });
+    el.appendChild(span); el.appendChild(btn);
+    el.hidden = false;
+    temporizadorDeshacer = setTimeout(ocultarDeshacer, 8000);
+  }
+  function descartarConDeshacer(id){
+    const antes = historial[id] ? JSON.parse(JSON.stringify(historial[id])) : null;
+    const eraDescartado = !!(antes && antes.status === 'descartado');
+    toggleStatus(id, 'descartado');
+    if (eraDescartado) return; // era «Restaurar»: no hay nada que deshacer
+    mostrarDeshacer('Proceso descartado.', () => {
+      restaurarEntradaHistorial(historial, id, antes);
+      saveHistorial();
+      rerender();
+      const vp = document.getElementById('view-procesos');
+      if (vp && !vp.hidden) renderPipelineView();
+    });
+  }
   function toggleStatus(id, status){
     // CRM de licitaciones (pipeline): historial[id] ahora puede traer también etapa/consorcio/
     // snapshot (ver agregarAPipeline más abajo) -- "Marcar visto"/"Descartar" NUNCA debe borrar eso
@@ -14239,7 +14282,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const id = actionBtn.getAttribute('data-id');
       const action = actionBtn.getAttribute('data-action');
       if (action === 'visto' || action === 'descartar'){
-        toggleStatus(id, action === 'visto' ? 'visto' : 'descartado');
+        if (action === 'descartar') descartarConDeshacer(id); else toggleStatus(id, 'visto');
       } else if (action === 'analizar'){
         const input = actionBtn.closest('.row').querySelector('input[type=file][data-analyze-id]');
         if (input) input.click();
