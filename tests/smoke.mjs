@@ -4486,6 +4486,33 @@ await check('Ficha del proceso: trae apertura de ofertas, adjudicación (a quié
   const card = cortar('function tarjetaProcesoHtml', 'function truncate(');
   assert(/fichaExtraProceso\(/.test(card), 'la ficha debe usar fichaExtraProceso');
 });
+await check('Mis procesos: estado vivo en SECOP — código consultable solo para ids de SECOP II, elige la publicación más reciente, avisa adjudicado/no vigente/cierre cambiado y nunca inventa', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const lib = cortar('function isPlausibleDate', 'function fmtDate') + cortar('function fmtDate', '// Auditoría UX/UI (cálculos financieros)') + cortar('function fmtMoney', 'function normalize(');
+  const src = cortar('function codigoSecopDeId', '\n  function ') + '\n' + cortar('function elegirRegistroVivo', '\n  function ') + '\n' + cortar('function estadoVivoDeProceso', 'let estadosVivos');
+  const { codigoSecopDeId, elegirRegistroVivo, estadoVivoDeProceso } = new Function('esEstadoNoVigente', lib + src + '\nreturn { codigoSecopDeId, elegirRegistroVivo, estadoVivoDeProceso };')(Coincidencia.esEstadoNoVigente);
+  assert(codigoSecopDeId('pps2-CO1.REQ.10495459') === null && codigoSecopDeId('ps2-CO1.REQ.10495459') === 'CO1.REQ.10495459', 'solo ids pS2- con código SECOP');
+  assert(codigoSecopDeId('hs2-abc123') === null && codigoSecopDeId("ps2-X'); DROP") === null && codigoSecopDeId('') === null && codigoSecopDeId(null) === null, 'ids por hash o con caracteres raros no se consultan');
+  const a = { estado: 'Abierto', ultimaRaw: '2026-10-01T00:00:00.000' }, b = { estado: 'Cancelado', ultimaRaw: '2026-10-10T00:00:00.000' };
+  assert(elegirRegistroVivo([a, b]) === b && elegirRegistroVivo([b, a]) === b && elegirRegistroVivo([]) === null, 'elige la publicación más reciente');
+  assert(estadoVivoDeProceso(null, null) === null, 'sin registro no hay estado inventado');
+  const ab = estadoVivoDeProceso({ estado: 'Abierto', closingRaw: '2026-10-28T00:00:00.000' }, '2026-10-28T00:00:00.000');
+  assert(ab.texto === 'Abierto' && ab.tono === 'ok' && ab.avisos.length === 0, 'abierto y sin cambios: ' + JSON.stringify(ab));
+  const adj = estadoVivoDeProceso({ estado: 'Seleccionado', adjudicado: true, proveedor: 'CONSORCIO X', valorAdj: 500000000 }, null);
+  assert(/Adjudicado/.test(adj.texto) && /CONSORCIO X/.test(adj.texto) && adj.tono === 'aviso', 'adjudicado con proveedor: ' + JSON.stringify(adj));
+  const can = estadoVivoDeProceso({ estado: 'Cancelado' }, null);
+  assert(can.texto === 'Cancelado' && can.tono === 'aviso', 'cancelado avisa');
+  const cam = estadoVivoDeProceso({ estado: 'Abierto', closingRaw: '2026-11-05T00:00:00.000' }, '2026-10-28T00:00:00.000');
+  assert(cam.avisos.length === 1 && /cambi/i.test(cam.avisos[0]) && /2026/.test(cam.avisos[0]), 'cierre cambiado: ' + JSON.stringify(cam));
+  const sinCierreGuardado = estadoVivoDeProceso({ estado: 'Abierto', closingRaw: '2026-11-05T00:00:00.000' }, null);
+  assert(sinCierreGuardado.avisos.length === 0, 'sin cierre guardado no se afirma un cambio');
+  const sinEstado = estadoVivoDeProceso({ estado: null }, null);
+  assert(sinEstado.texto === 'Sin estado reportado' && sinEstado.tono === 'neutro', 'estado vacío no se inventa');
+  const card = cortar('function renderPipelineCardHtml', '\n  // Mis procesos: una sección');
+  assert(/estadoVivoHtml\(id, sn\)/.test(card) && /estadoVivoDeProceso\(info, sn\.closingRaw\)/.test(html), 'la tarjeta de Mis procesos muestra el estado vivo');
+  assert(/if \(nombre === 'procesos'\)\{ renderPipelineView\(\); actualizarEstadosVivos\(\); \}/.test(html), 'al abrir Mis procesos se consulta el estado en SECOP');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');

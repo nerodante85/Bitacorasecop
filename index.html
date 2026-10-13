@@ -969,6 +969,8 @@
   #bitacora-root .pipeline-card-obj { font-size: 12.5px; color: var(--text-muted); overflow-wrap: anywhere; }
   #bitacora-root .pipeline-card-meta { font-size: 12px; }
   #bitacora-root .pipeline-card-plazo { font-size: 12px; font-weight: 700; }
+  #bitacora-root .pipeline-card-estado { font-size: 12px; overflow-wrap: anywhere; }
+  #bitacora-root .pipeline-card-estado .tag { white-space: normal; max-width: 100%; }
   #bitacora-root .pipeline-card-urgente-texto { color: var(--danger); }
   #bitacora-root .pipeline-card-acciones { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
   #bitacora-root .pipeline-card-acciones select { flex: 1; min-width: 0; }
@@ -2851,9 +2853,93 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return res ? etiquetaVeredicto(res.mejor.veredictoGlobal) : null;
   }
 
+  // Estado VIVO en SECOP de los procesos guardados (Mis procesos). El resumen guardado se queda como estaba al
+  // guardar; esto vuelve a consultar el dataset por código de proceso y solo AVISA (nunca cambia la etapa del
+  // usuario ni inventa un estado: sin registro o sin consulta se dice así).
+  // 'ps2-CO1.REQ.123' → 'CO1.REQ.123'. Los ids por hash ('hs2-…') o con caracteres raros no se consultan
+  // (el código va dentro de una consulta SoQL, por eso solo letras, números, punto y guion).
+  function codigoSecopDeId(id){
+    const m = /^ps2-([A-Za-z0-9][A-Za-z0-9._-]{0,60})$/.exec(String(id == null ? '' : id));
+    return m ? m[1] : null;
+  }
+  // Un mismo código puede traer varias publicaciones: vale la más reciente.
+  function elegirRegistroVivo(items){
+    if (!items || !items.length) return null;
+    return items.reduce((mejor, x) => (String(x.ultimaRaw || '') > String(mejor.ultimaRaw || '') ? x : mejor), items[0]);
+  }
+  function estadoVivoDeProceso(item, cierreGuardadoRaw){
+    if (!item) return null;
+    const avisos = [];
+    let texto = item.estado || 'Sin estado reportado';
+    let tono = item.estado ? 'ok' : 'neutro';
+    if (item.adjudicado){
+      texto = 'Adjudicado' + (item.proveedor ? ' a ' + item.proveedor + (item.valorAdj ? ' · ' + fmtMoney(item.valorAdj) : '') : '');
+      tono = 'aviso';
+    } else if (item.estado && esEstadoNoVigente(item.estado)){
+      tono = 'aviso';
+    }
+    const nuevo = fmtDate(item.closingRaw), viejo = fmtDate(cierreGuardadoRaw);
+    if (nuevo && viejo && String(item.closingRaw).slice(0, 10) !== String(cierreGuardadoRaw).slice(0, 10)){
+      avisos.push('El cierre cambió: ahora ' + nuevo + ' (guardado: ' + viejo + ').');
+    }
+    return { texto: texto, tono: tono, avisos: avisos };
+  }
+  let estadosVivos = {}, estadosVivosEstado = 'idle'; // idle | cargando | listo | error
+  async function actualizarEstadosVivos(){
+    if (estadosVivosEstado === 'cargando') return;
+    const porCodigo = {};
+    Object.keys(historial).forEach(id => { if (historial[id] && historial[id].etapa){ const c = codigoSecopDeId(id); if (c) (porCodigo[c] = porCodigo[c] || []).push(id); } });
+    const codigos = Object.keys(porCodigo);
+    if (!codigos.length){ estadosVivosEstado = 'idle'; return; }
+    estadosVivosEstado = 'cargando';
+    redibujarPipelineSiVisible();
+    try {
+      const nuevos = {};
+      for (let i = 0; i < codigos.length; i += 40){
+        const lote = codigos.slice(i, i + 40);
+        const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?$limit=500&$where=' +
+          encodeURIComponent('id_del_proceso in(' + lote.map(c => "'" + c + "'").join(',') + ')');
+        let data = cacheSocrata.get(url);
+        if (!data){
+          const res = await withTimeout(fetch(url, socrataFetchOptions()), 12000, 'La consulta del estado en SECOP');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          data = await res.json();
+          if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+          cacheSocrata.set(url, data);
+        }
+        const porId = {};
+        data.forEach(r => { const it = normalize(r); if (it.codigo) (porId[it.codigo] = porId[it.codigo] || []).push(it); });
+        lote.forEach(c => { const reg = elegirRegistroVivo(porId[c] || []); porCodigo[c].forEach(id => { nuevos[id] = reg || false; }); });
+      }
+      estadosVivos = nuevos;
+      estadosVivosEstado = 'listo';
+    } catch(e){
+      estadosVivosEstado = 'error';
+    }
+    redibujarPipelineSiVisible();
+  }
+  function redibujarPipelineSiVisible(){
+    const vp = document.getElementById('view-procesos');
+    if (vp && !vp.hidden) renderPipelineView();
+  }
+
+  function estadoVivoHtml(id, sn){
+    if (!codigoSecopDeId(id)) return '';
+    const fila = t => '<div class="pipeline-card-estado">' + t + '</div>';
+    if (estadosVivosEstado === 'cargando') return fila('Consultando el estado en SECOP…');
+    if (estadosVivosEstado === 'error') return fila('No se pudo consultar el estado en SECOP. <button type="button" class="link-btn" data-pipeline-refrescar>Reintentar</button>');
+    if (estadosVivosEstado !== 'listo' || !(id in estadosVivos)) return '';
+    const info = estadosVivos[id];
+    if (!info) return fila('No apareció en la consulta de hoy (SECOP actualiza sus datos una vez al día). Revísalo en SECOP.');
+    const e = estadoVivoDeProceso(info, sn.closingRaw);
+    return fila('Estado en SECOP: <span class="tag ' + (e.tono === 'aviso' ? 'nuevo' : 'fuente') + '">' + escapeHtml(e.texto) + '</span>') +
+      e.avisos.map(a => '<div class="saved-note">⚠ ' + escapeHtml(a) + '</div>').join('');
+  }
+
   function renderPipelineCardHtml(id, h){
     const sn = h.snapshot || {};
-    const dias = diasRestantesDe(sn.closingRaw);
+    const vivo = (estadosVivosEstado === 'listo' && estadosVivos[id]) || null; // el cierre vigente en SECOP manda sobre el guardado
+    const dias = diasRestantesDe((vivo && vivo.closingRaw) || sn.closingRaw);
     const vencePronto = dias !== null && dias >= 0 && dias <= 3;
     const plazoTexto = dias === null ? 'Sin fecha de cierre reportada' : (dias < 0 ? 'Venció' : (dias + ' día(s) para el cierre'));
     const entry = analisis[id];
@@ -2870,6 +2956,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div class="pipeline-card-meta">' + (sn.valor ? escapeHtml(fmtMoney(sn.valor) || '') + ' · ' : '') + '<span class="tag fuente">SECOP ' + escapeHtml(sn.fuente || '') + '</span></div>' +
       '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' +
       '<div class="saved-note">' + escapeHtml(estadoAnalisis) + '</div>' +
+      estadoVivoHtml(id, sn) +
       '<div class="pipeline-card-acciones">' +
         '<button type="button" class="btn-mini analizar" data-pipeline-abrir-id="' + escapeHtml(id) + '">' + (entry ? 'Ver análisis' : 'Ver proceso') + '</button>' +
         '<select aria-label="Estado de este proceso" data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opciones + '</select>' +
@@ -2917,6 +3004,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         quitarDePipeline(quitarBtn.getAttribute('data-pipeline-quitar-id'));
         return;
       }
+      if (e.target.closest('[data-pipeline-refrescar]')){ estadosVivosEstado = 'idle'; actualizarEstadosVivos(); return; }
       const abrirBtn = e.target.closest('[data-pipeline-abrir-id]');
       if (abrirBtn) abrirAnalisis(abrirBtn.getAttribute('data-pipeline-abrir-id'));
     });
@@ -14454,7 +14542,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       rerender();
       renderAlertasList();
     }
-    if (nombre === 'procesos') renderPipelineView();
+    if (nombre === 'procesos'){ renderPipelineView(); actualizarEstadosVivos(); }
     if (nombre === 'analisis') renderAnalisisView();
     if (nombre === 'documentos') renderDocumentosView();
     if (nombre === 'ajustes') renderAjustesView();
