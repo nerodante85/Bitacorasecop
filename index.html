@@ -10592,6 +10592,23 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // tarjeta se pinta con "open" y eso guardaría los valores por defecto como si fueran del usuario.
   // El clic corre antes de que el navegador cambie d.open, por eso el nuevo estado es !d.open.
   enContenedoresDeProceso('click', async e => {
+    const cs = e.target.closest && e.target.closest('[data-compartir]');
+    if (!cs) return;
+    const sc = procesoPorId(cs.getAttribute('data-compartir'));
+    if (!sc || !sc.item) return;
+    const texto = resumenParaCompartir(sc.item, sc.daysLeft === undefined ? null : sc.daysLeft);
+    const orig = cs.dataset.textoOriginal || cs.textContent;
+    cs.dataset.textoOriginal = orig;
+    const poner = (t, ms) => { cs.textContent = t; clearTimeout(cs._t); cs._t = setTimeout(() => { cs.textContent = orig; }, ms); };
+    const tactil = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    if (puedeCompartirNativo(navigator, tactil)){
+      try { await navigator.share({ title: sc.item.entidad || 'Proceso SECOP', text: texto }); return; }
+      catch(err){ if (err && err.name === 'AbortError') return; /* otro error: se copia */ }
+    }
+    const ok = await copiarTexto(texto);
+    poner(ok ? 'Resumen copiado ✓' : 'No se pudo copiar', ok ? 2000 : 4000);
+  });
+  enContenedoresDeProceso('click', async e => {
     const cp = e.target.closest && e.target.closest('[data-copiar-codigo]');
     if (!cp) return;
     const codigo = cp.getAttribute('data-copiar-codigo');
@@ -11668,6 +11685,28 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       return !!ok;
     } catch(e){ return false; }
   }
+  // Resumen corto del proceso para mandar por mensaje o correo: solo lo que el proceso trae (sin filas vacías) y sin enlace.
+  function resumenParaCompartir(it, daysLeft){
+    const L = [];
+    L.push((it && it.entidad) || 'Entidad no especificada');
+    const obj = String((it && it.objeto) || '').trim();
+    if (obj) L.push(obj.length > 400 ? obj.slice(0, 399).trimEnd() + '…' : obj);
+    const valor = fmtMoney(it && it.valor);
+    if (valor) L.push('Cuantía: ' + valor);
+    const cierre = fmtDate(it && it.closingRaw);
+    if (cierre){
+      const rel = (daysLeft === null || daysLeft === undefined) ? '' : daysLeft < 0 ? ' (venció)' : daysLeft === 0 ? ' (hoy)' : daysLeft === 1 ? ' (mañana)' : ' (' + daysLeft + ' días)';
+      L.push('Cierre: ' + cierre + rel);
+    }
+    const ubic = [it && it.departamento, it && it.ciudad].filter(Boolean).join(' · ');
+    if (ubic) L.push('Ubicación: ' + ubic);
+    if (it && it.modalidad) L.push('Modalidad: ' + it.modalidad);
+    return L.join('\n');
+  }
+  // El menú nativo de compartir solo en pantallas táctiles (celular/tableta); en computador se copia el texto.
+  function puedeCompartirNativo(nav, esTactil){
+    return !!(nav && typeof nav.share === 'function' && esTactil);
+  }
   // «Ver más» solo si el objeto de verdad pasa de 3 líneas con el ancho actual: si cabe entero, se quita el recorte y el botón.
   function ajustarVerMasObjetos(raiz){
     if (!raiz) return;
@@ -11755,6 +11794,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const alertasEncHtml = alertasEnc.map(a => '<span class="tag ' + (a.tipo === 'cierre' ? 'redflag-alta' : a.tipo === 'nuevo' ? 'nuevo' : 'visto') + '">' + escapeHtml(a.texto) + '</span>').join('');
     const modCorta = modalidadCorta(it.modalidad);
     // El objeto se muestra entero (tope de seguridad 2500) y, si es largo, se recorta a 3 líneas con «Ver más».
+    const compartirHtml = '<button type="button" class="link-btn" data-compartir="' + escapeHtml(it.id) + '" aria-live="polite" title="Comparte o copia un resumen corto del proceso">Compartir</button>';
     const copiarCodigoHtml = it.codigo ? '<button type="button" class="link-btn" data-copiar-codigo="' + escapeHtml(it.codigo) + '" aria-live="polite" title="Copia el código del proceso en SECOP II (' + escapeHtml(it.codigo) + ')">Copiar código</button>' : '';
     const objTexto = truncate(it.objeto, 2500);
     const objLargo = objTexto.length > 220;
@@ -11784,6 +11824,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           '<button class="btn-primary analizar" data-action="analizar" data-id="' + escapeHtml(it.id) + '">' + analizarLabel + '</button>' +
           pipelineBtnHtml +
           (safeUrl ? '<a class="btn-secondary" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+          compartirHtml +
           copiarCodigoHtml +
           epBtnHtml +
           '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
@@ -11794,6 +11835,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       : '<div class="row-actions">' +
           pipelineBtnHtml +
           (safeUrl ? '<a class="btn-secondary" href="' + safeUrl + '" target="_blank" rel="noopener">Ver en SECOP</a>' : '') +
+          compartirHtml +
           copiarCodigoHtml +
           '<button class="link-btn" data-action="descartar" data-id="' + escapeHtml(it.id) + '">' + (isDescartado ? '↺ Restaurar' : 'Descartar') + '</button>' +
         '</div>';

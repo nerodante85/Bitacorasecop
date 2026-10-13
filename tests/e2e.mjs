@@ -160,6 +160,19 @@ await check('Copiar código: el botón copia el código SECOP II del proceso y c
   assert(r.copiado === antes.codigo, 'debe copiar el código exacto: ' + r.copiado);
   assert(/Copiado/.test(r.txt), 'el botón confirma la copia: ' + r.txt);
 });
+await check('Compartir resumen: en computador copia el resumen (entidad, objeto, valor, cierre) y confirma con «Resumen copiado ✓»', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  await pg.evaluate(() => { window.__copiado = null; Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => { window.__copiado = t; return Promise.resolve(); } }, configurable: true }); });
+  const dat = await pg.evaluate(() => { const f = document.querySelector('#bt-results .row'); return { ent: f.querySelector('.row-ent').textContent.trim(), hay: !!f.querySelector('[data-compartir]') }; });
+  assert(dat.hay, 'la tarjeta debe traer el botón Compartir');
+  await pg.click('#bt-results .row [data-compartir]');
+  await pg.waitForFunction(() => window.__copiado !== null);
+  const r = await pg.evaluate(() => ({ copiado: window.__copiado, txt: document.querySelector('#bt-results .row [data-compartir]').textContent }));
+  assert(r.copiado.split('\n')[0] === dat.ent, 'la primera línea es la entidad: ' + r.copiado);
+  assert(/Cuantía: \$/.test(r.copiado) && /Cierre: /.test(r.copiado), 'lleva valor y cierre: ' + r.copiado);
+  assert(/Resumen copiado/.test(r.txt), 'el botón confirma: ' + r.txt);
+});
 await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
   const { pg } = await abrir();
   await pg.click('#bt-nav-buscar');
