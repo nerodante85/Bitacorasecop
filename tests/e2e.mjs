@@ -259,6 +259,46 @@ await check('Mis procesos: un proceso presentado o no viable ya no muestra el pl
   await pg.selectOption('.pipeline-card select', 'viable');
   assert(await pg.evaluate(() => !!document.querySelector('.pipeline-card .pipeline-card-plazo')), 'volver a una etapa activa devuelve el plazo');
 });
+await check('Mis procesos en celular (375 px): los enlaces de cada tarjeta miden 44 px reales, no se pisan, y «Quitar» queda aparte, a la derecha y debajo de las demás acciones', async () => {
+  const ahora = Date.now();
+  const f = n => new Date(ahora + n * 86400000).toISOString().slice(0, 19);
+  const mk = (cod, etapa, cierre, ent, obj, extra = {}) => ['ps2-CO1.REQ.' + cod, Object.assign({ etapa, etapaTs: ahora, snapshot: { entidad: ent, objeto: obj, closingRaw: cierre, fuente: 'II', valor: 4250000000 + cod * 1000, modalidad: 'Licitación pública', url: 'https://community.secop.gov.co/x' + cod } }, extra)];
+  const hist = Object.fromEntries([
+    mk(901, 'viable', f(2), 'INSTITUTO DE INFRAESTRUCTURA Y VALORIZACIÓN DE NORTE DE SANTANDER', 'MEJORAMIENTO Y OPTIMIZACIÓN DE LAS REDES DE ALCANTARILLADO EN EL BARRIO EL LÍBANO', { nota: 'Preguntar por el K fijado en $100.000.000.' }),
+    mk(902, 'viable', f(20), 'ALCALDÍA DE CÚCUTA', 'CONSTRUCCIÓN DE PAVIMENTO RÍGIDO'),
+    mk(903, 'por_revisar', f(5), 'AREA METROPOLITANA DE CUCUTA', 'MANTENIMIENTO VÍA SECUNDARIA ALTO MEJUE - TOLEDO')
+  ]);
+  const { ctx, pg } = await abrir({ viewport: { width: 375, height: 812 }, hasTouch: true, sembrar: { bitacora_historial: JSON.stringify(hist) } });
+  await pg.click('#bt-nav-toggle');
+  await pg.click('#bt-nav-procesos');
+  await pg.waitForSelector('.pipeline-card');
+  const m = await pg.evaluate(() => {
+    const out = { bajos: [], tapas: [], quitar: [], desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    document.querySelectorAll('.pipeline-card').forEach(card => {
+      const enlaces = [...card.querySelectorAll('button.link-btn, a.link-btn')].filter(el => el.getBoundingClientRect().width > 0);
+      enlaces.forEach(el => {
+        el.scrollIntoView({ block: 'center' }); // elementFromPoint solo ve lo que está dentro de la pantalla
+        const r = el.getBoundingClientRect();
+        if (r.height < 43.5) out.bajos.push((el.textContent || '').trim().slice(0, 25) + ' h=' + Math.round(r.height));
+        // un toque a 3 px del borde de arriba y de abajo debe caer en el propio botón (no en la zona ampliada de otro)
+        [r.top + 3, r.bottom - 3].forEach(y => { const t = document.elementFromPoint(r.left + r.width / 2, y); if (!t || t.closest('button.link-btn, a.link-btn') !== el) out.tapas.push((el.textContent || '').trim().slice(0, 25) + ' y=' + Math.round(y) + ' → ' + (t ? (t.textContent || t.tagName).trim().slice(0, 20) : 'nada')); });
+      });
+      card.scrollIntoView({ block: 'start' });
+      const q = card.querySelector('[data-pipeline-quitar-id]'), otros = enlaces.filter(el => el !== q), rq = q.getBoundingClientRect();
+      const abajoDeTodos = otros.every(el => rq.top >= el.getBoundingClientRect().bottom - 1);
+      out.quitar.push({ abajo: abajoDeTodos, derecha: Math.round(card.getBoundingClientRect().right - rq.right) <= 20 && rq.left > card.getBoundingClientRect().left + card.getBoundingClientRect().width / 2 });
+    });
+    return out;
+  });
+  assert(m.bajos.length === 0, 'enlaces de menos de 44 px: ' + m.bajos.join(' | '));
+  assert(m.tapas.length === 0, 'toques en el borde de un botón que caen en otro: ' + m.tapas.join(' | '));
+  assert(m.quitar.length === 3 && m.quitar.every(q => q.abajo && q.derecha), '«Quitar» aparte, abajo y a la derecha: ' + JSON.stringify(m.quitar));
+  assert(m.desborde <= 0, 'sin desborde horizontal: ' + m.desborde);
+  await pg.setViewportSize({ width: 1280, height: 900 });
+  const escritorio = await pg.evaluate(() => { const q = document.querySelector('[data-pipeline-quitar-id]'); const a = q.closest('.pipeline-card-acciones').querySelector('[data-pipeline-abrir-id]'); return { quitarVisible: q.getBoundingClientRect().width > 0, mismaFila: Math.abs(q.getBoundingClientRect().top - a.getBoundingClientRect().top) < 60 }; });
+  assert(escritorio.quitarVisible, '«Quitar» sigue visible en pantalla ancha');
+  await ctx.close();
+});
 await check('Mis procesos: el filtro «solo los que cierran en 7 días» deja las secciones con los que coinciden, oculta las vacías, avisa «N de M» y se puede quitar', async () => {
   const ahora = Date.now();
   const f = n => new Date(ahora + n * 86400000).toISOString().slice(0, 19);
