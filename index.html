@@ -1074,6 +1074,16 @@
   #bitacora-root .stat-card-value.oferta-conservador { color: var(--success); }
   #bitacora-root .stat-card-value.oferta-competitivo { color: var(--warning); }
   #bitacora-root .stat-card-value.oferta-agresivo { color: var(--danger); }
+  #bitacora-root .stat-card-value.pm-aviso { color: var(--warning); }
+  #bitacora-root .stat-card-value.pm-peligro { color: var(--danger); }
+  #bitacora-root #bt-pipeline-resumen[hidden] { display: none; }
+  @media (max-width: 520px) {
+    #bitacora-root #bt-pipeline-resumen .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+    #bitacora-root #bt-pipeline-resumen .stat-card { padding: 12px 14px; }
+    #bitacora-root #bt-pipeline-resumen .stat-card-label { margin-bottom: 4px; }
+    #bitacora-root #bt-pipeline-resumen .stat-card-value { font-size: 24px; }
+    #bitacora-root #bt-pipeline-resumen .stat-card-note { overflow-wrap: anywhere; }
+  }
   #bitacora-root .stat-card-note { font-size: 12px; color: var(--text-faint); margin-top: 6px; }
 
   #bitacora-root .quick-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px; }
@@ -1817,6 +1827,7 @@
             <p>Los procesos que guardaste, ordenados por cómo van: desde "Por revisar" hasta "Presentada". Guarda un proceso desde su tarjeta en "Buscar procesos".</p>
           </div>
           <div class="empty" id="bt-pipeline-empty" hidden>Todavía no has guardado ningún proceso. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button> y usa "Guardar" en el que te interese.</div>
+          <div id="bt-pipeline-resumen" hidden></div>
           <div id="bt-pipeline-board"></div>
         </section>
 
@@ -2954,6 +2965,32 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
     redibujarPipelineSiVisible();
   }
+  // Resumen de Mis procesos (puro): conteo por estado y tres señales de urgencia, SOLO sobre los procesos que siguen
+  // en decisión (por revisar, en análisis, viable). Con la consulta a SECOP hecha, manda el cierre vigente sobre el
+  // guardado; sin consulta, `cambios` es null (nunca se inventan novedades).
+  function resumenMisProcesos(hist, vivos, ahoraMs){
+    const ACTIVAS = ['por_revisar', 'en_analisis', 'viable'];
+    const porEtapa = {};
+    ETAPAS_PIPELINE.forEach(e => { porEtapa[e.id] = 0; });
+    const dias = raw => (raw && isPlausibleDate(raw)) ? Math.ceil((new Date(raw).getTime() - ahoraMs) / 86400000) : null;
+    let total = 0, cierranSemana = 0, vencidos = 0, cambios = vivos ? 0 : null;
+    Object.keys(hist || {}).forEach(id => {
+      const h = hist[id];
+      if (!h || !h.etapa || !(h.etapa in porEtapa)) return;
+      total++; porEtapa[h.etapa]++;
+      if (ACTIVAS.indexOf(h.etapa) === -1) return;
+      const sn = h.snapshot || {};
+      const vivo = (vivos && vivos[id]) || null;
+      const d = dias((vivo && vivo.closingRaw) || sn.closingRaw);
+      if (d !== null && d >= 0 && d <= 7) cierranSemana++;
+      if (d !== null && d < 0) vencidos++;
+      if (vivo){
+        const e = estadoVivoDeProceso(vivo, sn.closingRaw);
+        if (e && (e.tono === 'aviso' || e.avisos.length)) cambios++;
+      }
+    });
+    return { total: total, porEtapa: porEtapa, cierranSemana: cierranSemana, vencidos: vencidos, cambios: cambios };
+  }
   function redibujarPipelineSiVisible(){
     const vp = document.getElementById('view-procesos');
     if (vp && !vp.hidden) renderPipelineView();
@@ -3006,8 +3043,26 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   function renderPipelineView(){
     const boardEl = document.getElementById('bt-pipeline-board');
     const emptyEl = document.getElementById('bt-pipeline-empty');
+    const resumenEl = document.getElementById('bt-pipeline-resumen');
     if (!boardEl) return;
     const ids = Object.keys(historial).filter(id => historial[id] && historial[id].etapa);
+    if (resumenEl){
+      if (!ids.length){ resumenEl.innerHTML = ''; resumenEl.hidden = true; }
+      else {
+        const r = resumenMisProcesos(historial, estadosVivosEstado === 'listo' ? estadosVivos : null, Date.now());
+        const desglose = ETAPAS_PIPELINE.filter(e => r.porEtapa[e.id]).map(e => r.porEtapa[e.id] + ' ' + e.label.toLowerCase()).join(' · ');
+        const tarjeta = (etq, valor, clase, nota) => '<div class="stat-card"><div class="stat-card-label">' + etq + '</div><div class="stat-card-value ' + clase + '">' + valor + '</div><div class="stat-card-note">' + escapeHtml(nota) + '</div></div>';
+        const notaCambios = r.cambios !== null ? 'Adjudicados, cancelados o con el cierre cambiado'
+          : estadosVivosEstado === 'cargando' ? 'Consultando SECOP…' : estadosVivosEstado === 'error' ? 'No se pudo consultar SECOP' : 'Sin consultar todavía';
+        resumenEl.innerHTML = '<div class="stat-grid" role="group" aria-label="Resumen de Mis procesos">' +
+          tarjeta('Guardados', r.total, '', desglose) +
+          tarjeta('Cierran esta semana', r.cierranSemana, r.cierranSemana ? 'pm-aviso' : '', 'En los próximos 7 días (sin los presentados ni no viables)') +
+          tarjeta('Vencidos sin presentar', r.vencidos, r.vencidos ? 'pm-peligro' : '', 'Su cierre ya pasó: revísalos o ponlos como no viables') +
+          tarjeta('Novedades en SECOP', r.cambios === null ? '—' : r.cambios, r.cambios ? 'pm-aviso' : '', notaCambios) +
+        '</div>';
+        resumenEl.hidden = false;
+      }
+    }
     if (!ids.length){
       boardEl.innerHTML = '';
       if (emptyEl) emptyEl.hidden = false;
