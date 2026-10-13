@@ -594,6 +594,21 @@ await check('Observaciones: la ficha lista los puntos para preguntar a la entida
   const med = await pg.evaluate(() => ({ desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth, botones: [...document.querySelectorAll('#bt-analisis-out [data-ficha-obs]')].map(b => Math.round(b.getBoundingClientRect().height)) }));
   assert(med.desborde <= 0, 'sin desborde horizontal a 375 px: ' + med.desborde);
   assert(med.botones.every(h => h >= 44), 'botones de al menos 44 px de alto en celular: ' + med.botones.join(','));
+  const tabla = await pg.evaluate(() => {
+    const sec = document.querySelector('#bt-analisis-out [data-ficha-seccion]');
+    const wrap = sec.querySelector('.ficha-scroll'), hint = sec.querySelector('.ficha-desliza');
+    // La cifra del K debe quedar en UNA línea (un rectángulo), no partida letra por letra.
+    const td = [...sec.querySelectorAll('td')].find(c => /\$100\.000\.000/.test(c.textContent));
+    let rects = null;
+    if (td){ const w = document.createTreeWalker(td, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())){ const i = n.nodeValue.indexOf('$100.000.000'); if (i >= 0){ const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 12); rects = r.getClientRects().length; break; } } }
+    return { rects: rects, scroll: wrap.scrollWidth - wrap.clientWidth, sombra: /gradient/.test(getComputedStyle(wrap).backgroundImage), aviso: getComputedStyle(hint).display };
+  });
+  assert(tabla.rects === 1, 'la cifra $100.000.000 no se parte en varias líneas: ' + tabla.rects);
+  assert(tabla.scroll > 0 && tabla.sombra && tabla.aviso !== 'none', 'la tabla se desplaza, con sombra y aviso visible en celular: ' + JSON.stringify(tabla));
+  await pg.setViewportSize({ width: 1280, height: 900 });
+  const avisoEscritorio = await pg.evaluate(() => getComputedStyle(document.querySelector('#bt-analisis-out .ficha-desliza')).display);
+  assert(avisoEscritorio === 'none', 'el aviso de desplazamiento no se muestra en pantalla ancha: ' + avisoEscritorio);
+  await pg.setViewportSize({ width: 375, height: 800 });
   const [dl] = await Promise.all([pg.waitForEvent('download', { timeout: 8000 }), pg.locator('#bt-analisis-out [data-ficha-obs="descargar"]').click()]);
   assert(/^observaciones-.*\.txt$/.test(dl.suggestedFilename()), 'nombre: ' + dl.suggestedFilename());
   const cuerpo = await readFile(await dl.path(), 'utf8');

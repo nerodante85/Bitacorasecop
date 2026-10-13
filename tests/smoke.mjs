@@ -3770,6 +3770,7 @@ await check('fichaHabilitante: la tabla 1.1 termina en el siguiente numeral — 
   const f = expEngine.fichaHabilitante("1.1. OBJETO, PRESUPUESTO OFICIAL, PLAZO Y UBICACIÓN El objeto, presupuesto oficial estimado, plazo y ubicación del proyecto se identifican en la siguiente tabla: Objeto del proyecto ALCANTARILLADO BARRIO EL LIBANO Plazo del contrato Valor presupuesto oficial (pesos incluido IVA) CINCUENTA (50) DIAS $138.776.810,00 Lugar(es) de ejecución del contrato OCAÑA. 3.6 CALCULO LA CAPACIDAD RESIDUAL DEL PROPONENTE. El Proponente debe acreditar una capacidad residual o K de Contratación igual o superior al presupuesto oficial: $100.000.000 El proponente debe presentar un certificado.", { anio: 2026 });
   assert(f.filas.find(x => x.requisito === 'Presupuesto oficial').exige === '$138.776.810', 'presupuesto');
   assert(f.observaciones.some(o => o.tema === 'Capacidad residual (K)' && /\$100\.000\.000/.test(o.texto)), 'observación del K: ' + JSON.stringify(f.observaciones.map(o => o.tema)));
+  assert(f.observaciones.every(o => !/null|undefined/.test(o.texto)), 'con un documento de una sola línea no sale «p. null»: ' + f.observaciones.map(o => o.texto).join(' | '));
 });
 const FICHA_LOTES_TIPO = [
  "OBJETO LOTE No 1 CONSTRUCCIÓN DE OBRAS DE ALCANTARILLADO EN EL DEPARTAMENTO DE CUNDINAMARCA (GRUPO No 1 – LOTE No 1) – APROPIACIÒN. OBJETO LOTE No 2: CONSTRUCCIÓN DE OBRAS DE PATP Y ACUEDUCTO EN EL DEPARTAMENTO DE CUNDINAMARCA (GRUPO No 2 – LOTE No 2) – APROPIACIÒN. 2.2. ALCANCE DEL OBJETO A CONTRATAR",
