@@ -8134,43 +8134,77 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Garantías exigidas (seriedad, cumplimiento, anticipo, salarios, estabilidad, RC extracontractual): cifra, base y vigencia con la
     // página. Cada mención toma la cifra de SU propio fragmento, que se corta donde empieza la mención de otra garantía (si no, el 10%
     // del cumplimiento se le atribuiría a la seriedad). Una mención sin cifra no crea fila; cifras distintas para la misma garantía
-    // se listan todas y no se elige ninguna. No se compara con el mínimo legal: eso lo hace detectarRedFlags.
+    // se listan todas y no se elige ninguna. Los pliegos reales traen los amparos en una TABLA que el texto entrega en columnas
+    // (primero todos los nombres, después todos los valores): si varios nombres seguidos no tienen cifra pegada, la cifra que aparece
+    // después no se atribuye a ninguno (sería adivinar) y la garantía sale como «amparo exigido» sin cifra. No se compara con el
+    // mínimo legal: eso lo hace detectarRedFlags.
     {
-      const AMPARO = '(?:garant[ií]a|amparo)\\s+de\\s+';
+      const pre = '(?:garant[ií]a|amparo)\\s+de\\s+(?:la\\s+)?';
       const GARANTIAS = [
-        { nombre: 'Garantía de seriedad de la oferta', re: /garant[ií]a\s+de\s+seriedad(?:\s+de\s+la\s+(?:oferta|propuesta))?/ig },
-        { nombre: 'Garantía de cumplimiento', re: /(?:garant[ií]a|amparo)\s+(?:[uú]nica\s+)?de\s+cumplimiento/ig },
-        { nombre: 'Garantía de buen manejo y correcta inversión del anticipo', re: new RegExp(AMPARO + '(?:la\\s+)?(?:buen\\s+manejo(?:\\s+y\\s+correcta\\s+inversi[óo]n)?|correcta\\s+inversi[óo]n)\\s+del\\s+anticipo', 'ig') },
-        { nombre: 'Garantía de pago de salarios y prestaciones', re: new RegExp(AMPARO + 'pago\\s+de\\s+salarios', 'ig') },
-        { nombre: 'Garantía de estabilidad y calidad de la obra', re: new RegExp(AMPARO + '(?:la\\s+)?estabilidad(?:\\s+y\\s+calidad)?(?:\\s+de\\s+la\\s+obra)?', 'ig') },
-        { nombre: 'Garantía de responsabilidad civil extracontractual', re: /responsabilidad\s+civil\s+extracontractual/ig, smmlv: true }
+        { nombre: 'Garantía de seriedad de la oferta', re: /garant[ií]a\s+de\s+seriedad(?:\s+de\s+la\s+(?:oferta|propuesta))?/ig, largo: 1500, exigeBasePO: true },
+        { nombre: 'Garantía de cumplimiento', re: /(?:garant[ií]a|amparo)\s+(?:[uú]nica\s+)?de\s+cumplimiento|cumplimiento\s+general\s+del\s+contrato/ig },
+        { nombre: 'Garantía de buen manejo y correcta inversión del anticipo', re: new RegExp('(?:' + pre + ')?buen\\s+manejo(?:\\s+y\\s+correcta\\s+inversi[óo]n)?\\s+del\\s+anticipo|' + pre + 'correcta\\s+inversi[óo]n\\s+del\\s+anticipo', 'ig') },
+        { nombre: 'Garantía de pago de salarios y prestaciones', re: new RegExp('(?:' + pre + ')?pago\\s+de\\s+salarios,?\\s+prestaciones', 'ig') },
+        { nombre: 'Garantía de estabilidad y calidad de la obra', re: new RegExp(pre + 'estabilidad(?:\\s+y\\s+calidad)?(?:\\s+de\\s+(?:las\\s+|la\\s+)?obras?)?|estabilidad\\s+y\\s+calidad\\s+de\\s+(?:las\\s+|la\\s+)?obras?', 'ig') },
+        { nombre: 'Garantía de responsabilidad civil extracontractual', re: /responsabilidad\s+civil\s+extracontractual/ig, smmlv: true, largo: 1800 }
       ];
       const menciones = [];
       GARANTIAS.forEach((g, gi) => { for (const m of t.matchAll(g.re)) menciones.push({ g: gi, ini: m.index, fin: m.index + m[0].length }); });
       menciones.sort((a, b) => a.ini - b.ini);
-      const porGarantia = GARANTIAS.map(() => []);
+      const porGarantia = GARANTIAS.map(() => ({ vals: [], tabla: null }));
+      let enTabla = false; // el nombre anterior quedó sin cifra y hay otro nombre pegado: lo que siga puede ser de cualquiera
       menciones.forEach((m, i) => {
-        const g = GARANTIAS[m.g];
-        const finVentana = Math.min(m.fin + 320, i + 1 < menciones.length ? menciones[i + 1].ini : t.length);
-        const w = t.slice(m.fin, finVentana);
-        const mv = g.smmlv ? w.match(/(\d{1,4}(?:[.,]\d+)?)\)?\s*(?:smmlv|smlmv|salarios?\s+m[íi]nimos)/i) : w.match(/(\d{1,3}(?:[.,]\d+)?)\s*%/);
-        if (!mv) return;
-        const v = parseFloat(mv[1].replace(',', '.')); if (!isFinite(v)) return;
-        const cola = w.slice(mv.index, mv.index + 100);
-        const bPO = /presupuesto\s+oficial/i.test(cola), bCto = /valor\s+(?:total\s+)?(?:del\s+)?contrato/i.test(cola);
-        const mVig = w.match(/vigen(?:cia|te)\s+(?:de|por|igual|hasta|m[íi]nima|no\s+inferior|equivalente)\b[^.;]{0,140}/i);
-        porGarantia[m.g].push({ v: v, ini: m.ini, base: (bPO && !bCto) ? ' del presupuesto oficial' : ((bCto && !bPO) ? ' del valor del contrato' : ''), vig: mVig ? mVig[0].trim() : '' });
+        const g = GARANTIAS[m.g], sig = menciones.slice(i + 1).find(x => x.g !== m.g) || null; // la ventana solo se corta en OTRA garantía
+        const w = t.slice(m.fin, Math.min(m.fin + (g.largo || 320), sig ? sig.ini : t.length));
+        let hallado = null;
+        if (g.smmlv){
+          let mv = null;
+          for (const c of w.matchAll(/(\d{1,3}(?:\.\d{3})+|\d{1,4})\)?\s*(?:smmlv|smlmv|salarios?\s+m[íi]nimos)/gi)){
+            if (/deducible|franquicia|tope\s+m[áa]ximo|superiores?\s+a/i.test(w.slice(Math.max(0, c.index - 80), c.index))) continue; // otra cifra, no el valor asegurado
+            mv = c; break;
+          }
+          if (mv){
+            const cond = w.slice(mv.index + mv[0].length, mv.index + mv[0].length + 170).match(/^\s*para\s+contratos?\s+cuyo\s+valor.{0,130}?(?:smmlv|smlmv)/i);
+            hallado = { v: parseInt(mv[1].replace(/\./g, ''), 10), dist: mv.index, base: '', cond: cond ? cond[0].trim() : '' };
+          }
+        } else {
+          for (const mv of w.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*%/g)) {
+            const cola = w.slice(mv.index, mv.index + 100);
+            const bPO = /presupuesto\s+oficial/i.test(cola), bCto = /valor\s+(?:total\s+)?(?:del\s+)?contrato/i.test(cola), bFin = /valor\s+final\s+de\s+las?\s+obras?/i.test(cola);
+            if (g.exigeBasePO && !bPO) continue;
+            const v = parseFloat(mv[1].replace(',', '.')); if (!isFinite(v)) continue;
+            hallado = { v: v, dist: mv.index, base: (bPO && !bCto) ? ' del presupuesto oficial' : ((bCto && !bPO) ? ' del valor del contrato' : (bFin ? ' del valor final de las obras' : '')), cond: '' };
+            break;
+          }
+        }
+        const adyacenteOtra = !!sig && sig.g !== m.g && sig.ini - m.fin < 400;
+        const pg = porGarantia[m.g];
+        if (hallado && enTabla && hallado.dist > 60){ // cifra lejos de su nombre, justo después de nombres sin cifra: de quién es, no se sabe
+          if (pg.tabla == null) pg.tabla = m.ini;
+          enTabla = false;
+        } else if (hallado){
+          const mVig = w.match(/vigen(?:cia|te)\s+(?:de|por|igual|hasta|m[íi]nima|no\s+inferior|equivalente)\b[^.;]{0,140}/i) || w.match(/\b(?:\d+|[a-záéíóú]+)\s*(?:\(\d+\)\s*)?(?:meses|a[ñn]os)\s+contados\s+a\s+partir\s+de[^.;%]{0,100}/i);
+          pg.vals.push({ v: hallado.v, ini: m.ini, base: hallado.base, cond: hallado.cond, vig: mVig ? mVig[0].replace(/^vigencia\s+/i, '').trim() : '' });
+          enTabla = false;
+        } else if (adyacenteOtra || enTabla){
+          if (pg.tabla == null) pg.tabla = m.ini;
+          enTabla = adyacenteOtra;
+        }
       });
       const fmtV = v => String(v).replace('.', ',');
       GARANTIAS.forEach((g, gi) => {
-        const ms = porGarantia[gi]; if (!ms.length) return;
-        const distintos = Array.from(new Set(ms.map(x => x.v)));
+        const pg = porGarantia[gi], ms = pg.vals;
         const u = g.smmlv ? ' SMMLV' : '%';
+        if (!ms.length){
+          if (pg.tabla != null) add('Garantías', g.nombre, 'Se menciona; la cifra no se pudo asociar con seguridad (tabla en columnas o lista de garantías)', 'Consúltala en el original', { pagina: pagina(pg.tabla) });
+          return;
+        }
+        const distintos = Array.from(new Set(ms.map(x => x.v)));
         if (distintos.length > 1){
           add('Garantías', g.nombre, 'Varias cifras en el documento: ' + distintos.map(fmtV).join(u + ' · ') + u, '', { pagina: pagina(ms[0].ini), aviso: 'El documento trae cifras distintas para esta garantía: confirma cuál aplica (no se eligió ninguna).' });
         } else {
-          const x = ms[0];
-          add('Garantías', g.nombre, fmtV(x.v) + u + x.base, x.vig ? 'Vigencia: ' + x.vig : '', { pagina: pagina(x.ini) });
+          const x = ms.find(y => y.vig || y.cond) || ms[0];
+          add('Garantías', g.nombre, fmtV(x.v) + u + x.base, [x.vig ? 'Vigencia: ' + x.vig : '', x.cond ? 'Condición: ' + x.cond : ''].filter(Boolean).join(' · '), { pagina: pagina(ms[0].ini) });
         }
       });
       if (filas.some(f => f.grupo === 'Garantías')) avisos.push('Las garantías se leen del texto del documento (cifra, base y vigencia). No se comparan con tu póliza ni con el mínimo legal aquí; confirma cada una contra el original.');
