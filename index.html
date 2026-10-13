@@ -331,6 +331,17 @@
   #bitacora-root .matriz-filtro { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-muted); border-radius: var(--radius-sm); padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
   #bitacora-root .matriz-filtro[aria-pressed="true"] { background: var(--accent-button); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
   #bitacora-root .ficha-tabla { min-width: 760px; }
+  /* Matriz de requisitos en pantalla angosta: mismo trato que la ficha (anchos mínimos, palabras enteras, la tabla se desliza). */
+  @media (max-width: 900px) {
+    #bitacora-root .matriz-req { min-width: 740px; }
+    #bitacora-root .matriz-req td, #bitacora-root .matriz-req th { overflow-wrap: break-word; word-break: normal; }
+    #bitacora-root .matriz-req th:nth-child(1), #bitacora-root .matriz-req td:nth-child(1) { min-width: 160px; }
+    #bitacora-root .matriz-req th:nth-child(2), #bitacora-root .matriz-req td:nth-child(2) { min-width: 120px; }
+    #bitacora-root .matriz-req th:nth-child(3), #bitacora-root .matriz-req td:nth-child(3) { min-width: 200px; }
+    #bitacora-root .matriz-req th:nth-child(4), #bitacora-root .matriz-req td:nth-child(4) { min-width: 120px; }
+    #bitacora-root .matriz-req th:nth-child(5), #bitacora-root .matriz-req td:nth-child(5) { min-width: 120px; }
+  }
+  #bitacora-root .matriz-req [data-ev-fila] { white-space: nowrap; }
   /* Las cifras no se parten letra por letra: se rompe solo una palabra que no cabe en TODA la celda, y cada columna tiene un ancho mínimo. */
   #bitacora-root .ficha-tabla td, #bitacora-root .ficha-tabla th { overflow-wrap: break-word; word-break: normal; }
   #bitacora-root .ficha-tabla th:nth-child(1), #bitacora-root .ficha-tabla td:nth-child(1) { min-width: 130px; }
@@ -11526,7 +11537,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       ESTADOS_REQ.map(e => '<button type="button" class="matriz-filtro" data-matriz-filtro="' + e + '" aria-pressed="false">' + (e === 'NO DETERMINABLE' ? 'No determinable' : e.charAt(0) + e.slice(1).toLowerCase()) + ' (' + cuenta(e) + ')</button>').join('') + '</div>';
     const idE = escapeHtml(entry.id || '');
     const matrizHtml = filas.length
-      ? filtros + '<div class="expeval-table-wrap"><table class="matriz-tabla"><thead><tr><th scope="col">Requisito</th><th scope="col">Exigencia</th><th scope="col">Empresa</th><th scope="col">Resultado</th><th scope="col">Evidencia</th></tr></thead><tbody>' +
+      ? filtros + '<div class="ficha-desliza" aria-hidden="true">↔ Desliza la tabla hacia los lados para ver todas las columnas</div><div class="expeval-table-wrap ficha-scroll"><table class="matriz-tabla matriz-req"><thead><tr><th scope="col">Requisito</th><th scope="col">Exigencia</th><th scope="col">Empresa</th><th scope="col">Resultado</th><th scope="col">Evidencia</th></tr></thead><tbody>' +
         filas.map(f => '<tr data-resultado="' + f.resultado + '"><td>' + escapeHtml(f.requisito) + '</td><td>' + escapeHtml(f.exigencia) + '</td><td>' + escapeHtml(truncate(f.empresa || '', 240)) + '</td><td>' + badgeEstado4(f.resultado) + '</td>' +
           '<td><button type="button" class="link-btn" data-ev-id="' + idE + '" data-ev-fila="' + escapeHtml(f.clave) + '">Ver evidencia</button></td></tr>').join('') +
         '</tbody></table></div><div class="matriz-vacia" data-matriz-vacia hidden>Ningún requisito con ese resultado.</div>'

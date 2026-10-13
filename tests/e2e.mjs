@@ -632,6 +632,22 @@ await check('Análisis en celular (375 px): los puntos de «Decisión» apilan e
   assert(m.items.every(i => i.apilado && i.anchoTexto >= 85), 'etiqueta arriba y texto a casi todo el ancho: ' + JSON.stringify(m.items));
   assert(m.bajos.length === 0, 'controles de menos de 44 px: ' + m.bajos.join(' | '));
   assert(m.desborde <= 0, 'sin desborde horizontal: ' + m.desborde);
+  // Matriz de requisitos: las palabras y las cifras no se parten, «Ver evidencia» cabe en una línea y la tabla avisa que se desliza.
+  const mx = await pg.evaluate(() => {
+    const t = document.querySelector('#bt-analisis-out .matriz-req'); const w = t.closest('.expeval-table-wrap');
+    const lineas = (celda, texto) => { const wk = document.createTreeWalker(celda, NodeFilter.SHOW_TEXT); let n; while ((n = wk.nextNode())){ const i = n.nodeValue.indexOf(texto); if (i >= 0){ const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + texto.length); return r.getClientRects().length; } } return null; };
+    const celdaTexto = txt => [...t.querySelectorAll('td')].find(c => c.textContent.includes(txt));
+    const ev = t.querySelector('[data-ev-fila]').getBoundingClientRect();
+    const hint = w.previousElementSibling;
+    return { palabra: lineas(celdaTexto('financiera:'), 'financiera:'), cifra: lineas(celdaTexto('5.000.000.000'), '5.000.000.000'), evAncho: Math.round(ev.width), evAlto: Math.round(ev.height),
+      scroll: w.scrollWidth - w.clientWidth, sombra: /gradient/.test(getComputedStyle(w).backgroundImage), aviso: hint && hint.classList.contains('ficha-desliza') ? getComputedStyle(hint).display : 'sin aviso' };
+  });
+  assert(mx.palabra === 1 && mx.cifra === 1, 'palabras y cifras de la matriz sin partir: ' + JSON.stringify(mx));
+  assert(mx.evAlto <= 50 && mx.evAncho >= 75, '«Ver evidencia» en una sola línea: ' + mx.evAncho + 'x' + mx.evAlto);
+  assert(mx.scroll > 0 && mx.sombra && mx.aviso !== 'none' && mx.aviso !== 'sin aviso', 'la matriz se desplaza con sombra y aviso: ' + JSON.stringify(mx));
+  await pg.setViewportSize({ width: 1280, height: 900 });
+  const esc = await pg.evaluate(() => { const w = document.querySelector('#bt-analisis-out .matriz-req').closest('.expeval-table-wrap'); return { scroll: w.scrollWidth - w.clientWidth, aviso: getComputedStyle(w.previousElementSibling).display }; });
+  assert(esc.scroll <= 0 && esc.aviso === 'none', 'en pantalla ancha la matriz no cambia: ' + JSON.stringify(esc));
   await ctx.close();
 });
 await check('Informe del análisis: la tarjeta de decisión baja un Word con el análisis sin botones ni filtros; el PDF abre una ventana imprimible', async () => {
