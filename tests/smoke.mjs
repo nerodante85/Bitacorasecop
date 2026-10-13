@@ -4668,6 +4668,26 @@ await check('Mis procesos: la tarjeta muestra la modalidad corta (guardada, o la
   const ag = html.slice(html.indexOf('function agregarAPipeline'), html.indexOf('function moverEtapaPipeline'));
   assert(/modalidad: item\.modalidad/.test(ag), 'Guardar conserva la modalidad en el resumen del proceso');
 });
+await check('Notas propias en Mis procesos: se limpian (recorte, 1000 caracteres, vacío = sin nota), solo existen en procesos guardados y se borran al quitar el proceso de Mis procesos', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const src = cortar('function normalizarNota', '\n  function ') + '\n' + cortar('function aplicarNotaProceso', '\n  function ');
+  const { normalizarNota, aplicarNotaProceso } = new Function(src + '\nreturn { normalizarNota, aplicarNotaProceso };')();
+  assert(normalizarNota(null) === null && normalizarNota(undefined) === null && normalizarNota('   \n ') === null && normalizarNota('') === null, 'vacío o solo espacios = sin nota');
+  assert(normalizarNota('  Llamar al ingeniero  \r\nRevisar planos  ') === 'Llamar al ingeniero\nRevisar planos', 'recorta y unifica saltos de línea: ' + JSON.stringify(normalizarNota('  Llamar al ingeniero  \r\nRevisar planos  ')));
+  assert(normalizarNota('a'.repeat(1500)).length === 1000, 'máximo 1000 caracteres');
+  assert(normalizarNota(0) === '0' || normalizarNota(0) === null, 'un número no rompe');
+  const m = { a: { etapa: 'viable', snapshot: { entidad: 'X' } }, b: { status: 'visto' } };
+  assert(aplicarNotaProceso(m, 'a', ' Hablar con la entidad ') === true && m.a.nota === 'Hablar con la entidad' && m.a.etapa === 'viable' && m.a.snapshot.entidad === 'X', 'guarda la nota sin tocar lo demás');
+  assert(aplicarNotaProceso(m, 'a', '   ') === true && !('nota' in m.a) && m.a.etapa === 'viable', 'texto vacío borra la nota pero conserva el proceso guardado');
+  assert(aplicarNotaProceso(m, 'b', 'no debe guardarse') === false && !('nota' in m.b), 'un proceso que no está en Mis procesos no recibe notas');
+  assert(aplicarNotaProceso(m, 'zzz', 'x') === false && !('zzz' in m), 'un id desconocido no crea registros');
+  const q = cortar('function quitarDePipeline', '\n  // Días hasta el cierre');
+  assert(/delete historial\[id\]\.nota/.test(q), 'quitar de Mis procesos también borra la nota');
+  const card = cortar('function renderPipelineCardHtml', '// Mis procesos: una sección');
+  assert(/data-nota-id/.test(card) && /pipeline-card-nota/.test(card) && /data-nota-editar/.test(cortar('function notaVistaHtml', '\n  function ')), 'la tarjeta muestra la nota o el botón para agregarla');
+  assert(/notaVistaHtml\(id, h\.nota\)/.test(card) && /escapeHtml\(nota\)/.test(cortar('function notaVistaHtml', '\n  function ')), 'la nota se escapa al mostrarla');
+});
 await check('Matriz: las filas de experiencia del mismo encabezado, resultado y exigencia se juntan en una (con todas sus citas); distinto resultado o exigencia NO se juntan', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const i = html.indexOf('function unirFilasExperienciaRepetidas');

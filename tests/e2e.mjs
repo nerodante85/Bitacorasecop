@@ -208,6 +208,43 @@ await check('Mis procesos: la tarjeta guardada muestra la modalidad corta y no l
   assert(mod && tag && !/SECOP/.test(tag), 'el tag de la tarjeta es la modalidad (' + mod + '), no SECOP: ' + tag);
   assert(mod.toLowerCase().indexOf(tag.toLowerCase().replace('…', '').slice(0, 5)) !== -1 || tag.length <= 28, 'el tag corresponde a la modalidad: ' + mod + ' → ' + tag);
 });
+await check('Notas propias: agregar en la tarjeta de Mis procesos, se guarda al salir del campo, sobrevive a recargar, Escape cancela y quitar el proceso la borra', async () => {
+  const { pg } = await abrir();
+  await pg.click('#bt-nav-buscar');
+  await pg.click('#bt-results .row [data-agregar-pipeline]');
+  await pg.evaluate(() => document.getElementById('bt-nav-procesos').click());
+  const sinNota = await pg.evaluate(() => { const c = document.querySelector('.pipeline-card'); return { boton: (c.querySelector('[data-nota-editar]') || {}).textContent, texto: !!c.querySelector('.pipeline-card-nota-txt') }; });
+  assert(/Agregar nota/.test(sinNota.boton || '') && !sinNota.texto, 'sin nota ofrece «Agregar nota»: ' + JSON.stringify(sinNota));
+  await pg.click('.pipeline-card [data-nota-editar]');
+  await pg.fill('.pipeline-card textarea', '  Llamar a la entidad el lunes <b>urgente</b>  ');
+  await pg.click('#view-procesos h1'); // salir del campo
+  const vista = await pg.evaluate(() => { const c = document.querySelector('.pipeline-card'); const t = c.querySelector('.pipeline-card-nota-txt'); return { txt: t && t.textContent, html: t && t.innerHTML, ta: !!c.querySelector('textarea'), boton: c.querySelector('[data-nota-editar]').textContent }; });
+  assert(vista.txt === 'Llamar a la entidad el lunes <b>urgente</b>' && /&lt;b&gt;/.test(vista.html) && !vista.ta && /Editar nota/.test(vista.boton), 'la nota queda visible, recortada y escapada: ' + JSON.stringify(vista));
+  const guardado = await pg.evaluate(() => Object.values(JSON.parse(localStorage.getItem('bitacora_historial'))).map(h => h.nota));
+  assert(guardado.length === 1 && guardado[0] === 'Llamar a la entidad el lunes <b>urgente</b>', 'se guardó en el historial: ' + JSON.stringify(guardado));
+  await pg.reload();
+  await pg.evaluate(() => document.getElementById('bt-nav-procesos').click());
+  assert(await pg.evaluate(() => !!document.querySelector('.pipeline-card-nota-txt')), 'la nota sobrevive a recargar la página');
+  await pg.click('.pipeline-card [data-nota-editar]');
+  await pg.fill('.pipeline-card textarea', 'texto que se descarta');
+  await pg.press('.pipeline-card textarea', 'Escape');
+  const esc = await pg.evaluate(() => ({ txt: document.querySelector('.pipeline-card-nota-txt').textContent, ta: !!document.querySelector('.pipeline-card textarea') }));
+  assert(esc.txt.startsWith('Llamar a la entidad') && !esc.ta, 'Escape cancela sin guardar: ' + JSON.stringify(esc));
+  await pg.click('.pipeline-card [data-nota-editar]');
+  await pg.fill('.pipeline-card textarea', '   ');
+  await pg.click('#view-procesos h1');
+  assert(await pg.evaluate(() => !document.querySelector('.pipeline-card-nota-txt')), 'un texto vacío borra la nota');
+  await pg.click('.pipeline-card [data-nota-editar]');
+  await pg.fill('.pipeline-card textarea', 'borrador a medias');
+  await pg.selectOption('.pipeline-card select', 'viable'); // la vista se vuelve a dibujar mientras se escribe
+  const bor = await pg.evaluate(() => { const ta = document.querySelector('.pipeline-card-nota-campo'); return { ok: !!ta && ta.value === 'borrador a medias', foco: !!ta && document.activeElement === ta }; });
+  assert(bor.ok, 'el borrador de la nota sobrevive a un redibujado de la vista: ' + JSON.stringify(bor));
+  await pg.fill('.pipeline-card textarea', 'otra nota');
+  await pg.click('#view-procesos h1');
+  await pg.click('.pipeline-card [data-pipeline-quitar-id]');
+  const resto = await pg.evaluate(() => localStorage.getItem('bitacora_historial') || '');
+  assert(!/otra nota/.test(resto), 'quitar el proceso de Mis procesos borra también su nota');
+});
 await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «Ver menos» lo despliega y lo recoge', async () => {
   const { pg } = await abrir();
   await pg.click('#bt-nav-buscar');

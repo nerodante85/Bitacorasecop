@@ -964,6 +964,10 @@
   #bitacora-root .pipeline-card-obj { font-size: 12.5px; color: var(--text-muted); overflow-wrap: anywhere; }
   #bitacora-root .pipeline-card-meta { font-size: 12px; }
   #bitacora-root .pipeline-card-plazo { font-size: 12px; font-weight: 700; }
+  #bitacora-root .pipeline-card-nota { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  #bitacora-root .pipeline-card-nota-txt { align-self: stretch; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; color: var(--text); background: var(--bg); border-left: 3px solid var(--accent); border-radius: var(--radius-sm); padding: 6px 10px; }
+  #bitacora-root .pipeline-card-nota-campo { width: 100%; box-sizing: border-box; min-height: 72px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); padding: 8px 10px; font: inherit; font-size: 14px; resize: vertical; }
+  #bitacora-root .pipeline-card-nota-campo:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   #bitacora-root .pipeline-card-estado { font-size: 12px; overflow-wrap: anywhere; }
   #bitacora-root .pipeline-card-estado .tag { white-space: normal; max-width: 100%; }
   #bitacora-root .pipeline-card-urgente-texto { color: var(--danger); }
@@ -2869,6 +2873,29 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   // Saca el proceso del pipeline sin perder su historial de visto/descartado si lo tenía -- mismo
   // criterio inverso de toggleStatus: solo se borra la fila completa si no queda nada más.
+  // Notas propias de Mis procesos (`historial[id].nota`, texto de hasta 1000 caracteres). Solo existen en procesos
+  // guardados; quitar el proceso de Mis procesos las borra. Texto vacío = sin nota.
+  function normalizarNota(texto){
+    if (texto === null || texto === undefined) return null;
+    const t = String(texto).replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').trim();
+    return t ? t.slice(0, 1000) : null;
+  }
+  function aplicarNotaProceso(mapa, id, texto){
+    const h = mapa && mapa[id];
+    if (!h || !h.etapa) return false;
+    const n = normalizarNota(texto);
+    if (n) h.nota = n; else delete h.nota;
+    return true;
+  }
+  function notaVistaHtml(id, nota){
+    return (nota ? '<div class="pipeline-card-nota-txt">' + escapeHtml(nota) + '</div>' : '') +
+      '<button type="button" class="link-btn" data-nota-editar>' + (nota ? 'Editar nota' : 'Agregar nota') + '</button>';
+  }
+  function notaEditorHtml(texto){
+    return '<textarea class="pipeline-card-nota-campo" rows="3" maxlength="1000" aria-label="Nota sobre este proceso" placeholder="Por qué es viable, a quién llamar, qué falta…">' + escapeHtml(texto || '') + '</textarea>' +
+      '<div class="saved-note">Se guarda al salir del campo · Esc cancela</div>';
+  }
+
   function quitarDePipeline(id){
     if (!historial[id]) return;
     delete historial[id].etapa;
@@ -2876,6 +2903,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     delete historial[id].resultado;
     delete historial[id].consorcio;
     delete historial[id].snapshot;
+    delete historial[id].nota;
     if (!historial[id].status) delete historial[id];
     saveHistorial();
     renderPipelineView();
@@ -3031,6 +3059,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<div class="pipeline-card-plazo' + (vencePronto ? ' pipeline-card-urgente-texto' : '') + '">' + escapeHtml(plazoTexto) + '</div>' +
       '<div class="saved-note">' + escapeHtml(estadoAnalisis) + '</div>' +
       estadoVivoHtml(id, sn) +
+      '<div class="pipeline-card-nota" data-nota-id="' + escapeHtml(id) + '">' + notaVistaHtml(id, h.nota) + '</div>' +
       '<div class="pipeline-card-acciones">' +
         '<button type="button" class="btn-mini analizar" data-pipeline-abrir-id="' + escapeHtml(id) + '">' + (entry ? 'Ver análisis' : 'Ver proceso') + '</button>' +
         '<select aria-label="Estado de este proceso" data-pipeline-mover-select-id="' + escapeHtml(id) + '">' + opciones + '</select>' +
@@ -3077,6 +3106,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       if (db === null) return -1;
       return da - db;
     };
+    // Si se está escribiendo una nota y la vista se vuelve a dibujar (llegó el estado de SECOP, o se cambió una etapa), el borrador se conserva.
+    const campoAbierto = boardEl.querySelector('.pipeline-card-nota-campo');
+    const borrador = campoAbierto ? { id: campoAbierto.closest('[data-nota-id]').getAttribute('data-nota-id'), valor: campoAbierto.value, pos: campoAbierto.selectionStart } : null;
+    notaRedibujando = true;
     boardEl.innerHTML = ETAPAS_PIPELINE.map(etapa => {
       const idsEtapa = ids.filter(id => historial[id].etapa === etapa.id).sort(orden);
       if (!idsEtapa.length) return '';
@@ -3085,8 +3118,31 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         '<div class="pipeline-lista">' + idsEtapa.map(id => renderPipelineCardHtml(id, historial[id])).join('') + '</div>' +
         '</section>';
     }).join('');
+    notaRedibujando = false;
+    if (borrador) abrirEditorNota(boardEl, borrador.id, borrador.valor, borrador.pos);
   }
 
+  let notaRedibujando = false; // true mientras la vista se redibuja: un campo de nota que desaparece no cuenta como «salir del campo»
+  function contenedorDeNota(boardEl, id){
+    return Array.from(boardEl.querySelectorAll('[data-nota-id]')).find(c => c.getAttribute('data-nota-id') === id) || null;
+  }
+  function abrirEditorNota(boardEl, id, texto, pos){
+    const c = contenedorDeNota(boardEl, id);
+    if (!c) return;
+    c.innerHTML = notaEditorHtml(texto);
+    const ta = c.querySelector('textarea');
+    ta.focus();
+    const p = (pos === undefined || pos === null) ? ta.value.length : pos;
+    ta.setSelectionRange(p, p);
+  }
+  function cerrarEditorNota(c, id, guardar){
+    if (!historial[id]) return;
+    if (guardar){
+      const ta = c.querySelector('textarea');
+      if (ta && aplicarNotaProceso(historial, id, ta.value)) saveHistorial();
+    }
+    c.innerHTML = notaVistaHtml(id, historial[id].nota);
+  }
   // Delegado único para Mis procesos (abrir, cambiar de estado, quitar).
   const pipelineBoardEl = document.getElementById('bt-pipeline-board');
   if (pipelineBoardEl){
@@ -3096,9 +3152,36 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         quitarDePipeline(quitarBtn.getAttribute('data-pipeline-quitar-id'));
         return;
       }
+      const editarNota = e.target.closest('[data-nota-editar]');
+      if (editarNota){
+        const c = editarNota.closest('[data-nota-id]');
+        const id = c.getAttribute('data-nota-id');
+        abrirEditorNota(pipelineBoardEl, id, (historial[id] && historial[id].nota) || '');
+        return;
+      }
       if (e.target.closest('[data-pipeline-refrescar]')){ estadosVivosEstado = 'idle'; actualizarEstadosVivos(); return; }
       const abrirBtn = e.target.closest('[data-pipeline-abrir-id]');
       if (abrirBtn) abrirAnalisis(abrirBtn.getAttribute('data-pipeline-abrir-id'));
+    });
+    pipelineBoardEl.addEventListener('focusout', function(e){
+      const ta = e.target.closest && e.target.closest('.pipeline-card-nota-campo');
+      if (!ta || notaRedibujando) return;
+      const c = ta.closest('[data-nota-id]');
+      if (c && c.contains(ta)) cerrarEditorNota(c, c.getAttribute('data-nota-id'), true);
+    });
+    pipelineBoardEl.addEventListener('keydown', function(e){
+      const ta = e.target.closest && e.target.closest('.pipeline-card-nota-campo');
+      if (!ta) return;
+      const c = ta.closest('[data-nota-id]');
+      if (e.key === 'Escape'){
+        e.preventDefault();
+        notaRedibujando = true; // quitar el campo no debe guardar
+        cerrarEditorNota(c, c.getAttribute('data-nota-id'), false);
+        setTimeout(() => { notaRedibujando = false; }, 0);
+      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){
+        e.preventDefault();
+        ta.blur();
+      }
     });
     pipelineBoardEl.addEventListener('change', function(e){
       const moverSelect = e.target.closest('[data-pipeline-mover-select-id]');
