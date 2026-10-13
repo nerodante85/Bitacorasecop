@@ -8111,7 +8111,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       while ((mz = reZ.exec(t))) zonas.push({ i: mz.index, texto: t.slice(mz.index, mz.index + 420) });
       const ya = {};
       const LEER = [['Índice de liquidez', new RegExp('[ÍI]ndice\\s+de\\s+liquidez\\s*' + OP, 'i')], ['Índice de endeudamiento', new RegExp('(?:[ÍI]ndice|Indicador)\\s+de\\s+endeudamiento\\s*' + OP, 'i')],
-        ['Razón de cobertura de intereses', new RegExp('Raz[óo]n\\s+de\\s+cobertura\\s+de\\s*' + OP, 'i')],
+        ['Razón de cobertura de intereses', new RegExp('Raz[óo]n\\s+de\\s+cobertura\\s+de\\s+(?:intereses\\s*)?' + OP, 'i')],
         ['Rentabilidad del patrimonio', new RegExp('Rentabilidad\\s+del\\s+patrimonio\\s*' + OP + '(?:\\s*' + OP + '\\s*Mipyme)?', 'i'), true], ['Rentabilidad del activo', new RegExp('Rentabilidad\\s+del\\s+activo\\s*' + OP + '(?:\\s*' + OP + '\\s*Mipyme)?', 'i'), true]];
       zonas.forEach(z => LEER.forEach(L => {
         if (ya[L[0]]) return;
@@ -8130,6 +8130,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Encabezado y pie de página repetidos (se cuelan en medio de una tabla o lista que cruza de página): se quitan antes de leer.
     const quitarPies = x => String(x)
       .replace(/\s+(?:MANTENIMIENTO|CONSTRUCCI[ÓO]N|MEJORAMIENTO|REHABILITACI[ÓO]N|OPTIMIZACI[ÓO]N)\s+[^a-záéíóúñ]{20,}?C[óo]digo\s+CCE-[A-Za-z0-9-]+(?:\s+[A-ZÁÉÍÓÚÑ]+(?:\s+[A-ZÁÉÍÓÚÑ]+)*)?\s+Versi[óo]n\s+\d+(?:\s+SA-[A-Za-z0-9-]+\s+ANEXO\s+\d+)?/g, ' ')
+      .replace(/\s*\bSA-[A-Za-z0-9-]+\s+ANEXO\s+\d+\b/g, ' ')
       .replace(/ANEXO\s+1\s*[–—-]\s*ANEXO\s+T[ÉE]CNICO\s+[A-ZÁÉÍÓÚÑ\s()0-9-]*?P[áa]gina\s+\d+\s+de\s+\d+\s+C[óo]digo\s+Versi[óo]n\s+No\.\s*\d+/g, ' ');
     // Personal y maquinaria
     const CARGOS = ['DIRECTOR DE OBRA', 'DIRECTOR DE PROYECTO', 'RESIDENTE DE OBRA', 'RESIDENTE', 'ESPECIALISTA ESTRUCTURAL', 'ESPECIALISTA GEOT[ÉE]CNICO', 'ESPECIALISTA HIDR[ÁA]ULICO', 'INSPECTOR DE OBRA', 'RESPONSABLE SG-SST', 'PROFESIONAL SST', 'PROFESIONAL AMBIENTAL', 'PROFESIONAL SOCIAL', 'TOP[ÓO]GRAFO'];
@@ -8266,7 +8267,35 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           const mPun = z.slice(hPun.f).match(/^\s*((?:\d+(?:[.,]\d+)?\s+){0,11}\d+(?:[.,]\d+)?)(?=\s|$)/);
           const puns = mPun ? mPun[1].trim().split(/\s+/) : [];
           const n = cargos.length;
-          if (n){
+          // Orden de lectura por FILAS (pdf.js en el navegador): los encabezados van juntos y luego cada fila completa
+          // («1 Director Ingeniero Civil o arquitecto Mínimo de 10 años … al menos 2 contratos … 40% 20»). Aquí cada dato
+          // viene pegado a su cargo: no hay que contar columnas, y la formación sí se puede leer.
+          const filasP = [];
+          if (!cants.length){
+            const cuerpo = z.slice(hPun.f);
+            const reFila = new RegExp('(?:^|\\s)(\\d{1,2})\\s+(?=(?:' + ROL.source + '))', 'gi');
+            const ini = Array.from(cuerpo.matchAll(reFila));
+            ini.forEach((m, k) => {
+              const txt = cuerpo.slice(m.index + m[0].length, k + 1 < ini.length ? ini[k + 1].index : cuerpo.length);
+              const mc = txt.match(new RegExp('^(?:' + ROL.source + ')', 'i')); if (!mc) return;
+              const resto = txt.slice(mc[0].length);
+              const iMin = resto.search(/M[íi]nimo\s+de\s+\d/i);
+              const mg = resto.match(/M[íi]nimo\s+de\s+(\d{1,2})\s+a[ñn]os/i), ms = resto.match(/al\s+menos\s+(\d{1,2})\s+contratos?/i), md = resto.match(/(\d{1,3})\s*%\s+(\d+(?:[.,]\d+)?)(?=\s|$)/);
+              filasP.push({ cargo: mc[0].trim(), cant: m[1], formacion: (iMin > 0 ? resto.slice(0, iMin) : '').trim(), gen: mg ? mg[1] : null, cont: ms ? ms[1] : null, ded: md ? md[1] : null, pun: md ? md[2] : null });
+            });
+          }
+          if (filasP.length){
+            filasP.forEach(fl => {
+              const partes = [];
+              if (fl.gen) partes.push(fl.gen + ' años de experiencia general');
+              if (fl.cont) partes.push(fl.cont + ' contrato(s) de experiencia específica');
+              if (fl.ded) partes.push('dedicación ' + fl.ded + '%');
+              if (fl.pun) partes.push('puntaje ' + fl.pun);
+              add('Personal', fl.cargo.charAt(0).toUpperCase() + fl.cargo.slice(1).toLowerCase(), fl.cant + ' · ' + (fl.formacion || 'formación: ver la tabla del documento'), partes.join(' · ') || 'ver la tabla del documento',
+                { pagina: pagina(iP), aviso: 'Figura bajo «PERSONAL PROFESIONAL (' + puntos + ' puntos)» como factor de calidad con puntaje, aunque dice «como mínimo, oferte»: confirma con la entidad si es requisito habilitante o solo puntaje.' });
+            });
+            avisos.push('El personal se leyó de la tabla del documento fila por fila: confírmalo contra el original.');
+          } else if (n){
             const completo = cants.length === n;
             const col = arr => (completo && arr.length === n) ? arr : null;
             const g2 = col(gens), c2 = col(conts), d2 = col(deds), p2 = col(puns);
@@ -8306,7 +8335,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const menciones = [];
       GARANTIAS.forEach((g, gi) => { for (const m of t.matchAll(g.re)) menciones.push({ g: gi, ini: m.index, fin: m.index + m[0].length }); });
       menciones.sort((a, b) => a.ini - b.ini);
-      const porGarantia = GARANTIAS.map(() => ({ vals: [], tabla: null }));
+      const porGarantia = GARANTIAS.map(() => ({ vals: [], tabla: null, na: null }));
       let enTabla = false; // el nombre anterior quedó sin cifra y hay otro nombre pegado: lo que siga puede ser de cualquiera
       menciones.forEach((m, i) => {
         const g = GARANTIAS[m.g], sig = menciones.slice(i + 1).find(x => x.g !== m.g) || null; // la ventana solo se corta en OTRA garantía
@@ -8334,7 +8363,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         }
         const adyacenteOtra = !!sig && sig.g !== m.g && sig.ini - m.fin < 400;
         const pg = porGarantia[m.g];
-        if (hallado && enTabla && hallado.dist > 60){ // cifra lejos de su nombre, justo después de nombres sin cifra: de quién es, no se sabe
+        if (!hallado && /^\s*(?:N\/A|no\s+aplica)\b/i.test(w)){ // la tabla dice que esta garantía no se exige: es un dato, no una cifra perdida
+          if (pg.na == null) pg.na = m.ini;
+          enTabla = false;
+        } else if (hallado && enTabla && hallado.dist > 60){ // cifra lejos de su nombre, justo después de nombres sin cifra: de quién es, no se sabe
           if (pg.tabla == null) pg.tabla = m.ini;
           enTabla = false;
         } else if (hallado){
@@ -8351,6 +8383,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         const pg = porGarantia[gi], ms = pg.vals;
         const u = g.smmlv ? ' SMMLV' : '%';
         if (!ms.length){
+          if (pg.na != null){ add('Garantías', g.nombre, 'No aplica: el documento dice «N/A»', '', { pagina: pagina(pg.na) }); return; }
           if (pg.tabla != null) add('Garantías', g.nombre, 'Se menciona; la cifra no se pudo asociar con seguridad (tabla en columnas o lista de garantías)', 'Consúltala en el original', { pagina: pagina(pg.tabla) });
           return;
         }
