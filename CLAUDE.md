@@ -78,6 +78,14 @@ sincronización, Edge Functions de IA y correo).
   Supabase). Claves sincronizadas (`SYNCED_KEYS`): historial, perfiles_empresa, perfil_activo_id, perfiles_activos,
   perfil_empresa (legado), analisis_pliegos, experiencia_evaluacion, perfiles_profesionales, personal_activo_id, ultima_vista,
   alertas_guardadas, correo_digest_activo, schema_version.
+  - `historial` (Mis procesos), `perfiles_empresa` y `perfiles_profesionales` se sincronizan **por elemento** en `app_state_items`
+    (`company_id, coleccion, item_id`; ARQ-003 ronda 2): se sube solo lo que cambió y se borra solo lo que ESE dispositivo conocía y quitó
+    (`snapshotsColecciones`; sin snapshot se sube todo y no se borra nada), así dos dispositivos que editan registros distintos no se pisan.
+    La primera lectura migra el blob viejo de `app_state` (marcador `app_state.key='items_<coleccion>'`, luego borra el blob); con marcador las
+    filas son la verdad (una colección vaciada a propósito no resucita del caché local). `SCHEMA_VERSION = 2`: una pestaña con la app vieja avisa
+    y no escribe. **`alertas_guardadas` se queda en `app_state` a propósito: `daily-digest` la lee de ahí** (moverla exige cambiar y redesplegar la
+    función). Lógica pura y de E/S con cliente inyectado junto a `evaluarVersionEsquema` (probada con un Supabase falso y dos dispositivos).
+    La migración SQL `20261014_app_state_items.sql` debe aplicarse en el proyecto real ANTES de publicar el cliente nuevo.
   - `analisis_pliegos` se sincroniza **por elemento** en la tabla `app_state_analisis_items` (no como un blob).
     Cada entrada guarda también `proceso` (resumen: `snapshotDeProceso`) para poder reabrirla sin la búsqueda en pantalla; `procesoPorId(id)` busca en la búsqueda actual y, si no está, lo reconstruye (`procesosAnalizadosFueraDeLista`: resumen propio → `historial[id].snapshot` → "sin datos guardados").
   - El **texto completo** de un pliego (`text`, `ocrText`, `estudioPrevioText`) vive en **IndexedDB** (`bitacora_textos_pliego`),

@@ -6585,3 +6585,28 @@ solo se abre sola si obliga a actuar: alertas alta/media, experiencia sin evalua
 alto, o lectura parcial (ahí están los botones de "seguir leyendo"). `renderCompatibilidadHtml` se partió en `partesCompatibilidad`
 (piezas) y se conserva con la salida de siempre. Los `<details>` se cierran al re-renderizar la tarjeta (mismo límite que los demás).
 Medido a 375 y 1280 px: sin desborde. Bug encontrado al medir: un `grid` sin `minmax(0,1fr)` y un `nowrap` ensanchaban la página 117 px.
+
+## ARQ-003 ronda 2: Mis procesos y perfiles, una fila por elemento (2026-10-14)
+
+**Decisión del usuario:** pasar `historial`, `perfiles_empresa` y `perfiles_profesionales` a una fila por elemento; dejar `alertas_guardadas` fuera;
+preparar todo y confirmar con el usuario antes de tocar la base real.
+
+**Por qué `historial` y no solo lo que ARQ-003 dejó pendiente:** desde que Mis procesos guarda etapa y notas, `historial` es la colección que
+más se edita desde varios dispositivos; era peor candidata a «blob único» que las alertas.
+
+**Por qué no `alertas_guardadas`:** `daily-digest/index.ts` la lee de `app_state` (`.in('key', ['correo_digest_activo','alertas_guardadas',...])`);
+moverla rompía el correo diario sin que ninguna prueba del cliente lo notara. Hacerlo exige cambiar y redesplegar la función.
+
+**Diseño:** una tabla genérica `app_state_items (company_id, coleccion, item_id, value)` en vez de una por colección. El cliente guarda un
+*snapshot* (`id → json`) de lo que leyó/guardó; al guardar sube solo lo distinto y borra solo ids que estaban en su snapshot y ya no están.
+Sin snapshot (nunca leyó) sube todo y no borra nada, para que un dispositivo recién abierto no borre lo ajeno. Marcador
+`app_state.key='items_<coleccion>'`: con marcador las filas son la verdad (vaciar a propósito no resucita del caché); sin marcador migra, con este
+orden de confianza: blob de la cuenta > filas ya existentes > caché local.
+
+**Bug que halló la prueba (no un caso teórico):** la primera versión de la lectura mezclaba el caché local (`textoLocal`) aunque la cuenta ya
+tuviera filas de otro dispositivo; el caché puede estar desactualizado y reintroducía registros viejos. Se arregló con el orden de confianza de arriba.
+
+**Verificación:** `tests/smoke.mjs` con un cliente de Supabase falso en memoria y dos dispositivos; 4 mutaciones (nunca borrar, borrar contra el
+estado remoto sin snapshot, no poner marcador, mezclar el caché) detectadas. **No verificado:** contra la base real (la migración está lista y sin aplicar).
+`SCHEMA_VERSION` pasa a 2 para que una pestaña con la app vieja avise y no escriba encima.
+
