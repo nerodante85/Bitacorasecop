@@ -203,6 +203,9 @@ async function enviarCorreo(to: string, asunto: string, textoPlano: string): Pro
 // Entrada del listado del bucket de Storage (la usa pliegosVencidos; va fuera del bloque que prueba el arnés).
 interface ArchivoStorage { name: string; id?: string | null; created_at?: string | null }
 
+// Lo que decide si una corrida fue sana (lo usa evaluarSalud; va fuera del bloque que prueba el arnés).
+interface ResumenCorrida { errores: number; pendientes: number; fatal?: boolean }
+
 // Un nombre de alerta o de empresa es TEXTO LIBRE del usuario y termina dentro de un correo: se quitan
 // saltos de línea y caracteres de control, se neutralizan los enlaces (relay de phishing) y se acota.
 function limpiarNombre(t: unknown): string {
@@ -229,6 +232,17 @@ function pliegosVencidos(archivos: ArchivoStorage[], carpeta: string, ahoraMs: n
     if (t < limite) fuera.push(carpeta + '/' + a.name);
   }
   return fuera;
+}
+
+// Monitor del correo diario (ESC-001 / OPS-007): decide si la corrida fue sana. Pura (sin red) para poder probarla.
+// Los motivos son CÓDIGOS FIJOS: jamás correos, nombres ni mensajes de error (se guardan en digest_runs y viajan en un aviso).
+// `degradado` = hubo errores o empresas sin atender; `falla` = ni siquiera se pudo leer el estado de las empresas.
+function evaluarSalud(r: ResumenCorrida): { estado: 'ok' | 'degradado' | 'falla'; motivos: string[] } {
+  const motivos = [];
+  if (r.fatal) motivos.push('lectura_estado');
+  if (r.errores > 0) motivos.push('errores');
+  if (r.pendientes > 0) motivos.push('pendientes');
+  return { estado: r.fatal ? 'falla' : (motivos.length ? 'degradado' : 'ok'), motivos };
 }
 
 const MAX_ALERTAS_POR_EMPRESA = 10;   // cota contra el fan-out hacia Socrata (SEG-004)
@@ -263,6 +277,38 @@ async function barrerPliegosHuerfanos(admin: ReturnType<typeof createClient>): P
   }
 }
 
+// Registro de la corrida para el monitor (tabla digest_runs, ver supabase/migrations/20261014_digest_runs.sql). Se escribe con
+// service_role. NUNCA lanzan: si la tabla no existe o falla, el digest funciona igual (solo se pierde la señal del monitor).
+// Solo guardan contadores y códigos fijos: nada de correos, nombres ni mensajes de error.
+async function iniciarCorrida(admin: ReturnType<typeof createClient>): Promise<number | null> {
+  try {
+    const { data, error } = await admin.from('digest_runs').insert({}).select('id').single();
+    if (error) { console.error('daily-digest: no se pudo registrar la corrida', error.message); return null; }
+    return (data as { id: number }).id;
+  } catch (e) {
+    console.error('daily-digest: no se pudo registrar la corrida', e);
+    return null;
+  }
+}
+
+interface DatosCierre {
+  estado: string; motivos: string[]; empresasRevisadas: number; empresasConOptin: number;
+  correosEnviados: number; errores: number; pendientes: number; pliegosBorrados: number; duracionMs: number;
+}
+async function cerrarCorrida(admin: ReturnType<typeof createClient>, id: number | null, d: DatosCierre): Promise<void> {
+  if (id == null) return;
+  try {
+    const { error } = await admin.from('digest_runs').update({
+      finished_at: new Date().toISOString(), estado: d.estado, motivos: d.motivos,
+      empresas_revisadas: d.empresasRevisadas, empresas_con_optin: d.empresasConOptin, correos_enviados: d.correosEnviados,
+      errores: d.errores, pendientes: d.pendientes, pliegos_borrados: d.pliegosBorrados, duracion_ms: d.duracionMs,
+    }).eq('id', id);
+    if (error) console.error('daily-digest: no se pudo cerrar la corrida', error.message);
+  } catch (e) {
+    console.error('daily-digest: no se pudo cerrar la corrida', e);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   // Falla CERRADA: sin CRON_SECRET configurado la función NO responde (antes quedaba pública, y
   // cualquiera podía disparar correos y ver en la respuesta los emails de los usuarios). La
@@ -291,6 +337,9 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const admin = createClient(supabaseUrl, serviceRoleKey);
   const appUrl = Deno.env.get('APP_URL') || 'https://nerodante85.github.io/Bitacorasecop/';
+  // Monitor: una fila por corrida (solo si llegó hasta aquí, es decir, autenticó). Un 401 no deja fila a propósito.
+  const inicioCorrida = Date.now();
+  const corridaId = await iniciarCorrida(admin);
 
   // Una sola consulta para las 3 claves de todas las empresas -- más barato
   // que una consulta por empresa, y de todos modos hay que revisarlas todas.
@@ -300,6 +349,11 @@ Deno.serve(async (req: Request) => {
     .in('key', ['correo_digest_activo', 'alertas_guardadas', 'empresas_seguidas']);
   if (error) {
     console.error('daily-digest: no se pudo leer app_state', error);
+    const saludFatal = evaluarSalud({ errores: 0, pendientes: 0, fatal: true });
+    await cerrarCorrida(admin, corridaId, {
+      estado: saludFatal.estado, motivos: saludFatal.motivos, empresasRevisadas: 0, empresasConOptin: 0,
+      correosEnviados: 0, errores: 0, pendientes: 0, pliegosBorrados: 0, duracionMs: Date.now() - inicioCorrida,
+    });
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 
@@ -384,7 +438,13 @@ Deno.serve(async (req: Request) => {
   const barrido = await barrerPliegosHuerfanos(admin);
   if (barrido.error) errores.push('barrido de pliegos: ' + barrido.error);
 
-  const body: Record<string, unknown> = { empresasRevisadas: porEmpresa.size, correosEnviados, errores: errores.length, pendientes: pendientes.length, pliegosBorrados: barrido.borrados };
+  const salud = evaluarSalud({ errores: errores.length, pendientes: pendientes.length });
+  await cerrarCorrida(admin, corridaId, {
+    estado: salud.estado, motivos: salud.motivos, empresasRevisadas: porEmpresa.size,
+    empresasConOptin: [...porEmpresa.values()].filter((e) => e.optin).length, correosEnviados,
+    errores: errores.length, pendientes: pendientes.length, pliegosBorrados: barrido.borrados, duracionMs: Date.now() - inicioCorrida,
+  });
+  const body: Record<string, unknown> = { empresasRevisadas: porEmpresa.size, correosEnviados, errores: errores.length, pendientes: pendientes.length, pliegosBorrados: barrido.borrados, estado: salud.estado, motivos: salud.motivos };
   // Los correos de los usuarios (detalles) solo se devuelven en modo debug.
   if (debug) { body.detalles = detalles; body.debug = debugInfo; body.mensajesError = errores; }
   // OPS-007: con errores o empresas sin atender la respuesta es 500, para que quien invoque el cron

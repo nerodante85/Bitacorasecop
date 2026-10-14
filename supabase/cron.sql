@@ -43,3 +43,17 @@ select cron.schedule(
 --   select * from cron.job_run_details order by start_time desc limit 10;
 -- Para desactivarlo si algún día ya no quieres el correo diario:
 --   select cron.unschedule('bitacora-secop-daily-digest');
+
+-- ----------------------------------------------------------------------------
+-- Monitor del correo diario (ESC-001 / OPS-007). Corre 30 minutos DESPUÉS del digest y avisa por correo si no hubo
+-- ejecución, quedó colgada o terminó mal (ver supabase/migrations/20261014_digest_runs.sql; antes de que sirva hay
+-- que crear los secretos del Vault que ahí se explican). No lleva secretos: solo llama a una función de la base.
+-- Si cambias la hora del job de arriba, mueve también esta (siempre 30 minutos después) o saltarán falsas alarmas.
+-- ----------------------------------------------------------------------------
+select cron.schedule(
+  'bitacora-secop-digest-monitor',
+  '30 13 * * *', -- 13:30 UTC = 8:30 a.m. en Colombia
+  $$ select public.revisar_salud_digest(); $$
+);
+-- Para revisarlo:   select * from cron.job where jobname = 'bitacora-secop-digest-monitor';
+-- Para desactivarlo: select cron.unschedule('bitacora-secop-digest-monitor');

@@ -6610,3 +6610,23 @@ tuviera filas de otro dispositivo; el caché puede estar desactualizado y reintr
 estado remoto sin snapshot, no poner marcador, mezclar el caché) detectadas. **No verificado:** contra la base real (la migración está lista y sin aplicar).
 `SCHEMA_VERSION` pasa a 2 para que una pestaña con la app vieja avise y no escriba encima.
 
+## Monitor del correo diario (2026-10-14)
+
+**Problema:** si `daily-digest` fallaba, nadie se enteraba. pg_cron marca `succeeded` al encolar la llamada; el HTTP real (500/401) queda en
+`net._http_response`, que se purga en horas. Un cron desprogramado, un secreto rotado o una función caída no dejaban ninguna traza, y un día sin
+novedades era indistinguible de «no corrió».
+
+**Decisión del usuario:** aviso desde la base de datos, independiente de la función; alcance solo el monitor.
+
+**Diseño:** la función escribe una fila por corrida (`digest_runs`, solo si autenticó) y un segundo cron llama a `revisar_salud_digest()` 30 min
+después. El comprobador vive en Postgres a propósito: una alerta enviada desde la propia función falla justo en los casos que hay que cubrir.
+Descartados: solo GitHub Actions (duplicaría la ejecución y los correos, `schedule` se retrasa y se apaga a los 60 días, exige guardar
+`CRON_SECRET` en GitHub), leer `net._http_response` (se purga y ve 200 aunque falle SECOP) y un latido a un servicio externo (un tercero más).
+
+**Hallazgo en el camino:** la app ya no escribe `empresas_seguidas`; esa rama del digest y sus consultas a SECOP I son código muerto. Por eso el
+monitor NO cambió cómo se cuentan los fallos de SECOP (en el camino vivo, las alertas guardadas, ya entran a `errores[]`). Limpiarlo queda aparte.
+
+**Verificación:** pruebas de `evaluarSalud` (motor puro extraído del `.ts` real), estáticas del orden (la corrida se registra DESPUÉS de autenticar y
+se cierra en el error de `app_state` y al final) y del SQL (sin políticas, `security definer` con `search_path`, sin clave ni correo personal);
+5 mutaciones detectadas; el TypeScript compila sin errores nuevos respecto de `main`. **No verificado:** contra la base real ni con un correo real.
+
