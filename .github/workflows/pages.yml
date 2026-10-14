@@ -30,8 +30,8 @@ jobs:
           node-version: '22'
       - run: node tests/smoke.mjs
 
-  # F-07: pruebas de punta a punta en main. NO bloquea la publicación (solo `smoke` lo hace) mientras se confirma
-  # que son estables; cuando lleven varias ejecuciones en verde, agrégalo a `needs` de `deploy`.
+  # F-07: pruebas de punta a punta en main. BLOQUEAN la publicación (`deploy` necesita `smoke` y `e2e`): llevaban 7
+  # ejecuciones seguidas en verde en main (136 ejecuciones del workflow) y 3 de 3 en local antes de activarlo.
   e2e:
     runs-on: ubuntu-latest
     steps:
@@ -43,7 +43,7 @@ jobs:
       - run: node tests/e2e.mjs
 
   deploy:
-    needs: smoke
+    needs: [smoke, e2e]
     if: ${{ vars.PAGES_POR_ACTIONS == 'true' }}
     runs-on: ubuntu-latest
     permissions:

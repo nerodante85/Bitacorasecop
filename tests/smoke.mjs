@@ -4379,9 +4379,9 @@ await check('OPS-003/ESC-003/SEG-006: contrato de versión igual en cliente y fu
   });
 });
 
-await check('OPS-001: pages.yml despliega solo detrás de las pruebas y de la variable de activación', () => {
+await check('OPS-001: pages.yml despliega solo detrás de las pruebas (smoke Y e2e) y de la variable de activación', () => {
   const y = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
-  assert(/deploy:\s*\n\s*needs: smoke/.test(y) && /vars\.PAGES_POR_ACTIONS == 'true'/.test(y), 'needs: smoke y variable de activación');
+  assert(/deploy:\s*\n\s*needs: \[smoke, e2e\]/.test(y) && /vars\.PAGES_POR_ACTIONS == 'true'/.test(y), 'needs: [smoke, e2e] y variable de activación');
   assert(!/cp .*tests|cp .*auditoria|cp .*supabase/.test(y), 'no publica tests, auditoría ni código de Supabase');
 });
 
