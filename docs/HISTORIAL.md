@@ -6630,3 +6630,19 @@ monitor NO cambió cómo se cuentan los fallos de SECOP (en el camino vivo, las 
 se cierra en el error de `app_state` y al final) y del SQL (sin políticas, `security definer` con `search_path`, sin clave ni correo personal);
 5 mutaciones detectadas; el TypeScript compila sin errores nuevos respecto de `main`. **No verificado:** contra la base real ni con un correo real.
 
+## Monitor del correo diario: la causa del 500 sin exponer datos (2026-10-14)
+
+**Qué pasó:** la primera invocación real del digest con el monitor respondió 500 y dejó su fila (`degradado`, motivo `errores`), pero ni la fila ni el log
+decían POR QUÉ: el texto de cada error solo se devuelve con `?debug=1`, que además expone correos de usuarios. Hubo que deducir la causa (muy probablemente
+el 403 de Resend por un destinatario distinto del dueño de la cuenta) cruzando conteos en la base.
+
+**Decisión:** traducir cada error a un código de un conjunto cerrado y descartar el texto. `codigosDeErrores` (pura, entre las anclas del arnés) mira el
+origen del error («correo», «alerta», «empresa seguida», «barrido de pliegos», «empresa») y, para Resend, el estado HTTP de tres dígitos. `evaluarSalud` los
+agrega a `motivos` SOLO si hay errores. Así el 500, `digest_runs`, el log y el propio correo de alerta («degradado: errores, resend_403») dicen la causa.
+
+**Por qué no se loguea el mensaje:** el 403 de Resend contiene el correo del dueño de la cuenta; cualquier mensaje de error puede traer datos de usuarios.
+
+**Verificación:** 3 pruebas nuevas (escritas primero), 5 mutaciones detectadas (no sumar códigos, volcar el texto en el log, orden de las ramas, código que
+arrastra el texto, no pasar los códigos) y el TypeScript compila sin errores nuevos. **No verificado:** contra la función desplegada (requiere un PR y su despliegue).
+Un error propio, corregido en el camino: una prueba mía tenía un `\n` mal escapado y habría revisado de más.
+
