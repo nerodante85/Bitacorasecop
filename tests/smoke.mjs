@@ -369,7 +369,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { fichaHabilitante, cruceFichaEmpresa, tramosDeSumatoria, unoPctPresupuestoDeTexto, unirItemsDePdf, parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, observacionesTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { fichaHabilitante, cruceFichaEmpresa, tramosDeSumatoria, unoPctPresupuestoDeTexto, unirItemsDePdf, parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, observacionesTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, coleccionComoMapa, diferenciasColeccion, armarColeccion, leerColeccionRemota, guardarColeccionRemota, reemplazarColeccionRemota, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -2679,6 +2679,141 @@ await check('OPS-008: el respaldo se arma solo con claves con dato y se valida a
   const extra = expEngine.validarRespaldo(JSON.stringify({ formato: 'bitacora-respaldo', version: 1, claves: { historial: '{}', 'malicioso': 'x', '__proto__x': 'y' } }), PERMITIDAS);
   assert(extra.ok && !('malicioso' in extra.claves) && extra.ignoradas.length === 2, 'las claves no permitidas se ignoran');
   assert(!expEngine.validarRespaldo(JSON.stringify({ formato: 'bitacora-respaldo', version: 1, claves: { otra: 'x' } }), PERMITIDAS).ok, 'sin claves reconocidas no se restaura');
+});
+
+// ARQ-003 (ronda 2): historial, perfiles_empresa y perfiles_profesionales pasan de UN blob por clave a UNA fila por elemento
+// (tabla app_state_items). Cliente de Supabase falso en memoria que implementa solo lo que usa el código (select/eq/in/maybeSingle,
+// upsert con onConflict/ignoreDuplicates, delete) para simular DOS dispositivos contra la misma cuenta.
+function clienteSupabaseFalso(){
+  const tablas = { app_state: [], app_state_items: [] };
+  const claveDe = (t, f) => t === 'app_state' ? f.company_id + '|' + f.key : f.company_id + '|' + f.coleccion + '|' + f.item_id;
+  function consulta(tabla, accion, payload, opts){
+    const filtros = [];
+    const q = {
+      eq(c, v){ filtros.push(f => f[c] === v); return q; },
+      in(c, vs){ filtros.push(f => vs.indexOf(f[c]) !== -1); return q; },
+      select(){ return q; },
+      maybeSingle(){ return Promise.resolve(ejecutar(true)); },
+      then(ok, ko){ return Promise.resolve(ejecutar(false)).then(ok, ko); }
+    };
+    function ejecutar(uno){
+      if (accion === 'upsert'){
+        (Array.isArray(payload) ? payload : [payload]).forEach(fila => {
+          const k = claveDe(tabla, fila);
+          const i = tablas[tabla].findIndex(f => claveDe(tabla, f) === k);
+          if (i === -1) tablas[tabla].push(Object.assign({}, fila));
+          else if (!(opts && opts.ignoreDuplicates)) tablas[tabla][i] = Object.assign({}, fila);
+        });
+        return { error: null };
+      }
+      if (accion === 'delete'){
+        tablas[tabla] = tablas[tabla].filter(f => !filtros.every(fn => fn(f)));
+        return { error: null };
+      }
+      const filas = tablas[tabla].filter(f => filtros.every(fn => fn(f)));
+      return uno ? { data: filas[0] || null, error: null } : { data: filas, error: null };
+    }
+    return q;
+  }
+  return {
+    tablas,
+    from(t){
+      return {
+        select(){ return consulta(t, 'select'); },
+        upsert(p, o){ return consulta(t, 'upsert', p, o); },
+        delete(){ return consulta(t, 'delete'); }
+      };
+    }
+  };
+}
+
+await check('ARQ-003 (ronda 2): diferenciasColeccion sube solo lo cambiado/nuevo y borra solo lo que ESTE dispositivo conocía y quitó', () => {
+  const d0 = expEngine.diferenciasColeccion(null, { a: { n: 1 }, b: { n: 2 } });
+  assert(d0.subir.length === 2 && d0.borrar.length === 0, 'sin snapshot: sube todo y NO borra nada');
+  const snap = { a: JSON.stringify({ n: 1 }), b: JSON.stringify({ n: 2 }) };
+  const d1 = expEngine.diferenciasColeccion(snap, { a: { n: 1 }, b: { n: 3 }, c: { n: 4 } });
+  assert(d1.subir.map(x => x.id).sort().join() === 'b,c' && d1.borrar.length === 0, 'solo b (cambió) y c (nuevo): ' + JSON.stringify(d1));
+  const d2 = expEngine.diferenciasColeccion(snap, { a: { n: 1 } });
+  assert(d2.subir.length === 0 && d2.borrar.join() === 'b', 'b estaba en el snapshot y ya no está: se borra');
+  assert(expEngine.coleccionComoMapa('[1,2]') === null && expEngine.coleccionComoMapa('basura') === null && expEngine.coleccionComoMapa('null') === null, 'solo un objeto simple es una colección');
+  const arm = expEngine.armarColeccion([{ item_id: 'x', value: '{"n":1}' }, { item_id: 'roto', value: '{no es json' }]);
+  assert(arm.mapa.x.n === 1 && !('roto' in arm.mapa) && !('roto' in arm.snapshot), 'una fila dañada se ignora y no entra al snapshot (así no se borra por error)');
+});
+
+await check('ARQ-003 (ronda 2): dos dispositivos editan elementos DISTINTOS de la misma colección y ninguno pisa al otro; migra el blob viejo una sola vez', async () => {
+  const db = clienteSupabaseFalso();
+  const C = 'emp1', K = 'historial';
+  // Estado antiguo: UN blob en app_state con dos procesos.
+  db.tablas.app_state.push({ company_id: C, key: K, value: JSON.stringify({ p1: { etapa: 'viable' }, p2: { etapa: 'por_revisar' } }) });
+  // Dispositivo A y B cargan: la primera lectura migra el blob a filas, marca la colección y borra el blob.
+  const A = await expEngine.leerColeccionRemota(db, C, K, null);
+  assert(Object.keys(A.mapa).sort().join() === 'p1,p2', 'A ve los dos procesos migrados');
+  assert(db.tablas.app_state_items.length === 2, 'quedaron 2 filas');
+  assert(!db.tablas.app_state.some(f => f.key === K) && db.tablas.app_state.some(f => f.key === 'items_' + K), 'el blob viejo se borró y quedó el marcador');
+  const B = await expEngine.leerColeccionRemota(db, C, K, null);
+  assert(db.tablas.app_state_items.length === 2 && Object.keys(B.mapa).length === 2, 'B no vuelve a migrar ni duplica');
+  // A edita p1; B agrega p3 y edita p2, "a la vez" (cada uno guarda su mapa completo).
+  const mapaA = JSON.parse(JSON.stringify(A.mapa)); mapaA.p1.etapa = 'presentada';
+  const mapaB = JSON.parse(JSON.stringify(B.mapa)); mapaB.p3 = { etapa: 'por_revisar' }; mapaB.p2.etapa = 'no_viable';
+  await expEngine.guardarColeccionRemota(db, C, K, mapaA, A.snapshot);
+  await expEngine.guardarColeccionRemota(db, C, K, mapaB, B.snapshot);
+  const final = expEngine.armarColeccion(db.tablas.app_state_items.filter(f => f.coleccion === K)).mapa;
+  assert(final.p1.etapa === 'presentada', 'el cambio de A sobrevivió al guardado posterior de B (con el blob único se habría perdido)');
+  assert(final.p2.etapa === 'no_viable' && final.p3, 'los cambios de B también');
+});
+
+await check('ARQ-003 (ronda 2): borrar un elemento solo borra ESE; lo que otro dispositivo agregó mientras tanto no se pierde; guardar sin haber leído nunca borra nada', async () => {
+  const db = clienteSupabaseFalso();
+  const C = 'emp1', K = 'perfiles_empresa';
+  await expEngine.guardarColeccionRemota(db, C, K, { e1: { nombre: 'Uno' }, e2: { nombre: 'Dos' } }, null);
+  const A = await expEngine.leerColeccionRemota(db, C, K, null);
+  const B = await expEngine.leerColeccionRemota(db, C, K, null);
+  // B agrega e3; A elimina e1.
+  const mB = JSON.parse(JSON.stringify(B.mapa)); mB.e3 = { nombre: 'Tres' };
+  await expEngine.guardarColeccionRemota(db, C, K, mB, B.snapshot);
+  const mA = JSON.parse(JSON.stringify(A.mapa)); delete mA.e1;
+  await expEngine.guardarColeccionRemota(db, C, K, mA, A.snapshot);
+  const ids = db.tablas.app_state_items.filter(f => f.coleccion === K).map(f => f.item_id).sort().join();
+  assert(ids === 'e2,e3', 'e1 borrado, e2 intacto y e3 (agregado por B) conservado: ' + ids);
+  // Un dispositivo que nunca leyó y guarda un mapa casi vacío NO borra lo ajeno.
+  await expEngine.guardarColeccionRemota(db, C, K, { e9: { nombre: 'Nuevo' } }, null);
+  const ids2 = db.tablas.app_state_items.filter(f => f.coleccion === K).map(f => f.item_id).sort().join();
+  assert(ids2 === 'e2,e3,e9', 'sin snapshot no se borra nada: ' + ids2);
+});
+
+await check('ARQ-003 (ronda 2): una colección vaciada a propósito sigue vacía (no resucita desde el caché local) y las colecciones no se mezclan entre empresas ni entre claves', async () => {
+  const db = clienteSupabaseFalso();
+  await expEngine.guardarColeccionRemota(db, 'emp1', 'historial', { p1: { etapa: 'viable' } }, null);
+  await expEngine.guardarColeccionRemota(db, 'emp2', 'historial', { zz: { etapa: 'viable' } }, null);
+  await expEngine.guardarColeccionRemota(db, 'emp1', 'perfiles_profesionales', { q1: { nombre: 'Ana' } }, null);
+  const A = await expEngine.leerColeccionRemota(db, 'emp1', 'historial', JSON.stringify({ viejo: {} }));
+  assert(Object.keys(A.mapa).join() === 'p1', 'no mezcla otra empresa ni otra clave: ' + Object.keys(A.mapa));
+  await expEngine.guardarColeccionRemota(db, 'emp1', 'historial', {}, A.snapshot);
+  const A2 = await expEngine.leerColeccionRemota(db, 'emp1', 'historial', JSON.stringify({ viejo: {} }));
+  assert(Object.keys(A2.mapa).length === 0, 'vaciada a propósito: no resucita el caché local "viejo"');
+  assert(db.tablas.app_state_items.filter(f => f.company_id === 'emp2').length === 1, 'la otra empresa quedó intacta');
+});
+
+await check('ARQ-003 (ronda 2): restaurar un respaldo REEMPLAZA la colección completa (borra lo que no venga en el respaldo)', async () => {
+  const db = clienteSupabaseFalso();
+  await expEngine.guardarColeccionRemota(db, 'emp1', 'historial', { a: { x: 1 }, b: { x: 2 } }, null);
+  const snap = await expEngine.reemplazarColeccionRemota(db, 'emp1', 'historial', { c: { x: 3 } });
+  const ids = db.tablas.app_state_items.map(f => f.item_id).join();
+  assert(ids === 'c' && Object.keys(snap).join() === 'c', 'solo queda c: ' + ids);
+  assert(db.tablas.app_state.some(f => f.key === 'items_historial'), 'queda marcada como migrada');
+});
+
+await check('ARQ-003 (ronda 2): el cliente enruta SOLO historial, perfiles_empresa y perfiles_profesionales por elemento (alertas_guardadas sigue en app_state porque daily-digest la lee de ahí)', () => {
+  const src = readFileSync(HTML_PATH, 'utf8');
+  assert(/const COLECCIONES_POR_ELEMENTO = \['historial', 'perfiles_empresa', 'perfiles_profesionales'\];/.test(src), 'lista exacta de colecciones');
+  assert(/const SCHEMA_VERSION = 2;/.test(src), 'SCHEMA_VERSION 2: una pestaña con la app vieja avisa y no escribe encima');
+  const dd = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  assert(/'alertas_guardadas'/.test(dd) && /from\('app_state'\)/.test(dd), 'daily-digest sigue leyendo alertas_guardadas de app_state');
+  const mig = readFileSync(path.join(ROOT, 'supabase/migrations/20261014_app_state_items.sql'), 'utf8');
+  assert(/create table if not exists public\.app_state_items/.test(mig) && /primary key \(company_id, coleccion, item_id\)/.test(mig), 'migración con clave (empresa, colección, elemento)');
+  assert(/enable row level security/.test(mig) && (mig.match(/create policy/g) || []).length === 4, 'RLS con 4 políticas');
+  assert(/on delete cascade/.test(mig), 'se borra con la empresa (eliminar-cuenta)');
+  assert(/from\('app_state_items'\)/.test(src) && /reemplazarColeccionRemota\(await getSupabaseClient\(\)/.test(src), 'la restauración de respaldo usa el reemplazo completo');
 });
 
 await check('ARQ-002: la versión de esquema distingue ok / migrar / más nueva (esta app no sobrescribe datos de una versión mayor)', () => {

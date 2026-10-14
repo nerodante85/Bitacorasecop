@@ -2224,10 +2224,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const filas = [];
     SYNCED_KEYS.forEach(key => {
       if (key === 'analisis_pliegos') return; // ARQ-003: se migra aparte, item por item (ver abajo)
+      if (COLECCIONES_POR_ELEMENTO.indexOf(key) !== -1) return; // ARQ-003 (ronda 2): se migran aparte, una fila por elemento (ver abajo)
       const raw = localStorage.getItem('bitacora_' + key);
       if (raw !== null) filas.push({ company_id: companyId, key, value: raw });
     });
     if (filas.length) await client.from('app_state').upsert(filas, { onConflict: 'company_id,key' });
+    // ARQ-003 (ronda 2): historial y perfiles, una fila por elemento (la lectura crea las filas y el marcador).
+    for (const key of COLECCIONES_POR_ELEMENTO){
+      try {
+        const raw = localStorage.getItem('bitacora_' + key);
+        if (raw !== null) await reemplazarColeccionRemota(client, companyId, key, coleccionComoMapa(raw) || {});
+      } catch(e){ console.error('No se pudo migrar "' + key + '" a la cuenta', e); }
+    }
     // ARQ-003: analisis_pliegos va a su propia tabla, item por item, no como un blob en
     // app_state -- mismo motivo que el resto de este cambio (ver app_state_analisis_items.sql).
     const rawAnalisis = localStorage.getItem('bitacora_analisis_pliegos');
@@ -2271,7 +2279,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const localBackend = { get: window.storage.get, set: window.storage.set };
   // ARQ-002: versión del formato de los datos guardados. Si los datos los guardó una versión MÁS NUEVA
   // de la app, esta no los sobrescribe (evita que una pestaña con la app vieja pise datos nuevos).
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2; // 2: historial y perfiles pasan a una fila por elemento (ARQ-003 ronda 2); una pestaña con la app vieja avisa y NO escribe
   let esquemaBloqueado = false;
   async function verificarVersionEsquema(){
     try {
@@ -2286,7 +2294,23 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       }
     } catch(e){ console.error('No se pudo verificar la versión de los datos', e); }
   }
+  // ARQ-003 (ronda 2): colecciones que viven como UNA FILA POR ELEMENTO en app_state_items (el resto sigue en app_state).
+  // `alertas_guardadas` NO está aquí a propósito: daily-digest la lee de app_state.
+  const COLECCIONES_POR_ELEMENTO = ['historial', 'perfiles_empresa', 'perfiles_profesionales'];
+  const snapshotsColecciones = {}; // clave -> { id: json } de lo que ESTE dispositivo leyó o guardó por última vez
   window.storage.get = async function(key){
+    if (sbSession && sbCompanyId && COLECCIONES_POR_ELEMENTO.indexOf(key) !== -1){
+      try {
+        const client = await getSupabaseClient();
+        const local = await localBackend.get(key);
+        const r = await leerColeccionRemota(client, sbCompanyId, key, local && local.value);
+        snapshotsColecciones[key] = r.snapshot;
+        return { key, value: JSON.stringify(r.mapa) };
+      } catch(e){
+        console.error('No se pudo leer "' + key + '" de la cuenta, se usa lo guardado en este navegador', e);
+        return localBackend.get(key);
+      }
+    }
     if (sbSession && sbCompanyId){
       try {
         const client = await getSupabaseClient();
@@ -2302,6 +2326,19 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   window.storage.set = async function(key, value){
     if (esquemaBloqueado) return { key, value };
     await localBackend.set(key, value);
+    if (sbSession && sbCompanyId && COLECCIONES_POR_ELEMENTO.indexOf(key) !== -1){
+      try {
+        const mapa = coleccionComoMapa(value);
+        if (!mapa) throw new Error('el valor de "' + key + '" no es un objeto');
+        const client = await getSupabaseClient();
+        // Sin snapshot (este dispositivo nunca leyó la colección en esta sesión) se sube todo y NO se borra nada.
+        snapshotsColecciones[key] = await guardarColeccionRemota(client, sbCompanyId, key, mapa, snapshotsColecciones[key] || null);
+      } catch(e){
+        console.error('No se pudo sincronizar "' + key + '" con la cuenta (se guardó solo en este navegador)', e);
+        mostrarAvisoGuardado('No se pudo sincronizar tus cambios con tu cuenta (' + ((e && e.message) || 'error de red') + '). Quedaron guardados solo en este navegador; no los abras en otro dispositivo hasta que se sincronicen.');
+      }
+      return { key, value };
+    }
     if (sbSession && sbCompanyId){
       try {
         const client = await getSupabaseClient();
@@ -2522,6 +2559,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const { data: filas, error } = await client.from('app_state').select('key,value');
       if (error) throw error;
       (filas || []).forEach(f => { paquete.datos[f.key] = f.value; });
+      // ARQ-003 (ronda 2): las colecciones por elemento viven en otra tabla; se arman como el mapa que la app guardaba.
+      const { data: items, error: errItems } = await client.from('app_state_items').select('coleccion,item_id,value');
+      if (errItems) throw errItems;
+      COLECCIONES_POR_ELEMENTO.forEach(c => {
+        const arm = armarColeccion((items || []).filter(f => f.coleccion === c));
+        if (Object.keys(arm.mapa).length) paquete.datos[c] = JSON.stringify(arm.mapa);
+      });
       // Copia local (por si algo aún no se sincronizó).
       paquete.copiaLocal = {};
       Object.keys(localStorage).filter(k => k.indexOf('bitacora_') === 0).forEach(k => { paquete.copiaLocal[k] = localStorage.getItem(k); });
@@ -9748,6 +9792,99 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (g > actual) return 'mas_nueva';
     return g === actual ? 'ok' : 'migrar';
   }
+  // ---- ARQ-003 (ronda 2): colecciones guardadas UNA FILA POR ELEMENTO (app_state_items) --------------------
+  // `historial` (Mis procesos), `perfiles_empresa` y `perfiles_profesionales` son mapas id -> registro. Con UN blob por clave,
+  // dos dispositivos que editaban registros distintos se pisaban entero (última escritura gana para TODA la colección).
+  // Ahora cada registro es su fila (empresa, colección, id): se sube solo lo que cambió y se borra solo lo que ESTE
+  // dispositivo conocía y quitó. Lo que otro dispositivo agregó mientras tanto nunca se toca. Estas funciones reciben el
+  // cliente de Supabase (no usan globales) para poder probarse con uno falso.
+  function coleccionComoMapa(texto){
+    try { const o = JSON.parse(texto); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : null; } catch(_e){ return null; }
+  }
+  // `snapshot`: { id: json } de lo que este dispositivo leyó/guardó por última vez (o null si nunca leyó: entonces sube todo y NO borra nada).
+  function diferenciasColeccion(snapshot, mapa){
+    const subir = [], borrar = [];
+    Object.keys(mapa || {}).forEach(id => {
+      const v = JSON.stringify(mapa[id]);
+      if (!snapshot || snapshot[id] !== v) subir.push({ id: id, value: v });
+    });
+    if (snapshot) Object.keys(snapshot).forEach(id => { if (!mapa || !(id in mapa)) borrar.push(id); });
+    return { subir: subir, borrar: borrar };
+  }
+  function snapshotDeMapa(mapa){
+    const snap = {};
+    Object.keys(mapa || {}).forEach(id => { snap[id] = JSON.stringify(mapa[id]); });
+    return snap;
+  }
+  // Filas -> { mapa, snapshot }. Una fila dañada se ignora y NO entra al snapshot (así nunca se borra por error).
+  function armarColeccion(filas){
+    const mapa = {};
+    (filas || []).forEach(f => { try { mapa[f.item_id] = JSON.parse(f.value); } catch(_e){ /* fila dañada: se ignora */ } });
+    return { mapa: mapa, snapshot: snapshotDeMapa(mapa) };
+  }
+  function filasDeColeccion(companyId, key, subir){
+    const ahora = new Date().toISOString();
+    return subir.map(x => ({ company_id: companyId, coleccion: key, item_id: x.id, value: x.value, updated_at: ahora }));
+  }
+  function marcadorDeColeccion(key){ return 'items_' + key; }
+  async function leerFilasDeColeccion(client, companyId, key){
+    const r = await client.from('app_state_items').select('item_id,value').eq('company_id', companyId).eq('coleccion', key);
+    if (r.error) throw r.error;
+    return r.data || [];
+  }
+  // Lee la colección de la cuenta. Si todavía no está migrada (sin marcador), la pasa a filas UNA vez: toma el blob viejo de
+  // app_state (o, si no hay, el caché local `textoLocal`), sube cada registro sin pisar filas que ya existan, pone el marcador
+  // y borra el blob. Con marcador, las filas son la verdad: una colección vacía a propósito sigue vacía (no resucita del caché).
+  async function leerColeccionRemota(client, companyId, key, textoLocal){
+    const marca = await client.from('app_state').select('value').eq('company_id', companyId).eq('key', marcadorDeColeccion(key)).maybeSingle();
+    if (marca.error) throw marca.error;
+    if (!marca.data){
+      const blob = await client.from('app_state').select('value').eq('company_id', companyId).eq('key', key).maybeSingle();
+      if (blob.error) throw blob.error;
+      // Orden de confianza: el blob viejo de la cuenta > las filas que ya existan (otro dispositivo escribió antes de que
+      // hubiera marcador) > el caché local, que solo vale si la cuenta no tiene nada (puede estar desactualizado).
+      const existentes = blob.data ? [] : await leerFilasDeColeccion(client, companyId, key);
+      const origen = coleccionComoMapa(blob.data ? blob.data.value : (existentes.length ? null : textoLocal)) || {};
+      const subir = Object.keys(origen).map(id => ({ id: id, value: JSON.stringify(origen[id]) }));
+      if (subir.length){
+        const up = await client.from('app_state_items').upsert(filasDeColeccion(companyId, key, subir), { onConflict: 'company_id,coleccion,item_id', ignoreDuplicates: true });
+        if (up.error) throw up.error;
+      }
+      const m = await client.from('app_state').upsert({ company_id: companyId, key: marcadorDeColeccion(key), value: '1', updated_at: new Date().toISOString() }, { onConflict: 'company_id,key' });
+      if (m.error) throw m.error;
+      if (blob.data){
+        const del = await client.from('app_state').delete().eq('company_id', companyId).eq('key', key);
+        if (del.error) throw del.error;
+      }
+    }
+    return armarColeccion(await leerFilasDeColeccion(client, companyId, key));
+  }
+  // Guarda solo las diferencias contra `snapshot`; devuelve el snapshot nuevo (el que ya tiene la cuenta de lo que este dispositivo conoce).
+  async function guardarColeccionRemota(client, companyId, key, mapa, snapshot){
+    const d = diferenciasColeccion(snapshot, mapa);
+    if (d.subir.length){
+      const up = await client.from('app_state_items').upsert(filasDeColeccion(companyId, key, d.subir), { onConflict: 'company_id,coleccion,item_id' });
+      if (up.error) throw up.error;
+    }
+    if (d.borrar.length){
+      const del = await client.from('app_state_items').delete().eq('company_id', companyId).eq('coleccion', key).in('item_id', d.borrar);
+      if (del.error) throw del.error;
+    }
+    return snapshotDeMapa(mapa);
+  }
+  // Reemplazo COMPLETO (solo al restaurar un respaldo, donde el usuario ya confirmó que reemplaza todo).
+  async function reemplazarColeccionRemota(client, companyId, key, mapa){
+    const del = await client.from('app_state_items').delete().eq('company_id', companyId).eq('coleccion', key);
+    if (del.error) throw del.error;
+    const subir = Object.keys(mapa || {}).map(id => ({ id: id, value: JSON.stringify(mapa[id]) }));
+    if (subir.length){
+      const up = await client.from('app_state_items').upsert(filasDeColeccion(companyId, key, subir), { onConflict: 'company_id,coleccion,item_id' });
+      if (up.error) throw up.error;
+    }
+    const m = await client.from('app_state').upsert({ company_id: companyId, key: marcadorDeColeccion(key), value: '1', updated_at: new Date().toISOString() }, { onConflict: 'company_id,key' });
+    if (m.error) throw m.error;
+    return snapshotDeMapa(mapa);
+  }
   // PERF-005: al llenarse el almacenamiento, se libera el texto completo de los pliegos más antiguos
   // (lo más pesado) conservando sus resultados. Devuelve el id liberado o null si ya no hay nada.
   function liberarTextoMasAntiguo(analisisObj){
@@ -14648,6 +14785,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
             const obj = v.claves[k] ? JSON.parse(v.claves[k]) : {};
             await reemplazarAnalisisRemotoCompleto(obj);
           }
+          continue;
+        }
+        if (COLECCIONES_POR_ELEMENTO.indexOf(k) !== -1 && sbSession && sbCompanyId){
+          // ARQ-003 (ronda 2): restaurar REEMPLAZA la colección completa (el usuario ya lo confirmó arriba).
+          await localBackend.set(k, v.claves[k]);
+          if (!esquemaBloqueado) snapshotsColecciones[k] = await reemplazarColeccionRemota(await getSupabaseClient(), sbCompanyId, k, coleccionComoMapa(v.claves[k]) || {});
           continue;
         }
         await window.storage.set(k, v.claves[k], false);
