@@ -208,6 +208,14 @@ sincronización, Edge Functions de IA y correo).
 - `pages.yml`: corre las pruebas y, si la variable `PAGES_POR_ACTIONS=true`, publica `index.html` + scripts propios (sellados
   con `?v=<commit>`) + `vendor/`, `404.html`, `privacidad.html`, `snapshot.json`, `sitemap.xml`. **Un archivo nuevo del sitio
   debe agregarse a la lista de `Preparar el sitio`** o nunca llega a producción.
+- **Monitor del correo diario** (ESC-001/OPS-007): `daily-digest` deja una fila por ejecución en `digest_runs` (solo contadores y códigos fijos de
+  `evaluarSalud`: `errores`, `pendientes`, `lectura_estado`; nunca correos ni mensajes; un 401 no deja fila) y un SEGUNDO cron de la base
+  (`bitacora-secop-digest-monitor`, 30 min después) llama a `revisar_salud_digest()`, que avisa por Resend (pg_net) si falta la fila, quedó colgada o no
+  terminó `ok`. Un día sin novedades es `ok` y no envía nada. La clave de Resend (`resend_api_key`) y el destinatario (`monitor_alert_to`, opcional
+  `monitor_alert_from`) viven en el **Vault** de Supabase, nunca en el repo. Si cambias la hora del cron del digest, mueve también la del monitor.
+  `iniciarCorrida`/`cerrarCorrida` nunca lanzan (sin la tabla el digest funciona igual). La app ya no escribe `empresas_seguidas`: esa rama del digest
+  (y sus consultas a SECOP I) es código muerto pendiente de limpiar. Las herramientas de Supabase de esta sesión se atascaron con scripts de varias
+  sentencias: aplica el SQL de una sentencia por vez.
 - `funciones-supabase.yml`: despliega las Edge Functions al cambiar `supabase/functions/**` (secreto `SUPABASE_ACCESS_TOKEN`,
   variable `DEPLOY_FUNCIONES=true`). Tras tocar una función, invócala (p. ej. `daily-digest?debug=1`) para ver que arranca.
 - Si GitHub Actions tiene un incidente, los trabajos se cancelan tras ~15 min en cola: revisa githubstatus.com antes de relanzar.

@@ -4262,7 +4262,13 @@ function extractDailyDigestEngine(){
   const de = 'function limpiarNombre(t: unknown): string {';
   const dePliegos = 'function pliegosVencidos(archivos: ArchivoStorage[], carpeta: string, ahoraMs: number, horas: number): string[] {';
   assert(raw.includes(dePliegos), 'falta pliegosVencidos en daily-digest/index.ts (barrido de PDFs huérfanos)');
-  const src = raw.slice(iC0, iC1).replace(de, 'function limpiarNombre(t) {').replace(dePliegos, 'function pliegosVencidos(archivos, carpeta, ahoraMs, horas) {') + '\nreturn { limpiarNombre, pliegosVencidos };';
+  // Monitor (OPS-007): evaluarSalud vive en el mismo bloque; su firma es la única anotación de tipos y se despoja igual.
+  // Si todavía no existe, el arnés sigue armando (la prueba de evaluarSalud falla por sí sola, no todo el archivo).
+  const deSalud = "function evaluarSalud(r: ResumenCorrida): { estado: 'ok' | 'degradado' | 'falla'; motivos: string[] } {";
+  let bloque = raw.slice(iC0, iC1).replace(de, 'function limpiarNombre(t) {').replace(dePliegos, 'function pliegosVencidos(archivos, carpeta, ahoraMs, horas) {');
+  const tieneSalud = bloque.includes(deSalud);
+  if (tieneSalud) bloque = bloque.replace(deSalud, 'function evaluarSalud(r) {');
+  const src = bloque + '\nreturn { limpiarNombre, pliegosVencidos' + (tieneSalud ? ', evaluarSalud' : '') + ' };';
   return new Function(src)();
 }
 const digestEngine = extractDailyDigestEngine();
@@ -4288,6 +4294,56 @@ await check('Barrido de PDFs huérfanos: solo se borran los archivos más viejos
   const r = digestEngine.pliegosVencidos(lista, 'empresa-1', ahora, 24);
   assert(JSON.stringify(r) === JSON.stringify(['empresa-1/viejo.pdf']), 'solo el de 30 h: ' + JSON.stringify(r));
   assert(digestEngine.pliegosVencidos([], 'x', ahora, 24).length === 0 && digestEngine.pliegosVencidos(null, 'x', ahora, 24).length === 0, 'vacío o null: nada que borrar');
+});
+
+// ---- Monitor del correo diario (ESC-001 / OPS-007): la función deja una fila por ejecución en digest_runs y un segundo
+// cron de la base de datos (independiente de la función) avisa por Resend si falta, quedó colgada o no terminó bien.
+await check('Monitor del digest: evaluarSalud decide ok / degradado / falla con motivos fijos (nunca datos de usuarios)', () => {
+  assert(typeof digestEngine.evaluarSalud === 'function', 'falta evaluarSalud en daily-digest/index.ts (entre limpiarNombre y MAX_ALERTAS_POR_EMPRESA)');
+  const ev = digestEngine.evaluarSalud;
+  const j = x => JSON.stringify(x);
+  assert(j(ev({ errores: 0, pendientes: 0 })) === j({ estado: 'ok', motivos: [] }), 'todo en cero es ok: ' + j(ev({ errores: 0, pendientes: 0 })));
+  assert(j(ev({ errores: 1, pendientes: 0 })) === j({ estado: 'degradado', motivos: ['errores'] }), 'un error es degradado: ' + j(ev({ errores: 1, pendientes: 0 })));
+  assert(j(ev({ errores: 0, pendientes: 2 })) === j({ estado: 'degradado', motivos: ['pendientes'] }), 'pendientes es degradado: ' + j(ev({ errores: 0, pendientes: 2 })));
+  assert(j(ev({ errores: 3, pendientes: 1 })) === j({ estado: 'degradado', motivos: ['errores', 'pendientes'] }), 'ambos motivos se listan: ' + j(ev({ errores: 3, pendientes: 1 })));
+  assert(j(ev({ errores: 0, pendientes: 0, fatal: true })) === j({ estado: 'falla', motivos: ['lectura_estado'] }), 'fatal es falla: ' + j(ev({ errores: 0, pendientes: 0, fatal: true })));
+  assert(ev({ errores: 1, pendientes: 1, fatal: true }).estado === 'falla', 'fatal manda sobre degradado');
+});
+
+await check('Monitor del digest (index.ts): arranca la corrida tras autenticar, la cierra en el error de app_state y al final, nunca lanza y no guarda datos de usuarios', () => {
+  const fn = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  assert(/status: huboProblemas \? 500 : 200/.test(fn), 'el 500 ante errores o pendientes no se toca');
+  assert(/async function iniciarCorrida\(/.test(fn) && /async function cerrarCorrida\(/.test(fn), 'faltan iniciarCorrida / cerrarCorrida');
+  assert(fn.indexOf('await iniciarCorrida(') > fn.indexOf("'No autorizado'"), 'la corrida solo se registra DESPUÉS de autenticar (un 401 no deja fila)');
+  const iErr = fn.indexOf('no se pudo leer app_state');
+  assert(iErr !== -1 && /cerrarCorrida\(/.test(fn.slice(iErr, fn.indexOf('return new Response', iErr))), 'el error al leer app_state cierra la corrida con fatal');
+  assert((fn.match(/await cerrarCorrida\(/g) || []).length >= 2, 'cierre también en el camino normal');
+  assert(fn.indexOf('await cerrarCorrida(', fn.indexOf('barrerPliegosHuerfanos(admin)')) !== -1, 'el cierre normal va después del barrido de pliegos');
+  const iIni = fn.indexOf('async function iniciarCorrida(');
+  const iCie = fn.indexOf('async function cerrarCorrida(');
+  const cuerpoIni = fn.slice(iIni, fn.indexOf('\n}\n', iIni));
+  const cuerpoCie = fn.slice(iCie, fn.indexOf('\n}\n', iCie));
+  assert(/try \{/.test(cuerpoIni) && /catch/.test(cuerpoIni), 'iniciarCorrida no lanza: sin la tabla el digest funciona igual');
+  assert(/try \{/.test(cuerpoCie) && /catch/.test(cuerpoCie), 'cerrarCorrida no lanza');
+  assert(!/detalles|mensajesError|email/.test(cuerpoIni + cuerpoCie), 'digest_runs no guarda correos ni mensajes de error');
+  assert(/estado: salud\.estado, motivos: salud\.motivos/.test(fn), 'la respuesta incluye estado y motivos (códigos fijos)');
+});
+
+await check('Monitor del digest (SQL): tabla cerrada al navegador, función de revisión sin permiso público, secretos en Vault y segundo cron 30 min después', () => {
+  const mig = readFileSync(path.join(ROOT, 'supabase/migrations/20261014_digest_runs.sql'), 'utf8');
+  const schema = readFileSync(path.join(ROOT, 'supabase/schema.sql'), 'utf8');
+  const cron = readFileSync(path.join(ROOT, 'supabase/cron.sql'), 'utf8');
+  assert(/create table if not exists public\.digest_runs/.test(mig), 'tabla digest_runs');
+  assert(/alter table public\.digest_runs enable row level security/.test(mig), 'RLS activo');
+  assert(!/create policy/i.test(mig), 'SIN políticas (como ai_usage): solo service_role puede leer o escribir');
+  assert(/revoke all on public\.digest_runs from anon, authenticated/.test(mig), 'revoke explícito a los roles del navegador');
+  assert(/security definer/.test(mig) && /set search_path/.test(mig), 'función security definer con search_path fijo');
+  assert(/revoke execute on function public\.revisar_salud_digest\(boolean\) from public, anon, authenticated/.test(mig), 'la función no se puede llamar desde la API pública');
+  assert(/vault\.decrypted_secrets/.test(mig) && /resend_api_key/.test(mig) && /monitor_alert_to/.test(mig), 'clave de Resend y destinatario salen del Vault');
+  assert(!/re_[A-Za-z0-9]{8,}/.test(mig) && !/@(?!resend\.dev)/.test(mig), 'ni clave de Resend ni correo personal escritos en el repo (solo el remitente de pruebas de Resend)');
+  assert(/sin_ejecucion/.test(mig) && /colgada/.test(mig), 'detecta ausencia de ejecución y ejecución colgada');
+  assert(/digest_runs/.test(schema) && /revisar_salud_digest/.test(schema), 'schema.sql refleja la migración');
+  assert(/bitacora-secop-digest-monitor/.test(cron) && /'30 13 \* \* \*'/.test(cron) && /revisar_salud_digest\(\)/.test(cron), 'cron.sql programa el monitor 30 minutos después del digest');
 });
 
 // ---- Módulo de coincidencia compartido (coincidencia.js): un solo origen de las reglas de "¿este
