@@ -299,6 +299,39 @@ await check('Mis procesos en celular (375 px): los enlaces de cada tarjeta miden
   assert(escritorio.quitarVisible, '«Quitar» sigue visible en pantalla ancha');
   await ctx.close();
 });
+await check('Mis procesos: la entidad y el objeto largos se recortan con «Ver más / Ver menos» (solo si de verdad no caben), se leen completos al abrir y la tarjeta abierta sigue abierta al redibujar', async () => {
+  const ahora = Date.now();
+  const f = n => new Date(ahora + n * 86400000).toISOString().slice(0, 19);
+  const largoEnt = 'INSTITUTO DE INFRAESTRUCTURA Y VALORIZACIÓN DE NORTE DE SANTANDER Y OTRAS ENTIDADES ASOCIADAS PARA EL DESARROLLO REGIONAL FINALIZA-ENT';
+  const largoObj = 'MEJORAMIENTO Y OPTIMIZACIÓN DE LAS REDES DE ALCANTARILLADO EN EL BARRIO EL LÍBANO, SECTOR VILLA ESPERANZA, MUNICIPIO DE OCAÑA, DEPARTAMENTO NORTE DE SANTANDER, INCLUYENDO LA CONSTRUCCIÓN DE POZOS DE INSPECCIÓN, CONEXIONES DOMICILIARIAS, ENTIBADOS Y LA REPOSICIÓN DE PAVIMENTO EN LAS VÍAS INTERVENIDAS FINALIZA-OBJ';
+  const mk = (cod, ent, obj) => ['ps2-CO1.REQ.' + cod, { etapa: 'viable', etapaTs: ahora, snapshot: { entidad: ent, objeto: obj, closingRaw: f(20), fuente: 'II', valor: 1000000 * cod } }];
+  const hist = Object.fromEntries([mk(901, largoEnt, largoObj), mk(902, 'ALCALDÍA DE CÚCUTA', 'PAVIMENTO RÍGIDO')]);
+  for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 900 }]) {
+    const { ctx, pg } = await abrir({ viewport: vp, sembrar: { bitacora_historial: JSON.stringify(hist) } });
+    if (vp.width < 600) await pg.click('#bt-nav-toggle');
+    await pg.click('#bt-nav-procesos');
+    await pg.waitForSelector('.pipeline-card');
+    const est = () => pg.evaluate(() => [...document.querySelectorAll('.pipeline-card')].map(c => {
+      const ent = c.querySelector('.pipeline-card-ent-txt'), obj = c.querySelector('.pipeline-card-obj'), b = c.querySelector('[data-pipeline-mas]');
+      return { texto: ent.textContent + ' | ' + obj.textContent, recortado: ent.scrollHeight > ent.clientHeight + 1 || obj.scrollHeight > obj.clientHeight + 1, boton: b && !b.hidden ? b.textContent.trim() : null, abierta: c.classList.contains('abierto') };
+    }));
+    const [larga, corta] = await est();
+    assert(larga.boton === 'Ver más' && larga.recortado, vp.width + ' px: la tarjeta larga se recorta y ofrece «Ver más»: ' + JSON.stringify(larga));
+    assert(corta.boton === null && !corta.recortado, vp.width + ' px: la corta no muestra el botón: ' + JSON.stringify(corta));
+    assert(/FINALIZA-ENT/.test(larga.texto) && /FINALIZA-OBJ/.test(larga.texto), 'el texto completo está en la página (no se corta con «…»)');
+    await pg.locator('.pipeline-card [data-pipeline-mas]:visible').first().click();
+    const [abierta] = await est();
+    assert(abierta.abierta && abierta.boton === 'Ver menos' && !abierta.recortado, vp.width + ' px: abierta se lee completa y el botón dice «Ver menos»: ' + JSON.stringify(abierta));
+    assert(await pg.evaluate(() => document.querySelector('[data-pipeline-mas]').getAttribute('aria-expanded')) === 'true', 'aria-expanded = true');
+    await pg.check('#bt-pipeline-solo-pronto'); await pg.uncheck('#bt-pipeline-solo-pronto'); // redibuja la vista
+    const [trasRedibujar] = await est();
+    assert(trasRedibujar.abierta, vp.width + ' px: la tarjeta abierta sigue abierta al redibujar');
+    await pg.locator('.pipeline-card [data-pipeline-mas]:visible').first().click();
+    const [cerrada] = await est();
+    assert(!cerrada.abierta && cerrada.boton === 'Ver más' && cerrada.recortado, vp.width + ' px: «Ver menos» vuelve a recortar');
+    await ctx.close();
+  }
+});
 await check('Mis procesos: el filtro «solo los que cierran en 7 días» deja las secciones con los que coinciden, oculta las vacías, avisa «N de M» y se puede quitar', async () => {
   const ahora = Date.now();
   const f = n => new Date(ahora + n * 86400000).toISOString().slice(0, 19);
