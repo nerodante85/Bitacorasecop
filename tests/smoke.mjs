@@ -4268,7 +4268,11 @@ function extractDailyDigestEngine(){
   let bloque = raw.slice(iC0, iC1).replace(de, 'function limpiarNombre(t) {').replace(dePliegos, 'function pliegosVencidos(archivos, carpeta, ahoraMs, horas) {');
   const tieneSalud = bloque.includes(deSalud);
   if (tieneSalud) bloque = bloque.replace(deSalud, 'function evaluarSalud(r) {');
-  const src = bloque + '\nreturn { limpiarNombre, pliegosVencidos' + (tieneSalud ? ', evaluarSalud' : '') + ' };';
+  // Códigos de causa (el 500 deja de ser un misterio sin usar ?debug=1): misma regla, firma despojada por reemplazo literal.
+  const deCodigos = 'function codigosDeErrores(errores: string[]): string[] {';
+  const tieneCodigos = bloque.includes(deCodigos);
+  if (tieneCodigos) bloque = bloque.replace(deCodigos, 'function codigosDeErrores(errores) {').replace('const codigos: string[] = [];', 'const codigos = [];');
+  const src = bloque + '\nreturn { limpiarNombre, pliegosVencidos' + (tieneSalud ? ', evaluarSalud' : '') + (tieneCodigos ? ', codigosDeErrores' : '') + ' };';
   return new Function(src)();
 }
 const digestEngine = extractDailyDigestEngine();
@@ -4308,6 +4312,47 @@ await check('Monitor del digest: evaluarSalud decide ok / degradado / falla con 
   assert(j(ev({ errores: 3, pendientes: 1 })) === j({ estado: 'degradado', motivos: ['errores', 'pendientes'] }), 'ambos motivos se listan: ' + j(ev({ errores: 3, pendientes: 1 })));
   assert(j(ev({ errores: 0, pendientes: 0, fatal: true })) === j({ estado: 'falla', motivos: ['lectura_estado'] }), 'fatal es falla: ' + j(ev({ errores: 0, pendientes: 0, fatal: true })));
   assert(ev({ errores: 1, pendientes: 1, fatal: true }).estado === 'falla', 'fatal manda sobre degradado');
+});
+
+await check('Monitor del digest: codigosDeErrores traduce cada error a un código FIJO de causa, sin copiar nunca el texto (que puede traer correos)', () => {
+  assert(typeof digestEngine.codigosDeErrores === 'function', 'falta codigosDeErrores en daily-digest/index.ts (entre limpiarNombre y MAX_ALERTAS_POR_EMPRESA)');
+  const c = digestEngine.codigosDeErrores;
+  const j = x => JSON.stringify(x);
+  const r403 = 'correo c1: Resend respondió 403: {"message":"You can only send testing emails to your own email address (alguien@ejemplo.com)."}';
+  assert(j(c([r403])) === j(['resend_403']), 'un 403 de Resend es resend_403: ' + j(c([r403])));
+  assert(!/@|ejemplo/.test(j(c([r403]))), 'el código jamás arrastra el correo del texto original');
+  assert(j(c(['correo c1: RESEND_API_KEY no está configurado (supabase secrets set ...)'])) === j(['resend_sin_clave']), 'sin clave de Resend');
+  assert(j(c(['correo c1: otra cosa rara'])) === j(['correo']), 'otro fallo de correo');
+  assert(j(c(['alerta c1: fetch failed'])) === j(['secop']), 'una alerta que falla es una consulta a SECOP');
+  assert(j(c(['empresa seguida c1: HTTP 500'])) === j(['secop']), 'una empresa seguida que falla también es SECOP (se comprueba antes que «empresa»)');
+  assert(j(c(['barrido de pliegos: boom'])) === j(['storage']), 'el barrido es storage');
+  assert(j(c(['empresa c1: boom'])) === j(['empresa']), 'el fallo general de una empresa');
+  assert(j(c(['algo sin origen conocido'])) === j(['otro']), 'sin origen reconocido: otro');
+  assert(j(c([r403, r403, 'alerta c9: fetch failed'])) === j(['resend_403', 'secop']), 'sin repetidos y ordenados: ' + j(c([r403, r403, 'alerta c9: fetch failed'])));
+  assert(j(c([])) === '[]' && j(c(null)) === '[]', 'sin errores no hay códigos');
+  assert(j(c(['correo c1: Resend respondió 4031234: x'])) === j(['resend_403']) || j(c(['correo c1: Resend respondió 4031234: x'])) === j(['correo']), 'un estado absurdo nunca produce un código largo');
+});
+
+await check('Monitor del digest: evaluarSalud suma los códigos de causa SOLO cuando hay errores', () => {
+  assert(typeof digestEngine.evaluarSalud === 'function', 'falta evaluarSalud');
+  const ev = digestEngine.evaluarSalud;
+  const j = x => JSON.stringify(x);
+  assert(j(ev({ errores: 1, pendientes: 0, codigos: ['resend_403'] })) === j({ estado: 'degradado', motivos: ['errores', 'resend_403'] }), 'errores + causa: ' + j(ev({ errores: 1, pendientes: 0, codigos: ['resend_403'] })));
+  assert(j(ev({ errores: 2, pendientes: 1, codigos: ['resend_403', 'secop'] })) === j({ estado: 'degradado', motivos: ['errores', 'resend_403', 'secop', 'pendientes'] }), 'las causas van pegadas a «errores»: ' + j(ev({ errores: 2, pendientes: 1, codigos: ['resend_403', 'secop'] })));
+  assert(j(ev({ errores: 0, pendientes: 0, codigos: ['resend_403'] })) === j({ estado: 'ok', motivos: [] }), 'sin errores, un código suelto se ignora (no inventa un problema)');
+  assert(j(ev({ errores: 1, pendientes: 0 })) === j({ estado: 'degradado', motivos: ['errores'] }), 'sin códigos se comporta como antes');
+});
+
+await check('Monitor del digest (index.ts): el log y la fila dicen la causa con códigos y NUNCA vuelcan el texto de los errores', () => {
+  const fn = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  assert(/function codigosDeErrores\(/.test(fn), 'existe codigosDeErrores');
+  assert(/codigos: codigosDeErrores\(errores\)/.test(fn), 'evaluarSalud recibe los códigos de las causas reales');
+  const iLog = fn.indexOf("console.error('daily-digest: ' + errores.length");
+  assert(iLog !== -1, 'sigue el resumen en el log');
+  const lineaLog = fn.slice(iLog, fn.indexOf('\n', iLog));
+  assert(/codigos|salud\.motivos/.test(lineaLog), 'el resumen del log incluye los códigos');
+  assert(!/errores\.join|mensajesError|errores\[/.test(lineaLog), 'el log NUNCA vuelca el texto de los errores');
+  assert(/status: huboProblemas \? 500 : 200/.test(fn), 'el 500 no cambió');
 });
 
 await check('Monitor del digest (index.ts): arranca la corrida tras autenticar, la cierra en el error de app_state y al final, nunca lanza y no guarda datos de usuarios', () => {

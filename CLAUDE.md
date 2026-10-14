@@ -213,7 +213,10 @@ sincronización, Edge Functions de IA y correo).
   (`bitacora-secop-digest-monitor`, 30 min después) llama a `revisar_salud_digest()`, que avisa por Resend (pg_net) si falta la fila, quedó colgada o no
   terminó `ok`. Un día sin novedades es `ok` y no envía nada. La clave de Resend (`resend_api_key`) y el destinatario (`monitor_alert_to`, opcional
   `monitor_alert_from`) viven en el **Vault** de Supabase, nunca en el repo. Si cambias la hora del cron del digest, mueve también la del monitor.
-  `iniciarCorrida`/`cerrarCorrida` nunca lanzan (sin la tabla el digest funciona igual). La app ya no escribe `empresas_seguidas`: esa rama del digest
+  `iniciarCorrida`/`cerrarCorrida` nunca lanzan (sin la tabla el digest funciona igual). **El 500 explica su causa sin `?debug=1`**: `codigosDeErrores`
+  traduce cada error a un código de un conjunto cerrado (`resend_<estado>`, `resend_sin_clave`, `correo`, `secop`, `storage`, `empresa`, `otro`) que va a
+  `digest_runs.motivos`, al log y al correo de alerta; el texto original del error (que puede traer correos: el 403 de Resend nombra al dueño de la cuenta) NUNCA
+  se guarda ni se loguea. La app ya no escribe `empresas_seguidas`: esa rama del digest
   (y sus consultas a SECOP I) es código muerto pendiente de limpiar. Las herramientas de Supabase de esta sesión se atascaron con scripts de varias
   sentencias: aplica el SQL de una sentencia por vez.
 - `funciones-supabase.yml`: despliega las Edge Functions al cambiar `supabase/functions/**` (secreto `SUPABASE_ACCESS_TOKEN`,

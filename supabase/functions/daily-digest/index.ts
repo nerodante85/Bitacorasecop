@@ -204,7 +204,7 @@ async function enviarCorreo(to: string, asunto: string, textoPlano: string): Pro
 interface ArchivoStorage { name: string; id?: string | null; created_at?: string | null }
 
 // Lo que decide si una corrida fue sana (lo usa evaluarSalud; va fuera del bloque que prueba el arnés).
-interface ResumenCorrida { errores: number; pendientes: number; fatal?: boolean }
+interface ResumenCorrida { errores: number; pendientes: number; fatal?: boolean; codigos?: string[] }
 
 // Un nombre de alerta o de empresa es TEXTO LIBRE del usuario y termina dentro de un correo: se quitan
 // saltos de línea y caracteres de control, se neutralizan los enlaces (relay de phishing) y se acota.
@@ -240,9 +240,35 @@ function pliegosVencidos(archivos: ArchivoStorage[], carpeta: string, ahoraMs: n
 function evaluarSalud(r: ResumenCorrida): { estado: 'ok' | 'degradado' | 'falla'; motivos: string[] } {
   const motivos = [];
   if (r.fatal) motivos.push('lectura_estado');
-  if (r.errores > 0) motivos.push('errores');
+  if (r.errores > 0) {
+    motivos.push('errores');
+    for (const c of r.codigos || []) motivos.push(c);   // la causa va pegada a «errores»; sin errores, un código suelto se ignora
+  }
   if (r.pendientes > 0) motivos.push('pendientes');
   return { estado: r.fatal ? 'falla' : (motivos.length ? 'degradado' : 'ok'), motivos };
+}
+
+// Cada texto de `errores` empieza con su origen («correo <id>: ...», «alerta <id>: ...») y puede traer correos o datos de usuarios
+// dentro del mensaje (el 403 de Resend, por ejemplo, nombra el correo del dueño de la cuenta). Aquí se traduce a un CÓDIGO de un
+// conjunto cerrado y el texto original se descarta: así el log, la fila de digest_runs y el aviso dicen la causa sin exponer nada.
+function codigosDeErrores(errores: string[]): string[] {
+  const codigos: string[] = [];
+  for (const e of errores || []) {
+    const t = String(e);
+    let c = 'otro';
+    if (t.startsWith('correo ')) {
+      const m = t.match(/Resend respondió (\d{3})\b/);
+      c = m ? 'resend_' + m[1] : (t.includes('RESEND_API_KEY') ? 'resend_sin_clave' : 'correo');
+    } else if (t.startsWith('alerta ') || t.startsWith('empresa seguida ')) {
+      c = 'secop';
+    } else if (t.startsWith('barrido de pliegos')) {
+      c = 'storage';
+    } else if (t.startsWith('empresa ')) {
+      c = 'empresa';
+    }
+    if (!codigos.includes(c)) codigos.push(c);
+  }
+  return codigos.sort();
 }
 
 const MAX_ALERTAS_POR_EMPRESA = 10;   // cota contra el fan-out hacia Socrata (SEG-004)
@@ -438,7 +464,7 @@ Deno.serve(async (req: Request) => {
   const barrido = await barrerPliegosHuerfanos(admin);
   if (barrido.error) errores.push('barrido de pliegos: ' + barrido.error);
 
-  const salud = evaluarSalud({ errores: errores.length, pendientes: pendientes.length });
+  const salud = evaluarSalud({ errores: errores.length, pendientes: pendientes.length, codigos: codigosDeErrores(errores) });
   await cerrarCorrida(admin, corridaId, {
     estado: salud.estado, motivos: salud.motivos, empresasRevisadas: porEmpresa.size,
     empresasConOptin: [...porEmpresa.values()].filter((e) => e.optin).length, correosEnviados,
@@ -450,7 +476,7 @@ Deno.serve(async (req: Request) => {
   // OPS-007: con errores o empresas sin atender la respuesta es 500, para que quien invoque el cron
   // (pg_net, un monitor externo) lo detecte en vez de ver siempre un 200 aunque no se enviara nada.
   const huboProblemas = errores.length > 0 || pendientes.length > 0;
-  if (huboProblemas) console.error('daily-digest: ' + errores.length + ' error(es), ' + pendientes.length + ' empresa(s) pendiente(s)');
+  if (huboProblemas) console.error('daily-digest: ' + errores.length + ' error(es), ' + pendientes.length + ' empresa(s) pendiente(s) [' + salud.motivos.join(', ') + ']');
   return new Response(JSON.stringify(body), {
     status: huboProblemas ? 500 : 200,
     headers: { 'Content-Type': 'application/json' },
