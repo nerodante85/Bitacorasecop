@@ -1656,19 +1656,27 @@
                 <label for="bt-perfil-k-residual">Capacidad K residual (texto libre; en pesos si quieres que se calcule tu capacidad disponible más abajo)</label>
                 <input id="bt-perfil-k-residual" type="text" placeholder="ej. K residual = 1.200.000.000">
               </div>
+              <div class="field full">
+                <label for="bt-perfil-tipo-persona">Tipo de persona (define cómo se redactan la carta y la firma de los documentos)</label>
+                <select id="bt-perfil-tipo-persona">
+                  <option value="">Sin indicar</option>
+                  <option value="juridica">Persona jurídica (empresa, sociedad, cooperativa…)</option>
+                  <option value="natural">Persona natural</option>
+                </select>
+              </div>
               <div class="field-row2 full">
                 <div class="field">
                   <label for="bt-perfil-nit">NIT</label>
                   <input id="bt-perfil-nit" type="text" placeholder="ej. 900.123.456-7">
                 </div>
                 <div class="field">
-                  <label for="bt-perfil-representante">Representante legal</label>
+                  <label for="bt-perfil-representante">Representante legal (o tu nombre, si eres persona natural)</label>
                   <input id="bt-perfil-representante" type="text" placeholder="Nombre completo">
                 </div>
               </div>
               <div class="field-row2 full">
                 <div class="field">
-                  <label for="bt-perfil-representante-cedula">Cédula del representante legal</label>
+                  <label for="bt-perfil-representante-cedula">Cédula del representante legal (o la tuya, si eres persona natural)</label>
                   <input id="bt-perfil-representante-cedula" type="text" placeholder="ej. 1.234.567.890">
                 </div>
                 <div class="field">
@@ -2762,6 +2770,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   const perfilKEl = document.getElementById('bt-perfil-k');
   const perfilKResidualEl = document.getElementById('bt-perfil-k-residual');
   const perfilNitEl = document.getElementById('bt-perfil-nit');
+  const perfilTipoPersonaEl = document.getElementById('bt-perfil-tipo-persona');
   const perfilRepresentanteEl = document.getElementById('bt-perfil-representante');
   const perfilRepresentanteCedulaEl = document.getElementById('bt-perfil-representante-cedula');
   const perfilTelefonoEl = document.getElementById('bt-perfil-telefono');
@@ -3386,7 +3395,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // Datos de contacto/legales -- solo se usan para generar la carta de
     // presentación (Fase 10, ver generarCartaTexto), no entran en ningún
     // gate go/no-go.
-    nit: '', representanteLegal: '', representanteCedula: '', telefono: '', direccion: '', ciudad: '', correo: '', objeto_social: ''
+    nit: '', representanteLegal: '', representanteCedula: '', telefono: '', direccion: '', ciudad: '', correo: '', objeto_social: '',
+    // RA3-4: 'natural' | 'juridica' | '' (sin indicar). Cambia la redacción y la firma de los documentos; nunca se asume.
+    tipoPersona: ''
   };
   let perfiles = {}; // { id: { nombre, rup, k, kResidual, contratosEnEjecucion } }
   let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
@@ -3531,6 +3542,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     setCampo(perfilKEl, perfil.k);
     setCampo(perfilKResidualEl, perfil.kResidual);
     setCampo(perfilNitEl, perfil.nit);
+    setCampo(perfilTipoPersonaEl, perfil.tipoPersona);
     setCampo(perfilRepresentanteEl, perfil.representanteLegal);
     setCampo(perfilRepresentanteCedulaEl, perfil.representanteCedula);
     setCampo(perfilTelefonoEl, perfil.telefono);
@@ -3553,6 +3565,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       k: getCampo(perfilKEl),
       kResidual: getCampo(perfilKResidualEl),
       nit: getCampo(perfilNitEl),
+      tipoPersona: getCampo(perfilTipoPersonaEl),
       representanteLegal: getCampo(perfilRepresentanteEl),
       representanteCedula: getCampo(perfilRepresentanteCedulaEl),
       telefono: getCampo(perfilTelefonoEl),
@@ -10336,6 +10349,30 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return L;
   }
 
+  // RA3-4: la redacción de la carta, el compromiso y la firma depende de si el proponente es persona natural o jurídica.
+  // Antes todo decía «sociedad» y «representante legal». Sin el dato (perfiles anteriores) no se asume: queda para completar.
+  const COMPLETAR_TIPO_PERSONA = '[COMPLETAR: persona natural o jurídica -- indícalo en "Perfil de la empresa", campo "Tipo de persona"]';
+  function calidadProponente(p){
+    const nombre = (p && p.nombre) || '[RAZÓN SOCIAL]';
+    const t = p && p.tipoPersona;
+    if (t === 'natural') return { obrando: 'obrando en nombre propio', nit: 'identificado(a) con NIT', firma: 'Proponente (persona natural)', idNit: 'identificado(a) con NIT' };
+    if (t === 'juridica') return { obrando: 'obrando en calidad de representante legal de ' + nombre, nit: 'persona jurídica identificada con NIT', firma: 'Representante Legal', idNit: 'identificada con NIT' };
+    return { obrando: 'obrando en nombre de ' + nombre + ' ' + COMPLETAR_TIPO_PERSONA, nit: 'identificado(a) con NIT', firma: 'Representante Legal / Proponente ' + COMPLETAR_TIPO_PERSONA, idNit: 'identificado(a) con NIT' };
+  }
+  function nombreFirmante(p){
+    if (p && p.tipoPersona === 'natural') return p.representanteLegal || p.nombre || '[NOMBRE COMPLETO]';
+    return (p && p.representanteLegal) || '[REPRESENTANTE LEGAL]';
+  }
+  function cedulaFirmante(p){
+    return (p && p.representanteCedula) || (p && p.tipoPersona === 'natural' ? '[CÉDULA DE CIUDADANÍA]' : '[CÉDULA DEL REPRESENTANTE LEGAL]');
+  }
+  function bloqueFirmaProponente(p){
+    const L = ['_______________________________________', nombreFirmante(p), 'C.C. No. ' + cedulaFirmante(p), calidadProponente(p).firma];
+    if (!(p && p.tipoPersona === 'natural')) L.push((p && p.nombre) || '[RAZÓN SOCIAL]');
+    L.push('NIT: ' + ((p && p.nit) || '[NIT]'));
+    return L;
+  }
+
   function generarCartaTexto(perfil, item, sinAviso){
     const p = perfil; // alias corto -- evita repetir "perfil." en cada línea
     const L = [];
@@ -10349,10 +10386,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('');
     L.push('Asunto: Carta de presentación de la oferta');
     L.push('');
-    L.push('El(la) suscrito(a) ' + (p.representanteLegal || '[REPRESENTANTE LEGAL]') +
-      ', identificado(a) con cédula de ciudadanía No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]') +
-      ', obrando en calidad de representante legal de ' + (p.nombre || '[RAZÓN SOCIAL]') +
-      ', sociedad identificada con NIT ' + (p.nit || '[NIT]') +
+    const calidad = calidadProponente(p);
+    L.push('El(la) suscrito(a) ' + nombreFirmante(p) +
+      ', identificado(a) con cédula de ciudadanía No. ' + cedulaFirmante(p) +
+      ', ' + calidad.obrando +
+      ', ' + calidad.nit + ' ' + (p.nit || '[NIT]') +
       (p.direccion ? ', con domicilio en ' + p.direccion + (p.ciudad ? ', ' + p.ciudad : '') : ', con domicilio en [DIRECCIÓN]' + (p.ciudad ? ', ' + p.ciudad : ', [CIUDAD]')) +
       (p.telefono ? ', teléfono ' + p.telefono : ', teléfono [TELÉFONO]') +
       (p.correo ? ', correo electrónico ' + p.correo : ', correo electrónico [CORREO ELECTRÓNICO]') +
@@ -10369,12 +10407,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('Atentamente,');
     L.push('');
     L.push('');
-    L.push('_______________________________________');
-    L.push(p.representanteLegal || '[REPRESENTANTE LEGAL]');
-    L.push('C.C. No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]'));
-    L.push('Representante Legal');
-    L.push(p.nombre || '[RAZÓN SOCIAL]');
-    L.push('NIT: ' + (p.nit || '[NIT]'));
+    bloqueFirmaProponente(p).forEach(x => L.push(x));
     if (p.direccion || p.ciudad) L.push('Dirección: ' + (p.direccion || '[DIRECCIÓN]') + (p.ciudad ? ', ' + p.ciudad : ''));
     if (p.telefono || p.correo) L.push((p.telefono ? 'Teléfono: ' + p.telefono : '') + (p.telefono && p.correo ? '  ·  ' : '') + (p.correo ? 'Correo: ' + p.correo : ''));
     L.push('');
@@ -10401,10 +10434,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('Referencia: ' + (item.modalidad || '[MODALIDAD]') + (item.referencia ? ' No. ' + item.referencia : ' No. [NÚMERO DE PROCESO]'));
     L.push('Objeto: ' + (item.objeto || '[OBJETO DEL PROCESO]'));
     L.push('');
-    L.push('El(la) suscrito(a) ' + (p.representanteLegal || '[REPRESENTANTE LEGAL]') +
-      ', identificado(a) con cédula de ciudadanía No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]') +
-      ', obrando en calidad de representante legal de ' + (p.nombre || '[RAZÓN SOCIAL]') +
-      ', identificada con NIT ' + (p.nit || '[NIT]') +
+    const calidadAc = calidadProponente(p);
+    L.push('El(la) suscrito(a) ' + nombreFirmante(p) +
+      ', identificado(a) con cédula de ciudadanía No. ' + cedulaFirmante(p) +
+      ', ' + calidadAc.obrando +
+      ', ' + calidadAc.nit + ' ' + (p.nit || '[NIT]') +
       ', manifiesto mi voluntad de asumir compromisos en orden a la búsqueda de la transparencia en el proceso de contratación de la referencia, así:');
     L.push('');
     L.push('1. Apoyaré las acciones que la entidad contratante emprenda para combatir la corrupción y agilizar las relaciones entre el proponente y la entidad.');
@@ -10419,12 +10453,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('Atentamente,');
     L.push('');
     L.push('');
-    L.push('_______________________________________');
-    L.push(p.representanteLegal || '[REPRESENTANTE LEGAL]');
-    L.push('C.C. No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]'));
-    L.push('Representante Legal');
-    L.push(p.nombre || '[RAZÓN SOCIAL]');
-    L.push('NIT: ' + (p.nit || '[NIT]'));
+    bloqueFirmaProponente(p).forEach(x => L.push(x));
     L.push('');
     L.push('════════════════════════════════════════════════════════');
     L.push('PLANTILLA ORIENTATIVA -- estructura y compromisos estándar de un pacto/compromiso anticorrupción (Ley 190 de 1995, Ley 1474 de 2011). NO es el Anexo/Formato exacto de esta entidad -- compáralo contra el pliego real antes de presentarlo.');
@@ -10460,7 +10489,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('');
     L.push('Cordial saludo,');
     L.push('');
-    L.push((p.nombre || '[RAZÓN SOCIAL]') + (p.nit ? ', identificada con NIT ' + p.nit : ', identificada con NIT [NIT]') + ', interesada en participar en el proceso de la referencia, presenta respetuosamente las siguientes observaciones ' + MARCA_CONFIRMAR + 'dentro del plazo previsto en el cronograma (fecha límite: [FECHA LÍMITE DE OBSERVACIONES]):');
+    L.push((p.nombre || '[RAZÓN SOCIAL]') + (', ' + calidadProponente(p).idNit + ' ' + (p.nit || '[NIT]')) + ', interesada en participar en el proceso de la referencia, presenta respetuosamente las siguientes observaciones ' + MARCA_CONFIRMAR + 'dentro del plazo previsto en el cronograma (fecha límite: [FECHA LÍMITE DE OBSERVACIONES]):');
     L.push('');
     lista.forEach((o, i) => {
       L.push((i + 1) + '. ' + String(o.tema || 'Observación').toUpperCase() + (o.pagina ? ' (página ' + o.pagina + (o.documento ? ' del ' + o.documento : '') + ')' : ''));
@@ -10471,12 +10500,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('');
     L.push('Atentamente,');
     L.push('');
-    L.push('_______________________________________');
-    L.push(p.representanteLegal || '[REPRESENTANTE LEGAL]');
-    L.push('C.C. No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]'));
-    L.push('Representante Legal');
-    L.push(p.nombre || '[RAZÓN SOCIAL]');
-    L.push('NIT: ' + (p.nit || '[NIT]'));
+    bloqueFirmaProponente(p).forEach(x => L.push(x));
     return L.join('\n');
   }
 
@@ -10494,11 +10518,13 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('Referencia: ' + (item.modalidad || '[MODALIDAD]') + (item.referencia ? ' No. ' + item.referencia : ' No. [NÚMERO DE PROCESO]'));
     L.push('Objeto: ' + (item.objeto || '[OBJETO DEL PROCESO]'));
     L.push('');
-    L.push('[COMPLETAR: marca cuál de los dos firma esta certificación -- depende de si ' + (p.nombre || 'tu empresa') + ' está obligada a tener revisor fiscal (sociedades por acciones, o que superen los topes de activos/ingresos del art. 203 del Código de Comercio). Si no estás seguro, consúltalo con tu contador antes de presentar.]');
+    L.push(p.tipoPersona === 'natural'
+      ? '[COMPLETAR: quién firma esta certificación -- como persona natural normalmente certifica el propio proponente; confírmalo con tu contador antes de presentarla.]'
+      : '[COMPLETAR: marca cuál de los dos firma esta certificación -- depende de si ' + (p.nombre || 'tu empresa') + ' está obligada a tener revisor fiscal (sociedades por acciones, o que superen los topes de activos/ingresos del art. 203 del Código de Comercio). Si no estás seguro, consúltalo con tu contador antes de presentar.]');
     L.push('');
     L.push('El(la) suscrito(a) [COMPLETAR: nombre de quien certifica -- representante legal, o revisor fiscal si aplica], identificado(a) con cédula de ciudadanía No. [COMPLETAR] y tarjeta profesional No. [COMPLETAR, solo si firma el revisor fiscal], certifico:');
     L.push('');
-    L.push('1. ' + MARCA_CONFIRMAR + 'Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ', identificada con NIT ' + (p.nit || '[NIT]') + ', ha efectuado el pago de los aportes a los sistemas de salud, pensión y riesgos laborales de sus empleados, correspondientes a los últimos seis (6) meses anteriores a la fecha de cierre del presente proceso.');
+    L.push('1. ' + MARCA_CONFIRMAR + 'Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ', ' + calidadProponente(p).idNit + ' ' + (p.nit || '[NIT]') + ', ha efectuado el pago de los aportes a los sistemas de salud, pensión y riesgos laborales de sus empleados, correspondientes a los últimos seis (6) meses anteriores a la fecha de cierre del presente proceso.');
     L.push('2. ' + MARCA_CONFIRMAR + 'Que ' + (p.nombre || '[RAZÓN SOCIAL]') + ' ha efectuado el pago de los aportes parafiscales (Cajas de Compensación Familiar, ICBF y SENA) a que esté obligada, correspondientes al mismo período.');
     L.push('3. ' + MARCA_CONFIRMAR + 'Que no existen sumas pendientes de pago por concepto de aportes al sistema de seguridad social integral y parafiscales, o que las diferencias existentes no superan los límites legalmente aceptados.');
     L.push('');
@@ -10510,7 +10536,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('_______________________________________');
     L.push('[COMPLETAR: nombre de quien certifica]');
     L.push('C.C. No. [COMPLETAR]');
-    L.push('[COMPLETAR: "Representante Legal" o "Revisor Fiscal, T.P. No. ..."]');
+    L.push(p.tipoPersona === 'natural' ? 'Proponente (persona natural)' : '[COMPLETAR: "Representante Legal" o "Revisor Fiscal, T.P. No. ..."]');
     L.push(p.nombre || '[RAZÓN SOCIAL]');
     L.push('NIT: ' + (p.nit || '[NIT]'));
     L.push('');
@@ -10578,12 +10604,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('Atentamente,');
     L.push('');
     L.push('');
-    L.push('_______________________________________');
-    L.push(p.representanteLegal || '[REPRESENTANTE LEGAL]');
-    L.push('C.C. No. ' + (p.representanteCedula || '[CÉDULA DEL REPRESENTANTE LEGAL]'));
-    L.push('Representante Legal');
-    L.push(p.nombre || '[RAZÓN SOCIAL]');
-    L.push('NIT: ' + (p.nit || '[NIT]'));
+    bloqueFirmaProponente(p).forEach(x => L.push(x));
     L.push('');
     L.push('════════════════════════════════════════════════════════');
     L.push('[NOTAS INTERNAS -- borra desde aquí antes de presentar]');
