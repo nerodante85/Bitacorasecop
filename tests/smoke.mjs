@@ -6093,6 +6093,43 @@ await check('MG-012: longitud de vía — km se convierten, m² no cuentan, las 
   assert(inc.ambiguo === true && /no coincide con el 70 %/.test(inc.avisoCifra), 'cifra que no es el 70 % del total: ' + JSON.stringify(inc));
 });
 
+// ---- Reauditoría 2026-10-15 (RA2-1, RA2-2): falsos CUMPLE del cruce de cantidades ----
+const TUB_RA = 'y que contemple como mínimo las mismas condiciones técnicas el cual corresponde a PVC, por lo anterior se requiere que acredite una longitud de tubería de 1.000,50 ml en tubería PVC, en diámetros entre 8” y 12”.';
+const mkRA = (items, extra) => Object.assign({ numeroContrato: 'C1', formatoMaestro: { cantidades: items.map(([i, c, u]) => ({ item: i, cantidad: c, unidad: u })) } }, extra || {});
+const evRA = (frase, cs, o) => Magnitudes.evaluar(Magnitudes.parsearExigencia(frase), cs, o || {});
+await check('MG-013 (RA2-1): suministro + instalación del mismo tubo, filas TOTAL y filas repetidas no se suman como si fueran metros distintos', () => {
+  assert(evRA(TUB_RA, [mkRA([['Tubería PVC sanitaria 8"', 1200, 'ml']])]).estado === 'CUMPLE', 'una línea suficiente sigue cumpliendo');
+  const sumInst = evRA(TUB_RA, [mkRA([['Suministro de tubería PVC 8"', 600, 'ml'], ['Instalación de tubería PVC 8"', 600, 'ml']])]);
+  assert(sumInst.estado === 'NO DETERMINABLE' && /mismo tubo|suministro e instalaci/i.test(sumInst.detalle), 'suministro + instalación: ' + sumInst.estado + ' ' + sumInst.detalle);
+  assert(evRA(TUB_RA, [mkRA([['Suministro de tubería PVC 8"', 1200, 'ml'], ['Instalación de tubería PVC 8"', 1200, 'ml']])]).estado === 'CUMPLE', 'si cada uno solo ya alcanza, cumple (sin doble conteo)');
+  assert(evRA(TUB_RA, [mkRA([['Suministro e instalación de tubería PVC 8"', 600, 'ml'], ['Suministro de tubería PVC 8"', 600, 'ml']])]).estado === 'NO DETERMINABLE', '«suministro e instalación» + «suministro» también se solapan');
+  const conTotal = evRA(TUB_RA, [mkRA([['Tubería PVC 8"', 600, 'ml'], ['TOTAL tubería PVC 8"', 600, 'ml']])]);
+  assert(conTotal.estado === 'NO CUMPLE', 'la fila TOTAL no cuenta: ' + conTotal.estado + ' ' + conTotal.detalle);
+  const subtotal = evRA(TUB_RA, [mkRA([['Tubería PVC 8"', 600, 'ml'], ['Subtotal', 600, 'ml']])]);
+  assert(subtotal.estado === 'NO CUMPLE', 'Subtotal no cuenta: ' + subtotal.estado);
+  const repetida = evRA(TUB_RA, [mkRA([['Tubería PVC 8"', 600, 'ml'], ['Tubería PVC 8"', 600, 'ml']])]);
+  assert(repetida.estado === 'NO DETERMINABLE' && /repetid/i.test(repetida.detalle), 'misma fila dos veces: ' + repetida.estado + ' ' + repetida.detalle);
+  assert(evRA(TUB_RA, [mkRA([['Tubería PVC 8" calle 1', 600, 'ml'], ['Tubería PVC 8" calle 2', 600, 'ml']])]).estado === 'CUMPLE', 'dos tramos con nombres distintos sí suman');
+  assert(evRA('Conexiones domiciliarias: 129 und', [mkRA([['Conexión domiciliaria alcantarillado 6"', 70, 'und'], ['Conexión domiciliaria alcantarillado 6"', 70, 'und']])]).estado === 'NO DETERMINABLE', 'filas de conexiones repetidas: no se afirma');
+  assert(evRA('Conexiones domiciliarias: 129 und', [mkRA([['Conexión domiciliaria alcantarillado 6" zona A', 70, 'und'], ['Conexión domiciliaria alcantarillado 6" zona B', 70, 'und']])]).estado === 'CUMPLE', 'conexiones en zonas distintas sí suman');
+});
+
+await check('MG-014 (RA2-2): retiro, demolición o excavación no son obra instalada, y los pozos/conexiones se cuentan solo en unidades', () => {
+  assert(evRA(TUB_RA, [mkRA([['Retiro de tubería PVC 8" existente', 1200, 'ml']])]).estado === 'NO DETERMINABLE', 'retiro de tubería no acredita');
+  assert(evRA(TUB_RA, [mkRA([['Demolición de tubería PVC 8"', 1200, 'ml']])]).estado === 'NO DETERMINABLE', 'demolición no acredita');
+  assert(evRA(TUB_RA, [mkRA([['Excavación para tubería PVC 8"', 1200, 'ml']])]).estado === 'NO DETERMINABLE', 'excavación no acredita');
+  const POZ = 'Construcción de pozos de inspección: 19 und';
+  assert(evRA(POZ, [mkRA([['Pozo de inspección h<=2m', 20, 'und']])]).estado === 'CUMPLE', 'pozos en und siguen cumpliendo');
+  assert(evRA(POZ, [mkRA([['Pozo de inspección h<=2m', 20, 'Und.']])]).estado === 'CUMPLE', '«Und.» con punto es unidad de conteo');
+  assert(evRA(POZ, [mkRA([['Excavación para pozo de inspección', 40, 'm3']])]).estado === 'NO DETERMINABLE', '40 m³ de excavación no son 40 pozos');
+  assert(evRA(POZ, [mkRA([['Pozo de inspección', 40, 'm3']])]).estado === 'NO DETERMINABLE', 'un pozo medido en m³ no es conteo');
+  assert(evRA(POZ, [mkRA([['Demolición de pozo de inspección existente', 40, 'und']])]).estado === 'NO DETERMINABLE', 'demolición de pozos no acredita');
+  assert(evRA(POZ, [mkRA([['Pozo de inspección', 40, '']])]).estado === 'NO DETERMINABLE', 'sin unidad no se afirma');
+  assert(evRA('Conexiones domiciliarias: 129 und', [mkRA([['Conexión domiciliaria alcantarillado 6"', 130, 'm']])]).estado === 'NO DETERMINABLE', 'conexiones en metros no son conteo');
+  assert(evRA('Longitud intervenida de 5.000,00 ml', [mkRA([['Demolición de pavimento vía', 6000, 'ml']])]).estado === 'NO DETERMINABLE', 'demolición de pavimento no es longitud intervenida');
+});
+
+
 await check('INF-001: el informe del análisis (PDF por impresión / Word) usa la pantalla sin botones y lleva aviso orientativo, fecha y fuente', () => {
   assert(/function informeDocumentoHtml\(entry, contenedor, formato\)/.test(html) && /function descargarInformeDocumento\(/.test(html), 'funciones del informe');
   assert(/clon\.querySelectorAll\('button'\)\.forEach\(b => b\.remove\(\)\)/.test(html), 'el informe no lleva botones');

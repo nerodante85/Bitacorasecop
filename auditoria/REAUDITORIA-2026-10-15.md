@@ -1,6 +1,6 @@
 # Reauditoría — Bitácora SECOP · 2026-10-15
 
-**Estado resultante: BETA CONTROLADA, condicionada a cerrar RA2-1 y RA2-2 antes de abrir a más usuarios.**
+**Estado resultante: BETA CONTROLADA. RA2-1 y RA2-2 (HIGH) quedaron corregidos el mismo día (MG-013 y MG-014, con 8 mutaciones detectadas); siguen abiertos RA2-3 a RA2-7 (2 MEDIUM, 3 LOW).**
 Estado anterior: BETA CONTROLADA (2026-09-27). Alcance: lo construido desde la reauditoría anterior
 (`magnitudes.js`, Formato Maestro, capacidad residual, tarjeta «Decisión», sincronización por elemento) más
 seguridad de la base real y fuentes en vivo.
@@ -24,8 +24,8 @@ Los bancos de prueba quedan en `auditoria/banco-adversarial-2026-10-15/` (se eje
 
 | ID | Sev. | Hallazgo | Confianza | Estado |
 |---|---|---|---|---|
-| RA2-1 | **HIGH** | `Magnitudes` suma ítems que pueden ser el MISMO tubo: «Suministro de tubería PVC 8"» 600 ml + «Instalación de tubería PVC 8"» 600 ml = 1.200 ml → **CUMPLE** para una exigencia de 1.000,5 ml. Lo mismo con una fila «TOTAL tubería…» que repite el subtotal, y con la misma fila importada dos veces | Alta (ejecutado) | ABIERTO |
-| RA2-2 | **HIGH** | Cuentan ítems que no son obra instalada: «Retiro de tubería PVC 8" existente» 1.200 ml → **CUMPLE**; «Excavación para pozo de inspección» **40 m³** → **CUMPLE** para «19 pozos» (la unidad de conteo no se valida: m³ se toma como unidades) | Alta (ejecutado) | ABIERTO |
+| RA2-1 | **HIGH** | `Magnitudes` suma ítems que pueden ser el MISMO tubo: «Suministro de tubería PVC 8"» 600 ml + «Instalación de tubería PVC 8"» 600 ml = 1.200 ml → **CUMPLE** para una exigencia de 1.000,5 ml. Lo mismo con una fila «TOTAL tubería…» que repite el subtotal, y con la misma fila importada dos veces | Alta (ejecutado) | **CORREGIDO 2026-10-15** (MG-013, 8 mutaciones detectadas) |
+| RA2-2 | **HIGH** | Cuentan ítems que no son obra instalada: «Retiro de tubería PVC 8" existente» 1.200 ml → **CUMPLE**; «Excavación para pozo de inspección» **40 m³** → **CUMPLE** para «19 pozos» (la unidad de conteo no se valida: m³ se toma como unidades) | Alta (ejecutado) | **CORREGIDO 2026-10-15** (MG-014) |
 | RA2-3 | MEDIUM | `resumenDecision` esconde contradicciones: dos filas con el mismo nombre (CUMPLE y NO CUMPLE) se reducen a la primera; una fila de la matriz con el mismo «concepto» que la ficha se descarta (ficha «Patrimonio» CUMPLE oculta «Rentabilidad del patrimonio» NO CUMPLE; ficha «Liquidez» CUMPLE oculta la de la matriz NO CUMPLE); con 0 requisitos y veredicto GO devuelve GO. Defensa en profundidad: el veredicto de entrada ya sale de los gates, así que hace falta una inconsistencia previa para que se vea | Media (ejecutado con entradas construidas; alcance real INFERIDO) | ABIERTO |
 | RA2-4 | MEDIUM | El importador del Formato Maestro decide «en ejecución» por **lista negra**: solo `En ejecución` y `Suspendido` impiden acreditar. «Vigente», «Activo», «En curso», «Caducado», «Terminado anticipadamente», «en ejecución.» (con punto) o vacío ACREDITAN. Atenuantes: la plantilla trae lista desplegable, y un contrato con terminación futura no cuenta para el mínimo | Alta (ejecutado) | ABIERTO |
 | RA2-5 | LOW | `fechaISO('2024-02-30')` acepta una fecha inexistente; `porcentaje(1)` vale 100 % (convención de Excel, pero 1 % escrito como `1` se sobrestima); `numero('-5')` devuelve −5 (los valores ≤ 0 se descartan después, pero la función base no lo hace) | Alta | ABIERTO |
@@ -72,4 +72,4 @@ Sin cambios respecto a `RELEASE-BLOCKERS.md`. En esta pasada se confirmó de nue
 
 ## 5. Decisión de estado
 
-**BETA CONTROLADA, condicionada.** No hay bloqueadores CRITICAL, pero hay dos HIGH abiertos en una función que puede afirmar un CUMPLE sin respaldo. Mientras sigan abiertos, la fila de magnitud debe leerse como orientativa. Antes de abrir el registro a más usuarios: cerrar RA2-1 y RA2-2.
+**BETA CONTROLADA.** No hay bloqueadores CRITICAL. Los dos HIGH (RA2-1 y RA2-2) se corrigieron con la prueba primero y verificación por mutación; la fila de magnitud sigue siendo orientativa (se calcula con las cantidades que carga la empresa). Quedan RA2-3 a RA2-7, de menor severidad.
