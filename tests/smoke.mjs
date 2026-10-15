@@ -2859,7 +2859,9 @@ await check('ARQ-003: un fallo de sincronización con la cuenta se avisa en pant
 await check('SEG-003/SEG-004/ESC-001/OPS-007: el digest sanea nombres, acota alertas, tiene presupuesto de tiempo y responde 500 si hubo errores', () => {
   const fn = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
   assert(/function limpiarNombre\(/.test(fn) && /\[enlace\]/.test(fn) && /\.slice\(0, 60\)/.test(fn), 'nombres saneados y acotados');
-  assert(/limpiarNombre\(a\.nombre\)/.test(fn) && /limpiarNombre\(emp\.nombre\)/.test(fn), 'los nombres pasan por limpiarNombre antes del correo');
+  assert(/limpiarNombre\(a\.nombre\)/.test(fn), 'los nombres de las alertas pasan por limpiarNombre antes del correo');
+  // Limpieza: la app ya no escribe empresas_seguidas y SECOP I está retirado; esa rama del digest no debe volver.
+  assert(!/empresas_seguidas|EmpresaSeguida|contarNuevosDeEmpresa|SECOP_I_DATASET|f789-7hwg|MAX_EMPRESAS_POR_EMPRESA|empresa seguida/i.test(fn), 'el digest ya no revisa empresas seguidas ni consulta SECOP I');
   assert(/MAX_ALERTAS_POR_EMPRESA = 10/.test(fn) && /\.slice\(0, MAX_ALERTAS_POR_EMPRESA\)/.test(fn), 'cota de alertas por empresa');
   assert(/PRESUPUESTO_MS/.test(fn) && /pendientes\.push\(companyId\)/.test(fn), 'presupuesto de tiempo');
   assert(/status: huboProblemas \? 500 : 200/.test(fn), 'estado 500 ante errores o pendientes');
@@ -4324,7 +4326,6 @@ await check('Monitor del digest: codigosDeErrores traduce cada error a un códig
   assert(j(c(['correo c1: RESEND_API_KEY no está configurado (supabase secrets set ...)'])) === j(['resend_sin_clave']), 'sin clave de Resend');
   assert(j(c(['correo c1: otra cosa rara'])) === j(['correo']), 'otro fallo de correo');
   assert(j(c(['alerta c1: fetch failed'])) === j(['secop']), 'una alerta que falla es una consulta a SECOP');
-  assert(j(c(['empresa seguida c1: HTTP 500'])) === j(['secop']), 'una empresa seguida que falla también es SECOP (se comprueba antes que «empresa»)');
   assert(j(c(['barrido de pliegos: boom'])) === j(['storage']), 'el barrido es storage');
   assert(j(c(['empresa c1: boom'])) === j(['empresa']), 'el fallo general de una empresa');
   assert(j(c(['algo sin origen conocido'])) === j(['otro']), 'sin origen reconocido: otro');
