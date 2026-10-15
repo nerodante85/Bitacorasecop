@@ -4928,8 +4928,9 @@ await check('Interfaz: el botón secundario y el pie de la barra lateral cumplen
   assert(sec, 'no se encontró .btn-secondary');
   assert(sec[1] !== 'accent-button', 'el texto del botón secundario no puede ser el ámbar vivo (solo es relleno)');
   assert(contraste(T[sec[1]], T.surface) >= 4.5 && contraste(T[sec[1]], T['accent-soft']) >= 4.5, 'texto del botón secundario en reposo y hover');
-  const pie = /sidebar-foot[^{]*\{[^}]*color:\s*(#[0-9A-Fa-f]{6})/.exec(html);
-  assert(pie && contraste(pie[1], T['brand-800']) >= 4.5, 'texto del pie de la barra lateral sobre el marino: ' + (pie && pie[1]));
+  const pie = /\.sidebar-foot \{[^}]*\bcolor:\s*(?:var\(--([a-z-]+)\)|(#[0-9A-Fa-f]{6}))/.exec(html);
+  const colorPie = pie && (pie[2] || T[pie[1]]);
+  assert(colorPie && contraste(colorPie, T['brand-800']) >= 4.5, 'texto del pie de la barra superior sobre el azul noche: ' + (pie && (pie[1] || pie[2])));
 });
 await check('Interfaz: el lienzo de la página (html) también es claro, no solo #bitacora-root (si no, las páginas cortas muestran otro color debajo)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
@@ -4958,6 +4959,21 @@ await check('Rediseño fase 1: la tipografía es Mulish (sin Outfit en el CSS ni
   assert(!/family=Outfit/.test(html), 'Outfit sigue en el enlace de Google Fonts');
   assert(!/font-family:[^;}]*Outfit/.test(html), 'Outfit sigue en alguna declaración font-family');
   assert(/#bitacora-root\s*\{[^}]*font-family:\s*'Mulish'/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), '#bitacora-root debe usar Mulish');
+});
+await check('Rediseño fase 1: la navegación es una barra superior horizontal y la cabecera de cada vista es un degradado azul noche con texto blanco', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const css = html.replace(/\/\*[\s\S]*?\*\//g, '');
+  const regla = sel => { const m = css.match(new RegExp(sel.replace(/[.\[\]#]/g, '\\$&') + '\\s*\\{([^}]*)\\}')); return m ? m[1] : ''; };
+  const side = regla('#bitacora-root .sidebar');
+  assert(/flex-direction:\s*row/.test(side), '.sidebar debe ser una fila (barra superior)');
+  assert(!/height:\s*100vh/.test(side), '.sidebar ya no ocupa toda la altura');
+  assert(/flex-direction:\s*column/.test(regla('#bitacora-root .app-shell')), '.app-shell apila barra y contenido');
+  const hero = regla('#bitacora-root .view-header');
+  assert(/linear-gradient/.test(hero) && /--navy-900/.test(hero) && /--navy-800/.test(hero), 'la cabecera lleva degradado navy-900 → navy-800');
+  assert(/color:\s*var\(--on-navy\)/.test(regla('#bitacora-root .view-header h1')), 'el título de la cabecera usa --on-navy');
+  const T = tokenesCss(html);
+  assert(contraste(T['on-navy'], T['navy-800']) >= 7, 'texto blanco sobre el final del degradado');
+  assert(contraste(T['on-navy-mute'], T['navy-800']) >= 4.5, 'texto secundario de la cabecera');
 });
 await check('Interfaz: ningún texto visible al usuario manda a leer CLAUDE.md (es documentación del proyecto, no de la app)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
