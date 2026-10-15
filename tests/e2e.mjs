@@ -713,6 +713,41 @@ const abrirAnalisisSembrado = async (pg) => {
   await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .resultado-nombre'));
 };
 
+await check('Rediseño fase 4: el análisis tiene tarjeta de resultado con relieve, secciones como tarjetas con título en tinta, plegables con flecha que gira y panel de evidencia que entra con animación (sin ella al reducir movimiento)', async () => {
+  const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
+  await abrirAnalisisSembrado(pg);
+  const r = await pg.evaluate(() => {
+    const h = document.querySelector('#bt-analisis-out .resultado-global'), n = document.querySelector('#bt-analisis-out .resultado-nombre');
+    const hs = getComputedStyle(h);
+    const secs = [...document.querySelectorAll('#bt-analisis-out .analisis-seccion')].map(e => { const c = getComputedStyle(e), t = getComputedStyle(e.querySelector('h3')); return { fondo: c.backgroundColor, borde: c.borderTopWidth, radio: parseFloat(c.borderTopLeftRadius), h3: t.color }; });
+    const fold = document.querySelector('#bt-analisis-out details.analysis-fold');
+    const antes = getComputedStyle(fold.querySelector('summary'), '::before').transform;
+    fold.open = true;
+    const abierto = getComputedStyle(fold.querySelector('summary'), '::before').transform;
+    return { radio: parseFloat(hs.borderTopLeftRadius), sombra: hs.boxShadow, tam: parseFloat(getComputedStyle(n).fontSize), secs, antes, abierto };
+  });
+  assert(r.radio >= 14 && r.sombra !== 'none' && r.tam >= 32, 'tarjeta de resultado con radio, sombra y nombre grande: ' + JSON.stringify({ radio: r.radio, sombra: r.sombra, tam: r.tam }));
+  assert(r.secs.length >= 3, 'hay secciones: ' + r.secs.length);
+  assert(r.secs.every(x => x.fondo === 'rgb(255, 255, 255)' && x.borde === '1px' && x.radio >= 14 && x.h3 === 'rgb(21, 26, 51)'), 'cada sección es una tarjeta blanca con título en tinta: ' + JSON.stringify(r.secs[0]));
+  assert(r.antes === 'none' && r.abierto !== 'none', 'la flecha del plegable gira al abrirlo: ' + r.antes + ' → ' + r.abierto);
+  const anim = async () => pg.evaluate(() => getComputedStyle(document.querySelector('#bt-evidencia-backdrop .evidencia-panel')).animationName);
+  await pg.locator('[data-ev-fila]').first().click();
+  await pg.waitForSelector('#bt-evidencia-backdrop:not([hidden])');
+  assert(await anim() === 'bt-ev-in', 'el panel de evidencia entra con animación: ' + await anim());
+  await pg.keyboard.press('Escape');
+  await pg.emulateMedia({ reducedMotion: 'reduce' });
+  await pg.locator('[data-ev-fila]').first().click();
+  await pg.waitForSelector('#bt-evidencia-backdrop:not([hidden])');
+  assert(await anim() === 'none', 'al reducir movimiento no hay animación: ' + await anim());
+  await ctx.close();
+  for (const w of [768, 1280]) {
+    const m = await abrir({ viewport: { width: w, height: 900 }, sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
+    await abrirAnalisisSembrado(m.pg);
+    assert(await sinDesborde(m.pg) <= 0, 'sin desborde a ' + w);
+    await m.ctx.close();
+  }
+});
+
 await check('Análisis: arranca con el resultado y su explicación, resume la viabilidad en 5 áreas, avisa lo importante y la matriz se filtra', async () => {
   const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
   await abrirAnalisisSembrado(pg);
