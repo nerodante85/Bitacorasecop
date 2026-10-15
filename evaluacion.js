@@ -540,19 +540,26 @@
     const veredicto = ['GO', 'REVISAR', 'NO-GO', 'NO DETERMINABLE'].indexOf(e.veredicto) !== -1 ? e.veredicto : 'NO DETERMINABLE';
     const vistos = new Set();
     const items = [];
+    // Estado conocido o, ante cualquier otra cosa, NO DETERMINABLE (nunca se interpreta un estado raro como cumplido).
+    const estadoDe = x => (x === 'NO CUMPLE' || x === 'CUMPLE' || x === 'REVISAR') ? x : 'NO DETERMINABLE';
+    const grupoDe = x => estadoDe(x) === 'NO CUMPLE' ? 'no' : (estadoDe(x) === 'CUMPLE' ? 'si' : 'nd');
     const agrega = (requisito, estado, detalle, origen) => {
       const k = String(requisito || '').trim().toLowerCase();
-      if (!k || vistos.has(k + '|' + origen)) return;
-      vistos.add(k + '|' + origen);
+      // RA2-3: solo se descarta una fila repetida si dice LO MISMO; dos filas con el mismo nombre y estado distinto son una contradicción y se muestran.
+      const clave = k + '|' + origen + '|' + estadoDe(estado);
+      if (!k || vistos.has(clave)) return;
+      vistos.add(clave);
       items.push({ requisito: String(requisito).trim(), estado: estado, detalle: String(detalle || '').trim(), origen: origen });
     };
     // La ficha y la matriz pueden hablar del MISMO requisito con otro nombre (p. ej. «Capacidad residual del proceso (K)» y «K residual: …»):
     // si la ficha ya lo trae se usa la ficha (con su cifra y su motivo) y no se repite.
     const concepto = r => { const t = String(r || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return /residual/.test(t) ? 'k' : /capital de trabajo/.test(t) ? 'ct' : /patrimonio/.test(t) ? 'patrimonio' : /liquidez/.test(t) ? 'liquidez' : /endeudamiento/.test(t) ? 'endeudamiento' : /cobertura/.test(t) ? 'cobertura' : /unspsc/.test(t) ? 'unspsc' : null; };
-    const enFicha = new Set((e.ficha || []).map(x => concepto(x.requisito)).filter(Boolean));
+      return /residual/.test(t) ? 'k' : /capital de trabajo/.test(t) ? 'ct' : /rentabilidad/.test(t) ? 'rentabilidad' : /patrimonio/.test(t) ? 'patrimonio' : /liquidez/.test(t) ? 'liquidez' : /endeudamiento/.test(t) ? 'endeudamiento' : /cobertura/.test(t) ? 'cobertura' : /unspsc/.test(t) ? 'unspsc' : null; };
+    // RA2-3: la fila de la matriz solo se omite si la ficha trae el MISMO concepto con la MISMA conclusión; si discrepan (la ficha dice
+    // CUMPLE y la matriz NO CUMPLE), las dos se muestran y manda la peor.
+    const enFicha = new Set((e.ficha || []).map(x => concepto(x.requisito) ? concepto(x.requisito) + '|' + grupoDe(x.estado) : null).filter(Boolean));
     (e.ficha || []).forEach(x => agrega(x.requisito, x.estado, x.detalle, 'ficha'));
-    (e.requisitos || []).filter(x => !enFicha.has(concepto(x.requisito))).forEach(x => agrega(x.requisito, x.resultado, x.detalle, 'matriz'));
+    (e.requisitos || []).filter(x => !(concepto(x.requisito) && enFicha.has(concepto(x.requisito) + '|' + grupoDe(x.resultado)))).forEach(x => agrega(x.requisito, x.resultado, x.detalle, 'matriz'));
     const accionDe = it => {
       const d = (it.detalle || '').toLowerCase();
       if (/confirma con la entidad|incoherencia|aclar/.test(d)) return 'Pregunta a la entidad en el periodo de observaciones.';
@@ -567,7 +574,7 @@
       if (/perfil|empresa|carg|registr/.test(d)) return 'Completa los datos de tu empresa y vuelve a analizar.';
       return 'Confírmalo en el pliego.';
     };
-    const norm = x => (x.estado === 'NO CUMPLE' || x.estado === 'CUMPLE' || x.estado === 'REVISAR') ? x.estado : 'NO DETERMINABLE';
+    const norm = x => estadoDe(x.estado);
     const bloqueantes = items.filter(x => norm(x) === 'NO CUMPLE').map(x => ({ requisito: x.requisito, detalle: x.detalle }));
     const porResolver = items.filter(x => norm(x) !== 'NO CUMPLE' && norm(x) !== 'CUMPLE').map(x => ({ requisito: x.requisito, estado: norm(x), detalle: x.detalle, accion: accionDe(x) }));
     const cumple = items.filter(x => norm(x) === 'CUMPLE').length;
@@ -577,6 +584,9 @@
       titulo = 'NO-GO'; recomendacion = 'Hay requisitos que tu empresa aparentemente no cumple. Solo tiene sentido participar con un aliado que los cubra (consorcio o unión temporal) o si la entidad aclara el requisito.';
     } else if (bloqueantes.length) {
       titulo = 'REVISAR'; recomendacion = 'Hay requisitos que aparentemente no cumples (abajo, marcados como bloqueantes). Confírmalos en el documento antes de decidir; si se confirman, el resultado es NO-GO salvo que sumes un aliado.';
+    } else if (!items.length) {
+      // RA2-3: sin ningún requisito analizado no hay evidencia, aunque el veredicto de entrada diga GO.
+      titulo = 'NO DETERMINABLE'; recomendacion = 'No hay requisitos analizados todavía: sin ellos no hay evidencia para decidir.';
     } else if (veredicto === 'GO' && !porResolver.length && e.hayPliego !== false) {
       titulo = 'GO'; recomendacion = 'Con la información analizada no hay incumplimientos ni requisitos sin resolver. Confirma con el pliego oficial antes de preparar la oferta.';
     } else if (veredicto === 'NO DETERMINABLE' || e.hayPliego === false) {

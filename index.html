@@ -14102,7 +14102,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       '<td>' + escapeHtml(truncate(ct.contratante || '—', 60)) + '</td>' +
       '<td>' + (ct.valor != null ? ct.valor.toLocaleString('es-CO') : '—') + '</td>' +
       '<td>' + (ct.participacion ? escapeHtml(ct.participacion.raw) : '—') + '</td>' +
-      '<td>' + escapeHtml(ct.enEjecucion ? 'En ejecución' : (ct.fechaFin || '—')) + '</td></tr>').join('');
+      '<td>' + escapeHtml(ct.estadoDesconocido ? 'Estado sin reconocer' : (ct.enEjecucion ? 'En ejecución' : (ct.fechaFin || '—'))) + '</td></tr>').join('');
     const avisos = (fm.avisos || []).length ? '<ul class="fm-avisos">' + fm.avisos.map(a => '<li>' + escapeHtml(a) + '</li>').join('') + '</ul>' : '';
     return '<details class="expeval-review" open><summary>Revisar lo importado: Formato Maestro de ' + escapeHtml(fm.sujeto || 'la empresa') + ' -- ' + c.contratos.length + ' contrato(s)</summary>' +
       ((fm.vinculados || []).length ? '<p class="my-8 saved-note">Incluye la experiencia de: ' + fm.vinculados.map(escapeHtml).join(', ') + '.</p>' : '') + avisos +

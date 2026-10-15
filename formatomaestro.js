@@ -10,6 +10,11 @@
 
   const HOJAS_OBLIGATORIAS = ['SUJETOS', 'CONTRATOS', 'PARTICIPACIONES'];
   const ESTADOS_NO_ACREDITAN = ['EN EJECUCION', 'SUSPENDIDO'];
+  // RA2-4: solo un contrato TERMINADO acredita experiencia (lista blanca). Cualquier otro estado (vacío, «Vigente», «Activo»,
+  // «Caducado»...) no acredita: ante la duda, no se asume que terminó.
+  const ESTADO_TERMINADO = /^(?:TERMINAD[OA]|LIQUIDAD[OA]|FINALIZAD[OA])(?:\s+Y\s+(?:LIQUIDAD[OA]|RECIBID[OA]))?$/;
+  // Compara estados sin puntuación final ni espacios sobrantes («en ejecución.» = «EN EJECUCION»).
+  const normEstado = v => normTexto(v).replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 
   const sinAcentos = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '');
   const claveCol = s => sinAcentos(s).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -130,14 +135,16 @@
     const unspscDe = id => (datos.unspsc || []).filter(r => texto(r.ID_CONTRATO) === id).map(r => texto(r.CODIGO_UNSPSC));
     const cantidadesDe = id => (datos.cantidades || []).filter(r => texto(r.ID_CONTRATO) === id).map(r => ({ item: texto(r.ITEM), cantidad: numero(r.CANTIDAD), unidad: texto(r.UNIDAD) }));
     const salida = [], enEjecucion = [];
-    let sinContrato = 0, sinValor = 0, sinFechaFin = 0, sinPorcentaje = 0, noAcreditan = 0, sinNumero = 0;
+    let sinContrato = 0, sinValor = 0, sinFechaFin = 0, sinPorcentaje = 0, noAcreditan = 0, sinNumero = 0, estadoDesconocido = 0;
     let i = 0;
     porContrato.forEach((parts, idContrato) => {
       const c = contratosPorId.get(idContrato);
       if (!c) { sinContrato++; return; }
       i++;
-      const estadoNorm = normTexto(c.ESTADO);
+      const estadoNorm = normEstado(c.ESTADO);
       const ejecucion = ESTADOS_NO_ACREDITAN.indexOf(estadoNorm) !== -1;
+      const desconocido = !ejecucion && !ESTADO_TERMINADO.test(estadoNorm);
+      if (desconocido) estadoDesconocido++;
       // Participación del destino: suma de los porcentajes registrados. "Individual" sin porcentaje = 100 %.
       let suma = 0, faltaPct = false;
       parts.forEach(p => {
@@ -158,7 +165,7 @@
       const enRup = rup.indexOf('SI') !== -1 ? 'si' : (rup.length && rup.every(x => x === 'NO') ? 'no' : '');
       if (!numeroReal) sinNumero++;
       if (valorNominal == null || valorNominal <= 0) sinValor++;
-      if (!ejecucion && !fin) sinFechaFin++;
+      if (!ejecucion && !desconocido && !fin) sinFechaFin++;
       if (pctDestino == null) sinPorcentaje++;
       if (ejecucion) noAcreditan++;
       const esp = texto(c.ESPECIALIDAD), act = texto(c.TIPO_ACTIVIDAD);
@@ -174,7 +181,9 @@
         valorNominal: false,
         fechaInicio: inicio,
         fechaFin: fin,
-        enEjecucion: ejecucion,
+        // Un estado sin reconocer tampoco acredita (se marca como en ejecución para el motor) pero NO pasa a Capacidad Residual.
+        enEjecucion: ejecucion || desconocido,
+        estadoDesconocido: desconocido,
         duracion: null,
         cantidad: null,
         cantidadRaw: null,
@@ -206,6 +215,7 @@
     if (sinValor) avisos.push(sinValor + ' contrato(s) sin valor: no podrán acreditar cuantía.');
     if (sinPorcentaje) avisos.push(sinPorcentaje + ' contrato(s) en consorcio o unión temporal sin porcentaje: se importan sin valor hasta que lo registre.');
     if (sinFechaFin) avisos.push(sinFechaFin + ' contrato(s) terminado(s) sin fecha de terminación: los requisitos con ventana de tiempo quedarán sin determinar.');
+    if (estadoDesconocido) avisos.push(estadoDesconocido + ' contrato(s) con estado vacío o sin reconocer (esperado: Terminado o Liquidado): no acreditan experiencia hasta que corrijas el ESTADO, y tampoco se cuentan en Capacidad Residual porque no se sabe si siguen en ejecución.');
     if (noAcreditan) avisos.push(noAcreditan + ' contrato(s) en ejecución o suspendidos: no acreditan experiencia (sí descuentan Capacidad Residual).');
     return {
       contratos: salida, enEjecucion: enEjecucion, avisos: avisos,
