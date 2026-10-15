@@ -6529,6 +6529,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   //    ("N contratos, uno de ellos >= X") -> null (el resultado depende de la lectura del pliego).
   //  - `banda`: SMMLV se redondea a la unidad más próxima; a menos de `banda` del mínimo no se concluye.
   //  - `incompletoNulo`: si algún contrato no tiene valor comparable, un "no alcanza" no es concluyente.
+  // Lo que se guarda de cada contrato evaluado. RA3-2: incluye el número de contrato (antes se perdía y el formato de
+  // experiencia nunca lo imprimía) y la empresa de origen en un consorcio (`_perfilNombre`, RA3-3).
+  const resumenContratoEvaluado = c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, numeroContrato: c.numeroContrato || null,
+    valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin, empresa: c._perfilNombre || null });
+
   function decidirValor(valores, total, req, min, banda, incompletoNulo){
     const NOTA_REDONDEO = 'El valor queda a menos de 1 SMMLV del mínimo y el pliego ajusta los SMMLV a la unidad más próxima (redondeo): el resultado no es concluyente, compáralo a mano.';
     const sinValor = total - valores.length;
@@ -6590,7 +6595,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const evidencia = [], faltantes = [];
     const fmt = n => (Math.round(n * 10) / 10).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
     const devolver = (resultado, justificacion, evaluados) => ({
-      requisito: req, contratosEvaluados: (evaluados || []).map(c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin })),
+      requisito: req, contratosEvaluados: (evaluados || []).map(resumenContratoEvaluado),
       evidencia: evidencia, nota: '', faltantes: faltantes, resultado: resultado, justificacion: justificacion
     });
     const pres = ctx && Number(ctx.presupuesto) > 0 ? Number(ctx.presupuesto) : null;
@@ -6633,7 +6638,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const evidencia = [], faltantes = [];
     const fmt = n => (Math.round(n * 10) / 10).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
     const devolver = (resultado, justificacion, evaluados) => ({
-      requisito: req, contratosEvaluados: (evaluados || []).map(c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin })),
+      requisito: req, contratosEvaluados: (evaluados || []).map(resumenContratoEvaluado),
       evidencia: evidencia, nota: '', faltantes: faltantes, resultado: resultado, justificacion: justificacion
     });
     const pres = ctx && Number(ctx.presupuesto) > 0 ? Number(ctx.presupuesto) : null;
@@ -6976,9 +6981,21 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       faltantes.push('Verificar a mano la cita de este requisito en el PDF y confirmarla.');
     }
 
+    let contratosQueAcreditan = exclusionTemporal ? [] : evalSet.slice();
+    if (req.minValor != null && !exclusionTemporal){
+      contratosQueAcreditan = contratosQueAcreditan.filter(c => {
+        if (req.minValor.unidad === 'SMMLV'){ const x = req.reglaSmmlv ? valorContratoEnSmmlv(c, req.reglaSmmlv) : null; return !!x && x.smmlv != null && (req.acumulable || x.smmlv >= req.minValor.valor); }
+        const v = c.valor == null ? null : valorAcreditable(c);
+        return v != null && (req.acumulable || v >= req.minValor.valor);
+      });
+    }
+    if (req.minCantidad != null && !exclusionTemporal) contratosQueAcreditan = contratosQueAcreditan.filter(c => c.cantidad && c.cantidad.valor != null);
     return {
       requisito: reqOriginal,
-      contratosEvaluados: relevantes.map(c => ({ fila: c.fila, objeto: c.objeto, contratante: c.contratante, valor: c.valor, cantidad: c.cantidad, fechaInicio: c.fechaInicio, fechaFin: c.fechaFin })),
+      contratosEvaluados: relevantes.map(resumenContratoEvaluado),
+      // RA3-1: los contratos que REALMENTE cuentan para este requisito (relevantes por objeto, dentro de la ventana, ya terminados y,
+      // si hay valor o cantidad mínimos, que aportan). `contratosEvaluados` son solo los relevantes por palabras: no es una acreditación.
+      contratosQueAcreditan: contratosQueAcreditan.map(resumenContratoEvaluado),
       evidencia: evidencia, nota: notaPliego, faltantes: faltantes, resultado: resultado, justificacion: justificacion
     };
   }
@@ -10541,16 +10558,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         L.push((i + 1) + '. ' + truncate(r.requisito.criterio, 200));
         // DG-001: solo un requisito que CUMPLE tiene "contratos que lo acreditan"; en los demás casos la
         // coincidencia por palabras NO es una acreditación y no se presenta como tal.
-        const acreditan = r.resultado === 'CUMPLE' ? (r.contratosEvaluados || []) : [];
+        // RA3-1: solo los contratos que el motor marcó como acreditan (no todos los relevantes por palabras). Un resultado guardado
+        // con el formato anterior no trae `contratosQueAcreditan`: no se adivina, queda para completar y se pide volver a evaluar.
+        const acreditan = (r.resultado === 'CUMPLE' && Array.isArray(r.contratosQueAcreditan)) ? r.contratosQueAcreditan : [];
         if (acreditan.length){
           L.push('   Contratos que lo acreditan:');
           acreditan.forEach(c => L.push('     - ' + truncate(c.objeto || '(sin objeto)', 140) +
-            (c.numeroContrato ? ' · Contrato No. ' + c.numeroContrato : '') +
+            ' · Contrato No. ' + (c.numeroContrato || '[COMPLETAR: número de contrato]') +
             (c.contratante ? ' · ' + c.contratante : '') +
             (c.valor != null ? ' · ' + (fmtMoney(c.valor) || c.valor) : '') +
             ((c.fechaInicio || c.fechaFin) ? ' · ' + (c.fechaInicio || '?') + ' a ' + (c.fechaFin || '?') : '')));
         } else {
-          L.push('   [COMPLETAR: contrato(s) que acrediten este requisito]');
+          L.push('   [COMPLETAR: contrato(s) que acrediten este requisito]' + (r.resultado === 'CUMPLE' && !Array.isArray(r.contratosQueAcreditan) ? ' (este resultado se guardó antes de que la app registrara qué contratos acreditan: vuelve a evaluar la experiencia del proceso)' : ''));
         }
         L.push('');
       });
