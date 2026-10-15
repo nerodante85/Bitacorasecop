@@ -199,6 +199,11 @@
         if (ex.actividad === 'conexiones' && cl.actividad === 'accesorio_domiciliario') descartados.push(it.item + ' (accesorio: no es una conexión certificada)');
         return;
       }
+      // RA2-6: «1.000» / «1,000» escrito como texto puede ser mil o uno con decimales: no se adivina, queda dudoso.
+      if (typeof it.cantidad === 'string' && /^\s*\d{1,3}[.,]\d{3}\s*$/.test(it.cantidad)) {
+        dudosos.push(it.item + ' — cantidad «' + it.cantidad.trim() + '» ambigua (¿mil o uno con decimales?): escríbela como número (' + (it.unidad || '') + ')');
+        return;
+      }
       let cant = typeof it.cantidad === 'number' ? it.cantidad : numero(it.cantidad).valor;
       if (cant == null || cant <= 0) return;
       if (ex.actividad === 'via' && UNIDAD_KM.test(norm(it.unidad))) cant = cant * 1000;
