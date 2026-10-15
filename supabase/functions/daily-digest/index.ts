@@ -1,6 +1,6 @@
 // ============================================================================
 // Bitácora SECOP — resumen diario por correo (Fase 6 del prompt maestro:
-// "correo/job programado" para Alertas guardadas y Empresas seguidas).
+// "correo/job programado" para Alertas guardadas).
 // ============================================================================
 // POR QUÉ EXISTE ESTE ARCHIVO SEPARADO (no vive en index.html):
 // la app es 100% estática (GitHub Pages, sin backend) -- lo único que puede
@@ -8,12 +8,12 @@
 // es el servidor de Supabase. Esta Supabase Edge Function la dispara un cron
 // de Postgres (pg_cron, ver supabase/cron.sql) una vez al día; por cada
 // empresa que activó el resumen ("Tu cuenta" → el checkbox nuevo), revisa
-// sus alertas guardadas y empresas seguidas contra SECOP EN VIVO y, si hay
+// sus alertas guardadas contra SECOP II EN VIVO y, si hay
 // algo nuevo, envía un correo breve (vía Resend) con el conteo y un enlace a
 // la app -- el detalle completo se ve adentro, este correo es solo el aviso.
 //
 // CÓDIGO COMPARTIDO CON index.html: las reglas de coincidencia (parseNumCO, normalizeGeo,
-// matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente,
+// matchesGeo, matchesTerm, findField, esEstadoNoVigente,
 // consultasSecopII) viven en coincidencia.js, la misma fuente que carga el navegador. Esta carpeta
 // lleva una copia idéntica (la CLI solo empaqueta lo que está bajo la carpeta de la función) y una
 // prueba de tests/smoke.mjs falla si difieren. Lo que SÍ sigue duplicado a mano, por depender de
@@ -32,7 +32,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 
 const SECOP_II_DATASET = 'p6dx-8zbt';
-const SECOP_I_DATASET = 'f789-7hwg';
 // Mismo token que SOCRATA_APP_TOKEN en index.html -- identifica a "esta app"
 // ante Socrata (no es secreto: Socrata los diseña para ir embebidos en
 // código de cliente, y aquí corre server-side igual). Compartir el mismo
@@ -48,7 +47,7 @@ function socrataHeaders(){
 // verifica). Es un script clásico que cuelga `Coincidencia` de globalThis.
 import './coincidencia.js';
 // deno-lint-ignore no-explicit-any
-const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII } = (globalThis as any).Coincidencia;
+const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, esEstadoNoVigente, consultasSecopII } = (globalThis as any).Coincidencia;
 
 // Extrae fecha de publicación y objeto/entidad/departamento de un registro
 // crudo de SECOP II -- versión recortada de normalize() en index.html: solo
@@ -114,9 +113,6 @@ interface Alerta {
   id: string; nombre: string; keywords: string[]; geos: string[];
   minV?: number; maxV?: number; ultimaRevision?: string;
 }
-interface EmpresaSeguida {
-  id: string; nombre: string; ultimaRevision?: string;
-}
 
 // = evaluarAlerta en index.html -- cuenta procesos de SECOP II que coinciden
 // con los criterios de la alerta Y se publicaron después de ultimaRevision.
@@ -138,48 +134,6 @@ async function contarNuevosDeAlerta(alerta: Alerta): Promise<number> {
     const pub = pubRawDeSecopII(r);
     if (pub && !isNaN(new Date(pub).getTime()) && new Date(pub).getTime() > desde) nuevos++;
   });
-  return nuevos;
-}
-
-// = buscarFichaEmpresa + revisarEmpresaSeguida en index.html -- cuenta
-// contratos (SECOP I+II) donde esta empresa aparece como CONTRATISTA con
-// fecha posterior a ultimaRevision. Mismo criterio de "es un contrato real"
-// que el frontend: SECOP II exige adjudicado=sí + proveedor; SECOP I exige
-// contratista o valor de contrato (esa tabla ya junta proceso + contrato).
-async function contarNuevosDeEmpresa(empresa: EmpresaSeguida): Promise<number> {
-  const { ancla, coincide } = prepararBusquedaPorNombre(empresa.nombre);
-  const desde = empresa.ultimaRevision ? new Date(empresa.ultimaRevision).getTime() : 0;
-  let nuevos = 0;
-
-  try {
-    const dataII = await fetchSecopDataset(SECOP_II_DATASET, ancla, 'fecha_adjudicacion');
-    dataII.forEach((r) => {
-      const prove = String(findField(r, ['nombre_del_proveedor', 'proveedor_adjudicado', 'nombre_del_adjudicatario'], 'proveedor') || '');
-      if (!coincide(prove)) return;
-      const adjudicado = String(findField(r, ['adjudicado'], 'adjudicad') || '').toLowerCase().trim();
-      const valN = Number(findField(r, ['valor_total_adjudicacion', 'valor_adjudicacion', 'valor_del_contrato'], 'adjudicac'));
-      if (!(adjudicado === 'si' || adjudicado === 'sí') && !(valN > 0)) return;
-      const fecha = findField(r, ['fecha_adjudicacion', 'fecha_de_publicacion_del'], 'fecha');
-      if (fecha && !isNaN(new Date(String(fecha)).getTime()) && new Date(String(fecha)).getTime() > desde) nuevos++;
-    });
-  } catch (e) {
-    console.error('daily-digest: falló SECOP II para empresa ' + empresa.nombre, e);
-  }
-
-  try {
-    const dataI = await fetchSecopDataset(SECOP_I_DATASET, ancla, 'fecha_de_cargue_en_el_secop');
-    dataI.forEach((r) => {
-      const prove = String(findField(r, ['nom_razon_social_contratista'], 'contratista') || '');
-      if (!coincide(prove)) return;
-      const valN = Number(findField(r, ['valor_contrato_con_adiciones', 'cuantia_contrato'], 'contrato'));
-      if (!prove && !(valN > 0)) return;
-      const fecha = findField(r, ['fecha_de_firma_del_contrato', 'fecha_de_cargue_en_el_secop'], 'fecha');
-      if (fecha && !isNaN(new Date(String(fecha)).getTime()) && new Date(String(fecha)).getTime() > desde) nuevos++;
-    });
-  } catch (e) {
-    console.error('daily-digest: falló SECOP I para empresa ' + empresa.nombre, e);
-  }
-
   return nuevos;
 }
 
@@ -259,7 +213,7 @@ function codigosDeErrores(errores: string[]): string[] {
     if (t.startsWith('correo ')) {
       const m = t.match(/Resend respondió (\d{3})\b/);
       c = m ? 'resend_' + m[1] : (t.includes('RESEND_API_KEY') ? 'resend_sin_clave' : 'correo');
-    } else if (t.startsWith('alerta ') || t.startsWith('empresa seguida ')) {
+    } else if (t.startsWith('alerta ')) {
       c = 'secop';
     } else if (t.startsWith('barrido de pliegos')) {
       c = 'storage';
@@ -272,7 +226,6 @@ function codigosDeErrores(errores: string[]): string[] {
 }
 
 const MAX_ALERTAS_POR_EMPRESA = 10;   // cota contra el fan-out hacia Socrata (SEG-004)
-const MAX_EMPRESAS_POR_EMPRESA = 10;
 const PRESUPUESTO_MS = 100_000;       // no se empiezan empresas nuevas pasado este tiempo (ESC-001)
 
 // ---- Handler ----------------------------------------------------------------
@@ -367,12 +320,12 @@ Deno.serve(async (req: Request) => {
   const inicioCorrida = Date.now();
   const corridaId = await iniciarCorrida(admin);
 
-  // Una sola consulta para las 3 claves de todas las empresas -- más barato
+  // Una sola consulta para las 2 claves de todas las empresas -- más barato
   // que una consulta por empresa, y de todos modos hay que revisarlas todas.
   const { data: filas, error } = await admin
     .from('app_state')
     .select('company_id, key, value')
-    .in('key', ['correo_digest_activo', 'alertas_guardadas', 'empresas_seguidas']);
+    .in('key', ['correo_digest_activo', 'alertas_guardadas']);
   if (error) {
     console.error('daily-digest: no se pudo leer app_state', error);
     const saludFatal = evaluarSalud({ errores: 0, pendientes: 0, fatal: true });
@@ -383,14 +336,13 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 
-  const porEmpresa = new Map<string, { optin: boolean; alertas: Alerta[]; empresas: EmpresaSeguida[] }>();
+  const porEmpresa = new Map<string, { optin: boolean; alertas: Alerta[] }>();
   (filas || []).forEach((f) => {
-    if (!porEmpresa.has(f.company_id)) porEmpresa.set(f.company_id, { optin: false, alertas: [], empresas: [] });
+    if (!porEmpresa.has(f.company_id)) porEmpresa.set(f.company_id, { optin: false, alertas: [] });
     const e = porEmpresa.get(f.company_id)!;
     try {
       if (f.key === 'correo_digest_activo') e.optin = f.value === 'true';
       else if (f.key === 'alertas_guardadas') e.alertas = JSON.parse(f.value) || [];
-      else if (f.key === 'empresas_seguidas') e.empresas = JSON.parse(f.value) || [];
     } catch (_err) { /* JSON corrupto -- se ignora esa clave para esta empresa, no tumba el resto */ }
   });
 
@@ -401,12 +353,11 @@ Deno.serve(async (req: Request) => {
   const inicio = Date.now();
 
   for (const [companyId, datosCompletos] of porEmpresa) {
-    if (!datosCompletos.optin || (!datosCompletos.alertas.length && !datosCompletos.empresas.length)) continue;
+    if (!datosCompletos.optin || !datosCompletos.alertas.length) continue;
     if (Date.now() - inicio > PRESUPUESTO_MS) { pendientes.push(companyId); continue; }
     const datos = {
       ...datosCompletos,
       alertas: datosCompletos.alertas.slice(0, MAX_ALERTAS_POR_EMPRESA),
-      empresas: datosCompletos.empresas.slice(0, MAX_EMPRESAS_POR_EMPRESA),
     };
     try {
       const lineasAlertas: string[] = [];
@@ -416,14 +367,7 @@ Deno.serve(async (req: Request) => {
         if (debug) debugInfo.push({ companyId, tipo: 'alerta', nombre: a.nombre, keywords: a.keywords, geos: a.geos, ultimaRevision: a.ultimaRevision, nuevos: n, error: err });
         if (n > 0) lineasAlertas.push('- "' + limpiarNombre(a.nombre) + '": ' + n + ' proceso(s) nuevo(s)');
       }
-      const lineasEmpresas: string[] = [];
-      for (const emp of datos.empresas) {
-        let n = 0, err: string | null = null;
-        try { n = await contarNuevosDeEmpresa(emp); } catch (e) { err = e instanceof Error ? e.message : String(e); errores.push('empresa seguida ' + companyId + ': ' + err); }
-        if (debug) debugInfo.push({ companyId, tipo: 'empresa', nombre: emp.nombre, ultimaRevision: emp.ultimaRevision, nuevos: n, error: err });
-        if (n > 0) lineasEmpresas.push('- ' + limpiarNombre(emp.nombre) + ': ' + n + ' contrato(s) nuevo(s)');
-      }
-      if (!lineasAlertas.length && !lineasEmpresas.length) continue;
+      if (!lineasAlertas.length) continue;
 
       // Miembros de la empresa (normalmente uno solo, ver Fase 1) -- el
       // correo de cada uno sale del Admin API de Auth (service_role), no de
@@ -434,12 +378,11 @@ Deno.serve(async (req: Request) => {
         const { data: userData, error: userErr } = await admin.auth.admin.getUserById(m.user_id);
         if (debug) debugInfo.push({ companyId, tipo: 'usuario', userId: m.user_id, tieneEmail: !!(userData && userData.user && userData.user.email), error: userErr ? userErr.message : null });
         if (userErr || !userData || !userData.user || !userData.user.email) continue;
-        const totalNuevos = lineasAlertas.length + lineasEmpresas.length;
+        const totalNuevos = lineasAlertas.length;
         const cuerpo = [
           'Hola,', '',
           'Tienes novedades en tu cuenta de Bitácora SECOP:', '',
-          ...(lineasAlertas.length ? ['Alertas guardadas:', ...lineasAlertas, ''] : []),
-          ...(lineasEmpresas.length ? ['Empresas seguidas:', ...lineasEmpresas, ''] : []),
+          'Alertas guardadas:', ...lineasAlertas, '',
           'Abre la app para ver el detalle: ' + appUrl, '',
           '— Bitácora SECOP (resumen automático diario)',
         ].join('\n');
