@@ -4931,13 +4931,33 @@ await check('Interfaz: el botón secundario y el pie de la barra lateral cumplen
   const pie = /sidebar-foot[^{]*\{[^}]*color:\s*(#[0-9A-Fa-f]{6})/.exec(html);
   assert(pie && contraste(pie[1], T['brand-800']) >= 4.5, 'texto del pie de la barra lateral sobre el marino: ' + (pie && pie[1]));
 });
-await check('Interfaz: el lienzo de la página (html) también es oscuro, no solo #bitacora-root (si no, las páginas cortas muestran blanco debajo)', () => {
+await check('Interfaz: el lienzo de la página (html) también es claro, no solo #bitacora-root (si no, las páginas cortas muestran otro color debajo)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const canvas = /--canvas:\s*(#[0-9A-Fa-f]{6})/.exec(html)[1].toLowerCase();
   const m = /(?:^|\n)\s*html\s*\{([^}]*)\}/.exec(html);
   assert(m, 'falta una regla html { ... } fuera de #bitacora-root');
   assert(m[1].toLowerCase().includes('background: ' + canvas) || m[1].toLowerCase().includes('background:' + canvas), 'html debe usar el color --canvas (' + canvas + ')');
-  assert(/color-scheme:\s*dark/.test(m[1]), 'html debe declarar color-scheme: dark');
+  assert(/color-scheme:\s*light/.test(m[1]), 'html debe declarar color-scheme: light');
+  assert(luminancia(canvas) > 0.6, 'el lienzo debe ser claro: ' + canvas);
+});
+// ---- Rediseño fase 1 (dirección «Inntegrate», elegida por el usuario): tema claro, acento lila, Mulish ----
+await check('Rediseño fase 1: la paleta es clara (lienzo, papel, texto) y el acento es lila; el ámbar queda solo para avisos', () => {
+  const html = readFileSync(HTML_PATH, 'utf8'); const T = tokenesCss(html);
+  assert(luminancia(T.bg) > 0.6 && luminancia(T.surface) > 0.9, 'lienzo y papel claros: ' + T.bg + ' ' + T.surface);
+  assert(luminancia(T.text) < 0.05, 'el texto es oscuro: ' + T.text);
+  const [r, g, b] = [1, 3, 5].map(k => parseInt(T.accent.slice(k, k + 2), 16));
+  assert(b > r && b > g && r > g, 'el acento (texto) es lila (azul > rojo > verde): ' + T.accent);
+  assert(contraste(T.accent, T.surface) >= 4.5 && contraste(T['accent-ink'], T['accent-button']) >= 4.5, 'el acento como texto y la tinta sobre su relleno cumplen AA');
+  assert(contraste(T['btn-ink'], T.btn) >= 7 && contraste(T['on-navy-mute'], T['navy-800']) >= 4.5 && contraste(T['on-navy-mute'], T['navy-900']) >= 4.5, 'botón principal y texto atenuado sobre azul noche');
+  assert(contraste(T['on-status'], T.danger) >= 4.5 && contraste(T['on-status'], T.success) >= 4.5, 'texto sobre relleno de estado');
+  assert(!/--accent:\s*var\(--amber\)/.test(html), 'el acento ya no apunta al ámbar');
+});
+await check('Rediseño fase 1: la tipografía es Mulish (sin Outfit en el CSS ni en el enlace de Google Fonts)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Mulish/.test(html), 'falta Mulish en el enlace de Google Fonts');
+  assert(!/family=Outfit/.test(html), 'Outfit sigue en el enlace de Google Fonts');
+  assert(!/font-family:[^;}]*Outfit/.test(html), 'Outfit sigue en alguna declaración font-family');
+  assert(/#bitacora-root\s*\{[^}]*font-family:\s*'Mulish'/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), '#bitacora-root debe usar Mulish');
 });
 await check('Interfaz: ningún texto visible al usuario manda a leer CLAUDE.md (es documentación del proyecto, no de la app)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
