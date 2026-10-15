@@ -436,6 +436,36 @@ await check('Rediseño fase 1: barra superior horizontal (una sola fila, ancho c
   await ctx.close();
 });
 
+await check('Rediseño fase 2: tarjeta sin franja gruesa, botones que se hunden al presionar y filtro de Mis procesos como chip lila al marcarlo', async () => {
+  const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 } });
+  await pg.click('#bt-nav-buscar');
+  const borde = await pg.evaluate(() => {
+    const r = [...document.querySelectorAll('#bt-results .row')].find(x => !x.classList.contains('vence-pronto') && !x.classList.contains('alta') && !x.classList.contains('media'));
+    return r ? getComputedStyle(r).borderLeftWidth : 'sin tarjeta';
+  });
+  assert(borde === '1px', 'la tarjeta normal no lleva franja gruesa a la izquierda: ' + borde);
+  // presionar: el botón se encoge un poco (scale .97) y vuelve al soltar
+  const b = pg.locator('#view-buscar .btn-primary').first();
+  const caja = await b.boundingBox();
+  await pg.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2);
+  await pg.mouse.down();
+  await pg.waitForTimeout(300);
+  const escala = await b.evaluate(el => { const m = new DOMMatrix(getComputedStyle(el).transform); return m.a; });
+  await pg.mouse.up();
+  assert(escala > 0.95 && escala < 0.99, 'al presionar el botón escala ~0.97: ' + escala);
+  // filtro de Mis procesos
+  for (let i = 0; i < 2; i++) { await pg.locator('#bt-results [data-agregar-pipeline]').first().click(); await pg.waitForTimeout(150); }
+  await pg.click('#bt-nav-procesos');
+  const lab = pg.locator('#bt-pipeline-filtro label');
+  const antes = await lab.evaluate(el => getComputedStyle(el).backgroundColor);
+  await pg.check('#bt-pipeline-solo-pronto');
+  await pg.waitForTimeout(350); // termina la transición de color
+  const despues = await lab.evaluate(el => getComputedStyle(el).backgroundColor);
+  assert(antes !== despues && despues === 'rgb(201, 176, 255)', 'marcado, el filtro se pinta lila: ' + antes + ' → ' + despues);
+  assert(await sinDesborde(pg) <= 0, 'sin desborde');
+  await ctx.close();
+});
+
 await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agrupa 3 pestañas; "evaluacion" y "pipeline" guardados abren Análisis y Mis procesos', async () => {
   let { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
   const m = await pg.evaluate(() => ({
