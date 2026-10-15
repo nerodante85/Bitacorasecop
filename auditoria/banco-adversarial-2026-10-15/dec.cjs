@@ -1,0 +1,12 @@
+const { resumenDecision: rd } = require('../../evaluacion.js');
+const caso = (n, e, esperado) => { const r = rd(e); const ok = esperado(r); console.log((ok ? 'ok   ' : 'FALLA') + ' ' + n + ' -> ' + r.titulo + ' bloq=' + r.bloqueantes.length + ' resolver=' + r.porResolver.length + ' cumple=' + r.cumple + '/' + r.total); };
+const noGo = r => r.titulo !== 'GO';
+caso('E1 dos filas con el mismo nombre: CUMPLE y NO CUMPLE', { veredicto: 'GO', hayPliego: true, requisitos: [{ requisito: 'Experiencia específica', resultado: 'CUMPLE', detalle: '' }, { requisito: 'Experiencia específica', resultado: 'NO CUMPLE', detalle: 'ningún contrato' }] }, noGo);
+caso('E2 ficha Liquidez CUMPLE vs matriz Liquidez NO CUMPLE', { veredicto: 'GO', hayPliego: true, ficha: [{ requisito: 'Liquidez', estado: 'CUMPLE', detalle: '' }], requisitos: [{ requisito: 'Índice de liquidez', resultado: 'NO CUMPLE', detalle: 'perfil 0,8 < 1,5' }] }, noGo);
+caso('E3 ficha Patrimonio CUMPLE vs matriz Rentabilidad del patrimonio NO CUMPLE', { veredicto: 'GO', hayPliego: true, ficha: [{ requisito: 'Patrimonio', estado: 'CUMPLE', detalle: '' }], requisitos: [{ requisito: 'Rentabilidad del patrimonio', resultado: 'NO CUMPLE', detalle: 'ROE 2% < 5%' }] }, noGo);
+caso('E4 ficha Capacidad residual CUMPLE vs matriz "Residual" NO CUMPLE', { veredicto: 'GO', hayPliego: true, ficha: [{ requisito: 'Capacidad residual del proceso (K)', estado: 'CUMPLE', detalle: '' }], requisitos: [{ requisito: 'K residual', resultado: 'NO CUMPLE', detalle: 'x' }] }, noGo);
+caso('E5 sin requisitos ni ficha pero veredicto GO', { veredicto: 'GO', hayPliego: true }, noGo);
+caso('E6 estado minúscula "no cumple"', { veredicto: 'GO', hayPliego: true, requisitos: [{ requisito: 'A', resultado: 'no cumple' }] }, noGo);
+caso('E7 estado "Cumple" mixto', { veredicto: 'GO', hayPliego: true, requisitos: [{ requisito: 'A', resultado: 'Cumple' }] }, r => r.titulo !== 'GO');
+caso('E8 veredicto GO pero fila CUMPLE-PARCIAL', { veredicto: 'GO', hayPliego: true, requisitos: [{ requisito: 'A', resultado: 'CUMPLE PARCIALMENTE' }] }, noGo);
+caso('E9 hayPliego undefined con GO', { veredicto: 'GO', requisitos: [{ requisito: 'A', resultado: 'CUMPLE' }] }, noGo);

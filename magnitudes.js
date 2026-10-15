@@ -22,7 +22,12 @@
 
   const UNIDAD_LONGITUD = /^(ml|m|mts?|metros?|metros?\s+lineales?|m\.l\.?)$/i;
   const UNIDAD_KM = /^(km|kms|kil[oó]metros?)$/i;
-  const UNIDAD_CONTEO = /^(und|un|u|unid(?:ades?)?|uni|no\.?|n[°º]|conexi[oó]n(?:es)?|pozos?)$/i;
+  const UNIDAD_CONTEO = /^(und?\.?|u\.?|unid(?:ades?)?\.?|uni\.?|no\.?|n[°º]|conexi[oó]n(?:es)?|pozos?)$/i;
+  // Ítems que NO son obra instalada (RA2-2): retiro, demolición, excavación, relleno... Solo cuando el ítem EMPIEZA así
+  // (un «Conexión domiciliaria… incluye excavación» sigue siendo una conexión).
+  const NO_INSTALADA = /^\W*(?:retiros?|retirada|desmontes?|desmontaje|demolici[oó]n(?:es)?|demoler|rotura|excavaci[oó]n(?:es)?|excavar|rellenos?|desinstalaci[oó]n|levantamiento)\b/i;
+  // Filas de total/subtotal repetidas por quien arma la hoja (RA2-1): no son una obra más.
+  const FILA_TOTAL = /^\W*(?:sub\s*-?\s*)?total(?:es)?\b|\btotal(?:\s+general)?\s*:?\s*$|^\W*suma(?:toria)?\b/i;
 
   const norm = s => String(s == null ? '' : s).normalize('NFKC').replace(/\s+/g, ' ').trim();
   const sinTildes = s => norm(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -77,15 +82,22 @@
   function clasificarItem(item, unidad) {
     const t = norm(item), s = sinTildes(t).toLowerCase(), u = norm(unidad);
     if (/entibad/.test(s)) return { actividad: 'entibados', certeza: 'alta' };
+    if (NO_INSTALADA.test(s)) return { actividad: null, certeza: 'alta', nota: 'No es obra instalada (retiro, demolición, excavación o relleno).' };
     // Accesorios del domiciliario: NO son conexiones (silla yee, codos, cajas, collares).
     if (/\b(silla|yee|codo|caja|collar|tee|reduccion|abrazadera)\b/.test(s) && /domicili|conexi|acometida|alcantarill/.test(s))
       return { actividad: 'accesorio_domiciliario', certeza: 'alta' };
     if (/conexi\w*\s+domicili|acometida\s+domicili|domiciliari/.test(s) && !/\b(silla|yee|codo|caja|collar)\b/.test(s)) {
       // "Instalación domiciliarias D=2"x1/2"" es de acueducto: solo cuenta si el propio ítem dice alcantarillado/sanitari.
       const alta = /alcantarill|sanitari|aguas\s+(?:negras|residuales|servidas)/.test(s);
-      return { actividad: 'conexiones', certeza: alta ? 'alta' : 'baja', nota: alta ? '' : 'El ítem no dice que sea de alcantarillado.' };
+      // Una conexión se cuenta en unidades: medida en m, m² o m³ no es una conexión (RA2-2); sin unidad no se afirma.
+      if (u && !UNIDAD_CONTEO.test(u)) return { actividad: null, certeza: 'alta', nota: 'Medido en ' + u + ': no es un conteo de conexiones.' };
+      return { actividad: 'conexiones', certeza: alta && u ? 'alta' : 'baja', nota: !alta ? 'El ítem no dice que sea de alcantarillado.' : (u ? '' : 'El ítem no trae unidad: no se sabe si cuenta conexiones.') };
     }
-    if (/\bpozos?\b/.test(s) && !/adecuacion|reparacion|tapa|cuerpo\s+de/.test(s)) return { actividad: 'pozos', certeza: 'alta' };
+    if (/\bpozos?\b/.test(s) && !/adecuacion|reparacion|tapa|cuerpo\s+de/.test(s)) {
+      // Un pozo se cuenta en unidades: 40 m³ de excavación no son 40 pozos (RA2-2); sin unidad no se afirma.
+      if (u && !UNIDAD_CONTEO.test(u)) return { actividad: null, certeza: 'alta', nota: 'Medido en ' + u + ': no es un conteo de pozos.' };
+      return { actividad: 'pozos', certeza: u ? 'alta' : 'baja', nota: u ? '' : 'El ítem no trae unidad: no se sabe si cuenta pozos.' };
+    }
     // Longitud de vía: solo ítems medidos en longitud (ml, m, km) que hablan de vía/carretera/pavimento. Los medidos en m² o m³ no dan longitud.
     if ((UNIDAD_LONGITUD.test(u) || UNIDAD_KM.test(u)) && /\b(vias?|viales?|vial|carreteras?|calzadas?|pavimentos?|placa\s*huella|carpeta\s+asfaltica)\b/.test(s) &&
         !/tuber|colector|alcantarill|acueduct|bordill|sardinel|anden|cuneta|ducto|cable|cerca|senaliz|demarcacion|baranda|muro|box\s*culvert|alcantarilla/.test(s))
@@ -179,8 +191,9 @@
     const items = (c.formatoMaestro && c.formatoMaestro.cantidades) || [];
     const id = c.numeroContrato || (c.formatoMaestro && c.formatoMaestro.idContrato) || (c.objeto || '').slice(0, 40) || 'contrato';
     if (!items.length) return { id: id, estado: 'sin_datos', detalle: 'no tiene cantidades cargadas.' };
-    let total = 0, usados = [], dudosos = [], descartados = [], viaCants = [], viaItems = [];
+    let total = 0, usados = [], dudosos = [], descartados = [], viaCants = [], viaItems = [], cand = [];
     items.forEach(it => {
+      if (FILA_TOTAL.test(sinTildes(it.item).toLowerCase())) { descartados.push(it.item + ' (fila de total)'); return; }
       const cl = clasificarItem(it.item, it.unidad);
       if (cl.actividad !== ex.actividad) {
         if (ex.actividad === 'conexiones' && cl.actividad === 'accesorio_domiciliario') descartados.push(it.item + ' (accesorio: no es una conexión certificada)');
@@ -204,8 +217,38 @@
       if (ex.actividad === 'tuberia' && cl.certeza !== 'alta') { dudosos.push(it.item + ' — ' + (motivo || 'no se pudo leer material o diámetro') + ' (' + cant + ' ' + (it.unidad || '') + ')'); return; }
       if (!ok) { dudosos.push(it.item + ' — ' + (motivo || 'no reconocido') + ' (' + cant + ' ' + (it.unidad || '') + ')'); return; }
       if (ex.actividad === 'via') { viaCants.push(cant); viaItems.push(it.item + ' ' + fmt(cant) + ' ml'); return; }
-      total += cant; usados.push(it.item + ' ' + cant + ' ' + (it.unidad || ''));
+      cand.push({ item: it.item, cant: cant, unidad: it.unidad || '', cl: cl });
     });
+    // Consolidación (RA2-1): el mismo tubo puede estar en dos líneas del acta (suministro e instalación) o repetido; sumarlas
+    // sobrestimaría. Se cuenta lo prudente (filas repetidas una vez; suministro vs instalación, el mayor) y, si solo la suma
+    // plana alcanzaría la cifra, el contrato queda para confirmar (mismo criterio que las capas de vía).
+    if (cand.length) {
+      const suma = a => a.reduce((x, y) => x + y.cant, 0);
+      const vistos = new Set(), unicos = [];
+      cand.forEach(x => { const k = sinTildes(x.item).toLowerCase().replace(/\s+/g, ' ') + '|' + x.cant + '|' + norm(x.unidad).toLowerCase(); if (!vistos.has(k)) { vistos.add(k); unicos.push(x); } });
+      const repetidas = cand.length - unicos.length;
+      let prudente = 0, solapa = false;
+      if (ex.actividad === 'tuberia') {
+        const grupos = new Map();
+        unicos.forEach(x => { const g = (x.cl.material || '') + '|' + x.cl.diametroPulg; if (!grupos.has(g)) grupos.set(g, []); grupos.get(g).push(x); });
+        grupos.forEach(arr => {
+          const rol = x => { const t = sinTildes(x.item).toLowerCase(), su = /suministro/.test(t), ins = /instalaci|colocaci|tendido/.test(t); return su && !ins ? 'sum' : (ins ? 'ins' : 'otro'); };
+          const sum = arr.filter(x => rol(x) === 'sum'), ins = arr.filter(x => rol(x) === 'ins'), otro = arr.filter(x => rol(x) === 'otro');
+          if (sum.length && ins.length) { solapa = true; prudente += suma(otro) + Math.max(suma(sum), suma(ins)); }
+          else prudente += suma(arr);
+        });
+      } else prudente = suma(unicos);
+      const plana = suma(cand);
+      if (!ex.soloAcreditar && ex.cifra != null && prudente < ex.cifra && plana >= ex.cifra && (repetidas || solapa)) {
+        const motivos = [];
+        if (solapa) motivos.push('hay líneas de suministro y de instalación del mismo material y diámetro que podrían ser el mismo tubo');
+        if (repetidas) motivos.push(repetidas + ' fila(s) repetida(s) con el mismo ítem y cantidad');
+        const lista = cand.map(x => x.item + ' ' + fmt(x.cant) + ' ' + x.unidad);
+        return { id: id, estado: 'item_dudoso', detalle: 'sumando todas sus filas (' + lista.join('; ') + ') se alcanzaría ' + fmt(ex.cifra) + ' ' + (ex.unidad || '') + ', pero ' + motivos.join(' y ') + ': confirma la cantidad real del acta final.', dudosos: lista };
+      }
+      total = prudente;
+      unicos.forEach(x => usados.push(x.item + ' ' + x.cant + ' ' + x.unidad));
+    }
     // Vía: ítems de longitud del mismo contrato pueden ser capas o frentes del MISMO tramo (base, subbase, carpeta), así que no se suman:
     // se toma el mayor (nunca sobrestima). Si solo la suma alcanzaría, no se asume: queda para confirmar.
     if (ex.actividad === 'via' && viaCants.length) {
