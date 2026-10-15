@@ -6310,6 +6310,50 @@ await check('DG-RA3-4 (RA3-4): el tipo de persona (natural / jurídica / sin ind
   assert(/tipoPersona: getCampo\(perfilTipoPersonaEl\)/.test(html), 'savePerfil lo guarda');
 });
 
+await check('DG-RA3-5 (RA3-5): «conozco y acepto el pliego» de la carta lleva [CONFIRMAR] y figura en el aviso «ANTES DE FIRMAR»', () => {
+  const carta = expEngine.generarCartaTexto({ nombre: 'X', tipoPersona: 'juridica' }, { entidad: 'E' }, false);
+  assert(/1\. \[CONFIRMAR\] Que presento oferta[^\n]*conozco y acepto/.test(carta), 'el ítem 1 lleva la marca');
+  const antes = carta.split('\n').slice(0, 12).join('\n');
+  assert(/Carta ítem 1/.test(antes), 'el ítem 1 figura en la lista de declaraciones por verificar: ' + antes.slice(0, 300));
+  const paq = expEngine.generarPaqueteTexto({ nombre: 'X', tipoPersona: 'juridica' }, { entidad: 'E' }, undefined);
+  assert(/Carta ítem 1/.test(paq.split('\n').slice(0, 14).join('\n')), 'también en el paquete');
+});
+
+await check('DG-RA3-6 (RA3-6): el resultado de experiencia guarda la fecha y las empresas de la evaluación, y el documento las imprime', () => {
+  const ctos = expEngine.parsearExcelExperiencia(fakeWorkbook(H_DOCX, [ctoDoc('CT-1', 'A', '900000000', '2022-01-01', '2023-01-01')])).contratos.map(c => Object.assign({}, c, { _perfilNombre: 'Empresa Uno' }));
+  const req = expEngine.construirRequisitoDesdeTexto('Un contrato de construcción de puentes vehiculares por valor mínimo de 500.000.000 pesos', 0, {});
+  const ev = expEngine.evaluarExperienciaCompleta(ctos, [req], new Date('2026-06-01T00:00:00'));
+  assert(ev.evaluadoEn === '2026-06-01', 'evaluadoEn: ' + ev.evaluadoEn);
+  assert(JSON.stringify(ev.empresas) === '["Empresa Uno"]' && ev.totalContratos === 1, 'empresas y contratos usados: ' + JSON.stringify(ev.empresas) + ' ' + ev.totalContratos);
+  const d = expEngine.generarFormatoExperienciaTexto({ nombre: 'Empresa Uno', tipoPersona: 'juridica' }, ITEM_DOC, { experienciaResultado: ev });
+  const notas = d.slice(d.indexOf('NOTAS INTERNAS'));
+  assert(/Evaluación de experiencia hecha el 2026-06-01/.test(notas) && /1 contrato\(s\)/.test(notas) && /Empresa Uno/.test(notas), 'notas internas: ' + notas.slice(0, 400));
+  // un resultado guardado antes (sin fecha) lo dice y pide volver a evaluar
+  const viejo = Object.assign({}, ev); delete viejo.evaluadoEn; delete viejo.empresas; delete viejo.totalContratos;
+  const dv = expEngine.generarFormatoExperienciaTexto({ nombre: 'Empresa Uno', tipoPersona: 'juridica' }, ITEM_DOC, { experienciaResultado: viejo });
+  assert(/sin fecha registrada/.test(dv) && /vuelve a evaluar/i.test(dv.slice(dv.indexOf('NOTAS INTERNAS'))), 'resultado anterior sin fecha');
+});
+
+await check('DG-RA3-3 (RA3-3): con más de una empresa (consorcio / unión temporal) el formato de experiencia dice de quién es cada contrato y avisa', () => {
+  const tag = (nombre, filas) => expEngine.parsearExcelExperiencia(fakeWorkbook(H_DOCX, filas)).contratos.map(c => Object.assign({}, c, { _perfilNombre: nombre }));
+  const ctos = tag('Empresa Uno', [ctoDoc('CT-1', 'A', '900000000', '2022-01-01', '2023-01-01')]).concat(tag('Empresa Dos', [ctoDoc('CT-2', 'B', '800000000', '2022-01-01', '2023-01-01')]));
+  const req = expEngine.construirRequisitoDesdeTexto('Mínimo dos contratos de construcción de puentes vehiculares por valor mínimo de 500.000.000 pesos cada uno', 0, {});
+  const ev = expEngine.evaluarExperienciaCompleta(ctos, [req], new Date('2026-06-01T00:00:00'));
+  assert(ev.resultados[0].resultado === 'CUMPLE' && ev.resultados[0].contratosQueAcreditan.map(c => c.empresa).sort().join() === 'Empresa Dos,Empresa Uno', 'cada contrato conserva su empresa: ' + JSON.stringify(ev.resultados[0].contratosQueAcreditan.map(c => c.empresa)));
+  const d = expEngine.generarFormatoExperienciaTexto({ nombre: 'Empresa Uno', nit: '900', tipoPersona: 'juridica' }, ITEM_DOC, { experienciaResultado: ev });
+  assert(/Aportado por: Empresa Uno/.test(d) && /Aportado por: Empresa Dos/.test(d), 'cada contrato dice quién lo aporta');
+  assert(/consorcio o unión temporal/i.test(d.split('\n').slice(0, 6).join('\n')), 'aviso interno al inicio');
+  assert(/Integrantes cuya experiencia se suma: Empresa Uno, Empresa Dos/.test(d) && /COMPLETAR: nombre del consorcio o unión temporal/.test(d), 'encabezado con los integrantes y el nombre del consorcio por completar');
+  // dos empresas marcadas pero solo una aporta contratos: sigue siendo un consorcio y se avisa
+  const soloUna = Object.assign({}, ev, { resultados: ev.resultados.map(r => Object.assign({}, r, { contratosQueAcreditan: r.contratosQueAcreditan.filter(c => c.empresa === 'Empresa Uno') })) });
+  const dU = expEngine.generarFormatoExperienciaTexto({ nombre: 'Empresa Uno', nit: '900', tipoPersona: 'juridica' }, ITEM_DOC, { experienciaResultado: soloUna });
+  assert(/Integrantes cuya experiencia se suma: Empresa Uno, Empresa Dos/.test(dU), 'las empresas marcadas cuentan aunque solo una aporte');
+  // con una sola empresa no aparece nada de esto
+  const ev1 = expEngine.evaluarExperienciaCompleta(tag('Empresa Uno', [ctoDoc('CT-1', 'A', '900000000', '2022-01-01', '2023-01-01')]), [expEngine.construirRequisitoDesdeTexto('Un contrato de construcción de puentes vehiculares por valor mínimo de 500.000.000 pesos', 0, {})], new Date('2026-06-01T00:00:00'));
+  const d1 = expEngine.generarFormatoExperienciaTexto({ nombre: 'Empresa Uno', nit: '900', tipoPersona: 'juridica' }, ITEM_DOC, { experienciaResultado: ev1 });
+  assert(!/Aportado por|Integrantes cuya experiencia|consorcio o unión temporal/i.test(d1.split('NOTAS INTERNAS')[0]), 'una sola empresa: sin menciones de consorcio');
+});
+
 await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabezado «MATRIZ N – EXPERIENCIA»', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const i = html.indexOf('function etiquetaRequisitoExperiencia'), j = html.indexOf('function empresaParaFicha');
