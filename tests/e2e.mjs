@@ -499,6 +499,16 @@ await check('Rediseño fase 3: Mis procesos trae las cifras dentro de la cabecer
   await m.ctx.close();
 });
 
+await check('Pie de ayuda en Buscar procesos: corto (≤ 600 caracteres visibles) y sin semáforo ni prioridad', async () => {
+  const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 } });
+  await pg.click('#bt-nav-buscar');
+  const t = await pg.evaluate(() => { const f = document.getElementById('bt-footnote'); return f.hidden ? '' : [...f.querySelectorAll('p')].filter(p => !p.hidden).map(p => p.textContent.trim()).join(' '); });
+  assert(t.length > 0 && t.length <= 600, 'texto visible del pie en Buscar: ' + t.length);
+  assert(!/semáforo|prioridad|NO-GO/.test(t), 'no menciona funciones que ya no existen: ' + t);
+  assert(await sinDesborde(pg) <= 0, 'sin desborde');
+  await ctx.close();
+});
+
 await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agrupa 3 pestañas; "evaluacion" y "pipeline" guardados abren Análisis y Mis procesos', async () => {
   let { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
   const m = await pg.evaluate(() => ({
