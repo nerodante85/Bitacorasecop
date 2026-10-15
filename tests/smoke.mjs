@@ -2602,7 +2602,7 @@ const PERFIL_DOC_VACIO = { nombre: '', nit: '', representanteLegal: '', represen
 const ITEM_DOC = { entidad: 'Alcaldía X', objeto: 'Obra Y', modalidad: 'Licitación pública', referencia: 'LP-001-2026' };
 const cuerpoFirmable = t => t.split('[NOTAS INTERNAS')[0].split('════════════════════════════════════════════════════════\n\n').pop();
 const entryExp = (resultados, global) => ({ experienciaResultado: { resultados, resultadoGlobal: global, conteo: { 'CUMPLE': resultados.filter(r => r.resultado === 'CUMPLE').length, 'NO CUMPLE': resultados.filter(r => r.resultado === 'NO CUMPLE').length, 'NO DETERMINABLE': resultados.filter(r => r.resultado === 'NO DETERMINABLE').length } } });
-const resExp = (criterio, resultado, contratos) => ({ requisito: { criterio }, resultado, justificacion: 'motivo interno', contratosEvaluados: contratos || [] });
+const resExp = (criterio, resultado, contratos) => ({ requisito: { criterio }, resultado, justificacion: 'motivo interno', contratosEvaluados: contratos || [], contratosQueAcreditan: contratos || [] });
 const CONTRATO_EXP = { objeto: 'Pavimentación X', contratante: 'Alcaldía Z', valor: 0, numeroContrato: '123-2020', fechaInicio: '2020-01-01', fechaFin: '2020-12-31' };
 
 await check('DG-001: solo un requisito que CUMPLE dice "Contratos que lo acreditan"; un NO CUMPLE con contrato de $0 ya no los presenta como acreditados', () => {
@@ -6236,6 +6236,41 @@ await check('MG-015 (RA2-6): una cantidad escrita como texto con un solo separad
   assert(cants[0].cantidad === '1.000' && cants[1].cantidad === 25, 'texto ambiguo se conserva como texto y los números siguen siendo números: ' + JSON.stringify(cants));
   assert(r.avisos.some(a => /cantidad/i.test(a) && /ambigu/i.test(a)), 'debe avisar: ' + r.avisos.join(' | '));
   assert(Magnitudes.evaluar(Magnitudes.parsearExigencia(CON), r.contratos, {}).estado === 'NO DETERMINABLE', 'de punta a punta: no cumple por una cantidad ambigua');
+});
+
+// ---- Ronda de documentos 2026-10-15 (RA3-1, RA3-2) ----
+const H_DOCX = ['Número de contrato', 'Objeto', 'Contratante', 'Valor', 'Fecha de inicio', 'Fecha de terminación'];
+const ctoDoc = (num, tag, valor, ini, fin) => [num, PUENTE + ' ' + tag, 'Alcaldía ' + tag, valor, ini, fin];
+const docDe = (r, perfil) => expEngine.generarFormatoExperienciaTexto(Object.assign({ nombre: 'Mi Empresa SAS', nit: '900.123.456-7', representanteLegal: 'Ana Pérez', representanteCedula: '1' }, perfil || {}), ITEM_DOC,
+  { experienciaResultado: { resultados: [r], resultadoGlobal: r.resultado, conteo: { 'CUMPLE': +(r.resultado === 'CUMPLE'), 'NO CUMPLE': +(r.resultado === 'NO CUMPLE'), 'NO DETERMINABLE': +(r.resultado === 'NO DETERMINABLE') } } });
+const evDoc = (req, filas) => { const contratos = expEngine.parsearExcelExperiencia(fakeWorkbook(H_DOCX, filas)).contratos; return expEngine.evaluarRequisito(expEngine.construirRequisitoDesdeTexto(req, 0, {}), contratos, HOY_AUD); };
+
+await check('DG-RA3-1 (RA3-1): el formato de experiencia lista SOLO los contratos que acreditan (no los de valor menor, en ejecución ni fuera de ventana)', () => {
+  const R1 = 'Un contrato de construcción de puentes vehiculares por valor mínimo de 500.000.000 pesos';
+  const a = evDoc(R1, [ctoDoc('CT-1', 'A', '900000000', '2022-01-01', '2023-01-01'), ctoDoc('CT-2', 'B', '100000000', '2022-01-01', '2023-01-01'), ctoDoc('CT-3', 'D', '900000000', '2025-01-01', '2027-12-31')]);
+  assert(a.resultado === 'CUMPLE', 'el requisito cumple: ' + a.resultado);
+  assert(Array.isArray(a.contratosQueAcreditan) && a.contratosQueAcreditan.length === 1 && /puentes vehiculares A/.test(a.contratosQueAcreditan[0].objeto), 'solo A acredita: ' + JSON.stringify((a.contratosQueAcreditan || []).map(c => c.contratante)));
+  const d = docDe(a);
+  assert(/Alcaldía A/.test(d) && !/Alcaldía B/.test(d) && !/Alcaldía D/.test(d), 'el documento solo lista A:\n' + d.split('\n').filter(l => /Alcaldía/.test(l)).join('\n'));
+  const c2 = evDoc('Mínimo dos contratos de construcción de puentes vehiculares por valor mínimo de 500.000.000 pesos cada uno', [ctoDoc('CT-1', 'A', '900000000', '2022-01-01', '2023-01-01'), ctoDoc('CT-2', 'B', '100000000', '2022-01-01', '2023-01-01'), ctoDoc('CT-5', 'E', '800000000', '2021-01-01', '2022-01-01')]);
+  assert(c2.resultado === 'CUMPLE' && c2.contratosQueAcreditan.map(c => c.contratante).sort().join() === 'Alcaldía A,Alcaldía E', 'dos contratos de >= 500 millones: ' + c2.resultado + ' ' + JSON.stringify(c2.contratosQueAcreditan.map(c => c.contratante)));
+  const acum = evDoc('Valor acumulado mínimo de 500.000.000 pesos en contratos de construcción de puentes vehiculares', [ctoDoc('CT-1', 'A', '300000000', '2022-01-01', '2023-01-01'), ctoDoc('CT-2', 'B', '300000000', '2022-01-01', '2023-01-01')]);
+  if (acum.resultado === 'CUMPLE') assert(acum.contratosQueAcreditan.length === 2, 'si es acumulable cuentan los dos: ' + acum.contratosQueAcreditan.length);
+  const ven = evDoc('Un contrato de construcción de puentes vehiculares por valor mínimo de 500.000.000 pesos, en los últimos 5 años', [ctoDoc('CT-1', 'A', '900000000', '2022-01-01', '2023-01-01'), ctoDoc('CT-9', 'C', '900000000', '2010-01-01', '2011-01-01')]);
+  assert(ven.resultado === 'CUMPLE' && ven.contratosQueAcreditan.map(c => c.contratante).join() === 'Alcaldía A', 'fuera de la ventana no acredita: ' + ven.resultado + ' ' + JSON.stringify(ven.contratosQueAcreditan.map(c => c.contratante)));
+  // Un resultado guardado con el formato anterior (sin contratosQueAcreditan) NO se lista entero: queda para completar.
+  const viejo = Object.assign({}, a); delete viejo.contratosQueAcreditan;
+  const dv = docDe(viejo);
+  assert(!/Alcaldía A\b/.test(dv) && /COMPLETAR: contrato/.test(dv) && /vuelve a evaluar/.test(dv), 'sin contratosQueAcreditan no se listan contratos y se pide reevaluar');
+});
+
+await check('DG-RA3-2 (RA3-2): el número de contrato llega al formato de experiencia; si falta, queda [COMPLETAR]', () => {
+  const R1 = 'Un contrato de construcción de puentes vehiculares por valor mínimo de 500.000.000 pesos';
+  const r = evDoc(R1, [ctoDoc('CT-045-2022', 'A', '900000000', '2022-01-01', '2023-01-01')]);
+  assert(r.contratosQueAcreditan[0].numeroContrato === 'CT-045-2022' && r.contratosEvaluados[0].numeroContrato === 'CT-045-2022', 'el número viaja con el contrato');
+  assert(/Contrato No\. CT-045-2022/.test(docDe(r)), 'el documento imprime el número');
+  const sin = evDoc(R1, [ctoDoc('', 'A', '900000000', '2022-01-01', '2023-01-01')]);
+  assert(sin.resultado === 'CUMPLE' && /Contrato No\. \[COMPLETAR: número de contrato\]/.test(docDe(sin)), 'sin número: ' + docDe(sin).split('\n').filter(l => /Alcaldía/.test(l)).join(' | '));
 });
 
 await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabezado «MATRIZ N – EXPERIENCIA»', () => {
