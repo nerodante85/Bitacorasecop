@@ -466,6 +466,39 @@ await check('Rediseño fase 2: tarjeta sin franja gruesa, botones que se hunden 
   await ctx.close();
 });
 
+await check('Rediseño fase 3: Mis procesos trae las cifras dentro de la cabecera y un calendario de próximos cierres agrupado y ordenado', async () => {
+  const p2 = n => String(n).padStart(2, '0');
+  const dia = n => { const d = new Date(); d.setDate(d.getDate() + n); d.setHours(15, 0, 0, 0); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + 'T15:00:00'; }; // n días de calendario, a las 15:00
+  const mk = (n, e, etapa) => ({ etapa: etapa || 'por_revisar', etapaTs: 1, snapshot: { closingRaw: dia(n), entidad: e, objeto: 'Obra de ' + e, valor: 100000000 } });
+  const hist = { 'ps2-1': mk(1, 'Entidad Mañana'), 'ps2-2': mk(5, 'Entidad Semana'), 'ps2-3': mk(20, 'Entidad Mes'), 'ps2-4': mk(3, 'Entidad Presentada', 'presentada'), 'ps2-5': mk(-4, 'Entidad Vencida') };
+  const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: { bitacora_historial: JSON.stringify(hist) } });
+  await pg.click('#bt-nav-procesos');
+  const r = await pg.evaluate(() => {
+    const hero = document.querySelector('#view-procesos .view-header');
+    const cal = document.getElementById('bt-pipeline-calendario');
+    return {
+      resumenEnCabecera: !!hero.querySelector('#bt-pipeline-resumen .stat-card'),
+      calVisible: !!cal && !cal.hidden && cal.getBoundingClientRect().height > 0,
+      grupos: cal ? [...cal.querySelectorAll('.cal-grupo h3')].map(x => x.textContent.trim()) : [],
+      filas: cal ? [...cal.querySelectorAll('.cal-fila')].map(x => x.textContent) : []
+    };
+  });
+  assert(r.resumenEnCabecera, 'las cifras de Mis procesos van dentro de la cabecera azul');
+  assert(r.calVisible, 'el calendario de cierres se ve');
+  assert(r.grupos.length === 3 && /Mañana/.test(r.grupos[0]) && /7 días/.test(r.grupos[1]) && /30 días/.test(r.grupos[2]), 'grupos: ' + r.grupos.join(' | '));
+  assert(r.filas.length === 3 && /Entidad Mañana/.test(r.filas[0]) && /Entidad Semana/.test(r.filas[1]) && /Entidad Mes/.test(r.filas[2]), 'orden por cercanía y sin presentados ni vencidos: ' + r.filas.join(' | '));
+  assert(!r.filas.some(f => /Presentada|Vencida/.test(f)), 'no salen presentados ni vencidos');
+  // sin procesos con cierre próximo, el calendario no se muestra
+  assert(await sinDesborde(pg) <= 0, 'sin desborde a 1280');
+  await ctx.close();
+  const m = await abrir({ viewport: { width: 375, height: 800 }, hasTouch: true, sembrar: { bitacora_historial: JSON.stringify(hist) } });
+  await m.pg.click('#bt-nav-toggle'); await m.pg.click('#bt-nav-procesos');
+  assert(await sinDesborde(m.pg) <= 0, 'sin desborde a 375: ' + await sinDesborde(m.pg));
+  const alto = await m.pg.evaluate(() => [...document.querySelectorAll('#bt-pipeline-calendario .cal-fila button, #bt-pipeline-calendario .cal-fila a')].map(b => Math.round(b.getBoundingClientRect().height)));
+  assert(alto.length && alto.every(a => a >= 44), 'las filas del calendario se tocan con 44 px: ' + alto.join(','));
+  await m.ctx.close();
+});
+
 await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agrupa 3 pestañas; "evaluacion" y "pipeline" guardados abren Análisis y Mis procesos', async () => {
   let { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
   const m = await pg.evaluate(() => ({
