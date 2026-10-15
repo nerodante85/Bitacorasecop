@@ -7126,7 +7126,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       noClasificado: contratos.filter(c => c.tipo === 'no-clasificado').length,
       total: contratos.length
     };
-    return { resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length, resumenContratos: resumenContratos, grupos: grupos, noObligatoriosIncumplidos: noObligatoriosIncumplidos.length };
+    // RA3-6: con qué se evaluó y cuándo. El documento firmable lo imprime para que se note un resultado desactualizado
+    // (cambiaron los contratos o las empresas marcadas después de evaluar). `empresas` sale de la etiqueta `_perfilNombre`.
+    const fechaEval = hoy instanceof Date ? hoy : new Date();
+    const evaluadoEn = fechaEval.getFullYear() + '-' + String(fechaEval.getMonth() + 1).padStart(2, '0') + '-' + String(fechaEval.getDate()).padStart(2, '0');
+    const empresas = Array.from(new Set(contratos.map(c => c._perfilNombre).filter(Boolean)));
+    return { evaluadoEn: evaluadoEn, empresas: empresas, totalContratos: contratos.length, resultados: resultados, conteo: conteo, resultadoGlobal: resultadoGlobal, totalObligatorios: obligatorios.length, resumenContratos: resumenContratos, grupos: grupos, noObligatoriosIncumplidos: noObligatoriosIncumplidos.length };
   }
 
   const ETIQUETAS_CONTRATO = { objeto: 'Objeto', contratante: 'Contratante', valor: 'Valor', fechaInicio: 'Fecha inicio', fechaFin: 'Fecha fin', duracion: 'Duración', cantidad: 'Cantidad', tipo: 'Tipo (general/específica)', actividades: 'Actividades', numeroContrato: 'N° contrato', participacion: '% participación' };
@@ -10396,7 +10401,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       (p.correo ? ', correo electrónico ' + p.correo : ', correo electrónico [CORREO ELECTRÓNICO]') +
       ', una vez conocido el contenido del proceso de la referencia, manifiesto:');
     L.push('');
-    L.push('1. Que presento oferta para participar en el proceso de la referencia y que conozco y acepto el pliego de condiciones, sus anexos, adendas y demás documentos del proceso.');
+    L.push('1. ' + MARCA_CONFIRMAR + 'Que presento oferta para participar en el proceso de la referencia y que conozco y acepto el pliego de condiciones, sus anexos, adendas y demás documentos del proceso.');
     L.push('2. ' + MARCA_CONFIRMAR + 'Que ni ' + (p.nombre || '[RAZÓN SOCIAL]') + ' ni su representante legal se encuentran incursos en las causales de inhabilidad, incompatibilidad o conflicto de interés para contratar con el Estado, establecidas en la Constitución y la ley.');
     L.push('3. ' + MARCA_CONFIRMAR + 'Que la información y los documentos aportados con esta propuesta son veraces y verificables.');
     L.push('4. Que en caso de resultar favorecidos con la adjudicación, ' + (p.nombre || '[RAZÓN SOCIAL]') + ' se compromete a suscribir el contrato dentro del término señalado en los documentos del proceso y a constituir las garantías exigidas.');
@@ -10557,6 +10562,17 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const L = [];
     const ev = entry && entry.experienciaResultado;
     const hayResultados = !!(ev && ev.resultados && ev.resultados.length);
+    // RA3-3: si la experiencia suma contratos de más de una empresa (consorcio / unión temporal) el documento no puede presentarlos
+    // como de un solo proponente: se dice de quién es cada contrato y se avisa que debe adaptarse al formato del pliego.
+    const empresasExp = Array.from(new Set((hayResultados ? (ev.empresas || []) : []).concat(
+      hayResultados ? [].concat(...ev.resultados.map(r => (r.contratosQueAcreditan || []).map(c => c.empresa))).filter(Boolean) : [])));
+    const esConsorcio = empresasExp.length > 1;
+    if (esConsorcio){
+      L.push('[AVISO INTERNO -- borra este bloque antes de presentar]');
+      L.push('Esta experiencia suma contratos de ' + empresasExp.length + ' empresas (' + empresasExp.join(', ') + '): corresponde a un consorcio o unión temporal. Adapta el documento al formato que pida el pliego para consorcios, indica el porcentaje de participación de cada integrante y haz que lo firme quien represente al consorcio.');
+      L.push('════════════════════════════════════════════════════════');
+      L.push('');
+    }
     // DG-002: el resultado de la autoevaluación interna NO va en el cuerpo firmable; si el global no es
     // CUMPLE se avisa arriba (bloque interno que se borra) y el detalle queda al final.
     if (hayResultados && ev.resultadoGlobal !== 'CUMPLE'){
@@ -10574,6 +10590,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     L.push('Referencia: ' + (item.modalidad || '[MODALIDAD]') + (item.referencia ? ' No. ' + item.referencia : ' No. [NÚMERO DE PROCESO]'));
     L.push('Objeto: ' + (item.objeto || '[OBJETO DEL PROCESO]'));
     L.push('Proponente: ' + (p.nombre || '[RAZÓN SOCIAL]') + ' · NIT ' + (p.nit || '[NIT]'));
+    if (esConsorcio) L.push('Integrantes cuya experiencia se suma: ' + empresasExp.join(', ') + ' [COMPLETAR: nombre del consorcio o unión temporal y porcentaje de participación de cada integrante]');
     L.push('');
     if (!hayResultados){
       L.push('[COMPLETAR: relaciona aquí, para cada requisito de experiencia del pliego, los contratos ejecutados que lo acreditan (objeto, contratante, valor, fechas y número de contrato).]');
@@ -10592,6 +10609,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
           acreditan.forEach(c => L.push('     - ' + truncate(c.objeto || '(sin objeto)', 140) +
             ' · Contrato No. ' + (c.numeroContrato || '[COMPLETAR: número de contrato]') +
             (c.contratante ? ' · ' + c.contratante : '') +
+            (esConsorcio ? ' · Aportado por: ' + (c.empresa || '[COMPLETAR: integrante]') : '') +
             (c.valor != null ? ' · ' + (fmtMoney(c.valor) || c.valor) : '') +
             ((c.fechaInicio || c.fechaFin) ? ' · ' + (c.fechaInicio || '?') + ' a ' + (c.fechaFin || '?') : '')));
         } else {
@@ -10614,6 +10632,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       L.push('Autoevaluación automática (orientativa, del motor de "Experiencia requerida"): ' + ev.resultadoGlobal + ' (' + ev.conteo['CUMPLE'] + ' cumple, ' + ev.conteo['NO CUMPLE'] + ' no cumple, ' + ev.conteo['NO DETERMINABLE'] + ' no determinable, de ' + ev.resultados.length + ' requisito(s)).');
       ev.resultados.forEach((r, i) => { if (r.resultado !== 'CUMPLE') L.push('  - Requisito ' + (i + 1) + ': ' + r.resultado + ' -- ' + truncate(r.justificacion || '', 220)); });
       L.push('Un "no determinable" significa que el sistema no tuvo información suficiente, no que no cumplas: confírmalo a mano contra tus contratos y el pliego.');
+      L.push(ev.evaluadoEn
+        ? 'Evaluación de experiencia hecha el ' + ev.evaluadoEn + ' con ' + (ev.totalContratos != null ? ev.totalContratos + ' contrato(s)' : 'los contratos cargados') + (ev.empresas && ev.empresas.length ? ' de ' + ev.empresas.join(', ') : '') + '. Si después cambiaste contratos o las empresas marcadas, vuelve a evaluar antes de firmar.'
+        : 'Evaluación de experiencia sin fecha registrada (se guardó con una versión anterior de la app): vuelve a evaluar la experiencia antes de firmar.');
     }
     L.push('PLANTILLA ORIENTATIVA -- no es el Anexo/Formato exacto de esta entidad. Compárala con el pliego real antes de presentarla.');
     return L.join('\n');
@@ -10624,6 +10645,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Un solo botón/archivo (pedido explícito del usuario) en vez de 4
   // descargas sueltas -- más fácil de copiar a Word/PDF de una sola vez.
   const DECLARACIONES_CARTA = [
+    'Carta ítem 1: que conoces y aceptas el pliego de condiciones, sus anexos y adendas (léelos completos antes de firmar).',
     'Carta ítem 2: que ni la empresa ni el representante legal tienen inhabilidades, incompatibilidades o conflictos de interés.',
     'Carta ítem 3: que la información y los documentos de la propuesta son veraces y verificables.',
     'Carta ítem 7: declaración bajo la gravedad de juramento.'
