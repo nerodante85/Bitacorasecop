@@ -502,8 +502,10 @@ await check('Rediseño fase 3: Mis procesos trae las cifras dentro de la cabecer
 await check('Pie de ayuda en Buscar procesos: corto (≤ 600 caracteres visibles) y sin semáforo ni prioridad', async () => {
   const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 } });
   await pg.click('#bt-nav-buscar');
-  const t = await pg.evaluate(() => { const f = document.getElementById('bt-footnote'); return f.hidden ? '' : [...f.querySelectorAll('p')].filter(p => !p.hidden).map(p => p.textContent.trim()).join(' '); });
-  assert(t.length > 0 && t.length <= 600, 'texto visible del pie en Buscar: ' + t.length);
+  const ps = await pg.evaluate(() => { const f = document.getElementById('bt-footnote'); return f.hidden ? [] : [...f.querySelectorAll('p')].filter(p => !p.hidden).map(p => p.textContent.trim()); });
+  assert(ps.length === 1, 'en Buscar el pie tiene un solo párrafo: ' + ps.length);
+  const t = ps.join(' ');
+  assert(t.length > 0 && t.length <= 400 && /^Fuente:/.test(t), 'el pie de Buscar es solo la nota de la Fuente: ' + t.length + ' · ' + t.slice(0, 60));
   assert(!/semáforo|prioridad|NO-GO/.test(t), 'no menciona funciones que ya no existen: ' + t);
   assert(await sinDesborde(pg) <= 0, 'sin desborde');
   await ctx.close();
