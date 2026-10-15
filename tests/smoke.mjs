@@ -6160,6 +6160,51 @@ await check('RD-005: la acción de Experiencia dice qué comparar, no «verifica
   assert(/otras palabras/.test(b), 'sin coincidencias: ' + b);
 });
 
+// ---- Reauditoría 2026-10-15 (RA2-3, RA2-4) ----
+await check('RD-006 (RA2-3): la tarjeta «Decisión» no esconde una contradicción entre filas ni da GO sin ningún requisito', () => {
+  const rd = Evaluacion.resumenDecision;
+  const base = { veredicto: 'GO', hayPliego: true };
+  const mismoNombre = rd(Object.assign({}, base, { requisitos: [{ requisito: 'Experiencia específica', resultado: 'CUMPLE', detalle: '' }, { requisito: 'Experiencia específica', resultado: 'NO CUMPLE', detalle: 'ningún contrato' }] }));
+  assert(mismoNombre.titulo !== 'GO' && mismoNombre.bloqueantes.length === 1, 'dos filas con el mismo nombre y estados distintos: ' + mismoNombre.titulo + ' bloq=' + mismoNombre.bloqueantes.length);
+  const liq = rd(Object.assign({}, base, { ficha: [{ requisito: 'Liquidez', estado: 'CUMPLE', detalle: '' }], requisitos: [{ requisito: 'Índice de liquidez', resultado: 'NO CUMPLE', detalle: 'perfil 0,8 < 1,5' }] }));
+  assert(liq.titulo !== 'GO' && liq.bloqueantes.length === 1, 'ficha CUMPLE vs matriz NO CUMPLE (liquidez): ' + liq.titulo);
+  const k = rd(Object.assign({}, base, { ficha: [{ requisito: 'Capacidad residual del proceso (K)', estado: 'CUMPLE', detalle: '' }], requisitos: [{ requisito: 'K residual', resultado: 'NO CUMPLE', detalle: 'x' }] }));
+  assert(k.titulo !== 'GO' && k.bloqueantes.length === 1, 'ficha CUMPLE vs matriz NO CUMPLE (K): ' + k.titulo);
+  const roe = rd(Object.assign({}, base, { ficha: [{ requisito: 'Patrimonio', estado: 'CUMPLE', detalle: '' }], requisitos: [{ requisito: 'Rentabilidad del patrimonio', resultado: 'NO CUMPLE', detalle: 'ROE 2 % < 5 %' }] }));
+  assert(roe.titulo !== 'GO' && roe.bloqueantes.length === 1, 'rentabilidad del patrimonio no es el patrimonio: ' + roe.titulo);
+  const dosReq = rd(Object.assign({}, base, { ficha: [{ requisito: 'Patrimonio', estado: 'CUMPLE', detalle: '' }], requisitos: [{ requisito: 'Rentabilidad del patrimonio', resultado: 'CUMPLE', detalle: '' }] }));
+  assert(dosReq.total === 2, 'patrimonio y rentabilidad del patrimonio son dos requisitos distintos aunque ambos cumplan: total=' + dosReq.total);
+  const igual = rd(Object.assign({}, base, { ficha: [{ requisito: 'Liquidez', estado: 'CUMPLE', detalle: '' }], requisitos: [{ requisito: 'Índice de liquidez', resultado: 'CUMPLE', detalle: '' }] }));
+  assert(igual.total === 1 && igual.titulo === 'GO', 'si ficha y matriz coinciden, no se repite: total=' + igual.total);
+  const sinResolver = rd(Object.assign({}, base, { ficha: [{ requisito: 'Liquidez', estado: 'NO DETERMINABLE', detalle: '' }], requisitos: [{ requisito: 'Índice de liquidez', resultado: 'REVISAR', detalle: '' }] }));
+  assert(sinResolver.total === 1, 'ficha y matriz sin resolver sobre el mismo concepto no se repiten: total=' + sinResolver.total);
+  const vacio = rd(base);
+  assert(vacio.titulo === 'NO DETERMINABLE', 'veredicto GO sin ningún requisito analizado: ' + vacio.titulo);
+});
+
+await check('FM-RA2-4 (RA2-4): el Formato Maestro solo acredita estados de contrato terminado; vacío o desconocido no acredita y se avisa', () => {
+  const importarCon = estado => FormatoMaestro.importar({
+    sujetos: [{ id: 'S1', nombre: 'Mi Empresa' }],
+    participaciones: [{ ID_SUJETO: 'S1', ID_CONTRATO: 'C1', PORCENTAJE: '100%', FORMA_EJECUCION: 'Individual' }],
+    contratos: [{ ID_CONTRATO: 'C1', OBJETO: 'Construcción de acueducto', ENTIDAD: 'Alcaldía', VALOR_CONTRATO: 1000000000, ESTADO: estado, FECHA_INICIO: '2020-01-01', FECHA_TERMINACION: '2022-01-01' }],
+    unspsc: [], cantidades: []
+  }, { sujetoId: 'S1' });
+  ['Terminado', 'terminado ', 'Liquidado', 'TERMINADA', 'Terminado y liquidado', 'Finalizado'].forEach(e => {
+    const r = importarCon(e);
+    assert(r.contratos[0].enEjecucion === false && !r.contratos[0].estadoDesconocido, JSON.stringify(e) + ' debe acreditar');
+  });
+  ['En ejecución', 'EN EJECUCION', 'en ejecución.', 'Suspendido'].forEach(e => {
+    const r = importarCon(e);
+    assert(r.contratos[0].enEjecucion === true && r.enEjecucion.length === 1, JSON.stringify(e) + ' va a Capacidad Residual y no acredita');
+  });
+  ['Vigente', 'Activo', 'En curso', 'Caducado', 'Terminado anticipadamente', 'Ejecución', ''].forEach(e => {
+    const r = importarCon(e);
+    assert(r.contratos[0].enEjecucion === true && r.contratos[0].estadoDesconocido === true, JSON.stringify(e) + ' no debe acreditar: estado sin reconocer');
+    assert(r.enEjecucion.length === 0, JSON.stringify(e) + ' tampoco se manda a Capacidad Residual (no se sabe si sigue en ejecución)');
+    assert(r.avisos.some(a => /estado/i.test(a) && /no acreditan|sin reconocer/i.test(a)), JSON.stringify(e) + ' debe avisar: ' + r.avisos.join(' | '));
+  });
+});
+
 await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabezado «MATRIZ N – EXPERIENCIA»', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const i = html.indexOf('function etiquetaRequisitoExperiencia'), j = html.indexOf('function empresaParaFicha');
