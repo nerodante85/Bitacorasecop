@@ -1137,6 +1137,25 @@
     box-shadow: var(--shadow-sm); padding: 18px 20px;
   }
   #bitacora-root #bt-pipeline-resumen .stat-card { border-top: 3px solid var(--accent-button); }
+  /* Rediseño fase 3: las cifras viven dentro de la cabecera azul (tarjetas blancas encima del degradado). */
+  #bitacora-root .view-header #bt-pipeline-resumen { margin-top: 20px; }
+  #bitacora-root .view-header #bt-pipeline-resumen .stat-grid { margin-bottom: 0; }
+  #bitacora-root .view-header #bt-pipeline-resumen .stat-card { box-shadow: none; }
+  /* Calendario de cierres */
+  #bitacora-root .cal-grupo { margin-top: 14px; }
+  #bitacora-root .cal-grupo h3 { margin: 0 0 8px; font-size: 13.5px; font-weight: 700; color: var(--text-heading); }
+  #bitacora-root .cal-fila { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+  #bitacora-root .cal-fecha { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); line-height: 1.05; }
+  #bitacora-root .cal-dia { font-size: 19px; font-weight: 800; }
+  #bitacora-root .cal-mes { font-size: 12px; font-weight: 700; }
+  #bitacora-root .cal-ent { font-weight: 700; font-size: 13.5px; color: var(--text-heading); overflow-wrap: anywhere; }
+  #bitacora-root .cal-obj { font-size: 12.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+  #bitacora-root .cal-cuando { font-size: 12.5px; font-weight: 700; color: var(--warning); white-space: nowrap; }
+  @media (max-width: 560px) {
+    #bitacora-root .cal-fila { grid-template-columns: 52px minmax(0, 1fr); }
+    #bitacora-root .cal-cuando { grid-column: 2; }
+    #bitacora-root .cal-fila .btn-mini { grid-column: 1 / -1; min-height: 44px; }
+  }
   #bitacora-root .stat-card-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
   #bitacora-root .stat-card-value { font-size: 28px; font-weight: 700; color: var(--text-heading); line-height: 1; }
   #bitacora-root .stat-card-value.small { font-size: 17px; }
@@ -1914,9 +1933,10 @@
           <div class="view-header">
             <h1>Mis procesos</h1>
             <p>Los procesos que guardaste, ordenados por cómo van: desde "Por revisar" hasta "Presentada". Guarda un proceso desde su tarjeta en "Buscar procesos".</p>
+            <div id="bt-pipeline-resumen" hidden></div>
           </div>
           <div class="empty" id="bt-pipeline-empty" hidden>Todavía no has guardado ningún proceso. <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button> y usa "Guardar" en el que te interese.</div>
-          <div id="bt-pipeline-resumen" hidden></div>
+          <section class="titleblock" id="bt-pipeline-calendario" aria-label="Próximos cierres" hidden></section>
           <div class="pipeline-filtro" id="bt-pipeline-filtro" hidden>
             <label><input type="checkbox" id="bt-pipeline-solo-pronto"> Solo los que cierran en 7 días</label>
             <span class="saved-note" id="bt-pipeline-filtro-nota" role="status" aria-live="polite"></span>
@@ -3165,6 +3185,36 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     });
     return { total: total, porEtapa: porEtapa, cierranSemana: cierranSemana, vencidos: vencidos, cambios: cambios };
   }
+  // Calendario de cierres (puro): procesos que siguen en decisión y cierran en los próximos `maxDias` días de CALENDARIO
+  // (hoy = 0, mañana = 1). Con la consulta a SECOP manda el cierre vigente. Un cierre de hoy cuya hora ya pasó, un proceso
+  // vencido, sin fecha o fuera de decisión no entra. Grupos: hoy, mañana, 2 a 7 días, 8 a `maxDias`; dentro de cada uno, por hora de cierre.
+  function calendarioDeCierres(hist, vivos, ahoraMs, maxDias){
+    const limite = maxDias || 30;
+    const inicioDia = ms => { const d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+    const hoy0 = inicioDia(ahoraMs);
+    const grupos = [
+      { clave: 'hoy', titulo: 'Hoy', items: [] },
+      { clave: 'manana', titulo: 'Mañana', items: [] },
+      { clave: 'semana', titulo: 'En los próximos 7 días', items: [] },
+      { clave: 'mes', titulo: 'Más adelante (hasta ' + limite + ' días)', items: [] }
+    ];
+    Object.keys(hist || {}).forEach(id => {
+      const h = hist[id];
+      if (!h || !etapaConPlazo(h.etapa)) return;
+      const sn = h.snapshot || {};
+      const vivo = (vivos && vivos[id]) || null;
+      const raw = (vivo && vivo.closingRaw) || sn.closingRaw;
+      if (!raw || !isPlausibleDate(raw)) return;
+      const ms = new Date(raw).getTime();
+      if (ms < ahoraMs) return;
+      const dias = Math.round((inicioDia(ms) - hoy0) / 86400000);
+      if (dias < 0 || dias > limite) return;
+      const g = dias === 0 ? grupos[0] : dias === 1 ? grupos[1] : dias <= 7 ? grupos[2] : grupos[3];
+      g.items.push({ id: id, dias: dias, ms: ms, closingRaw: raw, entidad: sn.entidad || '', objeto: sn.objeto || '' });
+    });
+    grupos.forEach(g => g.items.sort((a, b) => a.ms - b.ms));
+    return grupos.filter(g => g.items.length);
+  }
   function redibujarPipelineSiVisible(){
     const vp = document.getElementById('view-procesos');
     if (vp && !vp.hidden) renderPipelineView();
@@ -3234,6 +3284,27 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   }
 
   // Mis procesos: una sección por estado, en el orden en que avanza una decisión. Los de cierre más próximo primero.
+  function renderCalendarioCierres(grupos){
+    const el = document.getElementById('bt-pipeline-calendario');
+    if (!el) return;
+    if (!grupos.length){ el.innerHTML = ''; el.hidden = true; return; }
+    const cuando = d => d === 0 ? 'Hoy' : d === 1 ? 'Mañana' : 'En ' + d + ' días';
+    el.innerHTML = '<div class="titleblock-head"><h2>Próximos cierres</h2></div>' +
+      '<p class="saved-note">Procesos guardados que siguen en decisión, por fecha de cierre. Con el cierre vigente en SECOP si ya se consultó.</p>' +
+      grupos.map(g => '<div class="cal-grupo"><h3>' + escapeHtml(g.titulo) + ' <span class="pipeline-col-count">' + g.items.length + '</span></h3>' +
+        g.items.map(it => {
+          const f = new Date(it.ms);
+          const mes = f.toLocaleDateString('es-CO', { month: 'short' }).replace('.', '');
+          return '<div class="cal-fila">' +
+            '<div class="cal-fecha" aria-hidden="true"><span class="cal-dia">' + f.getDate() + '</span><span class="cal-mes">' + escapeHtml(mes) + '</span></div>' +
+            '<div class="cal-info"><div class="cal-ent">' + escapeHtml(truncate(it.entidad || 'Entidad no especificada', 120)) + '</div>' +
+            '<div class="cal-obj">' + escapeHtml(truncate(it.objeto, 110)) + '</div></div>' +
+            '<div class="cal-cuando">' + escapeHtml(cuando(it.dias)) + '</div>' +
+            '<button type="button" class="btn-mini" data-cal-ir="' + escapeHtml(it.id) + '">Ver tarjeta</button>' +
+          '</div>';
+        }).join('') + '</div>').join('');
+    el.hidden = false;
+  }
   function renderPipelineView(){
     const boardEl = document.getElementById('bt-pipeline-board');
     const emptyEl = document.getElementById('bt-pipeline-empty');
@@ -3266,6 +3337,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
         resumenEl.hidden = false;
       }
     }
+    renderCalendarioCierres(ids.length ? calendarioDeCierres(historial, vivosAhora, Date.now(), 30) : []);
     if (!ids.length){
       boardEl.innerHTML = '';
       if (emptyEl) emptyEl.hidden = false;
@@ -3323,6 +3395,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   }
   const filtroProntoEl = document.getElementById('bt-pipeline-solo-pronto');
   if (filtroProntoEl) filtroProntoEl.addEventListener('change', renderPipelineView);
+  const calendarioEl = document.getElementById('bt-pipeline-calendario');
+  if (calendarioEl) calendarioEl.addEventListener('click', function(e){
+    const b = e.target.closest('[data-cal-ir]');
+    if (!b) return;
+    const id = b.getAttribute('data-cal-ir');
+    const buscar = () => Array.from(document.querySelectorAll('#bt-pipeline-board [data-pipeline-card-id]')).find(c => c.getAttribute('data-pipeline-card-id') === id);
+    let card = buscar();
+    if (!card){ // el filtro «cierran en 7 días» la esconde: se quita para poder mostrarla
+      const ck = document.getElementById('bt-pipeline-solo-pronto');
+      if (ck && ck.checked){ ck.checked = false; renderPipelineView(); card = buscar(); }
+    }
+    if (!card) return;
+    card.scrollIntoView({ block: 'center' });
+    const foco = card.querySelector('.analizar');
+    if (foco) foco.focus({ preventScroll: true });
+  });
   // Delegado único para Mis procesos (abrir, cambiar de estado, quitar).
   const pipelineBoardEl = document.getElementById('bt-pipeline-board');
   if (pipelineBoardEl){

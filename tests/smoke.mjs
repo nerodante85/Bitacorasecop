@@ -5177,6 +5177,48 @@ await check('Deshacer al descartar: restaura exactamente el registro anterior (o
   assert(/descartarConDeshacer\(id\)/.test(copiaEnClic), 'el botón Descartar pasa por descartarConDeshacer');
   assert(/<div[^>]*id="bt-deshacer"[^>]*role="status"[^>]*aria-live="polite"|<div[^>]*role="status"[^>]*id="bt-deshacer"/.test(html), 'el aviso es una región de estado accesible (role=status, aria-live)');
 });
+await check('Mis procesos: el calendario de cierres agrupa por Hoy / Mañana / 7 días / 30 días con días de calendario, ordena por cercanía y solo toma procesos activos con cierre futuro (con el cierre vigente de SECOP si se consultó)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
+  const lib = cortar('function isPlausibleDate', 'function fmtDate');
+  const src = cortar('function etapaConPlazo', '\n  function ') + '\n' + cortar('function calendarioDeCierres', '\n  function ');
+  const { calendarioDeCierres } = new Function(lib + '\n' + src + '\nreturn { calendarioDeCierres };')();
+  const ahora = new Date(2026, 9, 13, 12, 0, 0).getTime(); // 13 oct 2026, 12:00 hora local
+  const p2 = n => String(n).padStart(2, '0');
+  const loc = ms => { const d = new Date(ms); return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + 'T' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':00'; };
+  const enDias = (n, hora) => loc(new Date(2026, 9, 13 + n, hora === undefined ? 15 : hora, 0, 0).getTime()); // cierre n días de calendario después, a esa hora
+  const sn = (n, e, hora) => ({ closingRaw: enDias(n, hora), entidad: e || 'E' + n, objeto: 'obra ' + n });
+  const h = {
+    h0: { etapa: 'por_revisar', snapshot: sn(0, 'Hoy') },          // hoy a las 15:00 (aún no cierra)
+    hp: { etapa: 'por_revisar', snapshot: sn(0, 'Ya cerró hoy', 9) }, // hoy a las 09:00: ya pasó
+    m1: { etapa: 'viable', snapshot: sn(1) },
+    m1b: { etapa: 'viable', snapshot: sn(1, 'A primera hora', 8) },
+    s5: { etapa: 'en_analisis', snapshot: sn(5) },
+    s2: { etapa: 'en_analisis', snapshot: sn(2) },
+    l20: { etapa: 'viable', snapshot: sn(20) },
+    l31: { etapa: 'viable', snapshot: sn(31) },       // fuera de los 30 días
+    v: { etapa: 'por_revisar', snapshot: sn(-3) },     // ya venció
+    p: { etapa: 'presentada', snapshot: sn(3) },      // no es decisión
+    n: { etapa: 'no_viable', snapshot: sn(4) },       // no es decisión
+    sf: { etapa: 'viable', snapshot: {} },            // sin fecha
+    x: { status: 'visto' }
+  };
+  const g = calendarioDeCierres(h, null, ahora, 30);
+  assert(JSON.stringify(g.map(x => x.clave)) === '["hoy","manana","semana","mes"]', 'grupos y orden: ' + JSON.stringify(g.map(x => x.clave)));
+  const ids = k => g.find(x => x.clave === k).items.map(i => i.id);
+  assert(JSON.stringify(ids('hoy')) === '["h0"]', 'hoy: solo el que aún no cierra: ' + JSON.stringify(ids('hoy')));
+  assert(JSON.stringify(ids('manana')) === '["m1b","m1"]', 'mañana, por hora de cierre: ' + JSON.stringify(ids('manana')));
+  assert(JSON.stringify(ids('semana')) === '["s2","s5"]', 'próximos 7 días, el más cercano primero: ' + JSON.stringify(ids('semana')));
+  assert(JSON.stringify(ids('mes')) === '["l20"]', 'hasta 30 días, sin l31: ' + JSON.stringify(ids('mes')));
+  const todos = g.reduce((a, x) => a.concat(x.items.map(i => i.id)), []);
+  ['hp', 'v', 'p', 'n', 'sf', 'x', 'l31'].forEach(k => assert(!todos.includes(k), k + ' no debe salir en el calendario'));
+  assert(g[0].items[0].entidad === 'Hoy' && g[0].items[0].dias === 0 && g[1].items[0].dias === 1 && g[2].items[1].dias === 5, 'cada ítem trae entidad y días de calendario: ' + JSON.stringify(g.map(x => x.items.map(i => i.dias))));
+  const g2 = calendarioDeCierres(h, { s5: { closingRaw: enDias(25) }, l20: { closingRaw: enDias(-1) } }, ahora, 30);
+  const t2 = g2.reduce((a, x) => a.concat(x.items.map(i => i.id)), []);
+  assert(!t2.includes('l20'), 'con la consulta, si SECOP dice que ya cerró, sale del calendario');
+  assert(g2.find(x => x.clave === 'mes').items.some(i => i.id === 's5'), 'con la consulta manda el cierre vigente (s5 pasa a 25 días)');
+  assert(calendarioDeCierres({}, null, ahora, 30).length === 0 && calendarioDeCierres(null, null, ahora, 30).length === 0, 'vacío no falla');
+});
 await check('Mis procesos: el resumen cuenta por estado y señala cierran en 7 días, vencidos sin presentar y novedades en SECOP — solo de los procesos activos, con el cierre vigente si se consultó', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const cortar = (a, b) => { const i = html.indexOf(a); assert(i !== -1, 'falta ' + a); return html.slice(i, html.indexOf(b, i)); };
