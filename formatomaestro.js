@@ -30,7 +30,12 @@
     });
   }
 
+  // RA2-5: un valor negativo no es una cantidad ni un valor válido: se trata como «sin dato» (como en el resto de la app).
   function numero(v) {
+    const n = numeroCrudo(v);
+    return n != null && n >= 0 ? n : null;
+  }
+  function numeroCrudo(v) {
     if (v == null || v === '') return null;
     if (typeof v === 'number') return isFinite(v) ? v : null;
     const s = String(v).replace(/[\s$]/g, '');
@@ -53,7 +58,9 @@
   }
 
   const pad = n => String(n).padStart(2, '0');
-  const isoValida = (y, m, d) => y >= 1900 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31 ? y + '-' + pad(m) + '-' + pad(d) : null;
+  // RA2-5: el día debe existir en ese mes y año (no hay 30 de febrero ni 31 de abril).
+  const existeEnCalendario = (y, m, d) => { const t = new Date(Date.UTC(y, m - 1, d)); return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d; };
+  const isoValida = (y, m, d) => y >= 1900 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31 && existeEnCalendario(y, m, d) ? y + '-' + pad(m) + '-' + pad(d) : null;
   // Fecha: número de serie de Excel, Date, o texto AAAA-MM-DD / D/M/AAAA. Devuelve 'AAAA-MM-DD' o null.
   function fechaISO(v) {
     if (v == null || v === '') return null;
@@ -133,7 +140,14 @@
     });
     const contratosPorId = new Map((datos.contratos || []).map(c => [texto(c.ID_CONTRATO), c]));
     const unspscDe = id => (datos.unspsc || []).filter(r => texto(r.ID_CONTRATO) === id).map(r => texto(r.CODIGO_UNSPSC));
-    const cantidadesDe = id => (datos.cantidades || []).filter(r => texto(r.ID_CONTRATO) === id).map(r => ({ item: texto(r.ITEM), cantidad: numero(r.CANTIDAD), unidad: texto(r.UNIDAD) }));
+    // RA2-6: una cantidad escrita como texto con un solo separador y 3 dígitos («1.000», «1,000») puede ser mil o uno con decimales.
+    // No se adivina: se conserva como texto para que el cruce de magnitudes la deje como dudosa, y se avisa.
+    let cantidadesAmbiguas = 0;
+    const cantidadDe = raw => {
+      if (typeof raw === 'string' && /^\s*\d{1,3}[.,]\d{3}\s*$/.test(raw)) { cantidadesAmbiguas++; return raw.trim(); }
+      return numero(raw);
+    };
+    const cantidadesDe = id => (datos.cantidades || []).filter(r => texto(r.ID_CONTRATO) === id).map(r => ({ item: texto(r.ITEM), cantidad: cantidadDe(r.CANTIDAD), unidad: texto(r.UNIDAD) }));
     const salida = [], enEjecucion = [];
     let sinContrato = 0, sinValor = 0, sinFechaFin = 0, sinPorcentaje = 0, noAcreditan = 0, sinNumero = 0, estadoDesconocido = 0;
     let i = 0;
@@ -215,6 +229,7 @@
     if (sinValor) avisos.push(sinValor + ' contrato(s) sin valor: no podrán acreditar cuantía.');
     if (sinPorcentaje) avisos.push(sinPorcentaje + ' contrato(s) en consorcio o unión temporal sin porcentaje: se importan sin valor hasta que lo registre.');
     if (sinFechaFin) avisos.push(sinFechaFin + ' contrato(s) terminado(s) sin fecha de terminación: los requisitos con ventana de tiempo quedarán sin determinar.');
+    if (cantidadesAmbiguas) avisos.push(cantidadesAmbiguas + ' cantidad(es) de la hoja CANTIDADES escritas como texto con un separador ambiguo (por ejemplo «1.000»: ¿mil o uno con decimales?): no se cuentan hasta que las escribas como número.');
     if (estadoDesconocido) avisos.push(estadoDesconocido + ' contrato(s) con estado vacío o sin reconocer (esperado: Terminado o Liquidado): no acreditan experiencia hasta que corrijas el ESTADO, y tampoco se cuentan en Capacidad Residual porque no se sabe si siguen en ejecución.');
     if (noAcreditan) avisos.push(noAcreditan + ' contrato(s) en ejecución o suspendidos: no acreditan experiencia (sí descuentan Capacidad Residual).');
     return {

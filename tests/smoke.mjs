@@ -6205,6 +6205,39 @@ await check('FM-RA2-4 (RA2-4): el Formato Maestro solo acredita estados de contr
   });
 });
 
+await check('FM-RA2-5 (RA2-5): fechas inexistentes y valores negativos no se aceptan en el importador del Formato Maestro', () => {
+  const f = FormatoMaestro.fechaISO;
+  assert(f('2024-02-30') === null && f('2023-02-29') === null && f('31/04/2024') === null && f('2024-04-31') === null, 'días que el mes no tiene');
+  assert(f('2024-02-29') === '2024-02-29' && f('30/04/2024') === '2024-04-30' && f('2024-12-31') === '2024-12-31', 'fechas reales siguen valiendo (2024 es bisiesto)');
+  assert(f(42009) === '2015-01-05' && f('30/09/2019') === '2019-09-30', 'serial de Excel y día/mes/año siguen valiendo');
+  const n = FormatoMaestro.numero;
+  assert(n('-5') === null && n(-5) === null && n('-1.200.000') === null, 'un valor negativo es «sin dato», no un número');
+  assert(n(0) === 0 && n('5') === 5 && n('1.200.000.000') === 1200000000 && n('1.500,5') === 1500.5, 'cero y números normales no cambian');
+});
+
+await check('MG-015 (RA2-6): una cantidad escrita como texto con un solo separador y 3 dígitos («1.000», «1,000») es ambigua y no se cuenta', () => {
+  const CON = 'Conexiones domiciliarias: 129 und';
+  const item = c => mkRA([['Conexión domiciliaria alcantarillado 6"', c, 'und']]);
+  assert(evRA(CON, [item('1.000')]).estado === 'NO DETERMINABLE' && /ambigu/i.test(evRA(CON, [item('1.000')]).detalle), '«1.000»: ' + evRA(CON, [item('1.000')]).detalle);
+  assert(evRA(CON, [item('1,000')]).estado === 'NO DETERMINABLE', '«1,000» también');
+  assert(evRA(CON, [item('2.500')]).estado === 'NO DETERMINABLE', '«2.500»');
+  assert(evRA(CON, [item(1000)]).estado === 'CUMPLE', 'un número de Excel 1000 sí cuenta');
+  assert(evRA(CON, [item('1000')]).estado === 'CUMPLE', '«1000» sin separador sí cuenta');
+  assert(evRA(CON, [item('1.000,5')]).estado === 'CUMPLE', '«1.000,5» no es ambiguo');
+  assert(evRA(CON, [item('130')]).estado === 'CUMPLE', '«130» sí cuenta');
+  // Por el importador: la cantidad ambigua llega como texto (no como 1000) y se avisa.
+  const r = FormatoMaestro.importar({
+    sujetos: [{ id: 'S1', nombre: 'Mi Empresa' }],
+    participaciones: [{ ID_SUJETO: 'S1', ID_CONTRATO: 'C1', PORCENTAJE: '100%', FORMA_EJECUCION: 'Individual' }],
+    contratos: [{ ID_CONTRATO: 'C1', OBJETO: 'Alcantarillado', ENTIDAD: 'Alcaldía', VALOR_CONTRATO: 1000000000, ESTADO: 'Terminado', FECHA_INICIO: '2020-01-01', FECHA_TERMINACION: '2022-01-01' }],
+    unspsc: [], cantidades: [{ ID_CONTRATO: 'C1', ITEM: 'Conexión domiciliaria alcantarillado 6"', CANTIDAD: '1.000', UNIDAD: 'und' }, { ID_CONTRATO: 'C1', ITEM: 'Pozo de inspección', CANTIDAD: 25, UNIDAD: 'und' }]
+  }, { sujetoId: 'S1' });
+  const cants = r.contratos[0].formatoMaestro.cantidades;
+  assert(cants[0].cantidad === '1.000' && cants[1].cantidad === 25, 'texto ambiguo se conserva como texto y los números siguen siendo números: ' + JSON.stringify(cants));
+  assert(r.avisos.some(a => /cantidad/i.test(a) && /ambigu/i.test(a)), 'debe avisar: ' + r.avisos.join(' | '));
+  assert(Magnitudes.evaluar(Magnitudes.parsearExigencia(CON), r.contratos, {}).estado === 'NO DETERMINABLE', 'de punta a punta: no cumple por una cantidad ambigua');
+});
+
 await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabezado «MATRIZ N – EXPERIENCIA»', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const i = html.indexOf('function etiquetaRequisitoExperiencia'), j = html.indexOf('function empresaParaFicha');
