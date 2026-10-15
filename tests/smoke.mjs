@@ -6273,6 +6273,43 @@ await check('DG-RA3-2 (RA3-2): el número de contrato llega al formato de experi
   assert(sin.resultado === 'CUMPLE' && /Contrato No\. \[COMPLETAR: número de contrato\]/.test(docDe(sin)), 'sin número: ' + docDe(sin).split('\n').filter(l => /Alcaldía/.test(l)).join(' | '));
 });
 
+await check('DG-RA3-4 (RA3-4): el tipo de persona (natural / jurídica / sin indicar) cambia el texto de la carta, el compromiso, las observaciones y la firma', () => {
+  const base = { nombre: 'Ricardo Galvis', nit: '5.401.578-4', representanteLegal: 'Ricardo Galvis', representanteCedula: '88.000.000', ciudad: 'Cúcuta', direccion: 'Av 0', telefono: '3', correo: 'a@b.co' };
+  const it = { entidad: 'Alcaldía X', objeto: 'Obra Y', modalidad: 'Licitación pública', referencia: 'LP-001' };
+  const carta = t => expEngine.generarCartaTexto(Object.assign({}, base, { tipoPersona: t }), it, true);
+  const compromiso = t => expEngine.generarAnticorrupcionTexto(Object.assign({}, base, { tipoPersona: t }), it, true);
+  const natural = carta('natural');
+  assert(/obrando en nombre propio/.test(natural) && !/sociedad/i.test(natural) && !/obrando en calidad de representante legal/.test(natural), 'natural: ' + natural.split('\n').filter(l => /suscrito/.test(l)).join(' '));
+  assert(/Proponente \(persona natural\)/.test(natural) && !/^Representante Legal$/m.test(natural), 'la firma de una persona natural dice «Proponente (persona natural)»');
+  assert(natural.split('\n').filter(l => l === 'Ricardo Galvis').length === 1, 'en la firma de una persona natural el nombre sale una sola vez (no se repite como «razón social»)');
+  const juridica = carta('juridica');
+  assert(/obrando en calidad de representante legal de Ricardo Galvis/.test(juridica) && /persona jurídica identificada con NIT/.test(juridica) && /^Representante Legal$/m.test(juridica), 'jurídica');
+  assert(!/sociedad/i.test(juridica), 'ya no se afirma «sociedad» (puede ser otra persona jurídica)');
+  const sin = carta('');
+  assert(/\[COMPLETAR: persona natural o jurídica/.test(sin) && !/sociedad/i.test(sin), 'sin indicar: no se asume, pide completar');
+  assert(/\[COMPLETAR: persona natural o jurídica/.test(carta(undefined)), 'un perfil antiguo sin el campo también pide completar');
+  // los otros documentos
+  assert(/obrando en nombre propio/.test(compromiso('natural')) && /Proponente \(persona natural\)/.test(compromiso('natural')), 'compromiso anticorrupción, natural');
+  assert(/obrando en calidad de representante legal/.test(compromiso('juridica')) && /^Representante Legal$/m.test(compromiso('juridica')), 'compromiso anticorrupción, jurídica');
+  assert(/\[COMPLETAR: persona natural o jurídica/.test(compromiso('')), 'compromiso anticorrupción, sin indicar');
+  const exp = t => expEngine.generarFormatoExperienciaTexto(Object.assign({}, base, { tipoPersona: t }), it, undefined);
+  assert(/Proponente \(persona natural\)/.test(exp('natural')) && /^Representante Legal$/m.test(exp('juridica')), 'firma del formato de experiencia');
+  const par = t => expEngine.generarParafiscalesTexto(Object.assign({}, base, { tipoPersona: t }), it, true);
+  assert(/identificado\(a\) con NIT/.test(par('natural')) && !/identificada con NIT/.test(par('natural')), 'parafiscales: concordancia para persona natural');
+  const paq = expEngine.generarPaqueteTexto(Object.assign({}, base, { tipoPersona: 'natural' }), it, undefined);
+  assert(!/sociedad/i.test(paq), 'el paquete de una persona natural no menciona «sociedad»');
+  const obs = [{ tema: 'Presupuesto', texto: 'Solicitamos aclarar el presupuesto oficial.', pagina: 3, documento: 'pliego' }];
+  const ob = t => expEngine.observacionesTexto(obs, Object.assign({}, base, { tipoPersona: t }), it);
+  assert(/identificado\(a\) con NIT/.test(ob('natural')) && /Proponente \(persona natural\)/.test(ob('natural')) && !/^Representante Legal$/m.test(ob('natural')), 'carta de observaciones, natural');
+  assert(/identificada con NIT/.test(ob('juridica')) && /^Representante Legal$/m.test(ob('juridica')), 'carta de observaciones, jurídica');
+  // El campo existe en el perfil, el formulario y el guardado (savePerfil reconstruye el objeto: si no lo copia, se borra).
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/const PERFIL_VACIO = \{[^}]*tipoPersona: ''/.test(html), 'PERFIL_VACIO trae tipoPersona vacío');
+  assert(/id="bt-perfil-tipo-persona"/.test(html) && /<option value="natural">/.test(html) && /<option value="juridica">/.test(html), 'select con las tres opciones');
+  assert(/setCampo\(perfilTipoPersonaEl, perfil\.tipoPersona\)/.test(html), 'se carga en el formulario');
+  assert(/tipoPersona: getCampo\(perfilTipoPersonaEl\)/.test(html), 'savePerfil lo guarda');
+});
+
 await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabezado «MATRIZ N – EXPERIENCIA»', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const i = html.indexOf('function etiquetaRequisitoExperiencia'), j = html.indexOf('function empresaParaFicha');

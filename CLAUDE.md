@@ -109,7 +109,7 @@ sincronización, Edge Functions de IA y correo).
 
 ## Flujo del producto
 
-1. **Perfil de la empresa** (RUP/K/K residual, datos legales, contratos en ejecución → capacidad estimada). El perfil **no**
+1. **Perfil de la empresa** (RUP/K/K residual, datos legales, **tipo de persona** —`tipoPersona`: `natural` | `juridica` | vacío, nunca se asume—, contratos en ejecución → capacidad estimada). El tipo de persona cambia la redacción y la firma de la carta, el compromiso anticorrupción, las observaciones, el formato de experiencia y la certificación de aportes (`calidadProponente`, `bloqueFirmaProponente`); sin el dato (perfiles anteriores) los documentos dejan `[COMPLETAR: persona natural o jurídica…]`. `savePerfil` reconstruye el objeto: todo campo nuevo del perfil debe copiarse ahí o se borra al guardar. El perfil **no**
    evalúa experiencia. Autocompleta desde RUP y RUT (PDF oficiales, sin IA; OCR solo de respaldo).
 2. **Experiencia**: Excel/PDF/Word de contratos **por empresa** (Excel: lee todas las hojas; prefiere la columna de valor
    ajustado por participación). **Los requisitos salen del Pliego/Estudio Previo de cada proceso**, no de una matriz manual.
