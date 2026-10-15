@@ -229,8 +229,7 @@ sincronización, Edge Functions de IA y correo).
 - Pliegos muy largos (~70+ páginas con matriz extensa) pueden exceder los ~150 s del plan gratuito de Supabase en la extracción con
   IA; no se paga el plan para esto. pdf.js se queda en 3.x (migrar a 4.x implicaría módulos ES).
 - La matriz de experiencia del pliego (tablas) puede no leerse como texto: se avisa "posible tabla no leída" por página.
-- Falta completar la política de privacidad: `privacidad.html` es un borrador con campos `[COMPLETAR]` (responsable, contacto,
-  transferencia internacional, plazos) y revisión de un abogado; solo la persona responsable puede darlos.
+- Política de privacidad: `privacidad.html` ya tiene los datos del responsable, contacto, transferencia a EE. UU. y plazos (2026-10-15), pero sigue marcada BORRADOR hasta que la revise un abogado; entonces se publica la versión definitiva y se sube `POLITICA_VERSION`.
 - Los PDFs huérfanos del bucket `pliegos` se barren a diario (más de 24 h) dentro de `daily-digest` (`pliegosVencidos`).
 - **No** recortar la verificación de citas a las páginas citadas (evaluado y descartado): leer 300 páginas con pdf.js tarda ~1,4 s y
   bloquea el hilo menos de 70 ms (medido), y esa misma lectura completa alimenta la detección de texto dirigido a la IA (IA-007),
