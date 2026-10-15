@@ -410,6 +410,32 @@ await check('Objeto largo: la tarjeta lo resume en 3 líneas y «Ver más» / «
   }
 });
 
+await check('Rediseño fase 1: barra superior horizontal (una sola fila, ancho completo, corta) y cabecera azul noche con título blanco', async () => {
+  const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 } });
+  await pg.click('#bt-nav-buscar');
+  const m = await pg.evaluate(() => {
+    const b = document.querySelector('#bitacora-root .sidebar').getBoundingClientRect();
+    const items = [...document.querySelectorAll('#bt-nav .nav-item')].map(i => i.getBoundingClientRect());
+    const h = document.querySelector('#view-buscar .view-header');
+    const cs = getComputedStyle(h), h1 = getComputedStyle(h.querySelector('h1'));
+    const foot = document.getElementById('bt-sidebar-foot').getBoundingClientRect();
+    return {
+      anchoBarra: b.width, altoBarra: b.height, vw: document.documentElement.clientWidth,
+      topes: items.map(r => Math.round(r.top)), foot: { w: foot.width, h: foot.height },
+      fondo: cs.backgroundImage, h1: h1.color, hTop: h.getBoundingClientRect().top
+    };
+  });
+  assert(m.anchoBarra >= m.vw - 2, 'la barra debe ocupar todo el ancho: ' + m.anchoBarra + ' de ' + m.vw);
+  assert(m.altoBarra <= 96, 'la barra es corta (no una columna lateral): ' + m.altoBarra);
+  assert(Math.max(...m.topes) - Math.min(...m.topes) <= 2, 'los ítems del menú van en una sola fila: ' + m.topes.join(','));
+  assert(m.foot.w > 0 && m.foot.h > 0, 'el pie con la cuenta sigue visible');
+  assert(/gradient/.test(m.fondo), 'la cabecera lleva degradado: ' + m.fondo);
+  assert(m.h1 === 'rgb(255, 255, 255)', 'el título de la cabecera es blanco: ' + m.h1);
+  assert(m.hTop >= m.altoBarra - 1, 'la cabecera queda debajo de la barra');
+  assert(await sinDesborde(pg) <= 0, 'sin desborde horizontal a 1280');
+  await ctx.close();
+});
+
 await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agrupa 3 pestañas; "evaluacion" y "pipeline" guardados abren Análisis y Mis procesos', async () => {
   let { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
   const m = await pg.evaluate(() => ({

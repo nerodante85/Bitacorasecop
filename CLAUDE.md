@@ -135,7 +135,12 @@ sincronización, Edge Functions de IA y correo).
 - El Radar de Afinidad IA y la búsqueda en lenguaje natural se construyeron y se **descartaron por costo/valor**: no los
   reconstruyas sin releer `docs/HISTORIAL.md`.
 
-## Diseño de interfaz (tema "Taller", oscuro con acento ámbar)
+## Diseño de interfaz (rediseño «Inntegrate», 2026-10: tema claro, acento lila)
+
+- **Fase 1 hecha** (el usuario eligió la dirección 2 de las maquetas): lienzo gris azulado, tarjetas blancas, **barra superior** azul noche (marca · menú · cuenta; antes barra lateral, mismos nombres de clase `.sidebar`, `#bt-nav`, `#bt-sidebar-foot`), **cabecera de cada vista** con degradado navy-900→navy-800 y título blanco (`.view-header`; los `.panel-header` de Empresa quedan sin cabecera azul), acento lila (`--accent`), botón principal azul noche, tipografía Mulish. El tema oscuro «Taller» (ámbar) se retiró; el ámbar queda solo para avisos y plazos. Tablet (≤900): la barra envuelve a dos filas; celular (≤560): botón desplegable como antes. Fases pendientes: 2 tarjetas y filtros, 3 indicadores en la cabecera + calendario de cierres, 4 Análisis. `DESIGN.md` está desactualizado y se reescribe al terminar.
+- Lo que sigue describe el sistema de tokens y las reglas generales (los nombres de tokens no cambiaron; solo los valores).
+
+## Diseño de interfaz — reglas generales
 
 - Sistema de **tokens** en `#bitacora-root { ... }` (`--brand-*`, `--accent`, `--bg`, `--surface`, `--text*`, estados
   `--success/--danger/--warning` con fondo tintado, `--on-status`, radios 8/12/14). Cambiar el aspecto = redefinir los valores.
