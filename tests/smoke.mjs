@@ -4989,6 +4989,18 @@ await check('Rediseño fase 4: el nombre del resultado se lee sobre su fondo tin
   assert(/@keyframes bt-ev-in/.test(css) && /\.evidencia-panel \{[^}]*animation:\s*bt-ev-in/.test(css), 'el panel de evidencia entra con animación');
   assert(/prefers-reduced-motion: reduce\) \{[^}]*animation: none !important/.test(css.replace(/\n/g, ' ')), 'reducir movimiento apaga las animaciones');
 });
+await check('Pie de ayuda: no describe funciones que ya no existen (semáforo en tarjetas, prioridad, exportar alta prioridad, SECOP I) y el de Buscar procesos es corto', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const i = html.indexOf('<div class="footnote" id="bt-footnote">');
+  assert(i !== -1, 'falta el pie de ayuda');
+  const bloque = html.slice(i, html.indexOf('</div>', i));
+  ['semáforo', 'Ocultar NO-GO', 'alta prioridad', 'SECOP I es casi', 'prioridad del proceso', 'Comparar en el análisis de pliegos'].forEach(t =>
+    assert(!bloque.includes(t), 'el pie todavía menciona algo que ya no existe: «' + t + '»'));
+  const buscar = [...bloque.matchAll(/<p data-help-view="buscar">([\s\S]*?)<\/p>/g)].map(m => m[1]);
+  assert(buscar.length >= 1 && buscar.length <= 2, 'Buscar procesos tiene 1 o 2 notas: ' + buscar.length);
+  assert(buscar.join('').length <= 600, 'las notas de Buscar procesos son breves (≤ 600 caracteres): ' + buscar.join('').length);
+  assert(/SECOP II/.test(buscar[0]) && /una vez al día/.test(buscar[0]) && /respaldo/.test(buscar[0]) && /verifica/i.test(buscar[0]), 'la nota de Buscar conserva fuente, frecuencia, respaldo y verificar en SECOP');
+});
 await check('Interfaz: ningún texto visible al usuario manda a leer CLAUDE.md (es documentación del proyecto, no de la app)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   // Solo el texto que ve el usuario: sin comentarios HTML/CSS, sin <style> ni <script>.
