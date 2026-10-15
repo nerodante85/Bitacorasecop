@@ -291,16 +291,18 @@
   }
   #bitacora-root .view-header p { margin: 0; font-size: 14px; color: var(--on-navy-mute); max-width: 640px; line-height: 1.5; }
   /* Análisis: resultado global, resumen de viabilidad, alertas, matriz y panel de evidencia. */
-  #bitacora-root .resultado-global { border: 1px solid currentColor; border-radius: var(--radius-md); padding: 16px 18px; margin: 0 0 14px; }
+  #bitacora-root .resultado-global { border: 1px solid currentColor; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 20px 22px; margin: 0 0 14px; }
   #bitacora-root .resultado-global.eval-go { background: var(--success-bg); }
   #bitacora-root .resultado-global.eval-nogo { background: var(--danger-bg); }
   #bitacora-root .resultado-global.eval-revisar { background: var(--warning-bg); }
   #bitacora-root .resultado-global.eval-nd { background: var(--neutral-bg); }
-  #bitacora-root .resultado-nombre { font-family: 'Mulish', sans-serif; font-weight: 600; font-size: 30px; line-height: 1.1; letter-spacing: -0.01em; }
+  #bitacora-root .resultado-nombre { font-family: 'Mulish', sans-serif; font-weight: 800; font-size: 34px; line-height: 1.1; letter-spacing: -0.02em; }
   #bitacora-root .resultado-expl { color: var(--text); font-size: 15px; margin-top: 6px; overflow-wrap: anywhere; }
   #bitacora-root .resultado-meta { color: var(--text-muted); font-size: 12.5px; margin-top: 8px; }
-  #bitacora-root .analisis-seccion { margin: 18px 0 8px; }
-  #bitacora-root .analisis-seccion > h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; letter-spacing: .02em; color: var(--text-muted); text-transform: none; }
+  /* Rediseño fase 4: cada sección del análisis es una tarjeta blanca sobre el fondo gris del bloque. */
+  #bitacora-root .analisis-seccion { margin: 14px 0 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 16px 20px; }
+  #bitacora-root .analisis-seccion > h3 { margin: 0 0 10px; font-size: 15px; font-weight: 700; letter-spacing: 0; color: var(--text-heading); text-transform: none; }
+  @media (max-width: 560px) { #bitacora-root .analisis-seccion { padding: 14px 12px; } }
   #bitacora-root .estado-cumple { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
   #bitacora-root .estado-nocumple { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
   #bitacora-root .estado-revisar { background: var(--warning-bg); color: var(--warning); border-color: var(--warning-border); }
@@ -317,7 +319,7 @@
     #bitacora-root .viabilidad-tabla td:first-child { white-space: normal; }
   }
   #bitacora-root .alertas-analisis, #bitacora-root .decision-lista, #bitacora-root .ficha-avisos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-  #bitacora-root .alerta-item { display: flex; gap: 10px; align-items: flex-start; border: 1px solid; border-radius: var(--radius-sm); padding: 9px 12px; font-size: 14px; overflow-wrap: anywhere; }
+  #bitacora-root .alerta-item { display: flex; gap: 10px; align-items: flex-start; border: 1px solid; border-radius: var(--radius-md); padding: 10px 14px; font-size: 14px; overflow-wrap: anywhere; }
   #bitacora-root .alerta-item.critica { background: var(--danger-bg); border-color: var(--danger-border); }
   #bitacora-root .alerta-item.revisar { background: var(--warning-bg); border-color: var(--warning-border); }
   #bitacora-root .alerta-nivel { font-weight: 700; font-size: 12px; white-space: nowrap; padding-top: 1px; }
@@ -357,9 +359,17 @@
   #bitacora-root .matriz-tabla th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
   #bitacora-root .matriz-tabla td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
   #bitacora-root .matriz-tabla tr[hidden] { display: none; }
+  @media (hover: hover) and (pointer: fine) {
+    #bitacora-root .matriz-tabla tbody tr:not(.ficha-grupo):hover td, #bitacora-root .viabilidad-tabla tbody tr:hover td { background: var(--surface-2); }
+  }
   #bitacora-root .matriz-vacia { color: var(--text-muted); font-size: 14px; padding: 10px 0; }
   #bitacora-root .evidencia-backdrop { position: fixed; inset: 0; background: var(--scrim); z-index: 60; display: flex; justify-content: flex-end; }
   #bitacora-root .evidencia-backdrop[hidden] { display: none; }
+  /* Rediseño fase 4: el panel entra deslizando desde la derecha y el velo aparece (200–220 ms, salida rápida); ver también «reducir movimiento». */
+  @keyframes bt-ev-in { from { transform: translateX(32px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes bt-ev-velo { from { opacity: 0; } to { opacity: 1; } }
+  #bitacora-root .evidencia-backdrop { animation: bt-ev-velo .2s var(--ease-out); }
+  #bitacora-root .evidencia-panel { animation: bt-ev-in .22s var(--ease-out); }
   #bitacora-root .evidencia-panel { width: min(520px, 100vw); height: 100%; overflow-y: auto; background: var(--surface); border-left: 1px solid var(--border-strong); padding: 20px 22px 28px; box-shadow: var(--shadow-md); }
   #bitacora-root .evidencia-panel h2 { margin: 0 34px 14px 0; font-family: 'Mulish', sans-serif; font-weight: 500; font-size: 20px; }
   #bitacora-root .evidencia-cerrar { position: absolute; top: 12px; right: 14px; }
@@ -895,11 +905,12 @@
   #bitacora-root .analysis-resumen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 6px 0 4px; }
   #bitacora-root .analysis-resumen .expeval-global { margin: 0; }
   #bitacora-root .analysis-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  #bitacora-root .analysis-fold { border-top: 1px solid var(--border); margin-top: 8px; }
-  #bitacora-root .analysis-fold > summary { position: relative; display: flex; gap: 10px; align-items: baseline; cursor: pointer; list-style: none; padding: 9px 0; }
+  #bitacora-root .analysis-fold { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); margin-top: 8px; padding: 0 16px; }
+  #bitacora-root .analysis-fold > summary { position: relative; display: flex; gap: 10px; align-items: baseline; cursor: pointer; list-style: none; padding: 11px 0; }
   #bitacora-root .analysis-fold > summary::-webkit-details-marker { display: none; }
-  #bitacora-root .analysis-fold > summary::before { content: '▸'; color: var(--text-muted); font-size: 12px; flex-shrink: 0; }
-  #bitacora-root .analysis-fold[open] > summary::before { content: '▾'; }
+  /* La flecha es siempre la misma y gira al abrir (transform, 160 ms); con «reducir movimiento» solo cambia sin animar. */
+  #bitacora-root .analysis-fold > summary::before { content: '▸'; color: var(--text-muted); font-size: 12px; flex-shrink: 0; transition: transform .16s var(--ease-out); }
+  #bitacora-root .analysis-fold[open] > summary::before { transform: rotate(90deg); }
   #bitacora-root .fold-title { flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 13px; color: var(--text-heading); }
   #bitacora-root .fold-meta { flex: 0 1 auto; font-size: 12px; color: var(--text-muted); text-align: right; }
   #bitacora-root .fold-body { padding: 0 0 8px; }

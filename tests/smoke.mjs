@@ -4975,6 +4975,20 @@ await check('Rediseño fase 1: la navegación es una barra superior horizontal y
   assert(contraste(T['on-navy'], T['navy-800']) >= 7, 'texto blanco sobre el final del degradado');
   assert(contraste(T['on-navy-mute'], T['navy-800']) >= 4.5, 'texto secundario de la cabecera');
 });
+await check('Rediseño fase 4: el nombre del resultado se lee sobre su fondo tintado (AA), el título de sección usa la tinta y el panel de evidencia tiene animación con salida para «reducir movimiento»', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const css = html.replace(/\/\*[\s\S]*?\*\//g, '');
+  const T = tokenesCss(html);
+  [['success', 'success-bg'], ['danger', 'danger-bg'], ['warning', 'warning-bg'], ['neutral', 'neutral-bg']].forEach(([fg, bg]) => {
+    const c = k => T[k] || T[({ neutral: 'ink-mute', 'neutral-bg': 'surface-2' })[k]];
+    assert(contraste(c(fg), c(bg)) >= 4.5, 'resultado ' + fg + ' sobre ' + bg + ': ' + contraste(c(fg), c(bg)).toFixed(2));
+  });
+  const h3 = /\.analisis-seccion > h3 \{([^}]*)\}/.exec(css);
+  assert(h3 && /color:\s*var\(--text-heading\)/.test(h3[1]), 'el h3 de sección usa --text-heading');
+  assert(/\.analisis-seccion \{[^}]*background:\s*var\(--surface\)[^}]*border-radius:\s*var\(--radius-lg\)/.test(css), 'la sección es una tarjeta');
+  assert(/@keyframes bt-ev-in/.test(css) && /\.evidencia-panel \{[^}]*animation:\s*bt-ev-in/.test(css), 'el panel de evidencia entra con animación');
+  assert(/prefers-reduced-motion: reduce\) \{[^}]*animation: none !important/.test(css.replace(/\n/g, ' ')), 'reducir movimiento apaga las animaciones');
+});
 await check('Interfaz: ningún texto visible al usuario manda a leer CLAUDE.md (es documentación del proyecto, no de la app)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   // Solo el texto que ve el usuario: sin comentarios HTML/CSS, sin <style> ni <script>.
