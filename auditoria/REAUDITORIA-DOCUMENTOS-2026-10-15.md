@@ -48,5 +48,6 @@ empresa, el proceso o un cálculo reproducible.*
 5. La hoja de vida solo vuelca lo que el usuario escribió en «Personal»; no se encontró nada inventado, pero no se probó con un perfil real.
 
 ## Estado
-RA3-1 (HIGH) y RA3-2 (MEDIUM) quedaron corregidos el mismo día; siguen abiertos RA3-3, RA3-4 (MEDIUM) y RA3-5, RA3-6 (LOW). Texto anterior: un HIGH y tres MEDIUM en documentos que se firman. La carta y el paquete ya advierten que son plantillas orientativas con `[CONFIRMAR]` y
-`[COMPLETAR]`, lo que atenúa pero no elimina RA3-1: el formato de experiencia sale con contratos que no acreditan el requisito. Con la corrección, la lista contiene solo contratos que el motor acredita; sigue siendo una plantilla que el firmante debe revisar.
+RA3-1 (HIGH) y RA3-2 (MEDIUM) quedaron **corregidos el 2026-10-15** (pruebas DG-RA3-1 y DG-RA3-2, escritas primero y verificadas por mutación). El formato de experiencia
+ahora lista solo los contratos que el motor acredita y trae el número de contrato o un `[COMPLETAR]`. Siguen abiertos RA3-3 y RA3-4 (MEDIUM) y RA3-5 y RA3-6 (LOW).
+La carta y el paquete siguen siendo plantillas orientativas con `[CONFIRMAR]` y `[COMPLETAR]` que el firmante debe revisar.
