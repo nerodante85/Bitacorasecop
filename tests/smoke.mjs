@@ -1697,11 +1697,26 @@ await check('SECOP II: «Entidad (contiene)» también filtra en el servidor (la
   assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], { entidad: '' })) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'sin entidad = antes');
 });
 
+await check('SECOP II: el rango de valor (desde/hasta) también filtra en el servidor y conserva la regla «un proceso sin valor no se oculta» (antes llegaba ~6 % de los que cumplen: Norte de Santander 500–3.000 M, 10 de 165)', () => {
+  const C = Coincidencia;
+  const w = (o, k) => new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Boyacá'], o)[k || 'recientes']).get('$where');
+  for (const k of ['vigentes', 'recientes']) {
+    const x = w({ minV: 500000000, maxV: 3000000000 }, k);
+    assert(x.includes('(precio_base IS NULL OR precio_base <= 0 OR (precio_base >= 500000000 AND precio_base <= 3000000000))'), k + ': rango completo, fue ' + x);
+    assert(x.includes("like 'B_Y_C_'"), k + ': conserva el departamento');
+  }
+  assert(w({ minV: 500000000 }).includes('(precio_base IS NULL OR precio_base <= 0 OR (precio_base >= 500000000))'), 'solo mínimo');
+  assert(w({ maxV: 800000000 }).includes('(precio_base IS NULL OR precio_base <= 0 OR (precio_base <= 800000000))'), 'solo máximo');
+  assert(!w({ minV: 0, maxV: 0 }).includes('precio_base') && !w({}).includes('precio_base'), 'sin rango no se filtra');
+  assert(!w({ minV: -5, maxV: NaN }).includes('precio_base') && !w({ minV: 'abc' }).includes('precio_base'), 'valores inválidos no generan filtro ni inyectan texto');
+  assert(w({ minV: 5e8 }).includes('precio_base >= 500000000') && !/e\+/.test(w({ minV: 5e20 })), 'cifras grandes sin notación científica');
+});
+
 await check('Buscar procesos: la casilla «Solo Licitación Pública» vuelve a consultar SECOP al cambiar (el servidor ya filtró: re-pintar la muestra vieja escondería o mezclaría procesos)', () => {
   assert(!/onlyLicitacionEl\.addEventListener\('change', rerender\)/.test(html), 'la casilla no puede re-pintar a secas');
   assert(/onlyLicitacionEl\.addEventListener\('change', alCambiarSoloLicitacion\)/.test(html), 'falta alCambiarSoloLicitacion');
   assert(/consultasSecopII\(qTerm, hoyISO, geos, opcionesConsulta\)/.test(html), 'fetchSecopDataset debe pasar las opciones');
-  assert(/\['kw', 'geo', 'mun', 'entidad', 'licitacion'\]\.indexOf\(k\) !== -1 && modoDatos\(\) === 'vivo' && lastConsultaISO\) runSearch\(\)/.test(html), '«quitar este filtro» de un filtro de servidor debe volver a consultar');
+  assert(/\['kw', 'geo', 'mun', 'entidad', 'licitacion', 'valor'\]\.indexOf\(k\) !== -1 && modoDatos\(\) === 'vivo' && lastConsultaISO\) runSearch\(\)/.test(html), '«quitar este filtro» de un filtro de servidor debe volver a consultar');
 });
 
 await check('Ubicación: vigentes con departamento «No Definido» (Otanche) entran a la consulta y se resuelven por municipio solo si el municipio es de UN solo departamento', () => {
@@ -4592,8 +4607,8 @@ await check('Alertas: los filtros extra (municipio, entidad, solo licitación de
   assert(C.coincideFiltrosAlerta({ soloLicitacion: true }, reg) === true && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: 'Contratación directa' }) === false && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: 'Licitación pública' }) === false && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: null }) === false, 'licitación pública Y obra; sin modalidad no pasa');
   assert(C.coincideFiltrosAlerta({ municipios: ['Ocaña'], entidad: 'Gobernación' }, reg) === false, 'todos los filtros a la vez');
   const o = C.opcionesDeAlerta({ municipios: ['Ocaña', '', 5], entidad: '  INVIAS ', soloLicitacion: 'si' });
-  assert(JSON.stringify(o) === JSON.stringify({ soloLicitacionObra: true, municipios: ['Ocaña'], entidad: 'INVIAS' }), 'opciones saneadas: ' + JSON.stringify(o));
-  assert(JSON.stringify(C.opcionesDeAlerta({ keywords: ['x'] })) === JSON.stringify({ soloLicitacionObra: false, municipios: [], entidad: '' }), 'alerta antigua: opciones vacías');
+  assert(JSON.stringify(o) === JSON.stringify({ soloLicitacionObra: true, municipios: ['Ocaña'], entidad: 'INVIAS', minV: 0, maxV: 0 }), 'opciones saneadas: ' + JSON.stringify(o));
+  assert(JSON.stringify(C.opcionesDeAlerta({ keywords: ['x'] })) === JSON.stringify({ soloLicitacionObra: false, municipios: [], entidad: '', minV: 0, maxV: 0 }), 'alerta antigua: opciones vacías');
 });
 
 await check('Alertas: el cliente guarda, evalúa y reabre municipio, entidad y licitación; el correo diario consulta con departamento + esos filtros (antes ignoraba geos en el servidor y usaba el departamento como palabra clave)', () => {

@@ -258,7 +258,9 @@
     return {
       soloLicitacionObra: !!a.soloLicitacion,
       municipios: (Array.isArray(a.municipios) ? a.municipios : []).filter(m => typeof m === 'string' && m.trim()).map(m => m.trim()),
-      entidad: typeof a.entidad === 'string' ? a.entidad.trim() : ''
+      entidad: typeof a.entidad === 'string' ? a.entidad.trim() : '',
+      minV: Number(a.minV) > 0 ? Number(a.minV) : 0,
+      maxV: Number(a.maxV) > 0 ? Number(a.maxV) : 0
     };
   }
   function coincideFiltrosAlerta(alerta, reg) {
@@ -268,6 +270,17 @@
     if (o.entidad && !coincideEntidad(r.entidad, o.entidad)) return false;
     if (o.soloLicitacionObra && !esLicitacionObra(r.modalidad)) return false;
     return true;
+  }
+
+  // Rango de valor EN EL SERVIDOR (precio_base es numérico). Misma regla que cumpleRangoValor del navegador: un proceso
+  // sin valor (nulo o 0) NO se oculta por el rango. Con el rango solo en el navegador llegaba ~6 % de los procesos que
+  // cumplen (Norte de Santander 500–3.000 M: 10 de 165); los sin valor son pocos (~1,5 % de los publicados en 60 días).
+  function filtroValor(minV, maxV) {
+    const n = v => { const x = Number(v); return isFinite(x) && x > 0 && x < 1e15 ? String(Math.floor(x)) : ''; };
+    const a = n(minV), b = n(maxV);
+    if (!a && !b) return '';
+    const rango = [a ? 'precio_base >= ' + a : '', b ? 'precio_base <= ' + b : ''].filter(Boolean).join(' AND ');
+    return '(precio_base IS NULL OR precio_base <= 0 OR (' + rango + '))';
   }
 
   // Mapa municipio -> departamento sacado del propio dataset (pares ciudad_entidad/departamento_entidad
@@ -321,7 +334,8 @@
       ? " AND upper(modalidad_de_contratacion) like '%LICITACI%BLICA%' AND upper(modalidad_de_contratacion) like '%OBRA%'" : '';
     const mun = filtroMunicipio(opciones && opciones.municipios);
     const ent = filtroEntidad(opciones && opciones.entidad);
-    const resto = lic + (mun ? ' AND ' + mun : '') + (ent ? ' AND ' + ent : '');
+    const val = filtroValor(opciones && opciones.minV, opciones && opciones.maxV);
+    const resto = lic + (mun ? ' AND ' + mun : '') + (ent ? ' AND ' + ent : '') + (val ? ' AND ' + val : '');
     const y = (dep ? ' AND ' + dep : '') + resto;
     const yVigentes = (dep ? ' AND ' + filtroDepartamento(geos, true) : '') + resto;
     return {
