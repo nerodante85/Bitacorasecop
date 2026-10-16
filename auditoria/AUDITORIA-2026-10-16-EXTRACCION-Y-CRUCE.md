@@ -72,3 +72,31 @@ Bien en indicadores, K y magnitudes (muestran pliego vs perfil y los ítems). **
 
 ## Siguiente paso propuesto (cuando lo autorices)
 Ronda de corrección por familias, con prueba que falle primero y verificación por mutación: **(1)** `parseNumCO` + porcentaje en la ficha → **(2)** anclar cifra a su campo y a «millones» en la verificación de citas → **(3)** umbral de coincidencia de personal → **(4)** dedupe y combinación de indicadores en consorcio → **(5)** magnitudes de pozos/conexiones. Después, repetir esta auditoría y cerrar solo lo verificado. Sigue pendiente (NO VERIFICADO) una extracción real con la IA y 3–5 pliegos reales completos con texto de pdf.js.
+
+---
+
+# Cierre de la ronda de correcciones (2026-10-16)
+
+Método: prueba primero (falla), corrección, prueba pasa, **mutación** (cada arreglo se rompió a propósito y una prueba lo detectó), `node tests/smoke.mjs` (554 ok; el único fallo es el SRI por falta de red en el sandbox) y `node tests/e2e.mjs` (38 ok). Una **re-auditoría independiente** volvió a ejecutar las reproducciones originales y buscó variantes; lo que halló se corrigió en el commit «Re-auditoría».
+
+## Estado por hallazgo
+
+| Estado | IDs |
+|---|---|
+| **CERRADO (verificado por la re-auditoría)** | FI2-1, FI2-3, FI2-4, FI2-5, FI2-7, IA2-2, IA2-4, IA2-7 (repro), CR2-2, CR2-4, CR2-5, CR2-6 (repros) |
+| **CERRADO tras la re-auditoría (variantes corregidas; sin una 3.ª pasada independiente)** | FI2-2 («por ciento», «≤ 70» sin %), IA2-1 (MM, billones), IA2-3 (la coincidencia aproximada ya no decide sola), IA2-5 («más de N», «hasta N contratos»), IA2-6 (informativo con lenguaje de exigencia), CR2-1 (palabra «obra» distintiva, umbral 60 %), CR2-3 (unidad del K), CR2-12 (más encabezados) |
+| **PARCIAL (sigue abierto en parte)** | FI2-6 (si el último cargo no trae datos, se puede desplazar), CR2-8 (requisito **sin** ventana + contrato sin fecha de terminación todavía cuenta), CR2-12 (encabezados sueltos como «Porcentaje» o «Part.» no se reconocen: chocarían con otras columnas), IA2-7 (literal «puentes» dentro de «puentes de concreto reforzado vehiculares»), CR2-6 (otros componentes de pozo no listados) |
+| **NO ATENDIDO en esta ronda** | IA2-8, IA2-9, IA2-10, IA2-11..15, CR2-7, CR2-9, CR2-10, CR2-11, CR2-13..17, FI2-8..16 (ver informes detallados) |
+
+## Cambios de comportamiento que el usuario notará (decisiones de diseño)
+
+- **Coincidencia «aproximada» de una cita (tablas con otro orden de lectura) ya no decide sola:** la fila queda «sin confirmar» hasta que el usuario compare la cita con el PDF. Más confirmaciones manuales en tablas desordenadas; a cambio, una cita armada con celdas de dos filas ya no produce CUMPLE/NO-GO.
+- **Dos o más empresas marcadas (consorcio):** el resultado nunca es GO; un gate «Consorcio / unión temporal» explica que los indicadores y la K no se combinan por participación (la app no modela aún el porcentaje de cada integrante) y muestra el resultado por empresa. El mismo contrato cargado por dos integrantes cuenta **una** vez, con la participación sumada.
+- **Personal:** el gate exige cargo coincidente, varias palabras distintivas y años suficientes; si no, dice qué coincidió y qué falta (ND).
+- **Capital de trabajo:** usa el % que escribe el documento; si no hay % ni fórmula no supone 33 %.
+- **Anticipo:** «no se otorgará anticipo por un valor superior…» o contradicciones ya no se leen como «sin anticipo».
+- **Montos con unidades mezcladas o dos montos distintos** («$2.500 M (1.428 SMMLV)», «2022: …; 2023: …») dan «no determinable» en vez de elegir el mayor.
+- **Verificación de citas:** el valor monetario debe respetar «millones/MM/billones», el indicador debe estar junto a su nombre, y `acumulable`, tope-vs-mínimo y regla de conversión SMMLV deben tener respaldo en la cita o el pliego (la regla SMMLV se busca en el texto leído del PDF: con un pliego leído a medias puede quedar sin verificar).
+
+## Límites de esta verificación (NO VERIFICADO)
+Comportamiento real del modelo de IA (sin crédito), pliegos reales completos con el texto de pdf.js, función `extraer-requisitos` desplegada. Todas las pruebas usan texto sintético con el estilo de los pliegos reales y los fragmentos reales ya presentes en `tests/smoke.mjs`.
