@@ -93,6 +93,11 @@
       if (u && !UNIDAD_CONTEO.test(u)) return { actividad: null, certeza: 'alta', nota: 'Medido en ' + u + ': no es un conteo de conexiones.' };
       return { actividad: 'conexiones', certeza: alta && u ? 'alta' : 'baja', nota: !alta ? 'El ítem no dice que sea de alcantarillado.' : (u ? '' : 'El ítem no trae unidad: no se sabe si cuenta conexiones.') };
     }
+    // CR2-6: componentes de un pozo (cono, anillo, brocal, escalones, losa, cañuela) y otros «pozos» (séptico, de bombeo, húmedo) o
+    // ajustes a pozos existentes no son pozos de inspección nuevos: sumarlos al pozo duplicaba la cuenta.
+    if (/\bpozos?\b|\b(?:cono|conos|anillo|anillos|brocal|escalon|escalones|peldano|peldanos)\b/.test(s) &&
+        /\b(?:cono|conos|anillo|anillos|brocal|escalon|escalones|peldano|peldanos|losa|canuela|canuelas|camara|camaras|caida|septic\w*|bombeo|elevacion|humedo|aforo|ajuste|ajustes|existentes?)\b/.test(s))
+      return { actividad: null, certeza: 'alta', nota: 'Componente de un pozo, otro tipo de pozo o ajuste a un pozo existente: no cuenta como pozo de inspección nuevo.' };
     if (/\bpozos?\b/.test(s) && !/adecuacion|reparacion|tapa|cuerpo\s+de/.test(s)) {
       // Un pozo se cuenta en unidades: 40 m³ de excavación no son 40 pozos (RA2-2); sin unidad no se afirma.
       if (u && !UNIDAD_CONTEO.test(u)) return { actividad: null, certeza: 'alta', nota: 'Medido en ' + u + ': no es un conteo de pozos.' };
@@ -139,8 +144,9 @@
     }
     if (/longitud\s+intervenida/.test(s)) {
       out.actividad = 'via';
-      const c = ultimaCifra(/(\d[\d.,]*)\s*(?:ml|km)\b/gi);
-      if (c) { const n = numero(c[1]); out.cifra = n.valor; out.unidad = 'ml'; out.ambiguo = n.ambiguo; }
+      const c = ultimaCifra(/(\d[\d.,]*)\s*(ml|kms?)\b/gi);
+      // «4,00 Kms» son 4.000 ml: la unidad de salida es siempre ml (antes un valor en km se leía como si fuera ml).
+      if (c) { const n = numero(c[1]); out.cifra = (n.valor != null && /^km/i.test(c[2])) ? n.valor * 1000 : n.valor; out.unidad = 'ml'; out.ambiguo = n.ambiguo; }
       const pctM = f.match(/(\d{1,3}(?:[.,]\d+)?)\s*%/);
       const totM = f.match(/(?:valor\s+referente\s+es|la\s+cual\s+es\s+de|equivale\s+a)\s*\(?\s*(\d[\d.,]*)\s*ml/i);
       if (pctM && totM && out.cifra != null) {
@@ -177,6 +183,9 @@
       }
       const md = f.match(/(?:mayor\s+o\s+igual\s+a|igual\s+o\s+superior\s+a|>=|≥)\s*(\d+(?:[.,]\d+)?)\s*("|”|''|pulg)/i);
       if (md) out.diametroMinPulg = numero(md[1]).valor;
+      // FI2-7: «mayor o igual a 8" y menor o igual a 12"» ignoraba el máximo y una tubería de 24" cumplía.
+      const mx = f.match(/(?:menor\s+o\s+igual\s+a|igual\s+o\s+inferior\s+a|no\s+(?:mayor|superior)\s+a|<=|≤)\s*(\d+(?:[.,]\d+)?)\s*("|”|''|pulg)/i);
+      if (mx) { const hi = numero(mx[1]).valor; if (hi != null && (out.diametroMinPulg == null || hi >= out.diametroMinPulg)) out.diametroMaxPulg = hi; }
       const mr = f.match(/(?:di[aá]metros?[^.]{0,40}?)?entre\s+(?:el\s+siguiente\s+rango\s+)?(?:de\s+)?(\d+(?:[.,]\d+)?)\s*(?:"|”|''|pulg(?:adas?)?)?\s*y\s*(\d+(?:[.,]\d+)?)\s*("|”|''|pulg)/i);
       if (mr) { const lo = numero(mr[1]).valor, hi = numero(mr[2]).valor; if (lo != null && hi != null && lo <= hi) { out.diametroMinPulg = lo; out.diametroMaxPulg = hi; } }
       return out;
@@ -242,6 +251,12 @@
           if (sum.length && ins.length) { solapa = true; prudente += suma(otro) + Math.max(suma(sum), suma(ins)); }
           else prudente += suma(arr);
         });
+      } else if (ex.actividad === 'pozos' || ex.actividad === 'conexiones') {
+        // CR2-6: «Suministro de conexión» + «Instalación de conexión» del acta son la MISMA conexión (un solo grupo por actividad).
+        const rol = x => { const t = sinTildes(x.item).toLowerCase(), su = /suministro/.test(t), ins = /instalaci|colocaci|construccion/.test(t); return su && !ins ? 'sum' : (ins ? 'ins' : 'otro'); };
+        const sum = unicos.filter(x => rol(x) === 'sum'), ins = unicos.filter(x => rol(x) === 'ins'), otro = unicos.filter(x => rol(x) === 'otro');
+        if (sum.length && ins.length) { solapa = true; prudente = suma(otro) + Math.max(suma(sum), suma(ins)); }
+        else prudente = suma(unicos);
       } else prudente = suma(unicos);
       const plana = suma(cand);
       if (!ex.soloAcreditar && ex.cifra != null && prudente < ex.cifra && plana >= ex.cifra && (repetidas || solapa)) {

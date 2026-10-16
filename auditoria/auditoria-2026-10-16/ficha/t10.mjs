@@ -1,0 +1,3 @@
+import { show, e } from './lib.mjs';
+show('personal fila-orden', 'Requisitos del personal CARGO FORMACIÓN Experiencia General Específica DIRECTOR DE OBRA Ingeniero civil con tarjeta profesional (5) años de experiencia general (2) contratos de obra similar RESIDENTE DE OBRA Ingeniero civil (3) años de experiencia general (1) contratos de obra similar INSPECTOR DE OBRA Tecnólogo (2) años (1) contratos Maquinaria mínima del proyecto');
+show('personal col-orden', 'Requisitos del personal CARGO FORMACIÓN Experiencia General Específica (5) años (3) años (2) años (2) contratos (1) contratos (1) contratos DIRECTOR DE OBRA RESIDENTE DE OBRA INSPECTOR DE OBRA Maquinaria mínima del proyecto');

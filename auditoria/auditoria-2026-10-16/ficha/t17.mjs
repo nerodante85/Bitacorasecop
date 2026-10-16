@@ -1,0 +1,6 @@
+import M from '/home/user/Bitacorasecop/magnitudes.js';
+const C=(items)=>[{numeroContrato:'X',participacion:{valor:100},formatoMaestro:{cantidades:items}}];
+const run=(n,f,items)=>{const ex=M.parsearExigencia(f); const r=M.evaluar(ex,C(items),{}); console.log(n,'cifra='+ex.cifra,'min='+ex.diametroMinPulg,'max='+ex.diametroMaxPulg,'=>',r.estado,r.detalle.slice(0,110));};
+run('total despues','Por lo menos uno (1) de los contratos válidos aportados deberá acreditar una longitud de tubería mayor o igual a 965,21 ml, de un total de 1.930,42 ml en el proyecto, el cual corresponde a PVC con diámetro mayor o igual a 8"',[{item:'Tubería PVC alcantarillado Ø10"',cantidad:1000,unidad:'ml'}]);
+run('max diam','Por lo menos uno (1) de los contratos válidos aportados deberá acreditar una longitud de tubería de 800,5 ml el cual corresponde a PVC con diámetro mayor o igual a 8" y menor o igual a 12"',[{item:'Tubería PVC alcantarillado Ø24"',cantidad:1500,unidad:'ml'}]);
+run('max diam entre','Por lo menos uno (1) de los contratos válidos aportados deberá acreditar una longitud de tubería de 800,5 ml el cual corresponde a PVC con diámetro entre 8" y 12"',[{item:'Tubería PVC alcantarillado Ø24"',cantidad:1500,unidad:'ml'}]);

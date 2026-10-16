@@ -1,0 +1,8 @@
+import { show, e } from './lib.mjs';
+const NA = ' No se otorgará anticipo. ';
+show('PO ambos (total + 10% derivado)', 'El presupuesto oficial del proceso es de $3.185.389.625. La garantía de seriedad será del 10% del presupuesto oficial, es decir $318.538.962. El plazo de ejecución del contrato será de CUATRO (4) MESES.'+NA);
+show('CT doc dice 40%', 'El presupuesto oficial es de $3.185.389.625. El plazo de ejecución del contrato será de CUATRO (4) MESES. El capital de trabajo demandado será igual al cuarenta por ciento (40%) del presupuesto oficial.'+NA);
+show('CT doc dice 15% plazo 18 meses', 'El presupuesto oficial es de $6.000.000.000. El plazo de ejecución del contrato será de DIECIOCHO (18) MESES. Capital de trabajo demandado: 15% del presupuesto oficial.'+NA);
+show('CT con anticipo 30%', 'El presupuesto oficial es de $6.000.000.000. El plazo de ejecución del contrato será de SEIS (6) MESES. Capital de trabajo demandado: 33% del presupuesto oficial. Se entregará un anticipo del 30% del valor del contrato. No se otorgará anticipo para los componentes de dotación.');
+show('anticipo negado en otro contexto', 'El presupuesto oficial es de $6.000.000.000. El plazo de ejecución del contrato será de SEIS (6) MESES. Capital de trabajo demandado. El contratista podrá solicitar anticipo por el 30% del valor. En el contrato de interventoría no se otorgará anticipo.');
+show('CTd 3 rangos', 'El presupuesto oficial es de $12.000.000.000. El plazo de ejecución del contrato será de CUATRO (4) MESES. capital de trabajo demandado CTd = 30% x (PO) hasta 10.000 millones; CTd = 25% x (PO) hasta 20.000; CTd = 20% x (PO) mayor. '+NA);

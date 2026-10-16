@@ -1296,7 +1296,7 @@ await check('extraerRequisitosDePliego: una zona menciona una tabla/matriz de ex
 // cita contra el texto real del PDF, mapear a requisitos del motor y que una
 // fila sin verificar NUNCA produzca CUMPLE/NO CUMPLE.
 const IA_P1 = 'Portada del pliego de condiciones. Licitación pública. ';
-const IA_P2 = 'Matriz 1 - Experiencia. Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV, obligatorio. ';
+const IA_P2 = 'Matriz 1 - Experiencia. Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV, obligatorio. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
 const IA_TEXTO = IA_P1 + IA_P2;
 const IA_OFFSETS = [{ pagina: 1, hasta: IA_P1.length }, { pagina: 2, hasta: IA_TEXTO.length }];
 function filaIA(extra) {
@@ -2079,6 +2079,160 @@ function verificarUna(fila, texto) {
 }
 const PAG_BASE = 'Se exige mínimo 5 contratos de puentes vehiculares. Valor acumulado 15.000 SMMLV. Plazo 2 meses. ';
 
+// ---- Auditoría 2026-10-16, familia 2: la cita debe respaldar CADA campo que declara la IA (IA2-1, IA2-2, IA2-3, IA2-5) ----
+const filaAud = x => Object.assign({
+  categoria: 'capacidad_financiera', descripcion: 'x', obligatoriedad: 'obligatorio', documento: 'Pliego de Condiciones', pagina: 1,
+  cita_textual: '', confianza: 'alta', modificado_por_adenda: false, objeto_literal: null, naturaleza: 'habilitante',
+  min_contratos: null, valor_minimo_numero: null, valor_minimo_unidad: null, valor_minimo_pct_presupuesto: null, regla_conversion_smmlv: null,
+  cantidad_minima_numero: null, cantidad_minima_unidad: null, acumulable: null, ventana_anios: null, indicador: null, operador: null,
+  valor_indicador: null, unidad_indicador: null, codigos_unspsc: [], grupo_alternativo: null, notas: null }, x);
+const T_IND = 'Indicadores: Índice de liquidez mayor o igual a 1,5. Nivel de endeudamiento menor o igual a 0,6. Patrimonio igual o superior a $1.200 millones de pesos. Capacidad residual (K) mínima: 5.000 millones de pesos.';
+await check('IA2-1: valor_indicador monetario sin el multiplicador "millones" NO se verifica (patrimonio 1200 vs "$1.200 millones"; K 5000 vs "5.000 millones")', () => {
+  const pat = c => verificarUna(filaAud({ indicador: 'patrimonio', operador: '>=', valor_indicador: c, unidad_indicador: 'COP', cita_textual: 'Patrimonio igual o superior a $1.200 millones de pesos' }), T_IND);
+  assert(pat(1200).verificada === false, 'patrimonio 1200 (sin escalar) no debe verificarse: ' + JSON.stringify(pat(1200)));
+  assert(pat(1200000000).verificada === true, 'patrimonio 1.200.000.000 sí: ' + JSON.stringify(pat(1200000000)));
+  const k = c => verificarUna(filaAud({ categoria: 'k_residual', indicador: 'k_residual', valor_indicador: c, unidad_indicador: 'COP', cita_textual: 'Capacidad residual (K) mínima: 5.000 millones de pesos' }), T_IND);
+  assert(k(5000).verificada === false, 'K 5000 no debe verificarse');
+  assert(k(5000000000).verificada === true, 'K 5.000.000.000 sí');
+});
+await check('IA2-2: el valor de un indicador debe estar junto a SU nombre (liquidez y endeudamiento intercambiados dentro de la misma cita no se verifican)', () => {
+  const cita = 'Índice de liquidez mayor o igual a 1,5. Nivel de endeudamiento menor o igual a 0,6';
+  const liq = v => verificarUna(filaAud({ indicador: 'liquidez', operador: '>=', valor_indicador: v, cita_textual: cita }), T_IND);
+  const end = v => verificarUna(filaAud({ indicador: 'endeudamiento', operador: '<=', valor_indicador: v, cita_textual: cita }), T_IND);
+  assert(liq(0.6).verificada === false, 'liquidez=0,6 (es el endeudamiento) no debe verificarse');
+  assert(end(1.5).verificada === false, 'endeudamiento=1,5 (es la liquidez) no debe verificarse');
+  assert(liq(1.5).verificada === true, 'control: liquidez 1,5 sí');
+  assert(end(0.6).verificada === true, 'control: endeudamiento 0,6 sí');
+});
+await check('IA2-3: una cita armada con celdas de DOS filas de una tabla no se verifica como "aproximada"', () => {
+  const pag = 'Experiencia Puentes vehiculares 10 contratos $30.000 millones Andenes y ciclorrutas 2 contratos $4.000 millones Plazo';
+  const falsa = filaAud({ categoria: 'experiencia_especifica', min_contratos: 2, valor_minimo_numero: 4000000000, valor_minimo_unidad: 'COP', cita_textual: 'Puentes vehiculares 2 contratos $4.000 millones' });
+  assert(verificarUna(falsa, pag).verificada === false, 'cita mezclada: ' + JSON.stringify(verificarUna(falsa, pag)));
+  const real = filaAud({ categoria: 'experiencia_especifica', min_contratos: 10, valor_minimo_numero: 30000000000, valor_minimo_unidad: 'COP', cita_textual: 'Puentes vehiculares 10 contratos $30.000 millones' });
+  assert(verificarUna(real, pag).verificada === true, 'control: la fila real sí: ' + JSON.stringify(verificarUna(real, pag)));
+});
+await check('IA2-5: acumulable debe estar respaldado por la cita ("cada uno" no es acumulable; "sumatoria" exige acumulable=true)', () => {
+  const cada = 'Cada uno de los contratos deberá tener un valor igual o superior a $3.000 millones de pesos';
+  const suma = 'La sumatoria del valor de los contratos deberá ser igual o superior a $3.000 millones de pesos';
+  const f = (cita, acum) => verificarUna(filaAud({ categoria: 'experiencia_especifica', valor_minimo_numero: 3000000000, valor_minimo_unidad: 'COP', acumulable: acum, cita_textual: cita }), cita);
+  assert(f(cada, true).verificada === false, '"cada uno" marcado acumulable no se verifica');
+  assert(f(cada, false).verificada === true, 'control: "cada uno" no acumulable sí');
+  assert(f(suma, null).verificada === false, '"sumatoria" con acumulable=null no se verifica');
+  assert(f(suma, false).verificada === false, '"sumatoria" con acumulable=false no se verifica');
+  assert(f(suma, true).verificada === true, 'control: "sumatoria" acumulable sí');
+});
+await check('IA2-5: un tope ("máximo 3 contratos") no se verifica como mínimo; "mínimo 3 contratos" sí', () => {
+  const f = cita => verificarUna(filaAud({ categoria: 'experiencia_especifica', min_contratos: 3, cita_textual: cita }), cita);
+  assert(f('El proponente podrá presentar máximo 3 contratos para acreditar la experiencia').verificada === false, 'máximo no es mínimo');
+  assert(f('El proponente deberá acreditar como mínimo 3 contratos de obra').verificada === true, 'control mínimo');
+});
+await check('IA2-5: regla_conversion_smmlv declarada debe estar en el pliego leído, junto al SMMLV (no basta con que la IA la diga)', () => {
+  const cita = 'El valor de cada contrato deberá ser igual o superior a 3.000 SMMLV';
+  const fila = r => filaAud({ categoria: 'experiencia_especifica', valor_minimo_numero: 3000, valor_minimo_unidad: 'SMMLV', regla_conversion_smmlv: r, cita_textual: cita });
+  const sin = cita + '. Plazo 4 meses.';
+  const con = cita + '. Los valores se convertirán a SMMLV con el salario vigente a la fecha de terminación del contrato.';
+  assert(verificarUna(fila('fecha_terminacion'), sin).verificada === false, 'regla inventada (el pliego no la dice)');
+  assert(verificarUna(fila('fecha_terminacion'), con).verificada === true, 'regla respaldada en el pliego');
+  assert(verificarUna(fila('fecha_inicio'), con).verificada === false, 'regla contraria a la del pliego');
+  assert(verificarUna(fila(null), sin).verificada === true, 'sin regla declarada no se exige');
+});
+// ---- Auditoría 2026-10-16 (IA2-4, IA2-6, IA2-7): obligatoriedad, naturaleza y objeto literal ----
+const globalIA = filas => {
+  const ver = expEngine.verificarFilasIA(filas, IA_TEXTO_AUD, [{ pagina: 1, hasta: IA_TEXTO_AUD.length }]);
+  const reqs = expEngine.requisitosDeExperienciaDesdeIA(ver);
+  return expEngine.evaluarExperienciaCompleta(contratosPuentes('12000000000', '15/03/2024'), reqs, new Date('2026-06-01T00:00:00'));
+};
+const IA_TEXTO_AUD = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. Andenes y ciclorrutas: mínimo 1 contrato. Podrá acreditar además vías urbanas: mínimo 1 contrato. Se otorgarán 10 puntos por cada contrato adicional de puentes vehiculares. ';
+const filaOblig = () => filaIA({ pagina: 1, min_contratos: 2, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, cita_textual: 'Puentes vehiculares: mínimo 2 contratos', objeto_literal: 'puentes vehiculares' });
+await check('IA opcional: iaActivada() apaga todos los botones de IA (hayCuentaParaIA lo exige), el bloque de requisitos ofrece activarla y avisa que usa créditos, y Configuración trae el interruptor', () => {
+  assert(/function iaActivada\(\)\{[^}]*bitacora_ia_activada/.test(html), 'iaActivada debe leer bitacora_ia_activada');
+  assert(/function hayCuentaParaIA\(\)\{[^}]*iaActivada\(\)/.test(html), 'hayCuentaParaIA debe exigir iaActivada()');
+  assert(/data-ia-activar/.test(html) && /usa cr[ée]dito/i.test(html), 'el bloque de requisitos ofrece activar la IA y avisa del crédito');
+  assert(/id="bt-ia-activada"/.test(html), 'Configuración trae el interruptor');
+  const bloque = html.slice(html.indexOf('function bloqueRequisitosIAHtml'), html.indexOf('function bloqueRequisitosIAHtml') + 3500);
+  assert(/iaActivada\(\)/.test(bloque), 'el bloque de requisitos consulta el interruptor');
+});
+await check('IA2-4: una fila opcional/alternativa cuya cita no lo indica (podría ser obligatoria) impide un CUMPLE global; con el marcador en la cita no', () => {
+  const dudosa = filaIA({ pagina: 1, obligatoriedad: 'opcional', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'andenes y ciclorrutas', cita_textual: 'Andenes y ciclorrutas: mínimo 1 contrato', descripcion: 'Experiencia en andenes y ciclorrutas' });
+  assert(globalIA([filaOblig()]).resultadoGlobal === 'CUMPLE', 'control: la fila obligatoria sola cumple');
+  const con = globalIA([filaOblig(), dudosa]).resultadoGlobal;
+  assert(con !== 'CUMPLE', 'con una fila "opcional" dudosa el global no puede ser CUMPLE: ' + con);
+  const marcada = filaIA({ pagina: 1, obligatoriedad: 'opcional', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'vías urbanas', cita_textual: 'Podrá acreditar además vías urbanas: mínimo 1 contrato', descripcion: 'Experiencia en vías urbanas' });
+  assert(globalIA([filaOblig(), marcada]).resultadoGlobal === 'CUMPLE', 'una opcional con "podrá" en la cita no frena');
+});
+await check('IA2-6: una fila marcada "ponderable" cuya cita no habla de puntaje no se descarta en silencio (podría ser habilitante)', () => {
+  const pond = filaIA({ pagina: 1, naturaleza: 'ponderable', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'andenes y ciclorrutas', cita_textual: 'Andenes y ciclorrutas: mínimo 1 contrato', descripcion: 'Experiencia en andenes y ciclorrutas' });
+  assert(globalIA([filaOblig(), pond]).resultadoGlobal !== 'CUMPLE', 'ponderable sin marcador de puntaje: no CUMPLE global');
+  const real = filaIA({ pagina: 1, naturaleza: 'ponderable', obligatoriedad: 'opcional', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'puentes vehiculares', cita_textual: 'Se otorgarán 10 puntos por cada contrato adicional de puentes vehiculares', descripcion: 'Puntaje por contratos adicionales' });
+  assert(globalIA([filaOblig(), real]).resultadoGlobal === 'CUMPLE', 'control: un criterio de puntaje real sigue sin decidir');
+});
+await check('IA2-7: un objeto_literal truncado ("puentes" de "puentes vehiculares") no se acepta; completo o terminado en conector sí', () => {
+  const v = o => expEngine.verificarFilasIA([filaIA({ pagina: 1, objeto_literal: o })], IA_TEXTO_AUD, [{ pagina: 1, hasta: IA_TEXTO_AUD.length }])[0];
+  assert(/objeto/i.test(expEngine.motivoBloqueoFilaIA(v('puentes')) || ''), 'literal truncado debe bloquear por el objeto');
+  assert(!/objeto/i.test(expEngine.motivoBloqueoFilaIA(v('puentes vehiculares')) || ''), 'literal completo no bloquea');
+});
+// ---- Re-auditoría 2026-10-16: variantes no cubiertas y sobre-bloqueos ----
+await check('RE: una verificación solo "aproximada" (tabla reordenada) no decide sola: bloquea hasta que el usuario confirme (IA2-3)', () => {
+  const tabla = 'Objeto | Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV | Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
+  const f = filaIA({ pagina: 1, cita_textual: 'Puentes vehiculares mínimo 2 contratos valor acumulado 15.000 SMMLV' });
+  const v = expEngine.verificarFilasIA([f], tabla, [{ pagina: 1, hasta: tabla.length }])[0];
+  assert(v.verificada === true && v.tipoVerificacion === 'aproximada', 'el fixture es una coincidencia aproximada: ' + JSON.stringify([v.verificada, v.tipoVerificacion, v.motivoVerificacion]));
+  assert(/aproximad/i.test(expEngine.motivoBloqueoFilaIA(v) || ''), 'aproximada debe bloquear hasta confirmar');
+  assert(expEngine.filaIAConfiable(Object.assign({}, v, { confirmadaPorUsuario: true })) === true, 'confirmada a mano sí decide');
+  const exacta = expEngine.verificarFilasIA([filaIA({ pagina: 1, cita_textual: 'Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV' })], tabla, [{ pagina: 1, hasta: tabla.length }])[0];
+  assert(exacta.tipoVerificacion === 'exacta' && expEngine.motivoBloqueoFilaIA(exacta) === null, 'la exacta no se bloquea: ' + expEngine.motivoBloqueoFilaIA(exacta));
+});
+await check('RE: "≤ 70" sin % o con "por ciento" no da CUMPLE falso en endeudamiento (FI2-2)', () => {
+  const base = 'El presupuesto oficial es de $3.185.389.625. No se otorgará anticipo. El plazo de ejecución del contrato será de CUATRO (4) MESES. ';
+  const f1 = expEngine.fichaHabilitante(base + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1,5 Índice de endeudamiento ≤ 70 por ciento', { anio: 2026 });
+  const x = f1.filas.find(r => r.dato && r.dato.clave === 'Índice de endeudamiento');
+  assert(x && x.dato.demas.v === 0.7, 'por ciento = 0,7: ' + (x && x.dato.demas.v));
+  const f2 = expEngine.fichaHabilitante(base + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1,5 Índice de endeudamiento ≤ 70', { anio: 2026 });
+  assert(expEngine.cruceFichaEmpresa(f2.filas, { liquidez: 2, endeudamiento: 0.8 })['Índice de endeudamiento'].estado === 'NO DETERMINABLE', '70 sin %: ambiguo, no CUMPLE');
+});
+await check('RE: "$1.200 MM", "$1.2 billones" declarados sin escalar no se verifican (IA2-1)', () => {
+  const p = (cita, v) => verificarUna(filaAud({ indicador: 'patrimonio', operador: '>=', valor_indicador: v, unidad_indicador: 'COP', cita_textual: cita }), cita);
+  assert(p('Patrimonio igual o superior a $1.200 MM de pesos', 1200).verificada === false, 'MM');
+  assert(p('Patrimonio igual o superior a $1,2 billones de pesos', 1.2).verificada === false, 'billones');
+  assert(p('Patrimonio igual o superior a $1.200 millones de pesos', 1200000000).verificada === true, 'control');
+});
+await check('RE: "no se aceptarán más de 3" / "hasta 3 contratos" no se verifican como mínimo (IA2-5)', () => {
+  const f = cita => verificarUna(filaAud({ categoria: 'experiencia_especifica', min_contratos: 3, cita_textual: cita }), cita);
+  assert(f('No se aceptarán más de 3 contratos para acreditar la experiencia').verificada === false, 'más de');
+  assert(f('Podrá aportar hasta 3 contratos para acreditar la experiencia').verificada === false, 'hasta');
+  assert(f('El proponente deberá acreditar como mínimo 3 contratos').verificada === true, 'control');
+});
+await check('RE: naturaleza "informativo" con lenguaje de exigencia en la cita no se descarta en silencio (IA2-6)', () => {
+  const info = filaIA({ pagina: 1, naturaleza: 'informativo', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'andenes y ciclorrutas', cita_textual: 'Andenes y ciclorrutas: mínimo 1 contrato', descripcion: 'Experiencia en andenes y ciclorrutas' });
+  assert(globalIA([filaOblig(), info]).resultadoGlobal !== 'CUMPLE', 'informativo con "mínimo": no CUMPLE global');
+});
+await check('RE: sobre-bloqueos corregidos -- "no inferior a 200 SMMLV" (RC), "Endeudamiento: 0,4 (40%)", personal "Director de obra" vs "Director comercial"', () => {
+  const rc = expEngine.fichaHabilitante('Se exigirá responsabilidad civil extracontractual no inferior a 200 SMMLV.', { anio: 2026 }).filas.find(x => x.requisito === 'Garantía de responsabilidad civil extracontractual');
+  assert(rc && /200 SMMLV/.test(rc.exige), 'RC "no inferior a 200": ' + (rc && rc.exige));
+  assert(expEngine.leerIndiceDePerfil('Endeudamiento: 0,4 (40%)', /endeudamiento/i, 'endeudamiento') === 0.4, 'mismo valor en razón y en %');
+  const g = (req, o) => expEngine.gatePersonalRequerido([{ snippet: req }], { x: Object.assign({ nombre: 'P', cargo: '', formacion: '', anos: '' }, o) });
+  assert(g('Director de obra ingeniero civil con 10 años de experiencia', { cargo: 'Director comercial', formacion: 'Ingeniero civil', anos: '12' }).estado !== 'ok', 'director comercial no acredita director de obra');
+  assert(g('Director de obra ingeniero civil o arquitecto con 10 años de experiencia', { cargo: 'Director de obra', formacion: 'Ingeniero civil', anos: '12' }).estado === 'ok', 'director de obra con ingeniero civil sí');
+});
+await check('RE: consorcio -- el contrato unido suma las participaciones de los integrantes; "K en pesos (SMMLV 2024)" no se rotula SMMLV; encabezados «% UT» / «Porc. Part.»; cámara de caída no es pozo', () => {
+  const ct = (pct) => ({ objeto: 'Puente', valor: 1000000000, numeroContrato: 'LP-012-2021', contratante: 'Municipio de Cúcuta', fechaInicio: '2021-03-01', fechaFin: '2022-02-28', participacion: { valor: pct } });
+  const exp = c => ({ headers: ['Objeto'], cols: {}, contratos: [c], nHojas: 1, fuente: 'xlsx' });
+  expEngine.setPerfiles(Object.assign({}, perfilFixture('a', 'Alfa'), perfilFixture('b', 'Beta')));
+  expEngine.setPerfilesActivos(['a', 'b']); expEngine.setPerfilActivoId('a');
+  expEngine.setExpevalPorPerfil({ a: { contratos: exp(ct(60)), meta: {} }, b: { contratos: exp(ct(40)), meta: {} } });
+  expEngine.recalcularExpevalActivo();
+  const m = expEngine.getExpevalContratos().contratos;
+  assert(m.length === 1 && m[0].participacion.valor === 100, 'participaciones sumadas: ' + JSON.stringify(m.map(c => c.participacion)));
+  const k = expEngine.parseValorUnidad('K residual 2.500.000.000 pesos (SMMLV 2024)');
+  assert(k && k.unidad === 'COP' && k.valor === 2500000000, 'unidad COP: ' + JSON.stringify(k));
+  const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000';
+  ['% UT', 'Porc. Part.', '% Consorcio'].forEach(h => {
+    const { r } = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor del contrato', h], [[PUENTE, 'Alcaldía', '900000000', '30%']]);
+    assert(r.resultado === 'NO CUMPLE', 'encabezado "' + h + '": ' + r.resultado);
+  });
+  const itemsC = [['Pozo de inspección h=2.0 m', 10, 'und'], ['Cámara de caída para pozo', 10, 'und']].map(([i, c, u]) => ({ item: i, cantidad: c, unidad: u }));
+  assert(Magnitudes.evaluar(Magnitudes.parsearExigencia('Por lo menos uno (1) de los contratos válidos aportados debe contar con pozos de inspección y por lo tanto acredite 19 UND.'), [{ numeroContrato: 'C1', formatoMaestro: { cantidades: itemsC } }], {}).estado === 'NO CUMPLE', 'cámara de caída no es un pozo');
+});
 await check('IA-001: cifra alterada que SÍ aparece en otra parte de la página ("2" de "plazo 2 meses") NO se verifica (antes pasaba como aproximada)', () => {
   const fila = filaIA({ pagina: 1, min_contratos: 2, cita_textual: 'valor acumulado 15.000 SMMLV puentes vehiculares mínimo 2 contratos' });
   const v = verificarUna(fila, PAG_BASE);
@@ -2099,9 +2253,9 @@ await check('IA-001: campos INTERCAMBIADOS (min_contratos=15000, valor=2) NO se 
 });
 
 await check('IA-001 (control positivo): una fila correcta con la cita exacta y otra aproximada legítima (tabla reordenada) SIGUEN verificándose', () => {
-  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
   assert(verificarUna(filaIA({ pagina: 1 }), texto).verificada === true, 'la fila correcta debe verificarse');
-  const tabla = 'Objeto | Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV | ';
+  const tabla = 'Objeto | Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV | Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
   const v = verificarUna(filaIA({ pagina: 1, cita_textual: 'Puentes vehiculares mínimo 2 contratos valor acumulado 15.000 SMMLV' }), tabla);
   assert(v.verificada === true, 'la cita reordenada de una tabla con cifras en su lugar debe verificarse, fue ' + JSON.stringify(v));
 });
@@ -2136,7 +2290,7 @@ await check('IA-003: una descripción DILUIDA ("obras civiles") con objeto liter
 });
 
 await check('IA-003: sin objeto literal (o que no está en la cita) la fila de experiencia queda SIN CONFIRMAR -> NO DETERMINABLE, y confirmada por el usuario sí decide', () => {
-  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
   for (const literal of [null, 'obras civiles']) {
     const fila = filaIA({ pagina: 1, objeto_literal: literal });
     const v = expEngine.verificarFilasIA([fila], texto, [{ pagina: 1, hasta: texto.length }])[0];
@@ -2184,10 +2338,10 @@ await check('IA-004: experiencia con "3 contratos" (pliego) y "2 contratos" (ade
 });
 
 await check('IA-005: una fila "opcional" cuya cita no lo indica queda bloqueada (ocultaba un NO CUMPLE); con marcador en la cita NO se bloquea', () => {
-  const sinMarca = expEngine.verificarFilasIA([filaIA({ pagina: 1, obligatoriedad: 'opcional' })], 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ', [{ pagina: 1, hasta: 100 }])[0];
+  const sinMarca = expEngine.verificarFilasIA([filaIA({ pagina: 1, obligatoriedad: 'opcional' })], 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ', [{ pagina: 1, hasta: 100 }])[0];
   assert(/opcional/.test(expEngine.motivoBloqueoFilaIA(sinMarca) || ''), 'opcional sin marcador en la cita debe bloquearse');
   const conMarca = expEngine.verificarFilasIA([filaIA({ pagina: 1, obligatoriedad: 'opcional', cita_textual: 'Podrá acreditar puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV' })],
-    'Podrá acreditar puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ', [{ pagina: 1, hasta: 100 }])[0];
+    'Podrá acreditar puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ', [{ pagina: 1, hasta: 100 }])[0];
   assert(expEngine.motivoBloqueoFilaIA(conMarca) === null, 'opcional con "podrá" en la cita no debe bloquearse, fue ' + expEngine.motivoBloqueoFilaIA(conMarca));
 });
 
@@ -2413,6 +2567,20 @@ await check('MC-010: contrato de $900M con 30% de participación NO cumple un m�
   assert(sinPart.resultado === 'CUMPLE', 'sin columna de participación no cambia nada: ' + sinPart.resultado);
 });
 
+await check('CR2-12: encabezados de participación habituales ("Part. %", "% Part.", "Aporte (%)", "Porcentaje de aporte") se reconocen: 30% de $900M no cumple $500M', () => {
+  const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000';
+  ['Part. %', '% Part.', 'Aporte (%)', 'Porcentaje de aporte', '% de participación'].forEach(h => {
+    const { r } = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor del contrato', h], [[PUENTE, 'Alcaldía', '900000000', '30%']]);
+    assert(r.resultado === 'NO CUMPLE', 'encabezado "' + h + '": se esperaba NO CUMPLE, fue ' + r.resultado);
+  });
+});
+await check('CR2-8: con ventana "últimos 5 años", un contrato con solo fecha de INICIO (sin terminación) no acredita: NO DETERMINABLE, y con fecha de terminación dentro sí', () => {
+  const txt = 'Mínimo 1 contrato de construcción de puentes vehiculares dentro de los últimos 5 años';
+  const solo = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor', 'Fecha de inicio'], [[PUENTE, 'Alcaldía', '900000000', '01/03/2025']]).r;
+  assert(solo.resultado === 'NO DETERMINABLE', 'solo inicio: se esperaba NO DETERMINABLE, fue ' + solo.resultado + ' -- ' + solo.justificacion);
+  const con = evaluarReqTexto(txt, H_FECHAS, [[PUENTE, 'Alcaldía', '900000000', '01/03/2024', '01/03/2025']]).r;
+  assert(con.resultado === 'CUMPLE', 'control con terminación dentro de la ventana: ' + con.resultado + ' -- ' + con.justificacion);
+});
 await check('MC-010: si la columna de valor ya es la ajustada por participación no se pondera dos veces', () => {
   const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $250.000.000';
   const { r } = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor contrato actualizado (según % participación)', '% participación'],
@@ -3753,6 +3921,103 @@ const EP_SILVANIA_PAGINAS = [
 const EP_SILVANIA = EP_SILVANIA_PAGINAS.slice(0, 3).concat([TABLA_TRAMOS_TIPO], EP_SILVANIA_PAGINAS.slice(3)).join('\n');
 const fichaDe = () => expEngine.fichaHabilitante(EP_SILVANIA, { anio: 2026 });
 const filaF = (f, nombre) => f.filas.find(x => x.requisito.indexOf(nombre) === 0);
+// ---- Auditoría 2026-10-16, familia 1: lectura numérica de la ficha (FI2-1, FI2-2) ----
+const AUD_BASE = 'El presupuesto oficial es de $3.185.389.625. El plazo de ejecución del contrato será de CUATRO (4) MESES. No se otorgará anticipo. ';
+await check('FI2-1: indicadores con decimal escrito con punto (1.5, 0.70, 2.0) se leen como 1,5 / 0,7 / 2, no ×10 ni ×100', () => {
+  const f = expEngine.fichaHabilitante(AUD_BASE + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1.5 Índice de endeudamiento ≤ 0.70 Razón de cobertura de intereses ≥ 2.0', { anio: 2026 });
+  const v = c => { const x = f.filas.find(r => r.dato && r.dato.tipo === 'indice' && r.dato.clave === c); return x && x.dato.demas && x.dato.demas.v; };
+  assert(v('Índice de liquidez') === 1.5, 'liquidez: ' + v('Índice de liquidez'));
+  assert(v('Índice de endeudamiento') === 0.7, 'endeudamiento: ' + v('Índice de endeudamiento'));
+  assert(v('Razón de cobertura de intereses') === 2, 'cobertura: ' + v('Razón de cobertura de intereses'));
+  const c = expEngine.cruceFichaEmpresa(f.filas, { liquidez: 2, endeudamiento: 0.8, cobertura: 3 });
+  assert(c['Índice de liquidez'].estado === 'CUMPLE', 'liquidez 2 ≥ 1,5: ' + c['Índice de liquidez'].estado);
+  assert(c['Índice de endeudamiento'].estado === 'NO CUMPLE', 'endeudamiento 0,8 > 0,7 debe NO CUMPLIR: ' + c['Índice de endeudamiento'].estado);
+  assert(!f.filas.some(r => r.aviso && /inusualmente alta/.test(r.aviso)), 'no debe avisar "inusualmente alta" por un 15 inventado');
+});
+await check('FI2-1: la coma decimal y los miles con punto siguen leyéndose igual (1,5 / 0,70)', () => {
+  const f = expEngine.fichaHabilitante(AUD_BASE + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1,5 Índice de endeudamiento ≤ 0,70', { anio: 2026 });
+  const x = f.filas.find(r => r.dato && r.dato.clave === 'Índice de liquidez');
+  assert(x && x.dato.demas.v === 1.5, 'liquidez 1,5');
+});
+await check('FI2-2: endeudamiento escrito en porcentaje ("≤ 70%") se guarda como razón 0,7 y se cruza bien con el perfil', () => {
+  const f = expEngine.fichaHabilitante(AUD_BASE + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1,5 Índice de endeudamiento ≤ 70% Razón de cobertura de intereses ≥ 2', { anio: 2026 });
+  const x = f.filas.find(r => r.dato && r.dato.clave === 'Índice de endeudamiento');
+  assert(x && x.dato.demas.v === 0.7, 'endeudamiento 70% = 0,7: ' + (x && x.dato.demas.v));
+  assert(expEngine.cruceFichaEmpresa(f.filas, { liquidez: 2, endeudamiento: 0.8, cobertura: 3 })['Índice de endeudamiento'].estado === 'NO CUMPLE', '0,8 > 70% debe NO CUMPLIR');
+  assert(expEngine.cruceFichaEmpresa(f.filas, { liquidez: 2, endeudamiento: 0.5, cobertura: 3 })['Índice de endeudamiento'].estado === 'CUMPLE', '0,5 ≤ 70% cumple');
+});
+await check('FI2-1: la luz del puente con decimal en punto ("45.5 metros") no se multiplica por 10', () => {
+  const t = 'La experiencia específica corresponda a la construcción de puentes vehiculares en concreto reforzado cuya luz principal sea mayor o igual al 50% de la longitud del puente a contratar. La luz principal del puente a contratar es de 45.5 metros.';
+  const f = expEngine.fichaHabilitante(t, { anio: 2026 });
+  const m = f.filas.find(r => r.requisito === 'Específica: magnitud del puente');
+  assert(m && !/455|227/.test(m.cifras) && /22[,.]8|22,7|22[,.]75/.test(m.cifras.replace(/\s/g, '')), 'luz mínima: ' + (m && m.cifras));
+});
+// ---- Auditoría 2026-10-16: valores derivados de la ficha (FI2-3 capital de trabajo, FI2-4 anticipo) ----
+const fila6 = (f, n) => f.filas.find(x => x.requisito === n);
+await check('FI2-4: "no se otorgará anticipo por un valor superior al 30%" o una contradicción con "el anticipo será del 30%" NO es "sin anticipo" (no se calcula CT ni K)', () => {
+  const base = 'El presupuesto oficial es de $6.000.000.000. El plazo de ejecución del contrato será de CUATRO (4) MESES. Capital de trabajo demandado CTd = (POE - Anticipo o Pago anticipado) x 33%. CRPC = POE - Anticipo. ';
+  const a = expEngine.fichaHabilitante(base + 'No se otorgará anticipo por un valor superior al treinta por ciento (30%) del valor del contrato.', { anio: 2026 });
+  assert(!fila6(a, 'Anticipo'), '"por un valor superior al 30%" no es sin anticipo');
+  assert(!fila6(a, 'Capital de trabajo demandado') && !fila6(a, 'Capacidad residual del proceso (K)'), 'no se calcula CT ni K con un anticipo posible');
+  const b = expEngine.fichaHabilitante(base + 'No se entregará anticipo hasta tanto el contratista presente el plan de inversión. El anticipo será del 30% del valor del contrato.', { anio: 2026 });
+  assert(!fila6(b, 'Anticipo') && !fila6(b, 'Capital de trabajo demandado'), 'contradicción: no se afirma sin anticipo');
+  assert(b.avisos.some(x => /anticipo/i.test(x)), 'y se avisa');
+  const c = expEngine.fichaHabilitante(base + 'El anticipo será del 30% del valor del contrato. En el contrato de interventoría no se otorgará anticipo.', { anio: 2026 });
+  assert(!fila6(c, 'Anticipo') && !fila6(c, 'Capital de trabajo demandado'), 'la negación de OTRO contrato no anula el anticipo de la obra');
+  const ok = expEngine.fichaHabilitante(base + 'No se otorgará anticipo.', { anio: 2026 });
+  assert(fila6(ok, 'Anticipo') && fila6(ok, 'Capital de trabajo demandado'), 'control: sin anticipo claro sí calcula');
+});
+await check('FI2-3: el capital de trabajo toma el porcentaje del propio documento (40%, 15%) y no aplica el 33% / la tabla CCE por defecto', () => {
+  const pre = 'El presupuesto oficial es de $3.185.389.625. No se otorgará anticipo. ';
+  const A = expEngine.fichaHabilitante(pre + 'El plazo de ejecución del contrato será de CUATRO (4) MESES. El capital de trabajo demandado será igual al cuarenta por ciento (40%) del presupuesto oficial.', { anio: 2026 });
+  const ctA = fila6(A, 'Capital de trabajo demandado');
+  assert(ctA && /40%/.test(ctA.exige) && /\$1\.274\.155\.850/.test(ctA.cifras), 'A: 40% = $1.274.155.850, fue ' + (ctA && ctA.exige + ' | ' + ctA.cifras));
+  const B = expEngine.fichaHabilitante('El presupuesto oficial es de $6.000.000.000. No se otorgará anticipo. El plazo de ejecución del contrato será de DIECIOCHO (18) MESES. Capital de trabajo demandado: 15% del presupuesto oficial.', { anio: 2026 });
+  const ctB = fila6(B, 'Capital de trabajo demandado');
+  assert(ctB && /15%/.test(ctB.exige) && /\$900\.000\.000/.test(ctB.cifras), 'B: 15% = $900.000.000, fue ' + (ctB && ctB.exige + ' | ' + ctB.cifras));
+  const C = expEngine.fichaHabilitante(pre + 'El plazo de ejecución del contrato será de CUATRO (4) MESES. Capital de trabajo demandado: 40% del presupuesto oficial. Más adelante, el capital de trabajo demandado: 25% del presupuesto oficial.', { anio: 2026 });
+  assert(!fila6(C, 'Capital de trabajo demandado') && C.avisos.some(x => /capital de trabajo/i.test(x)), 'dos porcentajes distintos: no se elige, se avisa');
+  const D = expEngine.fichaHabilitante(pre + 'El plazo de ejecución del contrato será de CUATRO (4) MESES. Capital de trabajo demandado para el proceso.', { anio: 2026 });
+  assert(!fila6(D, 'Capital de trabajo demandado'), 'sin porcentaje ni fórmula en el documento no se inventa el 33%');
+});
+await check('FI2-5: la RC extracontractual no toma el umbral del tramo ("inferior a 1.500 SMMLV") como valor asegurado; con varios tramos no elige', () => {
+  const g = t => expEngine.fichaHabilitante(t, { anio: 2026 }).filas.find(x => x.requisito === 'Garantía de responsabilidad civil extracontractual');
+  const a = g('Se exigirá responsabilidad civil extracontractual: para contratos cuyo valor sea inferior a 1.500 SMMLV, el valor asegurado será de 200 SMMLV.');
+  assert(a && /200 SMMLV/.test(a.exige) && !/1500/.test(a.exige), 'umbral no es valor asegurado: ' + (a && a.exige));
+  const b = g('Se exigirá responsabilidad civil extracontractual: hasta 1.500 SMMLV: 200 SMMLV; entre 1.501 y 2.500 SMMLV: 300 SMMLV; superior a 2.500 SMMLV: 400 SMMLV.');
+  assert(b && /no se pudo asociar/.test(b.exige) && !/200 SMMLV|1500/.test(b.exige), 'varios tramos: no se elige uno: ' + (b && b.exige));
+  const c = g('Se exigirá responsabilidad civil extracontractual por valor asegurado de 200 SMMLV.');
+  assert(c && /200 SMMLV/.test(c.exige), 'control: una sola cifra');
+});
+await check('FI2-6: en una tabla de personal con el cargo ANTES de sus datos, los años y contratos no se corren de un cargo al siguiente (no se asignan)', () => {
+  const t = 'Requisitos del personal CARGO FORMACIÓN Requisitos de Experiencia General Específica DIRECTOR DE OBRA Ingeniero civil (5) años (2) contratos RESIDENTE DE OBRA Ingeniero civil (3) años (1) contratos INSPECTOR DE OBRA Tecnólogo (2) años (1) contratos';
+  const f = expEngine.fichaHabilitante(t, { anio: 2026 });
+  const personal = f.filas.filter(x => x.grupo === 'Personal');
+  assert(personal.length >= 1, 'los cargos siguen apareciendo: ' + personal.length);
+  assert(!personal.some(x => /contrato\(s\)|años de experiencia/.test(x.cifras)), 'no se asignan años/contratos con orden dudoso: ' + JSON.stringify(personal.map(x => [x.requisito, x.cifras])));
+  assert(f.avisos.some(a => /orden|tabla/i.test(a) && /cargo/i.test(a)), 'se avisa que el orden de la tabla no permite asociar: ' + f.avisos.join(' || ').slice(0, 300));
+});
+// ---- Prueba con pliegos reales (2026-10-16): garantías en tabla «Amparo | % | Vigencia» y exigencias de longitud ----
+const GAR_REAL_NDS = 'Amparos, vigencia y valores asegurados AMPAROS EXIGIBLES (%) VIGENCIA GARANTÍA ÚNICA Cumplimiento de las obligaciones surgidas del contrato estatal. 15 % valor del contrato Plazo del contrato y cuatro (4) meses más. en caso de no ser liquidado en este plazo la garantía deberá extenderse hasta la liquidación del contrato Pago de salarios, prestaciones sociales, indemnizaciones y aportes parafiscales. 15 % valor del contrato Plazo del contrato y tres (3) años más. Estabilidad de la obra. 30% valor del contrato Cinco (5) años contados a partir de la suscripción del acta de recibo definitivo de las obras por parte del departamento. Tomador • Para las personas jurídicas: la garantía deberá tomarse con el nombre o razón social.';
+await check('Pliego real (Gobernación NdS, CCE v4): garantías en tabla -- cumplimiento, salarios y estabilidad con SU propia cifra y vigencia (la vigencia de 5 años es de la estabilidad, no de los salarios)', () => {
+  const f = expEngine.fichaHabilitante(GAR_REAL_NDS, { anio: 2026 });
+  const g = n => f.filas.find(x => x.grupo === 'Garantías' && x.requisito === n);
+  const cu = g('Garantía de cumplimiento'), sa = g('Garantía de pago de salarios y prestaciones'), es = g('Garantía de estabilidad y calidad de la obra');
+  assert(cu && /^15% del valor del contrato/.test(cu.exige) && /cuatro \(4\) meses/.test(cu.cifras), 'cumplimiento: ' + (cu && cu.exige + ' | ' + cu.cifras));
+  assert(sa && /^15% del valor del contrato/.test(sa.exige) && /tres \(3\) años/.test(sa.cifras) && !/Cinco/.test(sa.cifras), 'salarios: ' + (sa && sa.exige + ' | ' + sa.cifras));
+  assert(es && /^30% del valor del contrato/.test(es.exige) && /Cinco \(5\) años/.test(es.cifras), 'estabilidad: ' + (es && es.exige + ' | ' + es.cifras));
+});
+await check('Pliego real: «longitud intervenida … 80% … Longitud a intervenir: 5,00 Kms; 80% = 4,00 Kms» queda como fila (4.000 ml) y una exigencia de longitud SIN cifra en el documento se muestra como tal, nunca se omite en silencio', () => {
+  const A = 'Por lo menos uno (1) de los contratos válidos aportados como experiencia general debe contar con una longitud Intervenida correspondiente a por lo menos el 80% de la longitud de carretera a intervenir mediante el presente proceso de contratación. Longitud a intervenir: 5,00 Kms; 80% = 4,00 Kms Que hayan contenido la ejecución de: CONSTRUCCIÓN O ADECUACIÓN DE OBRAS DE DRENAJE.';
+  const fa = expEngine.fichaHabilitante(A, { anio: 2026 });
+  const ra = fa.filas.filter(x => x.grupo === 'Experiencia' && /longitud/i.test(x.exige));
+  assert(ra.length === 1 && /4,00 Kms/.test(ra[0].cifras) && ra[0].dato && ra[0].dato.tipo === 'magnitud' && ra[0].dato.exigencia.cifra === 4000, 'A: ' + JSON.stringify(ra.map(x => [x.requisito, x.cifras, x.dato && x.dato.exigencia])));
+  const D = 'A. Que hayan contenido la ejecución de: CONSTRUCCIÓN O MEJORAMIENTO EN PLACA HUELLA DE VÍAS TERCIARIAS. Por lo menos uno (1) de los contratos válidos aportados como experiencia general cuenta con una longitud intervenida que corresponda al 50% de la longitud de vía a intervenir mediante el presente proceso de contratación. Por lo menos uno (1) de los contratos válidos aportados como experiencia general cuenta con una longitud intervenida que corresponda al 50% de la longitud de vía a intervenir mediante el presente proceso de contratación. B. Estar relacionados en el Formato 3.';
+  const fd = expEngine.fichaHabilitante(D, { anio: 2026 });
+  const rd = fd.filas.filter(x => x.grupo === 'Experiencia' && /longitud intervenida/i.test(x.exige));
+  assert(rd.length === 1 && /sin cifra/i.test(rd[0].cifras), 'D: una sola fila (la frase repetida se une), diciendo que no trae cifra: ' + JSON.stringify(rd.map(x => [x.requisito, x.cifras])));
+  assert(expEngine.cruceFichaEmpresa(rd, { contratos: [] })[rd[0].requisito].estado === 'NO DETERMINABLE', 'sin cifra nunca se cruza a CUMPLE');
+});
 await check('fichaHabilitante: datos del proceso (objeto, presupuesto en pesos y SMMLV, plazo, sin anticipo) con la página de cada dato', () => {
   const f = fichaDe();
   assert(/PUENTE DE LA MIEL/.test(filaF(f, 'Objeto').exige), 'objeto');
@@ -4320,20 +4585,39 @@ await check('evaluarProceso con contexto explícito: el rango de valor llega por
 
 await check('evaluarProceso con contexto explícito: el personal registrado llega por ctx y decide el gate de Personal', () => {
   const entry = entryFeliz({ comps: [{ hallazgosAnotados: [{ categoria: 'Personal / Equipo de trabajo', snippet: 'Director de obra ingeniero civil con diez años de experiencia' }] }] });
-  const con = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entry, Object.assign({}, CTX_EVAL, { perfilesProfesionales: { a: { nombre: 'Ing. Pérez', cargo: 'Director de obra', formacion: 'Ingeniero civil' } } }));
+  const con = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entry, Object.assign({}, CTX_EVAL, { perfilesProfesionales: { a: { nombre: 'Ing. Pérez', cargo: 'Director de obra', formacion: 'Ingeniero civil', anos: '12' } } }));
   const sin = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entry, CTX_EVAL);
   const gc = con.gates.find(x => x.nombre === 'Personal / equipo de trabajo'), gs = sin.gates.find(x => x.nombre === 'Personal / equipo de trabajo');
   assert(gc && gc.estado === 'ok' && /Ing\. Pérez/.test(gc.detalle), 'con personal registrado: ' + JSON.stringify(gc));
   assert(gs && gs.estado === 'nd' && sin.veredicto !== 'GO', 'sin personal registrado queda por verificar y no es GO: ' + JSON.stringify(gs));
 });
 
+await check('CR2-1: el gate de Personal no da OK por una palabra suelta (cargo distinto, años insuficientes o sin dato, otra especialidad)', () => {
+  const pers = o => ({ x: Object.assign({ nombre: 'Persona', cargo: '', formacion: '', anos: '' }, o) });
+  const g = (snippet, o) => expEngine.gatePersonalRequerido([{ snippet: snippet }], pers(o));
+  const REQ = 'Director de obra ingeniero civil con 10 años de experiencia y especialización en gerencia de proyectos';
+  assert(g(REQ, { cargo: 'Residente de obra', formacion: 'Ingeniero civil', anos: '1', experiencia: '1 año' }).estado !== 'ok', 'residente con 1 año no acredita al director');
+  assert(g('Ingeniero sanitario con 5 años de experiencia', { cargo: 'Director', formacion: 'Ingeniero civil', anos: '8' }).estado !== 'ok', 'civil no acredita sanitario');
+  assert(g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '' }).estado !== 'ok', 'sin años del perfil no se da OK');
+  assert(g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '6' }).estado !== 'ok', '6 años < 10');
+  assert(g(REQ, { cargo: 'Residente de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', experiencia: 'Director de obra en varios proyectos', anos: '12' }).estado !== 'ok', 'las palabras deben estar en el CARGO, no solo en la experiencia libre');
+  assert(g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', anos: '12' }).estado !== 'ok', 'falta la especialización pedida: una sola coincidencia no basta');
+  const bien = g(REQ, { nombre: 'Ing. Gómez', cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '12' });
+  assert(bien.estado === 'ok' && /Ing\. Gómez/.test(bien.detalle) && /coincide:/.test(bien.detalle), 'control: perfil completo sí, y dice qué coincidió: ' + JSON.stringify(bien));
+  const parcial = g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '6' });
+  assert(parcial.estado === 'nd' && /falta/.test(parcial.detalle), 'parcial: nd explicando qué falta: ' + JSON.stringify(parcial));
+});
 await check('evaluarContraPerfiles: evalúa cada perfil con el mismo contexto y devuelve el mejor (GO > REVISAR > NO-GO)', () => {
   const perfil = (id, kResidual) => ({ _id: id, nombre: 'Empresa ' + id, rup: '', k: 'Índice de liquidez: 1.5\nNivel de endeudamiento: 0.4', kResidual: kResidual });
   const ctx = Object.assign({}, CTX_EVAL, { perfiles: [perfil('chica', '$100.000.000'), perfil('grande', '$900.000.000')] });
   const r = expEngine.evaluarContraPerfiles(itemProceso(), { daysLeft: 10 }, entryFeliz(), ctx);
   assert(r.porPerfil.length === 2, 'un resultado por perfil');
-  assert(r.mejor.perfil === 'Empresa grande' && r.mejor.veredicto === 'GO', 'el mejor es la empresa con capacidad suficiente: ' + r.mejor.perfil + ' ' + r.mejor.veredicto);
+  assert(r.mejor.perfil === 'Empresa grande', 'el mejor es la empresa con capacidad suficiente: ' + r.mejor.perfil + ' ' + r.mejor.veredicto);
+  // CR2-2: con 2+ empresas marcadas (consorcio) los indicadores no se combinan: nunca GO, y un gate lo explica.
+  assert(r.mejor.veredicto === 'REVISAR' && r.mejor.gates.some(g => g.nombre === 'Consorcio / unión temporal' && g.estado === 'nd'), 'dos empresas marcadas: REVISAR con el gate de consorcio: ' + r.mejor.veredicto);
   assert(r.porPerfil.find(x => x.perfil === 'Empresa chica').veredicto !== 'GO', 'la empresa sin capacidad no llega a GO');
+  const sola = expEngine.evaluarContraPerfiles(itemProceso(), { daysLeft: 10 }, entryFeliz(), Object.assign({}, CTX_EVAL, { perfiles: [perfil('grande', '$900.000.000')] }));
+  assert(sola.mejor.veredicto === 'GO' && !sola.mejor.gates.some(g => g.nombre === 'Consorcio / unión temporal'), 'una sola empresa: sin gate de consorcio y GO como antes: ' + sola.mejor.veredicto);
   assert(expEngine.evaluarContraPerfiles(itemProceso(), { daysLeft: 10 }, entryFeliz(), Object.assign({}, CTX_EVAL, { perfiles: [] })) === null, 'sin perfiles no hay evaluación');
 });
 
@@ -4386,6 +4670,45 @@ await check('recalcularExpevalActivo: dos perfiles con contratos propios, ambos 
   assert(combinado.contratos.some(c => c._perfilId === 'a') && combinado.contratos.some(c => c._perfilId === 'b'), 'cada contrato debe quedar etiquetado con la empresa de la que vino: ' + JSON.stringify(combinado.contratos.map(c => c._perfilId)));
   const meta = expEngine.getExpevalMeta();
   assert(meta.nContratos === 2 && /2 empresa/.test(meta.expFile), 'expevalMeta debe reflejar las 2 empresas combinadas: ' + JSON.stringify(meta));
+});
+// ---- Auditoría 2026-10-16, familia 4: lectura de montos/indicadores del perfil y consorcio (CR2-3, CR2-4, CR2-5) ----
+await check('CR2-3: parseValorUnidad no mezcla unidades ni elige el mayor entre cifras distintas (pesos + SMMLV, dos años, tope + total)', () => {
+  const p = expEngine.parseValorUnidad;
+  assert(p('$2.500.000.000 (1.428 SMMLV)') === null, 'pesos y SMMLV juntos: ambiguo -> null, fue ' + JSON.stringify(p('$2.500.000.000 (1.428 SMMLV)')));
+  assert(p('500 SMMLV (50% de 1.000 SMMLV)') === null, 'dos montos distintos: null');
+  assert(p('K 2022: 3.000 millones; 2023: 1.500 millones') === null, 'dos años: null');
+  assert(p('1.000.000 SMMLV ($1.000.000 pesos)') === null, 'misma cifra en dos unidades distintas: null');
+  const a = p('15.000 SMMLV'); assert(a && a.valor === 15000 && a.unidad === 'SMMLV', 'control SMMLV simple');
+  const b = p('$1.500 millones'); assert(b && b.valor === 1.5e9 && b.unidad === 'COP', 'control millones');
+  const c = p('quince mil (15.000) SMMLV'); assert(c && c.valor === 15000 && c.unidad === 'SMMLV', 'control letras + número');
+  const d = p('$1.500.000.000 (mil quinientos millones de pesos)'); assert(d && d.valor === 1.5e9, 'el mismo monto en cifra y en letras no es conflicto');
+  const e = p('30% de $1.500 millones'); assert(e && e.valor === 1.5e9, 'el porcentaje no cuenta como monto distinto');
+});
+await check('CR2-4: un indicador del perfil con dos valores (dos años) en la misma frase es ambiguo, no el primero', () => {
+  const l = expEngine.leerIndiceDePerfil;
+  assert(l('Endeudamiento: 0,35 (2022) y 0,82 (2023)', /endeudamiento/i, 'endeudamiento') === null, 'dos años: ambiguo');
+  assert(l('Liquidez: 2,5 (2022) / 1,1 (2023)', /liquidez/i, 'liquidez') === null, 'dos años: ambiguo');
+  assert(l('Liquidez: 1,8', /liquidez/i, 'liquidez') === 1.8, 'control: un valor');
+  assert(l('Liquidez a 31/12/2024: 0,8', /liquidez/i, 'liquidez') === 0.8, 'control: la fecha no cuenta');
+});
+await check('CR2-5: el mismo contrato cargado por dos empresas del consorcio cuenta UNA vez (y se avisa)', () => {
+  const ct = (obj) => ({ objeto: obj, valor: 1000000000, numeroContrato: 'LP-012-2021', contratante: 'Municipio de Cúcuta', fechaInicio: '2021-03-01', fechaFin: '2022-02-28' });
+  const exp = (c) => ({ headers: ['Objeto', 'Valor'], cols: {}, contratos: [c], nHojas: 1, fuente: 'xlsx' });
+  expEngine.setPerfiles(Object.assign({}, perfilFixture('a', 'Alfa'), perfilFixture('b', 'Beta')));
+  expEngine.setPerfilesActivos(['a', 'b']); expEngine.setPerfilActivoId('a');
+  expEngine.setExpevalPorPerfil({ a: { contratos: exp(ct('Construcción de puente')), meta: {} }, b: { contratos: exp(ct('Construccion de puente vehicular')), meta: {} } });
+  expEngine.recalcularExpevalActivo();
+  const m = expEngine.getExpevalContratos();
+  assert(m.contratos.length === 1, 'un solo contrato real: ' + m.contratos.length);
+  assert(/Alfa/.test(m.contratos[0]._perfilNombre) && /Beta/.test(m.contratos[0]._perfilNombre), 'debe decir que lo aportan ambas: ' + m.contratos[0]._perfilNombre);
+  assert(expEngine.getExpevalMeta().compartidos === 1, 'meta.compartidos');
+  // Control: dos contratos distintos (otro número) siguen sumándose; sin número de contrato no se adivina.
+  expEngine.setExpevalPorPerfil({ a: { contratos: exp(ct('x')), meta: {} }, b: { contratos: exp(Object.assign(ct('x'), { numeroContrato: 'LP-099-2021' })), meta: {} } });
+  expEngine.recalcularExpevalActivo();
+  assert(expEngine.getExpevalContratos().contratos.length === 2, 'números distintos: dos contratos');
+  expEngine.setExpevalPorPerfil({ a: { contratos: exp(Object.assign(ct('x'), { numeroContrato: '' })), meta: {} }, b: { contratos: exp(Object.assign(ct('x'), { numeroContrato: '' })), meta: {} } });
+  expEngine.recalcularExpevalActivo();
+  assert(expEngine.getExpevalContratos().contratos.length === 2, 'sin número de contrato no se deduplica');
 });
 
 await check('recalcularExpevalActivo: el combinado lleva los códigos UNSPSC del RUP solo en los contratos con cruce confirmado, y solo de su propia empresa', () => {
@@ -6446,6 +6769,33 @@ await check('MG-012: longitud de vía — km se convierten, m² no cuentan, las 
 const TUB_RA = 'y que contemple como mínimo las mismas condiciones técnicas el cual corresponde a PVC, por lo anterior se requiere que acredite una longitud de tubería de 1.000,50 ml en tubería PVC, en diámetros entre 8” y 12”.';
 const mkRA = (items, extra) => Object.assign({ numeroContrato: 'C1', formatoMaestro: { cantidades: items.map(([i, c, u]) => ({ item: i, cantidad: c, unidad: u })) } }, extra || {});
 const evRA = (frase, cs, o) => Magnitudes.evaluar(Magnitudes.parsearExigencia(frase), cs, o || {});
+// ---- Auditoría 2026-10-16, familia 5: magnitudes (CR2-6, FI2-7) ----
+const POZ_AUD = 'Por lo menos uno (1) de los contratos válidos aportados debe contar con pozos de inspección y por lo tanto acredite 19 UND.';
+const CON_AUD = 'Por lo menos uno (1) de los contratos válidos aportados debe contar con conexiones domiciliarias y por lo tanto acredite 100 UND.';
+await check('CR2-6: los componentes de un pozo (cono, anillo, tapa), pozos sépticos/de bombeo y ajustes a pozos existentes no cuentan como pozos de inspección', () => {
+  const ev = items => evRA(POZ_AUD, [mkRA(items)]);
+  assert(ev([['Pozo de inspección h=2.0 m', 10, 'und'], ['Cono para pozo de inspección', 10, 'und']]).estado === 'NO CUMPLE', 'pozo + cono no son 20 pozos');
+  assert(ev([['Pozo de inspección h=2.0 m', 10, 'und'], ['Anillo en concreto para pozo', 10, 'und']]).estado === 'NO CUMPLE', 'pozo + anillos no son 20 pozos');
+  assert(ev([['Pozo séptico', 25, 'und']]).estado !== 'CUMPLE', 'pozo séptico no es pozo de inspección');
+  assert(ev([['Pozo de bombeo', 25, 'und']]).estado !== 'CUMPLE', 'pozo de bombeo no es pozo de inspección');
+  assert(ev([['Ajuste de pozo existente', 25, 'und']]).estado !== 'CUMPLE', 'ajuste a pozo existente no es un pozo nuevo');
+  assert(ev([['Pozo de inspección h=2.0 m', 20, 'und']]).estado === 'CUMPLE', 'control: 20 pozos sí');
+});
+await check('CR2-6: suministro + instalación de la MISMA conexión o pozo no se suman (queda para confirmar), como en la tubería', () => {
+  const con = evRA(CON_AUD, [mkRA([['Suministro de conexión domiciliaria alcantarillado', 60, 'und'], ['Instalación de conexión domiciliaria alcantarillado', 60, 'und']])]);
+  assert(con.estado === 'NO DETERMINABLE', 'suministro 60 + instalación 60 no son 120: ' + con.estado + ' ' + con.detalle);
+  assert(evRA(CON_AUD, [mkRA([['Suministro de conexión domiciliaria alcantarillado', 100, 'und'], ['Instalación de conexión domiciliaria alcantarillado', 100, 'und']])]).estado === 'CUMPLE', 'si cada línea sola alcanza, cumple');
+  assert(evRA(CON_AUD, [mkRA([['Conexión domiciliaria alcantarillado 6"', 60, 'und'], ['Conexión domiciliaria alcantarillado 8"', 50, 'und']])]).estado === 'CUMPLE', 'control: ítems distintos sí se suman');
+  const poz = evRA(POZ_AUD, [mkRA([['Suministro pozo de inspección', 12, 'und'], ['Instalación pozo de inspección', 12, 'und']])]);
+  assert(poz.estado === 'NO DETERMINABLE', 'pozos suministro + instalación: ' + poz.estado);
+});
+await check('FI2-7: "diámetro ≥ 8" y ≤ 12"" respeta el máximo (una tubería de 24" no cumple)', () => {
+  const frase = 'y que contemple como mínimo las mismas condiciones técnicas el cual corresponde a PVC, por lo anterior se requiere que acredite una longitud de tubería de 1.000,50 ml en tubería PVC, en diámetros mayor o igual a 8” y menor o igual a 12”.';
+  const ex = Magnitudes.parsearExigencia(frase);
+  assert(ex.diametroMinPulg === 8 && ex.diametroMaxPulg === 12, 'min/max: ' + ex.diametroMinPulg + '/' + ex.diametroMaxPulg);
+  assert(Magnitudes.evaluar(ex, [mkRA([['Tubería PVC 24"', 1200, 'ml']])]).estado !== 'CUMPLE', 'tubería de 24" fuera del rango no cumple');
+  assert(Magnitudes.evaluar(ex, [mkRA([['Tubería PVC 10"', 1200, 'ml']])]).estado === 'CUMPLE', 'control: 10" sí');
+});
 await check('MG-013 (RA2-1): suministro + instalación del mismo tubo, filas TOTAL y filas repetidas no se suman como si fueran metros distintos', () => {
   assert(evRA(TUB_RA, [mkRA([['Tubería PVC sanitaria 8"', 1200, 'ml']])]).estado === 'CUMPLE', 'una línea suficiente sigue cumpliendo');
   const sumInst = evRA(TUB_RA, [mkRA([['Suministro de tubería PVC 8"', 600, 'ml'], ['Instalación de tubería PVC 8"', 600, 'ml']])]);
