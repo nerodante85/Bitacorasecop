@@ -3878,6 +3878,14 @@ await check('FI2-5: la RC extracontractual no toma el umbral del tramo ("inferio
   const c = g('Se exigirá responsabilidad civil extracontractual por valor asegurado de 200 SMMLV.');
   assert(c && /200 SMMLV/.test(c.exige), 'control: una sola cifra');
 });
+await check('FI2-6: en una tabla de personal con el cargo ANTES de sus datos, los años y contratos no se corren de un cargo al siguiente (no se asignan)', () => {
+  const t = 'Requisitos del personal CARGO FORMACIÓN Requisitos de Experiencia General Específica DIRECTOR DE OBRA Ingeniero civil (5) años (2) contratos RESIDENTE DE OBRA Ingeniero civil (3) años (1) contratos INSPECTOR DE OBRA Tecnólogo (2) años (1) contratos';
+  const f = expEngine.fichaHabilitante(t, { anio: 2026 });
+  const personal = f.filas.filter(x => x.grupo === 'Personal');
+  assert(personal.length >= 1, 'los cargos siguen apareciendo: ' + personal.length);
+  assert(!personal.some(x => /contrato\(s\)|años de experiencia/.test(x.cifras)), 'no se asignan años/contratos con orden dudoso: ' + JSON.stringify(personal.map(x => [x.requisito, x.cifras])));
+  assert(f.avisos.some(a => /orden|tabla/i.test(a) && /cargo/i.test(a)), 'se avisa que el orden de la tabla no permite asociar: ' + f.avisos.join(' || ').slice(0, 300));
+});
 await check('fichaHabilitante: datos del proceso (objeto, presupuesto en pesos y SMMLV, plazo, sin anticipo) con la página de cada dato', () => {
   const f = fichaDe();
   assert(/PUENTE DE LA MIEL/.test(filaF(f, 'Objeto').exige), 'objeto');

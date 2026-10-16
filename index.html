@@ -8507,6 +8507,13 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         hechas.push({ nombre: mc.nombre, contratos: cs.length === 1 ? cs[0][1] : null, anos: ys.length === 1 ? ys[0][1] : null });
         desde = mc.i + mc.nombre.length;
       });
+      // Auditoría FI2-6: esta lectura asigna a cada cargo los datos que van ANTES de su nombre (anexos CCE: la celda del cargo va centrada
+      // verticalmente). Si tras el último cargo todavía quedan «(N) años / (N) contratos», la tabla va con el cargo ARRIBA de sus datos y
+      // cada cargo recibiría los del anterior: en ese caso no se asigna ningún dato y se avisa.
+      if (hechas.length && /\(\d{1,2}\)\s*(?:contratos?|a[ñn]os)\b/i.test(ventana.slice(desde))){
+        hechas.forEach(h => { h.contratos = null; h.anos = null; });
+        avisos.push('La tabla de personal trae datos de años y contratos después del último cargo: el orden de las columnas no permite asociarlos a cada cargo con seguridad, y no se asignó ninguno. Consúltalos en el original.');
+      }
       const titulo = x => (x.charAt(0).toUpperCase() + x.slice(1).toLowerCase()).replace(/sg-sst/i, 'SG-SST').replace(/\bsst\b/i, 'SST');
       const vistos = {};
       const KEYS = ['residente', 'director', 'inspector', 'hidraul', 'pavimento', 'sst', 'social', 'ambiental', 'topograf', 'estructural', 'geotecn'];
