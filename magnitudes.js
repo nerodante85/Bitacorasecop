@@ -144,8 +144,9 @@
     }
     if (/longitud\s+intervenida/.test(s)) {
       out.actividad = 'via';
-      const c = ultimaCifra(/(\d[\d.,]*)\s*(?:ml|km)\b/gi);
-      if (c) { const n = numero(c[1]); out.cifra = n.valor; out.unidad = 'ml'; out.ambiguo = n.ambiguo; }
+      const c = ultimaCifra(/(\d[\d.,]*)\s*(ml|kms?)\b/gi);
+      // «4,00 Kms» son 4.000 ml: la unidad de salida es siempre ml (antes un valor en km se leía como si fuera ml).
+      if (c) { const n = numero(c[1]); out.cifra = (n.valor != null && /^km/i.test(c[2])) ? n.valor * 1000 : n.valor; out.unidad = 'ml'; out.ambiguo = n.ambiguo; }
       const pctM = f.match(/(\d{1,3}(?:[.,]\d+)?)\s*%/);
       const totM = f.match(/(?:valor\s+referente\s+es|la\s+cual\s+es\s+de|equivale\s+a)\s*\(?\s*(\d[\d.,]*)\s*ml/i);
       if (pctM && totM && out.cifra != null) {

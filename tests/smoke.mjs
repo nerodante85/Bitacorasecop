@@ -3989,6 +3989,27 @@ await check('FI2-6: en una tabla de personal con el cargo ANTES de sus datos, lo
   assert(!personal.some(x => /contrato\(s\)|años de experiencia/.test(x.cifras)), 'no se asignan años/contratos con orden dudoso: ' + JSON.stringify(personal.map(x => [x.requisito, x.cifras])));
   assert(f.avisos.some(a => /orden|tabla/i.test(a) && /cargo/i.test(a)), 'se avisa que el orden de la tabla no permite asociar: ' + f.avisos.join(' || ').slice(0, 300));
 });
+// ---- Prueba con pliegos reales (2026-10-16): garantías en tabla «Amparo | % | Vigencia» y exigencias de longitud ----
+const GAR_REAL_NDS = 'Amparos, vigencia y valores asegurados AMPAROS EXIGIBLES (%) VIGENCIA GARANTÍA ÚNICA Cumplimiento de las obligaciones surgidas del contrato estatal. 15 % valor del contrato Plazo del contrato y cuatro (4) meses más. en caso de no ser liquidado en este plazo la garantía deberá extenderse hasta la liquidación del contrato Pago de salarios, prestaciones sociales, indemnizaciones y aportes parafiscales. 15 % valor del contrato Plazo del contrato y tres (3) años más. Estabilidad de la obra. 30% valor del contrato Cinco (5) años contados a partir de la suscripción del acta de recibo definitivo de las obras por parte del departamento. Tomador • Para las personas jurídicas: la garantía deberá tomarse con el nombre o razón social.';
+await check('Pliego real (Gobernación NdS, CCE v4): garantías en tabla -- cumplimiento, salarios y estabilidad con SU propia cifra y vigencia (la vigencia de 5 años es de la estabilidad, no de los salarios)', () => {
+  const f = expEngine.fichaHabilitante(GAR_REAL_NDS, { anio: 2026 });
+  const g = n => f.filas.find(x => x.grupo === 'Garantías' && x.requisito === n);
+  const cu = g('Garantía de cumplimiento'), sa = g('Garantía de pago de salarios y prestaciones'), es = g('Garantía de estabilidad y calidad de la obra');
+  assert(cu && /^15% del valor del contrato/.test(cu.exige) && /cuatro \(4\) meses/.test(cu.cifras), 'cumplimiento: ' + (cu && cu.exige + ' | ' + cu.cifras));
+  assert(sa && /^15% del valor del contrato/.test(sa.exige) && /tres \(3\) años/.test(sa.cifras) && !/Cinco/.test(sa.cifras), 'salarios: ' + (sa && sa.exige + ' | ' + sa.cifras));
+  assert(es && /^30% del valor del contrato/.test(es.exige) && /Cinco \(5\) años/.test(es.cifras), 'estabilidad: ' + (es && es.exige + ' | ' + es.cifras));
+});
+await check('Pliego real: «longitud intervenida … 80% … Longitud a intervenir: 5,00 Kms; 80% = 4,00 Kms» queda como fila (4.000 ml) y una exigencia de longitud SIN cifra en el documento se muestra como tal, nunca se omite en silencio', () => {
+  const A = 'Por lo menos uno (1) de los contratos válidos aportados como experiencia general debe contar con una longitud Intervenida correspondiente a por lo menos el 80% de la longitud de carretera a intervenir mediante el presente proceso de contratación. Longitud a intervenir: 5,00 Kms; 80% = 4,00 Kms Que hayan contenido la ejecución de: CONSTRUCCIÓN O ADECUACIÓN DE OBRAS DE DRENAJE.';
+  const fa = expEngine.fichaHabilitante(A, { anio: 2026 });
+  const ra = fa.filas.filter(x => x.grupo === 'Experiencia' && /longitud/i.test(x.exige));
+  assert(ra.length === 1 && /4,00 Kms/.test(ra[0].cifras) && ra[0].dato && ra[0].dato.tipo === 'magnitud' && ra[0].dato.exigencia.cifra === 4000, 'A: ' + JSON.stringify(ra.map(x => [x.requisito, x.cifras, x.dato && x.dato.exigencia])));
+  const D = 'A. Que hayan contenido la ejecución de: CONSTRUCCIÓN O MEJORAMIENTO EN PLACA HUELLA DE VÍAS TERCIARIAS. Por lo menos uno (1) de los contratos válidos aportados como experiencia general cuenta con una longitud intervenida que corresponda al 50% de la longitud de vía a intervenir mediante el presente proceso de contratación. Por lo menos uno (1) de los contratos válidos aportados como experiencia general cuenta con una longitud intervenida que corresponda al 50% de la longitud de vía a intervenir mediante el presente proceso de contratación. B. Estar relacionados en el Formato 3.';
+  const fd = expEngine.fichaHabilitante(D, { anio: 2026 });
+  const rd = fd.filas.filter(x => x.grupo === 'Experiencia' && /longitud intervenida/i.test(x.exige));
+  assert(rd.length === 1 && /sin cifra/i.test(rd[0].cifras), 'D: una sola fila (la frase repetida se une), diciendo que no trae cifra: ' + JSON.stringify(rd.map(x => [x.requisito, x.cifras])));
+  assert(expEngine.cruceFichaEmpresa(rd, { contratos: [] })[rd[0].requisito].estado === 'NO DETERMINABLE', 'sin cifra nunca se cruza a CUMPLE');
+});
 await check('fichaHabilitante: datos del proceso (objeto, presupuesto en pesos y SMMLV, plazo, sin anticipo) con la página de cada dato', () => {
   const f = fichaDe();
   assert(/PUENTE DE LA MIEL/.test(filaF(f, 'Objeto').exige), 'objeto');
