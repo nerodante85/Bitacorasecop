@@ -6592,6 +6592,33 @@ await check('MG-012: longitud de vía — km se convierten, m² no cuentan, las 
 const TUB_RA = 'y que contemple como mínimo las mismas condiciones técnicas el cual corresponde a PVC, por lo anterior se requiere que acredite una longitud de tubería de 1.000,50 ml en tubería PVC, en diámetros entre 8” y 12”.';
 const mkRA = (items, extra) => Object.assign({ numeroContrato: 'C1', formatoMaestro: { cantidades: items.map(([i, c, u]) => ({ item: i, cantidad: c, unidad: u })) } }, extra || {});
 const evRA = (frase, cs, o) => Magnitudes.evaluar(Magnitudes.parsearExigencia(frase), cs, o || {});
+// ---- Auditoría 2026-10-16, familia 5: magnitudes (CR2-6, FI2-7) ----
+const POZ_AUD = 'Por lo menos uno (1) de los contratos válidos aportados debe contar con pozos de inspección y por lo tanto acredite 19 UND.';
+const CON_AUD = 'Por lo menos uno (1) de los contratos válidos aportados debe contar con conexiones domiciliarias y por lo tanto acredite 100 UND.';
+await check('CR2-6: los componentes de un pozo (cono, anillo, tapa), pozos sépticos/de bombeo y ajustes a pozos existentes no cuentan como pozos de inspección', () => {
+  const ev = items => evRA(POZ_AUD, [mkRA(items)]);
+  assert(ev([['Pozo de inspección h=2.0 m', 10, 'und'], ['Cono para pozo de inspección', 10, 'und']]).estado === 'NO CUMPLE', 'pozo + cono no son 20 pozos');
+  assert(ev([['Pozo de inspección h=2.0 m', 10, 'und'], ['Anillo en concreto para pozo', 10, 'und']]).estado === 'NO CUMPLE', 'pozo + anillos no son 20 pozos');
+  assert(ev([['Pozo séptico', 25, 'und']]).estado !== 'CUMPLE', 'pozo séptico no es pozo de inspección');
+  assert(ev([['Pozo de bombeo', 25, 'und']]).estado !== 'CUMPLE', 'pozo de bombeo no es pozo de inspección');
+  assert(ev([['Ajuste de pozo existente', 25, 'und']]).estado !== 'CUMPLE', 'ajuste a pozo existente no es un pozo nuevo');
+  assert(ev([['Pozo de inspección h=2.0 m', 20, 'und']]).estado === 'CUMPLE', 'control: 20 pozos sí');
+});
+await check('CR2-6: suministro + instalación de la MISMA conexión o pozo no se suman (queda para confirmar), como en la tubería', () => {
+  const con = evRA(CON_AUD, [mkRA([['Suministro de conexión domiciliaria alcantarillado', 60, 'und'], ['Instalación de conexión domiciliaria alcantarillado', 60, 'und']])]);
+  assert(con.estado === 'NO DETERMINABLE', 'suministro 60 + instalación 60 no son 120: ' + con.estado + ' ' + con.detalle);
+  assert(evRA(CON_AUD, [mkRA([['Suministro de conexión domiciliaria alcantarillado', 100, 'und'], ['Instalación de conexión domiciliaria alcantarillado', 100, 'und']])]).estado === 'CUMPLE', 'si cada línea sola alcanza, cumple');
+  assert(evRA(CON_AUD, [mkRA([['Conexión domiciliaria alcantarillado 6"', 60, 'und'], ['Conexión domiciliaria alcantarillado 8"', 50, 'und']])]).estado === 'CUMPLE', 'control: ítems distintos sí se suman');
+  const poz = evRA(POZ_AUD, [mkRA([['Suministro pozo de inspección', 12, 'und'], ['Instalación pozo de inspección', 12, 'und']])]);
+  assert(poz.estado === 'NO DETERMINABLE', 'pozos suministro + instalación: ' + poz.estado);
+});
+await check('FI2-7: "diámetro ≥ 8" y ≤ 12"" respeta el máximo (una tubería de 24" no cumple)', () => {
+  const frase = 'y que contemple como mínimo las mismas condiciones técnicas el cual corresponde a PVC, por lo anterior se requiere que acredite una longitud de tubería de 1.000,50 ml en tubería PVC, en diámetros mayor o igual a 8” y menor o igual a 12”.';
+  const ex = Magnitudes.parsearExigencia(frase);
+  assert(ex.diametroMinPulg === 8 && ex.diametroMaxPulg === 12, 'min/max: ' + ex.diametroMinPulg + '/' + ex.diametroMaxPulg);
+  assert(Magnitudes.evaluar(ex, [mkRA([['Tubería PVC 24"', 1200, 'ml']])]).estado !== 'CUMPLE', 'tubería de 24" fuera del rango no cumple');
+  assert(Magnitudes.evaluar(ex, [mkRA([['Tubería PVC 10"', 1200, 'ml']])]).estado === 'CUMPLE', 'control: 10" sí');
+});
 await check('MG-013 (RA2-1): suministro + instalación del mismo tubo, filas TOTAL y filas repetidas no se suman como si fueran metros distintos', () => {
   assert(evRA(TUB_RA, [mkRA([['Tubería PVC sanitaria 8"', 1200, 'ml']])]).estado === 'CUMPLE', 'una línea suficiente sigue cumpliendo');
   const sumInst = evRA(TUB_RA, [mkRA([['Suministro de tubería PVC 8"', 600, 'ml'], ['Instalación de tubería PVC 8"', 600, 'ml']])]);
