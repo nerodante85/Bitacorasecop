@@ -8948,6 +8948,71 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     return null; // indicadores: demasiado variables para exigir una palabra concreta
   }
 
+  // IA2-2: la verificación por «conjunto de cifras» dejaba pasar liquidez=0,6 y endeudamiento=1,5 intercambiados dentro de la
+  // misma cita literal. Si la cita nombra el indicador, su valor debe estar en el tramo que SIGUE a ese nombre (hasta el nombre
+  // de otro indicador o 90 caracteres). Si la cita no nombra el indicador (tabla con el nombre lejos) no se puede anclar y se
+  // conserva la comprobación anterior.
+  const ETIQUETAS_INDICADOR = [
+    ['liquidez', /liquidez/g], ['endeudamiento', /endeudamiento|nivel de deuda/g], ['cobertura_intereses', /cobertura( de intereses)?/g],
+    ['rentabilidad_patrimonio', /rentabilidad (del|de) patrimonio/g], ['rentabilidad_activo', /rentabilidad (del|de los) activos?/g],
+    ['patrimonio', /patrimonio(?! (?:liquido|neto)? ?de)/g], ['capital_trabajo', /capital de trabajo/g], ['k_residual', /capacidad residual|\bk\b residual/g]
+  ];
+  function motivoCifraFueraDeSuIndicador(fila, cita){
+    if (fila.valor_indicador == null || !fila.indicador) return null;
+    const mia = ETIQUETAS_INDICADOR.filter(e => e[0] === fila.indicador)[0];
+    if (!mia) return null;
+    const t = String(cita || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const marcas = [];
+    ETIQUETAS_INDICADOR.forEach(e => { const re = new RegExp(e[1].source, 'g'); let m; while ((m = re.exec(t))) marcas.push({ clave: e[0], ini: m.index, fin: m.index + m[0].length }); });
+    // «rentabilidad del patrimonio» contiene «patrimonio»: la marca más larga/anterior manda.
+    marcas.sort((a, b) => a.ini - b.ini || b.fin - a.fin);
+    const limpias = []; marcas.forEach(m => { const ult = limpias[limpias.length - 1]; if (!ult || m.ini >= ult.fin) limpias.push(m); });
+    const propias = limpias.filter(m => m.clave === fila.indicador);
+    if (!propias.length) return null;
+    const v = Number(fila.valor_indicador);
+    const coincide = (n, esc) => Math.abs(n - v) < 1e-9 || Math.abs(n / 100 - v) < 1e-9 || (esc && Math.abs(n * esc - v) < 1e-3);
+    const ok = propias.some(m => {
+      const sig = limpias.filter(x => x.ini > m.ini && x.clave !== fila.indicador)[0];
+      const tramo = t.slice(m.fin, Math.min(sig ? sig.ini : m.fin + 90, m.fin + 90));
+      let hay = false; const re = /(\d[\d.,]*\d|\d)(\s*(mil\s+millones|millones|millon))?/g; let mm;
+      while ((mm = re.exec(tramo))){ const n = parseNumCO(mm[1]); if (n != null && coincide(n, mm[2] ? (/mil\s+millones/.test(mm[2]) ? 1e9 : 1e6) : 0)) hay = true; }
+      return hay;
+    });
+    return ok ? null : 'El valor del indicador (' + fila.valor_indicador + ') no está junto al nombre del indicador en la cita (posible cifra de otro indicador).';
+  }
+
+  // IA2-5: campos que cambian el resultado y que la verificación no cotejaba con la cita: acumulable (suma vs «cada uno»),
+  // tope vs mínimo y la regla de conversión de SMMLV (el prompt los pide pero nada comprobaba que la cita los respaldara).
+  function motivoCamposSinRespaldoEnCita(fila, citaNorm){
+    const t = ' ' + citaNorm + ' ';
+    const RE_SUMA = /\b(suma|sumas|sumatoria|sumatorias|sumados|acumul\w*|en conjunto|total de los contratos)\b/;
+    const RE_MAX = /\b(maximo|maximos|maxima|maximas)\b|\bno (?:mayor|superior) a\b|\ba lo sumo\b/;
+    const RE_MIN = /\b(minimo|minimos|minima|minimas|al menos|por lo menos|igual o superior|igual o mayor|mayor o igual|no menor|como minimo)\b/;
+    const conCifraMinima = fila.min_contratos != null || fila.valor_minimo_numero != null || fila.cantidad_minima_numero != null;
+    if (conCifraMinima && RE_MAX.test(t) && !RE_MIN.test(t)) return 'La cita habla de un máximo (tope), no de un mínimo exigido: la fila lo tomó como mínimo.';
+    if (fila.valor_minimo_numero != null || fila.cantidad_minima_numero != null){
+      if (fila.acumulable === true && !RE_SUMA.test(t)) return 'La IA marcó el valor como acumulable (suma de contratos) pero la cita no habla de suma ni acumulación.';
+      if (fila.acumulable !== true && RE_SUMA.test(t)) return 'La cita habla de suma o acumulación y la IA no marcó el requisito como acumulable: contarlo por contrato individual daría un resultado falso.';
+    }
+    return null;
+  }
+
+  // La regla de conversión de SMMLV rara vez va en la misma cita del requisito: se busca en el texto leído del PDF, cerca de
+  // «SMMLV» o «salario mínimo». Si la IA declaró una regla que el documento no dice, la fila no se verifica (quedaría un valor
+  // convertido con un salario mínimo de otro año).
+  function motivoReglaSmmlvSinRespaldo(fila, text){
+    const r = fila.regla_conversion_smmlv;
+    if (r !== 'fecha_terminacion' && r !== 'fecha_inicio') return null;
+    const t = normHeader(text || '');
+    const reRegla = r === 'fecha_terminacion' ? /\b(terminacion|finalizacion|liquidacion|recibo final)\b/g : /\b(inicio|suscripcion|firma|perfeccionamiento)\b/g;
+    const reAncla = /\b(smmlv|smlmv|salarios? minimos?|salario minimo)\b/;
+    let m;
+    while ((m = reRegla.exec(t))){
+      if (reAncla.test(t.slice(Math.max(0, m.index - 220), m.index + 220))) return null;
+    }
+    return 'La IA indicó que el SMMLV se convierte con la fecha de ' + (r === 'fecha_terminacion' ? 'terminación' : 'inicio') + ' pero el pliego leído no dice eso junto al SMMLV.';
+  }
+
   // Coherencia entre la unidad que declara la IA y lo que dice la cita.
   function motivoUnidadIncoherente(fila, cita){
     const hayValor = fila.valor_minimo_numero != null ||
@@ -8983,9 +9048,11 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       const corrida = toks.slice(i, j).join(' ');
       if (padded.indexOf(' ' + corrida + ' ') === -1) return false;
       const prev = toks[i - 1], next = toks[j];
+      // IA2-3: con ambos vecinos en la cita, los DOS deben seguir pegados a la cifra en la página; con uno solo bastaba y una cita
+      // armada con celdas de dos filas de una tabla («Puentes 2 contratos $4.000 M») pasaba. Un vecino solo se acepta si la cita no trae el otro.
       const vecinoOk = (!prev && !next) ||
-        (next && padded.indexOf(' ' + corrida + ' ' + next + ' ') !== -1) ||
-        (prev && padded.indexOf(' ' + prev + ' ' + corrida + ' ') !== -1);
+        (prev && next ? padded.indexOf(' ' + prev + ' ' + corrida + ' ' + next + ' ') !== -1
+          : (next ? padded.indexOf(' ' + corrida + ' ' + next + ' ') !== -1 : padded.indexOf(' ' + prev + ' ' + corrida + ' ') !== -1));
       if (!vecinoOk) return false;
       i = j;
     }
@@ -9005,7 +9072,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       ['el porcentaje del presupuesto oficial', fila.valor_minimo_pct_presupuesto, 'pct', true],
       ['la cantidad mínima', fila.cantidad_minima_numero, 'cantidad', true],
       ['la ventana de años', fila.ventana_anios, 'ventana', true],
-      ['el valor del indicador', fila.valor_indicador, 'indicador', false]
+      // IA2-1: un indicador en pesos/SMMLV (patrimonio, capital de trabajo, K) se verifica como VALOR (con el multiplicador
+      // «millones»); como cifra suelta, «1.200 millones» declarado como 1200 pasaba y se comparaba con el patrimonio en pesos.
+      ['el valor del indicador', fila.valor_indicador, (fila.categoria === 'k_residual' || ['patrimonio', 'capital_trabajo', 'k_residual'].indexOf(fila.indicador) !== -1) ? 'valor' : 'indicador', false]
     ].filter(x => x[1] != null);
     const numsCita = numerosEnTexto(cita);
     const numerosEnLetras = citaNorm.split(' ').map(w => NUMEROS_ESPANOL[w]).filter(n => n != null);
@@ -9030,12 +9099,16 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         return { verificada: false, motivo: 'La cifra de ' + par[0] + ' (' + par[1] + ') aparece en la cita pero no junto a lo que la describe (posible cifra tomada de otro campo).' };
       }
     }
+    const anclaje = motivoCifraFueraDeSuIndicador(fila, cita) || motivoCamposSinRespaldoEnCita(fila, citaNorm);
+    if (anclaje) return { verificada: false, motivo: anclaje };
     const incoherente = motivoUnidadIncoherente(fila, cita);
     if (incoherente) return { verificada: false, motivo: incoherente };
     if (!text || !paginaOffsets || !paginaOffsets.length){
       return { verificada: false, motivo: 'No hay texto del PDF para verificar la cita (PDF escaneado o no leído por completo).' };
     }
     if (citaNorm.length < 12) return { verificada: false, motivo: 'La cita es demasiado corta para verificarla.' };
+    const sinRegla = motivoReglaSmmlvSinRespaldo(fila, text);
+    if (sinRegla) return { verificada: false, motivo: sinRegla };
     const pag = Number(fila.pagina);
     const candidatas = [pag, pag - 1, pag + 1].filter(p => p >= 1).map(p => ({ p: p, t: textoDePaginaPliego(text, paginaOffsets, p) })).filter(x => x.t != null);
     if (!candidatas.length) return { verificada: false, motivo: 'La página ' + pag + ' no está en el texto leído del PDF.' };

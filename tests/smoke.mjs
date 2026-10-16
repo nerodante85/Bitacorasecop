@@ -1296,7 +1296,7 @@ await check('extraerRequisitosDePliego: una zona menciona una tabla/matriz de ex
 // cita contra el texto real del PDF, mapear a requisitos del motor y que una
 // fila sin verificar NUNCA produzca CUMPLE/NO CUMPLE.
 const IA_P1 = 'Portada del pliego de condiciones. Licitación pública. ';
-const IA_P2 = 'Matriz 1 - Experiencia. Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV, obligatorio. ';
+const IA_P2 = 'Matriz 1 - Experiencia. Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV, obligatorio. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
 const IA_TEXTO = IA_P1 + IA_P2;
 const IA_OFFSETS = [{ pagina: 1, hasta: IA_P1.length }, { pagina: 2, hasta: IA_TEXTO.length }];
 function filaIA(extra) {
@@ -2079,6 +2079,63 @@ function verificarUna(fila, texto) {
 }
 const PAG_BASE = 'Se exige mínimo 5 contratos de puentes vehiculares. Valor acumulado 15.000 SMMLV. Plazo 2 meses. ';
 
+// ---- Auditoría 2026-10-16, familia 2: la cita debe respaldar CADA campo que declara la IA (IA2-1, IA2-2, IA2-3, IA2-5) ----
+const filaAud = x => Object.assign({
+  categoria: 'capacidad_financiera', descripcion: 'x', obligatoriedad: 'obligatorio', documento: 'Pliego de Condiciones', pagina: 1,
+  cita_textual: '', confianza: 'alta', modificado_por_adenda: false, objeto_literal: null, naturaleza: 'habilitante',
+  min_contratos: null, valor_minimo_numero: null, valor_minimo_unidad: null, valor_minimo_pct_presupuesto: null, regla_conversion_smmlv: null,
+  cantidad_minima_numero: null, cantidad_minima_unidad: null, acumulable: null, ventana_anios: null, indicador: null, operador: null,
+  valor_indicador: null, unidad_indicador: null, codigos_unspsc: [], grupo_alternativo: null, notas: null }, x);
+const T_IND = 'Indicadores: Índice de liquidez mayor o igual a 1,5. Nivel de endeudamiento menor o igual a 0,6. Patrimonio igual o superior a $1.200 millones de pesos. Capacidad residual (K) mínima: 5.000 millones de pesos.';
+await check('IA2-1: valor_indicador monetario sin el multiplicador "millones" NO se verifica (patrimonio 1200 vs "$1.200 millones"; K 5000 vs "5.000 millones")', () => {
+  const pat = c => verificarUna(filaAud({ indicador: 'patrimonio', operador: '>=', valor_indicador: c, unidad_indicador: 'COP', cita_textual: 'Patrimonio igual o superior a $1.200 millones de pesos' }), T_IND);
+  assert(pat(1200).verificada === false, 'patrimonio 1200 (sin escalar) no debe verificarse: ' + JSON.stringify(pat(1200)));
+  assert(pat(1200000000).verificada === true, 'patrimonio 1.200.000.000 sí: ' + JSON.stringify(pat(1200000000)));
+  const k = c => verificarUna(filaAud({ categoria: 'k_residual', indicador: 'k_residual', valor_indicador: c, unidad_indicador: 'COP', cita_textual: 'Capacidad residual (K) mínima: 5.000 millones de pesos' }), T_IND);
+  assert(k(5000).verificada === false, 'K 5000 no debe verificarse');
+  assert(k(5000000000).verificada === true, 'K 5.000.000.000 sí');
+});
+await check('IA2-2: el valor de un indicador debe estar junto a SU nombre (liquidez y endeudamiento intercambiados dentro de la misma cita no se verifican)', () => {
+  const cita = 'Índice de liquidez mayor o igual a 1,5. Nivel de endeudamiento menor o igual a 0,6';
+  const liq = v => verificarUna(filaAud({ indicador: 'liquidez', operador: '>=', valor_indicador: v, cita_textual: cita }), T_IND);
+  const end = v => verificarUna(filaAud({ indicador: 'endeudamiento', operador: '<=', valor_indicador: v, cita_textual: cita }), T_IND);
+  assert(liq(0.6).verificada === false, 'liquidez=0,6 (es el endeudamiento) no debe verificarse');
+  assert(end(1.5).verificada === false, 'endeudamiento=1,5 (es la liquidez) no debe verificarse');
+  assert(liq(1.5).verificada === true, 'control: liquidez 1,5 sí');
+  assert(end(0.6).verificada === true, 'control: endeudamiento 0,6 sí');
+});
+await check('IA2-3: una cita armada con celdas de DOS filas de una tabla no se verifica como "aproximada"', () => {
+  const pag = 'Experiencia Puentes vehiculares 10 contratos $30.000 millones Andenes y ciclorrutas 2 contratos $4.000 millones Plazo';
+  const falsa = filaAud({ categoria: 'experiencia_especifica', min_contratos: 2, valor_minimo_numero: 4000000000, valor_minimo_unidad: 'COP', cita_textual: 'Puentes vehiculares 2 contratos $4.000 millones' });
+  assert(verificarUna(falsa, pag).verificada === false, 'cita mezclada: ' + JSON.stringify(verificarUna(falsa, pag)));
+  const real = filaAud({ categoria: 'experiencia_especifica', min_contratos: 10, valor_minimo_numero: 30000000000, valor_minimo_unidad: 'COP', cita_textual: 'Puentes vehiculares 10 contratos $30.000 millones' });
+  assert(verificarUna(real, pag).verificada === true, 'control: la fila real sí: ' + JSON.stringify(verificarUna(real, pag)));
+});
+await check('IA2-5: acumulable debe estar respaldado por la cita ("cada uno" no es acumulable; "sumatoria" exige acumulable=true)', () => {
+  const cada = 'Cada uno de los contratos deberá tener un valor igual o superior a $3.000 millones de pesos';
+  const suma = 'La sumatoria del valor de los contratos deberá ser igual o superior a $3.000 millones de pesos';
+  const f = (cita, acum) => verificarUna(filaAud({ categoria: 'experiencia_especifica', valor_minimo_numero: 3000000000, valor_minimo_unidad: 'COP', acumulable: acum, cita_textual: cita }), cita);
+  assert(f(cada, true).verificada === false, '"cada uno" marcado acumulable no se verifica');
+  assert(f(cada, false).verificada === true, 'control: "cada uno" no acumulable sí');
+  assert(f(suma, null).verificada === false, '"sumatoria" con acumulable=null no se verifica');
+  assert(f(suma, false).verificada === false, '"sumatoria" con acumulable=false no se verifica');
+  assert(f(suma, true).verificada === true, 'control: "sumatoria" acumulable sí');
+});
+await check('IA2-5: un tope ("máximo 3 contratos") no se verifica como mínimo; "mínimo 3 contratos" sí', () => {
+  const f = cita => verificarUna(filaAud({ categoria: 'experiencia_especifica', min_contratos: 3, cita_textual: cita }), cita);
+  assert(f('El proponente podrá presentar máximo 3 contratos para acreditar la experiencia').verificada === false, 'máximo no es mínimo');
+  assert(f('El proponente deberá acreditar como mínimo 3 contratos de obra').verificada === true, 'control mínimo');
+});
+await check('IA2-5: regla_conversion_smmlv declarada debe estar en el pliego leído, junto al SMMLV (no basta con que la IA la diga)', () => {
+  const cita = 'El valor de cada contrato deberá ser igual o superior a 3.000 SMMLV';
+  const fila = r => filaAud({ categoria: 'experiencia_especifica', valor_minimo_numero: 3000, valor_minimo_unidad: 'SMMLV', regla_conversion_smmlv: r, cita_textual: cita });
+  const sin = cita + '. Plazo 4 meses.';
+  const con = cita + '. Los valores se convertirán a SMMLV con el salario vigente a la fecha de terminación del contrato.';
+  assert(verificarUna(fila('fecha_terminacion'), sin).verificada === false, 'regla inventada (el pliego no la dice)');
+  assert(verificarUna(fila('fecha_terminacion'), con).verificada === true, 'regla respaldada en el pliego');
+  assert(verificarUna(fila('fecha_inicio'), con).verificada === false, 'regla contraria a la del pliego');
+  assert(verificarUna(fila(null), sin).verificada === true, 'sin regla declarada no se exige');
+});
 await check('IA-001: cifra alterada que SÍ aparece en otra parte de la página ("2" de "plazo 2 meses") NO se verifica (antes pasaba como aproximada)', () => {
   const fila = filaIA({ pagina: 1, min_contratos: 2, cita_textual: 'valor acumulado 15.000 SMMLV puentes vehiculares mínimo 2 contratos' });
   const v = verificarUna(fila, PAG_BASE);
@@ -2099,9 +2156,9 @@ await check('IA-001: campos INTERCAMBIADOS (min_contratos=15000, valor=2) NO se 
 });
 
 await check('IA-001 (control positivo): una fila correcta con la cita exacta y otra aproximada legítima (tabla reordenada) SIGUEN verificándose', () => {
-  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
   assert(verificarUna(filaIA({ pagina: 1 }), texto).verificada === true, 'la fila correcta debe verificarse');
-  const tabla = 'Objeto | Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV | ';
+  const tabla = 'Objeto | Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV | Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
   const v = verificarUna(filaIA({ pagina: 1, cita_textual: 'Puentes vehiculares mínimo 2 contratos valor acumulado 15.000 SMMLV' }), tabla);
   assert(v.verificada === true, 'la cita reordenada de una tabla con cifras en su lugar debe verificarse, fue ' + JSON.stringify(v));
 });
@@ -2136,7 +2193,7 @@ await check('IA-003: una descripción DILUIDA ("obras civiles") con objeto liter
 });
 
 await check('IA-003: sin objeto literal (o que no está en la cita) la fila de experiencia queda SIN CONFIRMAR -> NO DETERMINABLE, y confirmada por el usuario sí decide', () => {
-  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ';
+  const texto = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
   for (const literal of [null, 'obras civiles']) {
     const fila = filaIA({ pagina: 1, objeto_literal: literal });
     const v = expEngine.verificarFilasIA([fila], texto, [{ pagina: 1, hasta: texto.length }])[0];
@@ -2184,10 +2241,10 @@ await check('IA-004: experiencia con "3 contratos" (pliego) y "2 contratos" (ade
 });
 
 await check('IA-005: una fila "opcional" cuya cita no lo indica queda bloqueada (ocultaba un NO CUMPLE); con marcador en la cita NO se bloquea', () => {
-  const sinMarca = expEngine.verificarFilasIA([filaIA({ pagina: 1, obligatoriedad: 'opcional' })], 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ', [{ pagina: 1, hasta: 100 }])[0];
+  const sinMarca = expEngine.verificarFilasIA([filaIA({ pagina: 1, obligatoriedad: 'opcional' })], 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ', [{ pagina: 1, hasta: 100 }])[0];
   assert(/opcional/.test(expEngine.motivoBloqueoFilaIA(sinMarca) || ''), 'opcional sin marcador en la cita debe bloquearse');
   const conMarca = expEngine.verificarFilasIA([filaIA({ pagina: 1, obligatoriedad: 'opcional', cita_textual: 'Podrá acreditar puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV' })],
-    'Podrá acreditar puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. ', [{ pagina: 1, hasta: 100 }])[0];
+    'Podrá acreditar puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ', [{ pagina: 1, hasta: 100 }])[0];
   assert(expEngine.motivoBloqueoFilaIA(conMarca) === null, 'opcional con "podrá" en la cita no debe bloquearse, fue ' + expEngine.motivoBloqueoFilaIA(conMarca));
 });
 
