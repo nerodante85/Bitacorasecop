@@ -4481,6 +4481,7 @@ await check('CR2-3: parseValorUnidad no mezcla unidades ni elige el mayor entre 
   assert(p('$2.500.000.000 (1.428 SMMLV)') === null, 'pesos y SMMLV juntos: ambiguo -> null, fue ' + JSON.stringify(p('$2.500.000.000 (1.428 SMMLV)')));
   assert(p('500 SMMLV (50% de 1.000 SMMLV)') === null, 'dos montos distintos: null');
   assert(p('K 2022: 3.000 millones; 2023: 1.500 millones') === null, 'dos años: null');
+  assert(p('1.000.000 SMMLV ($1.000.000 pesos)') === null, 'misma cifra en dos unidades distintas: null');
   const a = p('15.000 SMMLV'); assert(a && a.valor === 15000 && a.unidad === 'SMMLV', 'control SMMLV simple');
   const b = p('$1.500 millones'); assert(b && b.valor === 1.5e9 && b.unidad === 'COP', 'control millones');
   const c = p('quince mil (15.000) SMMLV'); assert(c && c.valor === 15000 && c.unidad === 'SMMLV', 'control letras + número');
