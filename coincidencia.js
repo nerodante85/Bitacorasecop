@@ -159,8 +159,8 @@
 
   // Municipio EN EL SERVIDOR (superconjunto del filtro exacto del navegador, matchesMunicipio): cada palabra de 4+ letras
   // debe aparecer en la ciudad de la entidad o en la de la unidad de contratación. Como el dato lleva tildes y Ñ
-  // ("Ocaña", "CÚCUTA") y LIKE no las ignora, cada palabra se reduce a su esqueleto de consonantes con '%' donde había
-  // vocales ("cucuta" -> %C%C%T%); la N se prueba como N y como Ñ (una Ñ escrita por el usuario queda literal).
+  // ("Ocaña", "CÚCUTA") y LIKE no las ignora, cada vocal se vuelve el comodín '_' (una vocal con tilde sigue siendo UN
+  // carácter: "cucuta" -> %C_C_T_%); la N se prueba como N y como Ñ (una Ñ escrita por el usuario queda literal).
   function patronesMunicipio(palabra) {
     const base = String(palabra).toLowerCase().replace(/ñ/g, '\u0001').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z\u0001]/g, '');
     const ns = (base.match(/n/g) || []).length;
@@ -168,14 +168,14 @@
     base.split('').forEach(ch => {
       let opciones;
       if (ch === '\u0001') opciones = ['Ñ'];
-      else if (/[aeiou]/.test(ch)) opciones = ['%'];
+      else if (/[aeiou]/.test(ch)) opciones = ['_'];
       else if (ch === 'n') opciones = ns <= 2 ? ['N', 'Ñ'] : ['_'];
       else opciones = [ch.toUpperCase()];
       const sig = [];
-      patrones.forEach(pt => opciones.forEach(o => sig.push(o === '%' && pt.slice(-1) === '%' ? pt : pt + o)));
+      patrones.forEach(pt => opciones.forEach(o => sig.push(pt + o)));
       patrones = sig;
     });
-    return patrones.map(pt => '%' + pt.replace(/%+/g, '%').replace(/^%/, '').replace(/%$/, '') + '%');
+    return patrones.map(pt => '%' + pt + '%');
   }
   function filtroMunicipio(municipios) {
     const grupos = [];
@@ -193,6 +193,19 @@
     });
     if (!grupos.length) return '';
     return grupos.length === 1 ? grupos[0] : '(' + grupos.join(' OR ') + ')';
+  }
+
+  // Entidad EN EL SERVIDOR (superconjunto de coincideEntidad del navegador): basta con exigir las palabras largas
+  // (4+ letras; si no hay, las de 3 o 2), cada una con las vocales como comodín '_'. Con la entidad solo en el navegador la
+  // UFPS tenía 385 procesos en 60 días y llegaban 3 (INVÍAS: ninguno de ~5.000).
+  function filtroEntidad(texto) {
+    const todas = normalizeGeo(texto).split(' ').filter(w => w.length >= 2);
+    if (!todas.length) return '';
+    let palabras = todas.filter(w => w.length >= 4);
+    if (!palabras.length) palabras = todas.filter(w => w.length >= 3);
+    if (!palabras.length) palabras = todas;
+    const conds = palabras.map(w => '(' + patronesMunicipio(w).map(p => "upper(entidad) like '" + p + "'").join(' OR ') + ')');
+    return conds.length === 1 ? conds[0] : '(' + conds.join(' AND ') + ')';
   }
 
   // Mapa municipio -> departamento sacado del propio dataset (pares ciudad_entidad/departamento_entidad
@@ -245,8 +258,10 @@
     const lic = opciones && opciones.soloLicitacionObra
       ? " AND upper(modalidad_de_contratacion) like '%LICITACI%BLICA%' AND upper(modalidad_de_contratacion) like '%OBRA%'" : '';
     const mun = filtroMunicipio(opciones && opciones.municipios);
-    const y = (dep ? ' AND ' + dep : '') + lic + (mun ? ' AND ' + mun : '');
-    const yVigentes = (dep ? ' AND ' + filtroDepartamento(geos, true) : '') + lic + (mun ? ' AND ' + mun : '');
+    const ent = filtroEntidad(opciones && opciones.entidad);
+    const resto = lic + (mun ? ' AND ' + mun : '') + (ent ? ' AND ' + ent : '');
+    const y = (dep ? ' AND ' + dep : '') + resto;
+    const yVigentes = (dep ? ' AND ' + filtroDepartamento(geos, true) : '') + resto;
     return {
       vigentes: '$limit=300' + q +
         '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'" + yVigentes) +

@@ -1658,17 +1658,17 @@ await check('SECOP II: la ñ de una palabra clave NO se pierde en $q (señalizac
   assert(q('Interventoría') === 'Interventoria' && q('Ñoño') === 'Ñoño', 'sin regresión en el resto');
 });
 
-await check('SECOP II: el municipio también filtra en el servidor (ciudad de la entidad o de la unidad) por esqueleto de consonantes y con Ñ/N como alternativas -- en Ocaña llegaban 15 de 459 procesos de 60 días', () => {
+await check('SECOP II: el municipio también filtra en el servidor (ciudad de la entidad o de la unidad) con las vocales como comodín y Ñ/N como alternativas -- en Ocaña llegaban 15 de 459 procesos de 60 días', () => {
   const C = Coincidencia;
   const w = (m, k) => new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Norte de Santander'], { municipios: m })[k || 'recientes']).get('$where');
   for (const k of ['vigentes', 'recientes']) {
     const x = w(['Ocaña'], k);
-    assert(x.includes("upper(ciudad_entidad) like '%C%Ñ%'") && x.includes("upper(ciudad_de_la_unidad_de) like '%C%Ñ%'"), k + ': Ocaña con ñ es Ñ literal, fue ' + x);
+    assert(x.includes("upper(ciudad_entidad) like '%_C_Ñ_%'") && x.includes("upper(ciudad_de_la_unidad_de) like '%_C_Ñ_%'"), k + ': Ocaña con ñ es Ñ literal, fue ' + x);
   }
   const sin = w(['Ocana']);
-  assert(sin.includes("like '%C%N%'") && sin.includes("like '%C%Ñ%'"), 'Ocana sin ñ prueba N y Ñ: ' + sin);
+  assert(sin.includes("like '%_C_N_%'") && sin.includes("like '%_C_Ñ_%'"), 'Ocana sin ñ prueba N y Ñ: ' + sin);
   const dos = w(['San José de Cúcuta']);
-  assert(dos.includes("'%J%S%'") && dos.includes("'%C%C%T%'") && !dos.includes("'%S%N%'"), 'solo palabras de 4+ letras (San y de no), cada una exigida: ' + dos);
+  assert(dos.includes("'%J_S_%'") && dos.includes("'%C_C_T_%'") && !dos.includes("'%S%N%'"), 'solo palabras de 4+ letras (San y de no), cada una exigida: ' + dos);
   assert(/\) AND \(/.test(dos), 'las palabras van unidas con AND');
   const dep = w(['Ocaña']);
   assert(dep.includes('like \'__RT_%D_%S__T__D_R\'') && dep.indexOf('departamento_entidad') < dep.indexOf('ciudad_entidad'), 'conserva el departamento');
@@ -1678,10 +1678,28 @@ await check('SECOP II: el municipio también filtra en el servidor (ciudad de la
   assert(vig.includes("departamento_entidad = 'No Definido'") && vig.includes('ciudad_de_la_unidad_de'), 'Otanche (departamento «No Definido») sigue entrando por su municipio: ' + vig);
 });
 
+await check('SECOP II: «Entidad (contiene)» también filtra en el servidor (la UFPS tenía 385 procesos en 60 días y llegaban 3; INVÍAS ninguno de ~5.000): cada palabra significativa debe estar en el nombre de la entidad', () => {
+  const C = Coincidencia;
+  const w = (e, k) => new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Norte de Santander'], { entidad: e })[k || 'recientes']).get('$where');
+  for (const k of ['vigentes', 'recientes']) {
+    const x = w('Universidad Francisco de Paula', k);
+    assert(x.includes("upper(entidad) like '%_N_V_RS_D_D%'") && x.includes("upper(entidad) like '%_Ñ_V_RS_D_D%'"), k + ': universidad como vocales como comodín y N/Ñ, fue ' + x);
+    assert(x.includes("'%FR_NC_SC_%'") && x.includes("'%P__L_%'"), k + ': francisco y paula, fue ' + x);
+    assert(!x.includes("like '%D%'"), k + ': "de" (2 letras) no se exige');
+    assert(x.indexOf('departamento_entidad') !== -1, k + ': conserva el departamento');
+  }
+  const pocas = w('ESE Hospital');
+  assert(/H_SP_T_L/.test(pocas) && !/like '%S%'/.test(pocas), 'ESE (3 letras) no se exige cuando hay una palabra de 4+: ' + pocas);
+  const sigla = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', [], { entidad: 'INVÍAS' }).recientes).get('$where');
+  assert(/upper\(entidad\) like '%_NV__S%'/.test(sigla), 'una sigla de 6 letras: ' + sigla);
+  assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], { entidad: '' })) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'sin entidad = antes');
+});
+
 await check('Buscar procesos: la casilla «Solo Licitación Pública» vuelve a consultar SECOP al cambiar (el servidor ya filtró: re-pintar la muestra vieja escondería o mezclaría procesos)', () => {
   assert(!/onlyLicitacionEl\.addEventListener\('change', rerender\)/.test(html), 'la casilla no puede re-pintar a secas');
   assert(/onlyLicitacionEl\.addEventListener\('change', alCambiarSoloLicitacion\)/.test(html), 'falta alCambiarSoloLicitacion');
   assert(/consultasSecopII\(qTerm, hoyISO, geos, opcionesConsulta\)/.test(html), 'fetchSecopDataset debe pasar las opciones');
+  assert(/\['kw', 'geo', 'mun', 'entidad', 'licitacion'\]\.indexOf\(k\) !== -1 && modoDatos\(\) === 'vivo' && lastConsultaISO\) runSearch\(\)/.test(html), '«quitar este filtro» de un filtro de servidor debe volver a consultar');
 });
 
 await check('Ubicación: vigentes con departamento «No Definido» (Otanche) entran a la consulta y se resuelven por municipio solo si el municipio es de UN solo departamento', () => {

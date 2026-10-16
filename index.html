@@ -13458,7 +13458,7 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
     try {
       if (geosServidor.length) await cargarMapaMunicipios();
       const soloLic = !numProceso && onlyLicitacionEl.checked;
-      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor, { soloLicitacionObra: soloLic, municipios: numProceso ? [] : municipios });
+      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor, { soloLicitacionObra: soloLic, municipios: numProceso ? [] : municipios, entidad: numProceso || !entidadEl ? '' : entidadEl.value.trim() });
       ultimaConsultaSoloLic = soloLic;
       lastRecords = live;
       lastConsultaISO = new Date().toISOString();
@@ -15082,10 +15082,13 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
       else if (k === 'cierre' && cierreEl) cierreEl.value = '';
       else if (k === 'cerrados') hideClosedEl.checked = false;
       else if (k === '30d') hideOldEl.checked = false;
-      else if (k === 'licitacion'){ onlyLicitacionEl.checked = false; alCambiarSoloLicitacion(); return; }
+      else if (k === 'licitacion') onlyLicitacionEl.checked = false;
       else if (k === 'descartados') hideDiscardedEl.checked = false;
       else if (k === 'estado') Object.keys(estadoSeleccionado).forEach(x => { estadoSeleccionado[x] = true; });
-      rerender();
+      // Palabra clave, departamento, municipio, entidad y licitación filtran EN EL SERVIDOR: quitarlos obliga a volver a
+      // consultar (repintar la muestra vieja dejaría fuera lo que el filtro había descartado).
+      if (['kw', 'geo', 'mun', 'entidad', 'licitacion'].indexOf(k) !== -1 && modoDatos() === 'vivo' && lastConsultaISO) runSearch();
+      else rerender();
       return;
     }
 
