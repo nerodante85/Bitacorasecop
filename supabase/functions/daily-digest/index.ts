@@ -47,7 +47,7 @@ function socrataHeaders(){
 // verifica). Es un script clásico que cuelga `Coincidencia` de globalThis.
 import './coincidencia.js';
 // deno-lint-ignore no-explicit-any
-const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, esEstadoNoVigente, consultasSecopII } = (globalThis as any).Coincidencia;
+const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, esEstadoNoVigente, consultasSecopII, opcionesDeAlerta, coincideFiltrosAlerta } = (globalThis as any).Coincidencia;
 
 // Extrae fecha de publicación y objeto/entidad/departamento de un registro
 // crudo de SECOP II -- versión recortada de normalize() en index.html: solo
@@ -65,7 +65,7 @@ function pubRawDeSecopII(record: Record<string, unknown>): string | null {
 // = fetchSecopDataset en index.html (mismo $limit, mismo reintento sin orden si la columna no
 // existe en ese dataset). Las dos consultas a SECOP II (vigentes + recientes, auditoría
 // S2-001/S2-002) las arma consultasSecopII, del módulo compartido.
-async function fetchSecopDataset(datasetId: string, qTerm: string | null, ordenCol: string): Promise<Record<string, unknown>[]> {
+async function fetchSecopDataset(datasetId: string, qTerm: string | null, ordenCol: string, geos: string[] = [], opciones: Record<string, unknown> = {}): Promise<Record<string, unknown>[]> {
   const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' + (qTerm ? '&$q=' + encodeURIComponent(qTerm) : '');
   async function intentar(url: string) {
     const res = await fetch(url, { headers: socrataHeaders() });
@@ -77,7 +77,7 @@ async function fetchSecopDataset(datasetId: string, qTerm: string | null, ordenC
   if (datasetId === SECOP_II_DATASET && ordenCol === 'fecha_de_publicacion_del') {
     // Fecha de Colombia (UTC-5) para comparar contra la fecha de cierre.
     const hoyISO = new Date(Date.now() - 5 * 3600 * 1000).toISOString().slice(0, 10);
-    const c = consultasSecopII(qTerm, hoyISO);
+    const c = consultasSecopII(qTerm, hoyISO, geos, opciones);
     const url = (p: string) => 'https://www.datos.gov.co/resource/' + datasetId + '.json?' + p;
     try {
       const [vigentes, recientes] = await Promise.all([intentar(url(c.vigentes)), intentar(url(c.recientes))]);
@@ -101,9 +101,9 @@ async function fetchSecopDataset(datasetId: string, qTerm: string | null, ordenC
   }
 }
 
-async function fetchAllForDataset(datasetId: string, anchors: string[], ordenCol: string): Promise<Record<string, unknown>[]> {
+async function fetchAllForDataset(datasetId: string, anchors: string[], ordenCol: string, geos: string[] = [], opciones: Record<string, unknown> = {}): Promise<Record<string, unknown>[]> {
   const list = anchors.length ? anchors : [null];
-  const batches = await Promise.all(list.map((a) => fetchSecopDataset(datasetId, a, ordenCol)));
+  const batches = await Promise.all(list.map((a) => fetchSecopDataset(datasetId, a, ordenCol, geos, opciones)));
   return ([] as Record<string, unknown>[]).concat(...batches);
 }
 
@@ -111,15 +111,18 @@ async function fetchAllForDataset(datasetId: string, anchors: string[], ordenCol
 
 interface Alerta {
   id: string; nombre: string; keywords: string[]; geos: string[];
+  municipios?: string[]; entidad?: string; soloLicitacion?: boolean;
   minV?: number; maxV?: number; ultimaRevision?: string;
 }
 
 // = evaluarAlerta en index.html -- cuenta procesos de SECOP II que coinciden
 // con los criterios de la alerta Y se publicaron después de ultimaRevision.
 async function contarNuevosDeAlerta(alerta: Alerta): Promise<number> {
-  const anchors = alerta.keywords.length ? alerta.keywords : alerta.geos;
-  if (!anchors.length) return 0;
-  const registros = await fetchAllForDataset(SECOP_II_DATASET, anchors, 'fecha_de_publicacion_del');
+  const opc = opcionesDeAlerta(alerta);
+  // Sin palabras clave el servidor filtra por departamento, municipio y entidad (ya no se usa el departamento como
+  // palabra clave: llenaba las 300 filas con todo lo que lo mencionaba).
+  if (!alerta.keywords.length && !alerta.geos.length && !opc.municipios.length && !opc.entidad) return 0;
+  const registros = await fetchAllForDataset(SECOP_II_DATASET, alerta.keywords, 'fecha_de_publicacion_del', alerta.geos, opcionesDeAlerta(alerta));
   const desde = alerta.ultimaRevision ? new Date(alerta.ultimaRevision).getTime() : 0;
   let nuevos = 0;
   registros.forEach((r) => {
@@ -127,6 +130,11 @@ async function contarNuevosDeAlerta(alerta: Alerta): Promise<number> {
     const departamento = String(findField(r, ['departamento', 'departamento_entidad'], 'departamento') || '');
     if (alerta.keywords.length && !alerta.keywords.some((k) => matchesTerm(searchable, k))) return;
     if (alerta.geos.length && !alerta.geos.some((g) => matchesGeo(departamento, g))) return;
+    const ciudadEntidad = String(findField(r, ['ciudad', 'ciudad_entidad'], 'ciudad') || '');
+    const ciudad = /^\s*no\s*definido\s*$/i.test(ciudadEntidad) || !ciudadEntidad ? String(r['ciudad_de_la_unidad_de'] ?? '') : ciudadEntidad;
+    const entidad = String(findField(r, ['entidad', 'nombre_entidad', 'entidad_compradora'], 'entidad') || '');
+    const modalidad = String(findField(r, ['modalidad_de_contratacion', 'tipo_de_contrato'], 'modalidad') || '');
+    if (!coincideFiltrosAlerta(alerta, { ciudad, entidad, modalidad })) return;
     if (esEstadoNoVigente(findField(r, ['estado_del_procedimiento', 'fase'], 'estado'))) return;
     const valor = Number(findField(r, ['precio_base', 'valor_estimado', 'valor_del_contrato', 'valor_total_estimado'], 'precio'));
     if (alerta.minV && !isNaN(valor) && valor > 0 && valor < alerta.minV) return;

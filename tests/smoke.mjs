@@ -130,7 +130,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'evaluarExperienciaDeProceso', 'pareceRequisitoDeExperienciaReal',
     // Hacia paridad con LicitIA (ver CLAUDE.md): Fase A (PAA), Fase B (RUT),
     // Fase E (Generador de Propuestas, paquete completo).
-    'normalizePAA', 'buscarPAA', 'departamentoPorEntidad', 'matchesMunicipio',
+    'normalizePAA', 'buscarPAA', 'departamentoPorEntidad',
     'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
     // Requisitos habilitantes con IA (ver CLAUDE.md).
@@ -4578,6 +4578,37 @@ await check('Coincidencia (módulo): geografía exacta, término con raíz de 6 
   const b = C.prepararBusquedaPorNombre('Gobernación de Norte de Santander');
   assert(b.coincide('GOBERNACION DE NORTE DE SANTANDER') && !b.coincideEstricta('SANTANDER - GOBERNACION'), 'tolerante vs estricta (SI-001)');
   assert(C.findField({ Valor_Total: 5 }, ['valor_total']) === 5 && C.findField({ a: 1 }, ['b']) === null, 'findField sin distinguir mayúsculas');
+});
+
+await check('Alertas: los filtros extra (municipio, entidad, solo licitación de obra) los decide UNA función compartida; una alerta guardada antes, sin esos campos, se comporta como siempre', () => {
+  const C = Coincidencia;
+  assert(typeof C.coincideFiltrosAlerta === 'function' && typeof C.opcionesDeAlerta === 'function' && typeof C.esLicitacionObra === 'function', 'faltan coincideFiltrosAlerta/opcionesDeAlerta/esLicitacionObra');
+  const reg = { ciudad: 'Ocaña', entidad: 'ALCALDIA MUNICIPAL DE OCAÑA', modalidad: 'Licitación pública Obra Publica' };
+  assert(C.coincideFiltrosAlerta({ keywords: ['x'], geos: [] }, reg) === true, 'alerta antigua: todo pasa');
+  assert(C.coincideFiltrosAlerta({ municipios: [], entidad: '', soloLicitacion: false }, reg) === true, 'campos vacíos: todo pasa');
+  assert(C.coincideFiltrosAlerta({ municipios: ['Ocaña'] }, reg) === true && C.coincideFiltrosAlerta({ municipios: ['Pamplona', 'Ocana'] }, reg) === true, 'municipio (cualquiera de la lista)');
+  assert(C.coincideFiltrosAlerta({ municipios: ['Pamplona'] }, reg) === false && C.coincideFiltrosAlerta({ municipios: ['Ocaña'] }, { ...reg, ciudad: null }) === false, 'otro municipio o sin ciudad: no');
+  assert(C.coincideFiltrosAlerta({ entidad: 'Municipio de Ocaña' }, reg) === true && C.coincideFiltrosAlerta({ entidad: 'Gobernación' }, reg) === false, 'entidad (alcaldía = municipio)');
+  assert(C.coincideFiltrosAlerta({ soloLicitacion: true }, reg) === true && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: 'Contratación directa' }) === false && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: 'Licitación pública' }) === false && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: null }) === false, 'licitación pública Y obra; sin modalidad no pasa');
+  assert(C.coincideFiltrosAlerta({ municipios: ['Ocaña'], entidad: 'Gobernación' }, reg) === false, 'todos los filtros a la vez');
+  const o = C.opcionesDeAlerta({ municipios: ['Ocaña', '', 5], entidad: '  INVIAS ', soloLicitacion: 'si' });
+  assert(JSON.stringify(o) === JSON.stringify({ soloLicitacionObra: true, municipios: ['Ocaña'], entidad: 'INVIAS' }), 'opciones saneadas: ' + JSON.stringify(o));
+  assert(JSON.stringify(C.opcionesDeAlerta({ keywords: ['x'] })) === JSON.stringify({ soloLicitacionObra: false, municipios: [], entidad: '' }), 'alerta antigua: opciones vacías');
+});
+
+await check('Alertas: el cliente guarda, evalúa y reabre municipio, entidad y licitación; el correo diario consulta con departamento + esos filtros (antes ignoraba geos en el servidor y usaba el departamento como palabra clave)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const dd = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  assert(/id: a\.id, nombre: a\.nombre, keywords: a\.keywords, geos: a\.geos,\s*municipios: a\.municipios, entidad: a\.entidad, soloLicitacion: a\.soloLicitacion,/.test(html), 'persistirAlertas debe guardar los campos nuevos');
+  assert(/const \{ keywords, geos, minV, maxV, municipios, entidad, soloLicitacion \} = datosDeAlertaActual\(\);/.test(html) && /!keywords\.length && !geos\.length && !municipios\.length && !entidad/.test(html), 'guardarAlertaActual lee y valida los campos nuevos');
+  assert(/fetchAllForDataset\('p6dx-8zbt', alerta\.keywords, 'II', undefined, alerta\.geos, opcionesDeAlerta\(alerta\)\)/.test(html) && /coincideFiltrosAlerta\(alerta, \{ ciudad: item\.ciudad, entidad: item\.entidad, modalidad: item\.modalidad \}\)/.test(html), 'evaluarAlerta consulta y filtra con los campos nuevos');
+  assert(/municipioInput\.value = \(a\.municipios \|\| \[\]\)\.join\(', '\)/.test(html) && /onlyLicitacionEl\.checked = !!a\.soloLicitacion/.test(html) && /entidadEl\.value = a\.entidad \|\| ''/.test(html), 'verNuevosDeAlerta reabre la alerta completa');
+  assert(/consultasSecopII\(qTerm, hoyISO, geos, opciones\)/.test(dd) && /fetchAllForDataset\(SECOP_II_DATASET, alerta\.keywords, 'fecha_de_publicacion_del', alerta\.geos, opcionesDeAlerta\(alerta\)\)/.test(dd) && /coincideFiltrosAlerta\(alerta,/.test(dd), 'el digest pasa geos y opciones al servidor y filtra igual que el cliente');
+  assert(!/const anchors = alerta\.keywords\.length \? alerta\.keywords : alerta\.geos;/.test(dd), 'el digest ya no usa el departamento como palabra clave');
+  ['coincideFiltrosAlerta', 'opcionesDeAlerta', 'esLicitacionObra', 'matchesMunicipio', 'coincideEntidad'].forEach(n => {
+    assert(!new RegExp('^\\s*function ' + n + '\\(', 'm').test(html), 'index.html no debe redefinir ' + n);
+    assert(!new RegExp('^function ' + n + '\\(', 'm').test(dd), 'el digest no debe redefinir ' + n);
+  });
 });
 
 await check('Coincidencia (módulo): UN solo origen -- daily-digest usa una copia idéntica y ya no define las reglas por su cuenta', () => {

@@ -221,6 +221,55 @@
     return conds.length === 1 ? conds[0] : '(' + conds.join(' AND ') + ')';
   }
 
+  // "Cúcuta" también debe encontrar "San José de Cúcuta" -- una comparación EXACTA (como matchesGeo, adecuada para
+  // departamento) sería demasiado estricta para municipios, que casi siempre traen un nombre oficial más largo del
+  // que la gente usa a diario: toda palabra significativa (>=4 letras) del término debe aparecer en el nombre.
+  function matchesMunicipio(ciudad, term) {
+    const c = normalizeGeo(ciudad);
+    const t = normalizeGeo(term);
+    if (!c || !t) return false;
+    if (c === t) return true;
+    const palabras = t.split(' ').filter(w => w.length >= 4);
+    if (!palabras.length) return c.indexOf(t) !== -1;
+    return palabras.every(w => c.indexOf(w) !== -1);
+  }
+
+  // «Entidad (contiene)»: todas las palabras del texto deben estar en el nombre de la entidad (alcaldía = municipio).
+  function coincideEntidad(entidad, texto) {
+    const p = palabrasDeEntidad(texto);
+    if (!p.requeridas.length && !p.generica) return true;
+    const e = ' ' + normalizeGeo(entidad) + ' ';
+    if (p.generica && e.indexOf('alcaldia') === -1 && e.indexOf('municipio') === -1) return false;
+    return p.requeridas.every(w => e.indexOf(w) !== -1);
+  }
+
+  // «Solo Licitación Pública (Obra pública)»: la modalidad dice «licitación pública» Y «obra» (las variantes
+  // «Licitación pública Obra Publica» entran; la licitación genérica o la contratación directa, no).
+  function esLicitacionObra(modalidad) {
+    const m = String(modalidad == null ? '' : modalidad);
+    return /licitaci[oó]n\s*p[uú]blica/i.test(m) && /obra/i.test(m);
+  }
+
+  // Filtros de una alerta guardada que van más allá de palabras clave, departamento y valor: municipios, entidad y
+  // «solo licitación de obra». Una alerta guardada antes de existir estos campos no los trae y no filtra por ellos.
+  // Las mismas opciones viajan al servidor (consultasSecopII) y se vuelven a aplicar fila por fila (coincideFiltrosAlerta).
+  function opcionesDeAlerta(alerta) {
+    const a = alerta || {};
+    return {
+      soloLicitacionObra: !!a.soloLicitacion,
+      municipios: (Array.isArray(a.municipios) ? a.municipios : []).filter(m => typeof m === 'string' && m.trim()).map(m => m.trim()),
+      entidad: typeof a.entidad === 'string' ? a.entidad.trim() : ''
+    };
+  }
+  function coincideFiltrosAlerta(alerta, reg) {
+    const o = opcionesDeAlerta(alerta);
+    const r = reg || {};
+    if (o.municipios.length && !o.municipios.some(m => matchesMunicipio(r.ciudad, m))) return false;
+    if (o.entidad && !coincideEntidad(r.entidad, o.entidad)) return false;
+    if (o.soloLicitacionObra && !esLicitacionObra(r.modalidad)) return false;
+    return true;
+  }
+
   // Mapa municipio -> departamento sacado del propio dataset (pares ciudad_entidad/departamento_entidad
   // de las entidades que sí traen ambos). Un municipio que aparece en MÁS de un departamento (Caldas,
   // Belén, Santa María...) queda en null: no se adivina. Claves sin tildes ni mayúsculas.
@@ -286,7 +335,8 @@
   }
 
   const Coincidencia = {
-    parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, palabrasDeEntidad: palabrasDeEntidad, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
+    parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, palabrasDeEntidad: palabrasDeEntidad, matchesMunicipio: matchesMunicipio, coincideEntidad: coincideEntidad,
+    esLicitacionObra: esLicitacionObra, opcionesDeAlerta: opcionesDeAlerta, coincideFiltrosAlerta: coincideFiltrosAlerta, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
     findField: findField, prepararBusquedaPorNombre: prepararBusquedaPorNombre,
     mapaMunicipios: mapaMunicipios, ubicacionDeRegistro: ubicacionDeRegistro,
     esEstadoNoVigente: esEstadoNoVigente, consultasSecopII: consultasSecopII
