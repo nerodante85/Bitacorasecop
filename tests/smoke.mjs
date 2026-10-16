@@ -2470,6 +2470,13 @@ await check('MC-010: contrato de $900M con 30% de participación NO cumple un m�
   assert(sinPart.resultado === 'CUMPLE', 'sin columna de participación no cambia nada: ' + sinPart.resultado);
 });
 
+await check('CR2-12: encabezados de participación habituales ("Part. %", "% Part.", "Aporte (%)", "Porcentaje de aporte") se reconocen: 30% de $900M no cumple $500M', () => {
+  const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000';
+  ['Part. %', '% Part.', 'Aporte (%)', 'Porcentaje de aporte', '% de participación'].forEach(h => {
+    const { r } = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor del contrato', h], [[PUENTE, 'Alcaldía', '900000000', '30%']]);
+    assert(r.resultado === 'NO CUMPLE', 'encabezado "' + h + '": se esperaba NO CUMPLE, fue ' + r.resultado);
+  });
+});
 await check('MC-010: si la columna de valor ya es la ajustada por participación no se pondera dos veces', () => {
   const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $250.000.000';
   const { r } = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor contrato actualizado (según % participación)', '% participación'],

@@ -5529,7 +5529,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     tipo: ['tipo de experiencia', 'general especifica', 'clasificacion', 'tipo'],
     actividades: ['actividades ejecutadas', 'trabajos ejecutados', 'alcance de actividades', 'actividades'],
     numeroContrato: ['numero de contrato', 'no de contrato', 'contrato no', 'numero contrato'],
-    participacion: ['porcentaje de participacion', 'participacion']
+    // CR2-12: «Part. %», «% Part.», «Aporte (%)» no se reconocían y un consorcio al 30% contaba como 100%.
+    participacion: ['porcentaje de participacion', 'participacion', 'part %', '% part', '% de participacion', '% participacion', 'aporte %', '% aporte', 'porcentaje de aporte', 'porcentaje aporte']
   };
   const DICC_REQUISITO = {
     criterio: ['requisito', 'descripcion del requisito', 'experiencia requerida', 'experiencia exigida', 'objeto exigido', 'criterio', 'descripcion'],
