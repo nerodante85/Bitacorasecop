@@ -4435,8 +4435,12 @@ await check('evaluarContraPerfiles: evalúa cada perfil con el mismo contexto y 
   const ctx = Object.assign({}, CTX_EVAL, { perfiles: [perfil('chica', '$100.000.000'), perfil('grande', '$900.000.000')] });
   const r = expEngine.evaluarContraPerfiles(itemProceso(), { daysLeft: 10 }, entryFeliz(), ctx);
   assert(r.porPerfil.length === 2, 'un resultado por perfil');
-  assert(r.mejor.perfil === 'Empresa grande' && r.mejor.veredicto === 'GO', 'el mejor es la empresa con capacidad suficiente: ' + r.mejor.perfil + ' ' + r.mejor.veredicto);
+  assert(r.mejor.perfil === 'Empresa grande', 'el mejor es la empresa con capacidad suficiente: ' + r.mejor.perfil + ' ' + r.mejor.veredicto);
+  // CR2-2: con 2+ empresas marcadas (consorcio) los indicadores no se combinan: nunca GO, y un gate lo explica.
+  assert(r.mejor.veredicto === 'REVISAR' && r.mejor.gates.some(g => g.nombre === 'Consorcio / unión temporal' && g.estado === 'nd'), 'dos empresas marcadas: REVISAR con el gate de consorcio: ' + r.mejor.veredicto);
   assert(r.porPerfil.find(x => x.perfil === 'Empresa chica').veredicto !== 'GO', 'la empresa sin capacidad no llega a GO');
+  const sola = expEngine.evaluarContraPerfiles(itemProceso(), { daysLeft: 10 }, entryFeliz(), Object.assign({}, CTX_EVAL, { perfiles: [perfil('grande', '$900.000.000')] }));
+  assert(sola.mejor.veredicto === 'GO' && !sola.mejor.gates.some(g => g.nombre === 'Consorcio / unión temporal'), 'una sola empresa: sin gate de consorcio y GO como antes: ' + sola.mejor.veredicto);
   assert(expEngine.evaluarContraPerfiles(itemProceso(), { daysLeft: 10 }, entryFeliz(), Object.assign({}, CTX_EVAL, { perfiles: [] })) === null, 'sin perfiles no hay evaluación');
 });
 

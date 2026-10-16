@@ -420,7 +420,20 @@
     const rank = { 'GO': 0, 'REVISAR': 1, 'NO-GO': 2 };
     const porPerfil = ctx.perfiles.map(p => evaluarProceso(item, s, matrizCapacidad(p), entry, ctx));
     if (!porPerfil.length) return null;
-    const mejor = porPerfil.slice().sort((a, b) => rank[a.veredicto] - rank[b.veredicto])[0];
+    // Auditoría CR2-2: con 2+ empresas marcadas (consorcio / unión temporal) la experiencia ya llega SUMADA, pero los indicadores
+    // y la K residual se evaluaban empresa por empresa y se tomaba «la mejor»: A (buenos indicadores, sin experiencia) + B (malos
+    // indicadores, con la experiencia) daba GO aunque el indicador combinado ponderado por participación no cumpliera. La app aún no
+    // modela el porcentaje de participación, así que no se inventa una combinación: el resultado nunca es GO sin ese cálculo a mano.
+    if (porPerfil.length > 1){
+      const porEmpresa = porPerfil.map(r => r.perfil + ': ' + r.veredicto).join(' · ');
+      porPerfil.forEach(r => {
+        r.veredictoIndividual = r.veredicto; // la empresa «mejor» se sigue eligiendo por su resultado individual
+        r.gates = r.gates.concat([{ nombre: 'Consorcio / unión temporal', estado: 'nd', detalle: 'Hay ' + porPerfil.length + ' empresas marcadas para comparar (' + porEmpresa + '). La experiencia se suma, pero los indicadores financieros y la capacidad residual se evaluaron EMPRESA POR EMPRESA y no se combinan: en un consorcio o unión temporal se ponderan por el porcentaje de participación. Calcula el indicador combinado y verifícalo a mano antes de decidir.' }]);
+        r.veredicto = decidirVeredicto(r.gates, r.conPliego);
+        r.veredictoGlobal = veredictoGlobal(r.gates, r.conPliego);
+      });
+    }
+    const mejor = porPerfil.slice().sort((a, b) => rank[a.veredictoIndividual || a.veredicto] - rank[b.veredictoIndividual || b.veredicto])[0];
     return { mejor: mejor, porPerfil: porPerfil };
   }
 
