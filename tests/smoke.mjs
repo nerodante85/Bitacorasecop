@@ -4408,13 +4408,26 @@ await check('evaluarProceso con contexto explícito: el rango de valor llega por
 
 await check('evaluarProceso con contexto explícito: el personal registrado llega por ctx y decide el gate de Personal', () => {
   const entry = entryFeliz({ comps: [{ hallazgosAnotados: [{ categoria: 'Personal / Equipo de trabajo', snippet: 'Director de obra ingeniero civil con diez años de experiencia' }] }] });
-  const con = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entry, Object.assign({}, CTX_EVAL, { perfilesProfesionales: { a: { nombre: 'Ing. Pérez', cargo: 'Director de obra', formacion: 'Ingeniero civil' } } }));
+  const con = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entry, Object.assign({}, CTX_EVAL, { perfilesProfesionales: { a: { nombre: 'Ing. Pérez', cargo: 'Director de obra', formacion: 'Ingeniero civil', anos: '12' } } }));
   const sin = expEngine.evaluarProceso(itemProceso(), { daysLeft: 10 }, matrizFeliz(), entry, CTX_EVAL);
   const gc = con.gates.find(x => x.nombre === 'Personal / equipo de trabajo'), gs = sin.gates.find(x => x.nombre === 'Personal / equipo de trabajo');
   assert(gc && gc.estado === 'ok' && /Ing\. Pérez/.test(gc.detalle), 'con personal registrado: ' + JSON.stringify(gc));
   assert(gs && gs.estado === 'nd' && sin.veredicto !== 'GO', 'sin personal registrado queda por verificar y no es GO: ' + JSON.stringify(gs));
 });
 
+await check('CR2-1: el gate de Personal no da OK por una palabra suelta (cargo distinto, años insuficientes o sin dato, otra especialidad)', () => {
+  const pers = o => ({ x: Object.assign({ nombre: 'Persona', cargo: '', formacion: '', anos: '' }, o) });
+  const g = (snippet, o) => expEngine.gatePersonalRequerido([{ snippet: snippet }], pers(o));
+  const REQ = 'Director de obra ingeniero civil con 10 años de experiencia y especialización en gerencia de proyectos';
+  assert(g(REQ, { cargo: 'Residente de obra', formacion: 'Ingeniero civil', anos: '1', experiencia: '1 año' }).estado !== 'ok', 'residente con 1 año no acredita al director');
+  assert(g('Ingeniero sanitario con 5 años de experiencia', { cargo: 'Director', formacion: 'Ingeniero civil', anos: '8' }).estado !== 'ok', 'civil no acredita sanitario');
+  assert(g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '' }).estado !== 'ok', 'sin años del perfil no se da OK');
+  assert(g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '6' }).estado !== 'ok', '6 años < 10');
+  const bien = g(REQ, { nombre: 'Ing. Gómez', cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '12' });
+  assert(bien.estado === 'ok' && /Ing\. Gómez/.test(bien.detalle) && /coincide:/.test(bien.detalle), 'control: perfil completo sí, y dice qué coincidió: ' + JSON.stringify(bien));
+  const parcial = g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '6' });
+  assert(parcial.estado === 'nd' && /falta/.test(parcial.detalle), 'parcial: nd explicando qué falta: ' + JSON.stringify(parcial));
+});
 await check('evaluarContraPerfiles: evalúa cada perfil con el mismo contexto y devuelve el mejor (GO > REVISAR > NO-GO)', () => {
   const perfil = (id, kResidual) => ({ _id: id, nombre: 'Empresa ' + id, rup: '', k: 'Índice de liquidez: 1.5\nNivel de endeudamiento: 0.4', kResidual: kResidual });
   const ctx = Object.assign({}, CTX_EVAL, { perfiles: [perfil('chica', '$100.000.000'), perfil('grande', '$900.000.000')] });

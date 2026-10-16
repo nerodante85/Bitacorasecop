@@ -209,24 +209,62 @@
   // duplicar lógica. Nunca afirma "no cumple" solo porque no hay coincidencia
   // de palabras -- eso solo dice "revísalo a mano" (nd), consistente con el
   // resto de la app.
+  // Auditoría CR2-1: antes bastaba UNA palabra en común («ingeniero», «civil», «experiencia», «años») para dar OK, así que
+  // «Director de obra, 10 años, especialización en gerencia» quedaba acreditado por un residente con 1 año, y «ingeniero
+  // sanitario» por un ingeniero civil. Ahora el OK exige (1) que una palabra distintiva del requisito esté en el CARGO del
+  // perfil, (2) al menos dos coincidencias distintivas (o todas, si el requisito trae una sola) y (3) que los años de
+  // experiencia exigidos (si el requisito los dice) no superen los del perfil -- sin el dato de años del perfil NO se da OK.
+  // Lo demás queda como «coincidencia parcial» (nd), diciendo qué coincidió y qué falta.
+  const PERSONAL_GENERICAS = new Set(['ingeniero', 'ingeniera', 'ingenieria', 'civil', 'experiencia', 'anos', 'ano', 'profesional', 'profesionales', 'titulo', 'tarjeta', 'matricula', 'minimo', 'minima', 'general', 'especifica', 'especifico', 'personal', 'cargo', 'equipo', 'trabajo', 'tecnico', 'tecnica', 'licencia', 'vigente', 'certificado', 'certificacion', 'mayor', 'igual', 'menos', 'acreditar', 'debera', 'contar']);
+  const NUM_ANOS = { un: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, quince: 15, veinte: 20 };
+  function anosExigidosEnTexto(texto){
+    const t = normHeader(texto);
+    const exigidos = [];
+    let m;
+    const reNum = /(\d{1,2})\s+anos?\b/g;
+    while ((m = reNum.exec(t)) !== null) exigidos.push(Number(m[1]));
+    const reLetras = /\b(uno|un|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte)\b(?:\s+\d{1,2})?\s+anos?\b/g;
+    while ((m = reLetras.exec(t)) !== null) exigidos.push(NUM_ANOS[m[1]]);
+    return exigidos.length ? Math.max.apply(null, exigidos) : null;
+  }
   function gatePersonalRequerido(hallazgos, personal){
     const total = Object.keys(personal).length;
     if (!total){
       return { estado: 'nd', detalle: 'El pliego menciona personal/equipo de trabajo, pero todavía no has registrado ningún perfil profesional en "Personal".' };
     }
-    const coincidencias = [];
+    const stem = w => String(w).slice(0, 6);
+    const stemsDe = txt => new Set(normHeader(txt || '').split(' ').filter(Boolean).map(stem));
+    const coincidencias = [], parciales = [];
     hallazgos.forEach(h => {
-      const distintivas = palabrasClaveDe(h.snippet).filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !esTokenNumerico(p));
+      const distintivas = palabrasClaveDe(h.snippet).filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PERSONAL_GENERICAS.has(p) && NUM_ANOS[p] == null && !esTokenNumerico(p));
+      const anosReq = anosExigidosEnTexto(h.snippet);
       Object.keys(personal).forEach(pid => {
         const pp = personal[pid];
-        const texto = normHeader([pp.cargo, pp.formacion, pp.especializaciones, pp.experiencia, pp.competencias].filter(Boolean).join(' '));
         const nombre = pp.nombre || 'Sin nombre';
-        if (distintivas.some(p => texto.indexOf(p) !== -1) && coincidencias.indexOf(nombre) === -1) coincidencias.push(nombre);
+        if (!distintivas.length) return;
+        const todos = stemsDe([pp.cargo, pp.formacion, pp.especializaciones, pp.experiencia, pp.competencias].filter(Boolean).join(' '));
+        const cargo = stemsDe(pp.cargo);
+        const coinciden = distintivas.filter(p => todos.has(stem(p)));
+        if (!coinciden.length) return;
+        const enCargo = distintivas.some(p => cargo.has(stem(p)));
+        const anosPerfil = (String(pp.anos || '').match(/\d+(?:[.,]\d+)?/) || [null])[0];
+        const anosPerfilN = anosPerfil == null ? null : Number(String(anosPerfil).replace(',', '.'));
+        const faltantes = [];
+        if (!enCargo) faltantes.push('el cargo del perfil no coincide con el del requisito');
+        if (coinciden.length < Math.min(2, distintivas.length)) faltantes.push('solo coincide ' + coinciden.length + ' de ' + distintivas.length + ' palabras distintivas');
+        if (anosReq != null && anosPerfilN == null) faltantes.push('el pliego pide ' + anosReq + ' años y el perfil no dice sus años');
+        else if (anosReq != null && anosPerfilN < anosReq) faltantes.push('el pliego pide ' + anosReq + ' años y el perfil tiene ' + anosPerfilN);
+        const etiqueta = nombre + ' (coincide: ' + coinciden.join(', ') + ')';
+        if (!faltantes.length){ if (coincidencias.map(c => c.nombre).indexOf(nombre) === -1) coincidencias.push({ nombre: nombre, etiqueta: etiqueta }); }
+        else if (parciales.map(c => c.nombre).indexOf(nombre) === -1) parciales.push({ nombre: nombre, etiqueta: etiqueta + ' -- falta: ' + faltantes.join('; ') });
       });
     });
     const snippet = truncate(hallazgos[0].snippet, 160);
     if (coincidencias.length){
-      return { estado: 'ok', detalle: 'El pliego menciona: "' + snippet + '". Perfil(es) que podrían acreditarlo: ' + coincidencias.join(', ') + '.' };
+      return { estado: 'ok', detalle: 'El pliego menciona: "' + snippet + '". Perfil(es) que podrían acreditarlo: ' + coincidencias.map(c => c.etiqueta).join('; ') + '. Verifica formación y soportes en el pliego.' };
+    }
+    if (parciales.length){
+      return { estado: 'nd', detalle: 'El pliego menciona personal/equipo de trabajo ("' + snippet + '"). Coincidencia solo parcial, no basta para darlo por cumplido: ' + parciales.map(c => c.etiqueta).join('; ') + '.' };
     }
     return { estado: 'nd', detalle: 'El pliego menciona personal/equipo de trabajo ("' + snippet + '"), pero ningún perfil registrado en "Personal" comparte palabras clave con ese requisito -- revísalo manualmente.' };
   }
