@@ -4423,6 +4423,8 @@ await check('CR2-1: el gate de Personal no da OK por una palabra suelta (cargo d
   assert(g('Ingeniero sanitario con 5 años de experiencia', { cargo: 'Director', formacion: 'Ingeniero civil', anos: '8' }).estado !== 'ok', 'civil no acredita sanitario');
   assert(g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '' }).estado !== 'ok', 'sin años del perfil no se da OK');
   assert(g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '6' }).estado !== 'ok', '6 años < 10');
+  assert(g(REQ, { cargo: 'Residente de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', experiencia: 'Director de obra en varios proyectos', anos: '12' }).estado !== 'ok', 'las palabras deben estar en el CARGO, no solo en la experiencia libre');
+  assert(g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', anos: '12' }).estado !== 'ok', 'falta la especialización pedida: una sola coincidencia no basta');
   const bien = g(REQ, { nombre: 'Ing. Gómez', cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '12' });
   assert(bien.estado === 'ok' && /Ing\. Gómez/.test(bien.detalle) && /coincide:/.test(bien.detalle), 'control: perfil completo sí, y dice qué coincidió: ' + JSON.stringify(bien));
   const parcial = g(REQ, { cargo: 'Director de obra', formacion: 'Ingeniero civil', especializaciones: 'Gerencia de proyectos', anos: '6' });
