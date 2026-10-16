@@ -193,13 +193,18 @@
     return { departamento: d || null, ciudad: ciu, deducido: !!d };
   }
 
-  function consultasSecopII(qTerm, hoyISO, geos) {
+  // `opciones.soloLicitacionObra`: «Solo Licitación Pública (Obra pública)» se filtra en el servidor (misma regla que el
+  // navegador: la modalidad dice «licitación pública» Y «obra»). Antes se aplicaba tras traer 300 filas y solo llegaba
+  // ~25 % de las licitaciones de obra de los últimos 60 días (Norte de Santander 5 de 21, Bogotá 5 de 80).
+  function consultasSecopII(qTerm, hoyISO, geos, opciones) {
     const q = qTerm
       ? '&$q=' + encodeURIComponent(String(qTerm).normalize('NFD').replace(/[̀-ͯ]/g, ''))
       : '';
     const dep = filtroDepartamento(geos);
-    const y = dep ? ' AND ' + dep : '';
-    const yVigentes = dep ? ' AND ' + filtroDepartamento(geos, true) : '';
+    const lic = opciones && opciones.soloLicitacionObra
+      ? " AND upper(modalidad_de_contratacion) like '%LICITACI%BLICA%' AND upper(modalidad_de_contratacion) like '%OBRA%'" : '';
+    const y = (dep ? ' AND ' + dep : '') + lic;
+    const yVigentes = (dep ? ' AND ' + filtroDepartamento(geos, true) : '') + lic;
     return {
       vigentes: '$limit=300' + q +
         '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'" + yVigentes) +

@@ -1636,6 +1636,27 @@ await check('Departamento escrito a mano: «Bogotá», «San Andrés», «Guajir
   assert(C.matchesGeo('Distrito Capital de Bogotá', C.departamentoSecop('Bogotá')), 'y el filtro exacto del navegador lo acepta');
 });
 
+await check('SECOP II: «Solo Licitación Pública (Obra pública)» filtra en el SERVIDOR las dos consultas (antes se filtraba tras traer 300 filas y llegaba ~25 % de las licitaciones de obra: Norte de Santander 5 de 21, Bogotá 5 de 80)', () => {
+  const C = Coincidencia;
+  const sin = C.consultasSecopII(null, '2026-10-16', ['Boyacá']);
+  const con = C.consultasSecopII(null, '2026-10-16', ['Boyacá'], { soloLicitacionObra: true });
+  for (const k of ['vigentes', 'recientes']) {
+    const w = new URLSearchParams(con[k]).get('$where');
+    assert(w.includes("upper(modalidad_de_contratacion) like '%LICITACI%BLICA%'") && w.includes("upper(modalidad_de_contratacion) like '%OBRA%'"), k + ': falta el filtro de modalidad, fue ' + w);
+    assert(w.includes("like 'B_Y_C_'"), k + ': conserva el departamento');
+    assert(!new URLSearchParams(sin[k]).get('$where').includes('modalidad_de_contratacion'), k + ': sin la casilla no se filtra por modalidad');
+  }
+  const nac = new URLSearchParams(C.consultasSecopII('acueducto', '2026-10-16', [], { soloLicitacionObra: true }).recientes).get('$where');
+  assert(nac.startsWith('fecha_de_publicacion_del IS NOT NULL AND upper(modalidad'), 'sin departamento también filtra: ' + nac);
+  assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], {})) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'opciones vacías = antes');
+});
+
+await check('Buscar procesos: la casilla «Solo Licitación Pública» vuelve a consultar SECOP al cambiar (el servidor ya filtró: re-pintar la muestra vieja escondería o mezclaría procesos)', () => {
+  assert(!/onlyLicitacionEl\.addEventListener\('change', rerender\)/.test(html), 'la casilla no puede re-pintar a secas');
+  assert(/onlyLicitacionEl\.addEventListener\('change', alCambiarSoloLicitacion\)/.test(html), 'falta alCambiarSoloLicitacion');
+  assert(/consultasSecopII\(qTerm, hoyISO, geos, opcionesConsulta\)/.test(html), 'fetchSecopDataset debe pasar las opciones');
+});
+
 await check('Ubicación: vigentes con departamento «No Definido» (Otanche) entran a la consulta y se resuelven por municipio solo si el municipio es de UN solo departamento', () => {
   const C = Coincidencia;
   const w = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Boyacá']).vigentes).get('$where');

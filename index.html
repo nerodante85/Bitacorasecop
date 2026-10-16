@@ -13180,7 +13180,7 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
     } catch(e){ /* sin mapa: solo se pierden los procesos sin departamento */ }
   }
 
-  async function fetchSecopDataset(datasetId, qTerm, fuente, ordenCol, geos){
+  async function fetchSecopDataset(datasetId, qTerm, fuente, ordenCol, geos, opcionesConsulta){
     const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' +
       (qTerm ? ('&$q=' + encodeURIComponent(qTerm)) : '');
     // Socrata no garantiza ningún orden por defecto. Con $limit=300 y palabras
@@ -13207,7 +13207,7 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
       // Ver consultasSecopII (S2-001/S2-002): vigentes + recientes, sin tildes.
       const hoy = new Date();
       const hoyISO = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
-      const c = consultasSecopII(qTerm, hoyISO, geos);
+      const c = consultasSecopII(qTerm, hoyISO, geos, opcionesConsulta);
       const url = p => 'https://www.datos.gov.co/resource/' + datasetId + '.json?' + p;
       try {
         const [vigentes, recientes] = await Promise.all([intentar(url(c.vigentes)), intentar(url(c.recientes))]);
@@ -13234,9 +13234,9 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
   }
 
   // `geos` (solo SECOP II): departamentos que filtran EN EL SERVIDOR (ver filtroDepartamento en coincidencia.js).
-  async function fetchAllForDataset(datasetId, anchors, fuente, ordenCol, geos){
+  async function fetchAllForDataset(datasetId, anchors, fuente, ordenCol, geos, opcionesConsulta){
     const list = anchors.length ? anchors : [null];
-    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente, ordenCol, geos)));
+    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente, ordenCol, geos, opcionesConsulta)));
     const merged = [].concat(...batches);
     const seen = new Set();
     const deduped = [];
@@ -13411,6 +13411,15 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
     }
   }
 
+  // Con la casilla «Solo Licitación Pública» el SERVIDOR ya filtró la muestra: al cambiarla hay que volver a consultar
+  // (re-pintar la muestra vieja escondería licitaciones que no entraron o mezclaría otras modalidades).
+  let ultimaConsultaSoloLic = false;
+  function alCambiarSoloLicitacion(){
+    const hayBusquedaEnVivo = !!lastConsultaISO && !!lastRecords && modoDatos() === 'vivo';
+    if (hayBusquedaEnVivo && !procesoInput.value.trim() && onlyLicitacionEl.checked !== ultimaConsultaSoloLic) runSearch();
+    else rerender();
+  }
+
   async function runSearch(){
     isDemo = false;
     isSnapshot = false;
@@ -13448,7 +13457,9 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
     await appReady;
     try {
       if (geosServidor.length) await cargarMapaMunicipios();
-      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor);
+      const soloLic = !numProceso && onlyLicitacionEl.checked;
+      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor, { soloLicitacionObra: soloLic });
+      ultimaConsultaSoloLic = soloLic;
       lastRecords = live;
       lastConsultaISO = new Date().toISOString();
       render(live, keywords, geos, municipios, minV, maxV, numProceso);
@@ -13924,7 +13935,7 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
 
   hideClosedEl.addEventListener('change', rerender);
   hideOldEl.addEventListener('change', rerender);
-  onlyLicitacionEl.addEventListener('change', rerender);
+  onlyLicitacionEl.addEventListener('change', alCambiarSoloLicitacion);
   hideDiscardedEl.addEventListener('change', rerender);
   if (ordenEl) ordenEl.addEventListener('change', rerender);
   enContenedoresDeProceso('click', async function manejarClickEvaluacion(e){
@@ -15071,7 +15082,7 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
       else if (k === 'cierre' && cierreEl) cierreEl.value = '';
       else if (k === 'cerrados') hideClosedEl.checked = false;
       else if (k === '30d') hideOldEl.checked = false;
-      else if (k === 'licitacion') onlyLicitacionEl.checked = false;
+      else if (k === 'licitacion'){ onlyLicitacionEl.checked = false; alCambiarSoloLicitacion(); return; }
       else if (k === 'descartados') hideDiscardedEl.checked = false;
       else if (k === 'estado') Object.keys(estadoSeleccionado).forEach(x => { estadoSeleccionado[x] = true; });
       rerender();
