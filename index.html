@@ -8686,10 +8686,21 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         let hallado = null;
         if (g.smmlv){
           let mv = null;
+          // Auditoría FI2-5: «para contratos cuyo valor sea inferior a 1.500 SMMLV, el valor asegurado será de 200 SMMLV» tomaba 1.500 (el
+          // umbral del tramo) como valor asegurado. Una cifra precedida de «inferior/menor/hasta/superior/mayor/entre…» es el límite de un
+          // tramo, no el valor; con varios tramos (o varios valores) no se elige ninguno: sale como «cifra no asociada».
+          const figs = [];
           for (const c of w.matchAll(/(\d{1,3}(?:\.\d{3})+|\d{1,4})\)?\s*(?:smmlv|smlmv|salarios?\s+m[íi]nimos)/gi)){
-            if (/deducible|franquicia|tope\s+m[áa]ximo|superiores?\s+a/i.test(w.slice(Math.max(0, c.index - 80), c.index))) continue; // otra cifra, no el valor asegurado
-            mv = c; break;
+            const antes = w.slice(Math.max(0, c.index - 80), c.index);
+            if (/deducible|franquicia|tope\s+m[áa]ximo|superiores?\s+a/i.test(antes)) continue; // otra cifra, no el valor asegurado
+            figs.push({ c: c, umbral: /(?:inferior(?:es)?|menor(?:es)?|hasta|superior(?:es)?|mayor(?:es)?|entre|desde|igual\s+o\s+(?:inferior|superior))\s*(?:a|que|de|al|del)?\s*(?:[a-záéíóúñ]+\s+){0,6}\(?\s*[\s$]*(?:\d{1,3}(?:\.\d{3})*\s*(?:y|a)\s*)?$/i.test(antes.slice(-70)) });
           }
+          const valoresRC = figs.filter(f => !f.umbral), umbralesRC = figs.filter(f => f.umbral);
+          if (umbralesRC.length >= 2 || new Set(valoresRC.map(f => f.c[1])).size > 1){
+            const pgT = porGarantia[m.g]; if (pgT.tabla == null) pgT.tabla = m.ini;
+            return;
+          }
+          mv = valoresRC.length ? valoresRC[0].c : null;
           if (mv){
             const cond = w.slice(mv.index + mv[0].length, mv.index + mv[0].length + 170).match(/^\s*para\s+contratos?\s+cuyo\s+valor.{0,130}?(?:smmlv|smlmv)/i);
             hallado = { v: parseInt(mv[1].replace(/\./g, ''), 10), dist: mv.index, base: '', cond: cond ? cond[0].trim() : '' };

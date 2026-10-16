@@ -3869,6 +3869,15 @@ await check('FI2-3: el capital de trabajo toma el porcentaje del propio document
   const D = expEngine.fichaHabilitante(pre + 'El plazo de ejecución del contrato será de CUATRO (4) MESES. Capital de trabajo demandado para el proceso.', { anio: 2026 });
   assert(!fila6(D, 'Capital de trabajo demandado'), 'sin porcentaje ni fórmula en el documento no se inventa el 33%');
 });
+await check('FI2-5: la RC extracontractual no toma el umbral del tramo ("inferior a 1.500 SMMLV") como valor asegurado; con varios tramos no elige', () => {
+  const g = t => expEngine.fichaHabilitante(t, { anio: 2026 }).filas.find(x => x.requisito === 'Garantía de responsabilidad civil extracontractual');
+  const a = g('Se exigirá responsabilidad civil extracontractual: para contratos cuyo valor sea inferior a 1.500 SMMLV, el valor asegurado será de 200 SMMLV.');
+  assert(a && /200 SMMLV/.test(a.exige) && !/1500/.test(a.exige), 'umbral no es valor asegurado: ' + (a && a.exige));
+  const b = g('Se exigirá responsabilidad civil extracontractual: hasta 1.500 SMMLV: 200 SMMLV; entre 1.501 y 2.500 SMMLV: 300 SMMLV; superior a 2.500 SMMLV: 400 SMMLV.');
+  assert(b && /no se pudo asociar/.test(b.exige) && !/200 SMMLV|1500/.test(b.exige), 'varios tramos: no se elige uno: ' + (b && b.exige));
+  const c = g('Se exigirá responsabilidad civil extracontractual por valor asegurado de 200 SMMLV.');
+  assert(c && /200 SMMLV/.test(c.exige), 'control: una sola cifra');
+});
 await check('fichaHabilitante: datos del proceso (objeto, presupuesto en pesos y SMMLV, plazo, sin anticipo) con la página de cada dato', () => {
   const f = fichaDe();
   assert(/PUENTE DE LA MIEL/.test(filaF(f, 'Objeto').exige), 'objeto');
