@@ -4804,12 +4804,29 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     }
     let headers = [], cols = {}, fuente = null, nHojas = 0;
     const contratos = [];
-    let omitDuplicados = 0, omitTotales = 0;
+    let omitDuplicados = 0, omitTotales = 0, compartidos = 0;
+    const claveContratoCompartido = c => {
+      const num = String((c && c.numeroContrato) || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const fi = c && c.fechaInicio ? String(c.fechaInicio) : '', ff = c && c.fechaFin ? String(c.fechaFin) : '';
+      return (num && (fi || ff)) ? num + '|' + fi + '|' + ff : null;
+    };
     ids.forEach(id => {
       const entrada = expevalPorPerfil[id];
       const c = entrada.contratos;
       const nombrePerfil = (perfiles[id] && perfiles[id].nombre) || 'Sin nombre';
-      aplicarCruceRup(c.contratos || [], entrada.rup && entrada.rup.experiencias, entrada.cruce).forEach(ct => contratos.push(Object.assign({}, ct, { _perfilId: id, _perfilNombre: nombrePerfil })));
+      aplicarCruceRup(c.contratos || [], entrada.rup && entrada.rup.experiencias, entrada.cruce).forEach(ct => {
+        // Auditoría CR2-5: el mismo contrato conjunto cargado por dos integrantes (A 60% y B 40%) contaba como dos contratos y
+        // acreditaba «mínimo 2 contratos» con uno solo. Se une si coinciden número, contratante y fechas; sin número no se adivina.
+        const k = claveContratoCompartido(ct);
+        const previo = k ? contratos.find(x => x._perfilId !== id && claveContratoCompartido(x) === k &&
+          (typeof contratantesCompatibles !== 'function' || contratantesCompatibles(x.contratante, ct.contratante))) : null;
+        if (previo){
+          if (String(previo._perfilNombre).indexOf(nombrePerfil) === -1) previo._perfilNombre += ' + ' + nombrePerfil;
+          compartidos++;
+          return;
+        }
+        contratos.push(Object.assign({}, ct, { _perfilId: id, _perfilNombre: nombrePerfil }));
+      });
       // Encabezados/columnas: se muestran los del PRIMER perfil con columnas reales (informativo nada
       // más -- cada contrato ya trae sus propios valores) en vez de intentar fusionar esquemas distintos.
       if (!headers.length && c.headers && c.headers.length){ headers = c.headers; cols = c.cols || {}; fuente = c.fuente; }
@@ -4827,7 +4844,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         ? ids.length + ' empresa(s): ' + ids.map(id => (perfiles[id] && perfiles[id].nombre) || 'Sin nombre').join(', ')
         : (expevalPorPerfil[ids[0]].meta && expevalPorPerfil[ids[0]].meta.expFile) || null,
       nContratos: contratos.length,
-      omitidos: expevalContratos.omitidos
+      omitidos: expevalContratos.omitidos,
+      compartidos: compartidos
     };
   }
 
@@ -7529,15 +7547,23 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       if (!mN[2] && /^\s*(?:mm|m|k)(?![a-z0-9²³áéíóúñ])/i.test(limpio.slice(reNum.lastIndex))) continue;
       let n = parseNumCO(mN[1]);
       if (n == null || n < 0) continue;
+      const resto = limpio.slice(reNum.lastIndex);
       const mult = (mN[2] || '').toLowerCase().replace(/\s+/g, ' ');
       if (mult === 'mil millones') n *= 1e9;
       else if (/^millon/.test(mult)) n *= 1e6;
       else if (/^billon/.test(mult)) n *= 1e12;
       else if (mult === 'mil') n *= 1e3;
-      nums.push(n);
+      nums.push({ pct: /^\s*%/.test(resto), n: n, smm: /^[\s)]*(?:smmlv|smlmv|s\.?m\.?m\.?l\.?v|salarios?\s+m[ií]nimos)/i.test(resto), monto: !!mN[2] || n >= 1e6 });
     }
+    // Un porcentaje no es un monto («30% de $1.500 millones»), pero una celda que es SOLO «30%» sigue leyéndose (participación).
+    if (nums.some(x => !x.pct)) nums.splice(0, nums.length, ...nums.filter(x => !x.pct));
     if (!nums.length) return null;
-    return { valor: Math.max.apply(null, nums), unidad: smmlv ? 'SMMLV' : 'COP' };
+    // Auditoría CR2-3: «$2.500.000.000 (1.428 SMMLV)» elegía el mayor (2.500.000.000) y lo rotulaba SMMLV; «500 SMMLV (50% de 1.000 SMMLV)»
+    // o «2022: 3.000 M; 2023: 1.500 M» elegían uno sin avisar. Montos en unidades distintas, o distintos entre sí, son ambiguos (null).
+    const montos = nums.filter(x => x.smm || x.monto);
+    if (montos.some(x => x.smm) && montos.some(x => !x.smm)) return null;
+    if (new Set(montos.map(x => Math.round(x.n * 1000))).size > 1) return null;
+    return { valor: Math.max.apply(null, nums.map(x => x.n)), unidad: smmlv ? 'SMMLV' : 'COP' };
   }
 
   // ── Red flags del pliego: mínimos legales de garantías ──────────────────
@@ -9840,7 +9866,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // 0.6" no toma el 0.6 para la liquidez), sin fechas ni años ("Liquidez a 31/12/2024: 0,8"
   // -> 0,8, no 31). `noPrecedidoPor` descarta, p. ej., "Rentabilidad del patrimonio" al
   // buscar "patrimonio". Si las apariciones dan valores distintos, es ambiguo -> null.
-  function cifrasDePerfil(texto, etiquetaRe, noPrecedidoPor){
+  function cifrasDePerfil(texto, etiquetaRe, noPrecedidoPor, unSoloValor){
     const t = String(texto || '');
     const re = new RegExp(etiquetaRe.source, 'gi');
     const valores = [];
@@ -9852,6 +9878,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       if (corte !== -1) seg = seg.slice(0, corte);
       const cands = cifrasCandidatas(seg);
       if (!cands.length) continue;
+      // Auditoría CR2-4: «Endeudamiento: 0,35 (2022) y 0,82 (2023)» tomaba el primero (pasaba ≤ 0,6). En un índice, dos valores
+      // distintos en la misma mención no se desempatan: queda ambiguo.
+      if (unSoloValor && new Set(cands.map(c => c.valor + '|' + c.pct)).size > 1) return { ambiguo: true };
       const pref = cands.filter(c => /[:=$]\s*$/.test(c.antes));
       const c = pref.length ? pref[0] : cands[0];
       valores.push(c);
@@ -9864,7 +9893,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // Lee un índice (liquidez, endeudamiento, cobertura) del texto libre del perfil.
   // Devuelve una RAZÓN (60% -> 0.6) o null si no hay dato o es ambiguo.
   function leerIndiceDePerfil(texto, etiquetaRe, tipo){
-    const c = cifrasDePerfil(texto, etiquetaRe);
+    const c = cifrasDePerfil(texto, etiquetaRe, undefined, true);
     if (!c || c.ambiguo) return null;
     if (c.pct) return c.valor / 100;
     if (tipo === 'endeudamiento' && c.valor > 5) return null; // sin "%": ¿45 % o razón 45? no se adivina

@@ -4475,6 +4475,44 @@ await check('recalcularExpevalActivo: dos perfiles con contratos propios, ambos 
   const meta = expEngine.getExpevalMeta();
   assert(meta.nContratos === 2 && /2 empresa/.test(meta.expFile), 'expevalMeta debe reflejar las 2 empresas combinadas: ' + JSON.stringify(meta));
 });
+// ---- Auditoría 2026-10-16, familia 4: lectura de montos/indicadores del perfil y consorcio (CR2-3, CR2-4, CR2-5) ----
+await check('CR2-3: parseValorUnidad no mezcla unidades ni elige el mayor entre cifras distintas (pesos + SMMLV, dos años, tope + total)', () => {
+  const p = expEngine.parseValorUnidad;
+  assert(p('$2.500.000.000 (1.428 SMMLV)') === null, 'pesos y SMMLV juntos: ambiguo -> null, fue ' + JSON.stringify(p('$2.500.000.000 (1.428 SMMLV)')));
+  assert(p('500 SMMLV (50% de 1.000 SMMLV)') === null, 'dos montos distintos: null');
+  assert(p('K 2022: 3.000 millones; 2023: 1.500 millones') === null, 'dos años: null');
+  const a = p('15.000 SMMLV'); assert(a && a.valor === 15000 && a.unidad === 'SMMLV', 'control SMMLV simple');
+  const b = p('$1.500 millones'); assert(b && b.valor === 1.5e9 && b.unidad === 'COP', 'control millones');
+  const c = p('quince mil (15.000) SMMLV'); assert(c && c.valor === 15000 && c.unidad === 'SMMLV', 'control letras + número');
+  const d = p('$1.500.000.000 (mil quinientos millones de pesos)'); assert(d && d.valor === 1.5e9, 'el mismo monto en cifra y en letras no es conflicto');
+  const e = p('30% de $1.500 millones'); assert(e && e.valor === 1.5e9, 'el porcentaje no cuenta como monto distinto');
+});
+await check('CR2-4: un indicador del perfil con dos valores (dos años) en la misma frase es ambiguo, no el primero', () => {
+  const l = expEngine.leerIndiceDePerfil;
+  assert(l('Endeudamiento: 0,35 (2022) y 0,82 (2023)', /endeudamiento/i, 'endeudamiento') === null, 'dos años: ambiguo');
+  assert(l('Liquidez: 2,5 (2022) / 1,1 (2023)', /liquidez/i, 'liquidez') === null, 'dos años: ambiguo');
+  assert(l('Liquidez: 1,8', /liquidez/i, 'liquidez') === 1.8, 'control: un valor');
+  assert(l('Liquidez a 31/12/2024: 0,8', /liquidez/i, 'liquidez') === 0.8, 'control: la fecha no cuenta');
+});
+await check('CR2-5: el mismo contrato cargado por dos empresas del consorcio cuenta UNA vez (y se avisa)', () => {
+  const ct = (obj) => ({ objeto: obj, valor: 1000000000, numeroContrato: 'LP-012-2021', contratante: 'Municipio de Cúcuta', fechaInicio: '2021-03-01', fechaFin: '2022-02-28' });
+  const exp = (c) => ({ headers: ['Objeto', 'Valor'], cols: {}, contratos: [c], nHojas: 1, fuente: 'xlsx' });
+  expEngine.setPerfiles(Object.assign({}, perfilFixture('a', 'Alfa'), perfilFixture('b', 'Beta')));
+  expEngine.setPerfilesActivos(['a', 'b']); expEngine.setPerfilActivoId('a');
+  expEngine.setExpevalPorPerfil({ a: { contratos: exp(ct('Construcción de puente')), meta: {} }, b: { contratos: exp(ct('Construccion de puente vehicular')), meta: {} } });
+  expEngine.recalcularExpevalActivo();
+  const m = expEngine.getExpevalContratos();
+  assert(m.contratos.length === 1, 'un solo contrato real: ' + m.contratos.length);
+  assert(/Alfa/.test(m.contratos[0]._perfilNombre) && /Beta/.test(m.contratos[0]._perfilNombre), 'debe decir que lo aportan ambas: ' + m.contratos[0]._perfilNombre);
+  assert(expEngine.getExpevalMeta().compartidos === 1, 'meta.compartidos');
+  // Control: dos contratos distintos (otro número) siguen sumándose; sin número de contrato no se adivina.
+  expEngine.setExpevalPorPerfil({ a: { contratos: exp(ct('x')), meta: {} }, b: { contratos: exp(Object.assign(ct('x'), { numeroContrato: 'LP-099-2021' })), meta: {} } });
+  expEngine.recalcularExpevalActivo();
+  assert(expEngine.getExpevalContratos().contratos.length === 2, 'números distintos: dos contratos');
+  expEngine.setExpevalPorPerfil({ a: { contratos: exp(Object.assign(ct('x'), { numeroContrato: '' })), meta: {} }, b: { contratos: exp(Object.assign(ct('x'), { numeroContrato: '' })), meta: {} } });
+  expEngine.recalcularExpevalActivo();
+  assert(expEngine.getExpevalContratos().contratos.length === 2, 'sin número de contrato no se deduplica');
+});
 
 await check('recalcularExpevalActivo: el combinado lleva los códigos UNSPSC del RUP solo en los contratos con cruce confirmado, y solo de su propia empresa', () => {
   expEngine.setPerfiles(Object.assign({}, perfilFixture('a', 'Constructora Alfa'), perfilFixture('b', 'Constructora Beta')));
