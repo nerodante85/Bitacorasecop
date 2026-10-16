@@ -5242,8 +5242,8 @@ await check('Pie de ayuda: no describe funciones que ya no existen (semáforo en
   ['semáforo', 'Ocultar NO-GO', 'alta prioridad', 'SECOP I es casi', 'prioridad del proceso', 'Comparar en el análisis de pliegos'].forEach(t =>
     assert(!bloque.includes(t), 'el pie todavía menciona algo que ya no existe: «' + t + '»'));
   const buscar = [...bloque.matchAll(/<p data-help-view="buscar">([\s\S]*?)<\/p>/g)].map(m => m[1]);
-  assert(buscar.length >= 1 && buscar.length <= 2, 'Buscar procesos tiene 1 o 2 notas: ' + buscar.length);
-  assert(buscar.join('').length <= 600, 'las notas de Buscar procesos son breves (≤ 600 caracteres): ' + buscar.join('').length);
+  assert(buscar.length === 1, 'Buscar procesos deja solo la nota de la Fuente: ' + buscar.length);
+  assert(buscar.join('').length <= 400, 'la nota de Buscar procesos es breve (≤ 400 caracteres): ' + buscar.join('').length);
   assert(/SECOP II/.test(buscar[0]) && /una vez al día/.test(buscar[0]) && /respaldo/.test(buscar[0]) && /verifica/i.test(buscar[0]), 'la nota de Buscar conserva fuente, frecuencia, respaldo y verificar en SECOP');
 });
 await check('Interfaz: ningún texto visible al usuario manda a leer CLAUDE.md (es documentación del proyecto, no de la app)', () => {
