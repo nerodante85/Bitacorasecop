@@ -120,16 +120,37 @@
   // ningún proceso abierto llegaba. VIGENTES = cierre hoy o después (pocas, caben en 300);
   // RECIENTES = publicación no nula, más reciente primero. El término va sin tildes (el filtro fino
   // real es matchesTerm). Devuelve solo los parámetros; la URL base y el token los pone quien llama.
-  function consultasSecopII(qTerm, hoyISO) {
+  //
+  // DEPARTAMENTO EN EL SERVIDOR: con `geos`, las dos consultas filtran por departamento_entidad. Sin esto la
+  // muestra era de TODO el país (o de todo lo que menciona el nombre) y el filtro fino del navegador trabajaba
+  // sobre 300 filas: en Boyacá (~9.500 procesos en 60 días) esas 300 eran contratación directa y mínima cuantía,
+  // y las 30 licitaciones de obra quedaban fuera (0 de 300). Las vocales se vuelven comodín `_` para no depender
+  // de las tildes del dato ("BOYAC_" casa con "Boyacá"); matchesGeo sigue siendo el filtro exacto del navegador.
+  function filtroDepartamento(geos) {
+    const patrones = [];
+    (geos || []).forEach(g => {
+      const n = normalizeGeo(g);
+      if (n.replace(/\s/g, '').length < 3) return;
+      const p = n.toUpperCase().replace(/[AEIOU]/g, '_').replace(/'/g, "''");
+      if (patrones.indexOf(p) === -1) patrones.push(p);
+    });
+    if (!patrones.length) return '';
+    const cond = patrones.map(p => "upper(departamento_entidad) like '" + p + "'");
+    return cond.length === 1 ? cond[0] : '(' + cond.join(' OR ') + ')';
+  }
+
+  function consultasSecopII(qTerm, hoyISO, geos) {
     const q = qTerm
       ? '&$q=' + encodeURIComponent(String(qTerm).normalize('NFD').replace(/[̀-ͯ]/g, ''))
       : '';
+    const dep = filtroDepartamento(geos);
+    const y = dep ? ' AND ' + dep : '';
     return {
       vigentes: '$limit=300' + q +
-        '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'") +
+        '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'" + y) +
         '&$order=' + encodeURIComponent('fecha_de_recepcion_de ASC'),
       recientes: '$limit=300' + q +
-        '&$where=' + encodeURIComponent('fecha_de_publicacion_del IS NOT NULL') +
+        '&$where=' + encodeURIComponent('fecha_de_publicacion_del IS NOT NULL' + y) +
         '&$order=' + encodeURIComponent('fecha_de_publicacion_del DESC')
     };
   }

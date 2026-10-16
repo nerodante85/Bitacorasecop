@@ -13155,7 +13155,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // (columna inexistente) ANTES de reintentar sin orden -- funciona igual,
   // pero duplica cada solicitud y llena la consola de errores 400 en cada
   // búsqueda.
-  async function fetchSecopDataset(datasetId, qTerm, fuente, ordenCol){
+  async function fetchSecopDataset(datasetId, qTerm, fuente, ordenCol, geos){
     const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' +
       (qTerm ? ('&$q=' + encodeURIComponent(qTerm)) : '');
     // Socrata no garantiza ningún orden por defecto. Con $limit=300 y palabras
@@ -13182,7 +13182,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // Ver consultasSecopII (S2-001/S2-002): vigentes + recientes, sin tildes.
       const hoy = new Date();
       const hoyISO = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
-      const c = consultasSecopII(qTerm, hoyISO);
+      const c = consultasSecopII(qTerm, hoyISO, geos);
       const url = p => 'https://www.datos.gov.co/resource/' + datasetId + '.json?' + p;
       try {
         const [vigentes, recientes] = await Promise.all([intentar(url(c.vigentes)), intentar(url(c.recientes))]);
@@ -13208,9 +13208,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     return data;
   }
 
-  async function fetchAllForDataset(datasetId, anchors, fuente, ordenCol){
+  // `geos` (solo SECOP II): departamentos que filtran EN EL SERVIDOR (ver filtroDepartamento en coincidencia.js).
+  async function fetchAllForDataset(datasetId, anchors, fuente, ordenCol, geos){
     const list = anchors.length ? anchors : [null];
-    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente, ordenCol)));
+    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente, ordenCol, geos)));
     const merged = [].concat(...batches);
     const seen = new Set();
     const deduped = [];
@@ -13248,8 +13249,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // contra una muestra vieja y estática daría un conteo directamente falso,
   // peor que no mostrar nada -- se prefiere marcar la alerta con error.
   async function evaluarAlerta(alerta){
-    const anchors = alerta.keywords.length ? alerta.keywords : alerta.geos;
-    const registros = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
+    const registros = await fetchAllForDataset('p6dx-8zbt', alerta.keywords, 'II', undefined, alerta.geos);
     const desde = alerta.ultimaRevision ? new Date(alerta.ultimaRevision).getTime() : 0;
     let coincidencias = 0;
     let nuevos = 0;
@@ -13401,7 +13401,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // El departamento se sigue aplicando, pero como filtro del lado del cliente
     // (ver render()), igual que las palabras clave. Si hay Nº de proceso, ese es
     // el único ancla -- es lo bastante específico como para no necesitar más.
-    const anchors = numProceso ? [numProceso] : (keywords.length ? keywords : geos);
+    // Actualización (Boyacá, 2026-10-16): el departamento ahora TAMBIÉN filtra en el servidor (`geosServidor`);
+    // sin palabras clave ya no se usa como ancla $q (una sola consulta por departamento). Antes la muestra eran 300
+    // filas de todo lo que mencionaba "Boyacá" y las licitaciones de obra (30 de ~9.500 en 60 días) no entraban.
+    const anchors = numProceso ? [numProceso] : keywords;
+    const geosServidor = numProceso ? [] : geos;
 
     showLoading();
     searchBtn.disabled = true;
@@ -13417,7 +13421,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // historial/perfil/análisis ya estén cargados cuando render() los use.
     await appReady;
     try {
-      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II');
+      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor);
       lastRecords = live;
       lastConsultaISO = new Date().toISOString();
       render(live, keywords, geos, municipios, minV, maxV, numProceso);
