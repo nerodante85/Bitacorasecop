@@ -1973,6 +1973,11 @@
             <p class="saved-note" id="bt-ajustes-cuenta-texto">Sin cuenta, tus datos viven solo en este navegador.</p>
             <div class="actions"><button type="button" class="btn-secondary" data-abrir-cuenta id="bt-ajustes-cuenta-btn">Iniciar sesión o crear cuenta</button></div>
           </div>
+          <div class="titleblock" id="bt-ajustes-ia-panel">
+            <div class="titleblock-head"><h2>Inteligencia artificial (opcional)</h2></div>
+            <p class="saved-note">La IA lee el PDF del pliego para extraer requisitos y también puede transcribir documentos escaneados. <b>Usa crédito de IA</b> y solo se ejecuta cuando tú pulsas el botón. La ficha habilitante y el análisis por palabras clave no la usan.</p>
+            <label class="check"><input type="checkbox" id="bt-ia-activada"> Mostrar los botones de IA (requiere iniciar sesión)</label>
+          </div>
           <div class="titleblock" id="bt-ajustes-respaldo-panel">
             <div class="titleblock-head"><h2>Respaldo de tus datos</h2></div>
             <p class="saved-note">Sin cuenta, tus perfiles, experiencia y análisis viven solo en este navegador: si borras los datos del navegador, se pierden. Descarga un respaldo de vez en cuando; puedes restaurarlo aquí o en otro navegador.</p>
@@ -2761,6 +2766,16 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const digestToggle = document.getElementById('bt-account-digest-toggle');
     if (digestToggle) digestToggle.addEventListener('change', () => {
       window.storage.set('correo_digest_activo', digestToggle.checked ? 'true' : 'false', false);
+    });
+  }
+
+  // Interruptor de la IA opcional (Configuración): nace apagado; al cambiarlo se repinta el análisis abierto.
+  const iaToggle = document.getElementById('bt-ia-activada');
+  if (iaToggle){
+    iaToggle.checked = iaActivada();
+    iaToggle.addEventListener('change', () => {
+      try { localStorage.setItem('bitacora_ia_activada', iaToggle.checked ? '1' : '0'); } catch (e) { /* sin almacenamiento: queda apagada */ }
+      if (typeof renderAnalisisView === 'function') renderAnalisisView();
     });
   }
 
@@ -5278,7 +5293,10 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // Lectura con IA de un PDF escaneado CORTO (RUP, RUT, experiencia del proponente, Estudio Previo): las
   // primeras `maxPaginas` páginas en tandas de IA_TRANSCRIBE_BATCH_PAGES, con la misma forma de resultado que
   // ocrPdfPages ({text, numPages, pagesRead, paginaOffsets}) para que cada flujo sea intercambiable OCR/IA.
-  function hayCuentaParaIA(){ return !!(SUPABASE_ENABLED && sbSession && sbCompanyId); }
+  // La IA es OPCIONAL y usa créditos: nace APAGADA (interruptor en Configuración) y solo se usa con un clic explícito; la ficha
+  // habilitante y el análisis por palabras clave no la necesitan. Se guarda solo en este navegador (no se sincroniza).
+  function iaActivada(){ try { return localStorage.getItem('bitacora_ia_activada') === '1'; } catch (e) { return false; } }
+  function hayCuentaParaIA(){ return !!(SUPABASE_ENABLED && sbSession && sbCompanyId && iaActivada()); }
   async function leerEscaneadoConIA(file, maxPaginas, onProgreso){
     let text = '', numPages = 0, pagesRead = 0;
     const offsets = [];
@@ -5300,6 +5318,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // Botón "Leer con IA" junto al de OCR: solo con sesión (sin ella, una nota para iniciar sesión).
   function botonLeerConIAHtml(atributos){
     if (hayCuentaParaIA()) return ' <button class="link-btn" type="button" data-leer-ia ' + (atributos || '') + '>Leer con IA</button> (más rápido y preciso; consume crédito de IA).';
+    if (SUPABASE_ENABLED && sbSession && sbCompanyId && !iaActivada()) return ' <button class="link-btn" type="button" data-ia-activar>Activar la IA</button> (opcional; usa crédito de IA) para leerlo con IA.';
     return SUPABASE_ENABLED ? ' <button class="link-btn" type="button" data-abrir-cuenta>Inicia sesión</button> para leerlo con IA.' : '';
   }
 
@@ -11580,13 +11599,15 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       ? '<button class="btn-secondary analysis-ia-citas-btn" data-ia-id="' + id + '" title="La IA transcribe únicamente las páginas que citan las filas sin verificar (no el documento completo) y se comparan las citas contra ese texto.">📖 Verificar citas leyendo solo ' +
         citadasPend.length + ' página(s) citada(s) (~' + Math.ceil(citadasPend.length / TANDA_PAGINAS_CITADAS) + ' tanda(s))</button>'
       : '';
-    const controles = !conCuenta
+    const controles = conCuenta && !iaActivada()
+      ? '<div class="saved-note">La IA es <b>opcional</b> y usa crédito de IA: está apagada. La ficha habilitante de arriba y el análisis por palabras clave funcionan sin ella. <button class="link-btn" type="button" data-ia-activar>Activar la IA</button></div>'
+      : !conCuenta
       ? '<div class="saved-note">Para extraer los requisitos con IA necesitas iniciar sesión. Sin IA, el análisis por palabras clave de más abajo sigue funcionando igual.' +
           (SUPABASE_ENABLED ? ' <button class="link-btn" data-abrir-cuenta>Iniciar sesión</button>' : '') + '</div>'
       : '<div class="ia-controles">' +
           (pendiente ? '' : '<label>PDF del ' + (entry.esSoloEP ? 'Estudio Previo' : 'pliego') + '<input type="file" accept="application/pdf,.pdf" data-ia-pliego-id="' + id + '"></label>') +
           '<label>Adendas (opcional)<input type="file" accept="application/pdf,.pdf" multiple data-ia-adendas-id="' + id + '"></label>' +
-          '<button class="btn-primary analysis-ia-btn" data-ia-id="' + id + '">' + (ia ? '↻ Volver a extraer con IA' : '🤖 Extraer requisitos con IA') + '</button>' +
+          '<button class="btn-secondary analysis-ia-btn" data-ia-id="' + id + '" title="Opcional: usa crédito de IA. La ficha habilitante no lo necesita.">' + (ia ? '↻ Volver a extraer con IA (usa crédito)' : '🤖 Extraer requisitos con IA (opcional · usa crédito)') + '</button>' +
           botonCitas +
         '</div>';
     const estado = '<div class="saved-note" data-ia-status role="status" aria-live="polite"></div>';
@@ -15446,6 +15467,12 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     }
 
     if (e.target.closest('[data-abrir-cuenta]')){ openAccountModal(); return; }
+    if (e.target.closest('[data-ia-activar]')){
+      try { localStorage.setItem('bitacora_ia_activada', '1'); } catch (er) { /* sin almacenamiento */ }
+      const t = document.getElementById('bt-ia-activada'); if (t) t.checked = true;
+      if (typeof renderAnalisisView === 'function') renderAnalisisView();
+      return;
+    }
 
     // 0c-bis0) Generar carta/paquete de propuesta directo desde la tarjeta -- antes
     // solo existía en "Evaluación" (hallazgo CRÍTICO de la auditoría UX/UI). Misma

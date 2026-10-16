@@ -186,6 +186,20 @@ await check('Deshacer al descartar: Descartar saca la tarjeta, avisa con «Desha
   const r = await pg.evaluate((id) => ({ fila: !!document.querySelector('#bt-results .row[data-id="' + id + '"]'), desc: !!document.querySelector('#bt-results .row.descartado'), oculto: document.getElementById('bt-deshacer').hidden, total: document.querySelectorAll('#bt-results .row').length }), id);
   assert(r.fila && !r.desc && r.oculto && r.total === total, 'deshacer devuelve la tarjeta y esconde el aviso: ' + JSON.stringify(r) + ' (antes ' + total + ')');
 });
+await check('IA opcional: el interruptor de Configuración nace APAGADO, se puede encender y se recuerda al recargar (la IA solo se usa con clic y con el interruptor encendido)', async () => {
+  const { pg } = await abrir();
+  await pg.evaluate(() => document.getElementById('bt-nav-ajustes').click());
+  const ini = await pg.evaluate(() => { const c = document.getElementById('bt-ia-activada'); return c ? c.checked : null; });
+  assert(ini === false, 'el interruptor debe existir y nacer apagado: ' + ini);
+  await pg.evaluate(() => { const c = document.getElementById('bt-ia-activada'); c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); });
+  assert(await pg.evaluate(() => localStorage.getItem('bitacora_ia_activada')) === '1', 'queda guardado como activado');
+  await pg.reload();
+  await pg.evaluate(() => document.getElementById('bt-nav-ajustes').click());
+  assert(await pg.evaluate(() => document.getElementById('bt-ia-activada').checked) === true, 'se recuerda al recargar');
+  await pg.evaluate(() => { const c = document.getElementById('bt-ia-activada'); c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); });
+  assert(await pg.evaluate(() => localStorage.getItem('bitacora_ia_activada')) === '0', 'se puede volver a apagar');
+});
+
 await check('Mis procesos: el resumen de arriba cuenta lo guardado, y desaparece cuando no hay nada guardado', async () => {
   const { pg } = await abrir();
   await pg.evaluate(() => document.getElementById('bt-nav-procesos').click());

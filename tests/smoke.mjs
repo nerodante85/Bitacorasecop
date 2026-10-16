@@ -2144,6 +2144,14 @@ const globalIA = filas => {
 };
 const IA_TEXTO_AUD = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. Andenes y ciclorrutas: mínimo 1 contrato. Podrá acreditar además vías urbanas: mínimo 1 contrato. Se otorgarán 10 puntos por cada contrato adicional de puentes vehiculares. ';
 const filaOblig = () => filaIA({ pagina: 1, min_contratos: 2, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, cita_textual: 'Puentes vehiculares: mínimo 2 contratos', objeto_literal: 'puentes vehiculares' });
+await check('IA opcional: iaActivada() apaga todos los botones de IA (hayCuentaParaIA lo exige), el bloque de requisitos ofrece activarla y avisa que usa créditos, y Configuración trae el interruptor', () => {
+  assert(/function iaActivada\(\)\{[^}]*bitacora_ia_activada/.test(html), 'iaActivada debe leer bitacora_ia_activada');
+  assert(/function hayCuentaParaIA\(\)\{[^}]*iaActivada\(\)/.test(html), 'hayCuentaParaIA debe exigir iaActivada()');
+  assert(/data-ia-activar/.test(html) && /usa cr[ée]dito/i.test(html), 'el bloque de requisitos ofrece activar la IA y avisa del crédito');
+  assert(/id="bt-ia-activada"/.test(html), 'Configuración trae el interruptor');
+  const bloque = html.slice(html.indexOf('function bloqueRequisitosIAHtml'), html.indexOf('function bloqueRequisitosIAHtml') + 3500);
+  assert(/iaActivada\(\)/.test(bloque), 'el bloque de requisitos consulta el interruptor');
+});
 await check('IA2-4: una fila opcional/alternativa cuya cita no lo indica (podría ser obligatoria) impide un CUMPLE global; con el marcador en la cita no', () => {
   const dudosa = filaIA({ pagina: 1, obligatoriedad: 'opcional', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'andenes y ciclorrutas', cita_textual: 'Andenes y ciclorrutas: mínimo 1 contrato', descripcion: 'Experiencia en andenes y ciclorrutas' });
   assert(globalIA([filaOblig()]).resultadoGlobal === 'CUMPLE', 'control: la fila obligatoria sola cumple');
