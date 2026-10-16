@@ -2117,7 +2117,7 @@
 <script src="magnitudes.js"></script>
 <script>
 // Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
-const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII } = Coincidencia;
+const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
 (function(){
   // Shim de almacenamiento: si corre como artifact de Claude, usa window.storage
   // (persistente en la nube); si corre como sitio independiente (GitHub Pages, etc.),
@@ -12314,8 +12314,18 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const objeto = findField(record, ['objeto_del_proceso','descripcion_del_procedimiento','descripci_n_del_procedimiento','objeto_a_contratar'], 'objeto') || 'Sin descripción disponible';
     const modalidad = findField(record, ['modalidad_de_contratacion','tipo_de_contrato'], 'modalidad') || null;
     const estado = findField(record, ['estado_del_procedimiento','fase'], 'estado') || null;
-    const departamento = findField(record, ['departamento','departamento_entidad'], 'departamento') || null;
-    const ciudad = findField(record, ['ciudad','ciudad_entidad','localizaci_n'], 'ciudad') || null;
+    let departamento = findField(record, ['departamento','departamento_entidad'], 'departamento') || null;
+    let ciudad = findField(record, ['ciudad','ciudad_entidad','localizaci_n'], 'ciudad') || null;
+    // «No Definido» no es un lugar: se resuelve por el municipio de la unidad de contratación si es de un solo
+    // departamento (ver ubicacionDeRegistro); si no, queda sin dato.
+    const sinDefinir = v => !v || /^no definido$/i.test(String(v).trim());
+    if (sinDefinir(departamento) || sinDefinir(ciudad)){
+      const ub = ubicacionDeRegistro(record, mapaMunicipiosActual);
+      if (sinDefinir(departamento)) departamento = ub.departamento;
+      if (sinDefinir(ciudad)) ciudad = ub.ciudad;
+    }
+    if (sinDefinir(departamento)) departamento = null;
+    if (sinDefinir(ciudad)) ciudad = null;
     const valor = findField(record, ['precio_base','valor_estimado','valor_del_contrato','valor_total_estimado'], 'precio') || findField(record, [], 'valor');
     const url = extractUrl(record);
     const referencia = findField(record, ['referencia_del_proceso','referencia'], 'referencia') || null;
@@ -13155,6 +13165,21 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // (columna inexistente) ANTES de reintentar sin orden -- funciona igual,
   // pero duplica cada solicitud y llena la consola de errores 400 en cada
   // búsqueda.
+  // Mapa municipio -> departamento (municipios.json: DIVIPOLA + pares de SECOP II, ver scripts/generar-municipios.mjs)
+  // para resolver los procesos que vienen con departamento «No Definido» (Otanche). Un municipio de varios
+  // departamentos va en null y no se adivina. Se pide una vez por sesión, solo si la búsqueda trae departamento;
+  // consultarlo a datos.gov.co en cada búsqueda tardaba 16-19 s. Si falla, esos procesos no se resuelven.
+  let mapaMunicipiosActual = null;
+  async function cargarMapaMunicipios(){
+    if (mapaMunicipiosActual) return;
+    try {
+      const res = await withTimeout(fetch('municipios.json', { cache: 'force-cache' }), 8000, 'El mapa de municipios');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const mapa = await res.json();
+      if (mapa && typeof mapa === 'object' && Object.keys(mapa).length > 500) mapaMunicipiosActual = mapa;
+    } catch(e){ /* sin mapa: solo se pierden los procesos sin departamento */ }
+  }
+
   async function fetchSecopDataset(datasetId, qTerm, fuente, ordenCol, geos){
     const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' +
       (qTerm ? ('&$q=' + encodeURIComponent(qTerm)) : '');
@@ -13249,6 +13274,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // contra una muestra vieja y estática daría un conteo directamente falso,
   // peor que no mostrar nada -- se prefiere marcar la alerta con error.
   async function evaluarAlerta(alerta){
+    if (alerta.geos.length) await cargarMapaMunicipios();
     const registros = await fetchAllForDataset('p6dx-8zbt', alerta.keywords, 'II', undefined, alerta.geos);
     const desde = alerta.ultimaRevision ? new Date(alerta.ultimaRevision).getTime() : 0;
     let coincidencias = 0;
@@ -13421,6 +13447,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     // historial/perfil/análisis ya estén cargados cuando render() los use.
     await appReady;
     try {
+      if (geosServidor.length) await cargarMapaMunicipios();
       const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor);
       lastRecords = live;
       lastConsultaISO = new Date().toISOString();

@@ -1603,7 +1603,9 @@ await check('SECOP II: con departamento, AMBAS consultas lo filtran en el servid
 
 await check('SECOP II: varios departamentos van con OR entre paréntesis; las vocales se vuelven comodín (tildes) y "Departamento de X" se limpia', () => {
   const w = new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Norte de Santander', 'Departamento de Boyacá']).vigentes).get('$where');
-  assert(w.includes("(upper(departamento_entidad) like 'N_RT_ D_ S_NT_ND_R' OR upper(departamento_entidad) like 'B_Y_C_')"), 'OR agrupado, fue ' + w);
+  assert(w.includes("(upper(departamento_entidad) like 'N_RT_ D_ S_NT_ND_R' OR upper(departamento_entidad) like 'B_Y_C_' OR departamento_entidad = 'No Definido')"), 'OR agrupado (las vigentes incluyen los sin departamento), fue ' + w);
+  const r = new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Norte de Santander', 'Departamento de Boyacá']).recientes).get('$where');
+  assert(r.includes("(upper(departamento_entidad) like 'N_RT_ D_ S_NT_ND_R' OR upper(departamento_entidad) like 'B_Y_C_')") && !r.includes('No Definido'), 'las recientes NO traen los sin departamento (llenarían las 300 filas con todo el país), fue ' + r);
   assert(new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Boyacá']).vigentes).get('$q') === 'acueducto', 'la palabra clave sigue yendo en $q');
 });
 
@@ -1612,6 +1614,42 @@ await check('SECOP II: un departamento vacío o de menos de 3 letras no genera f
   const conVacios = expEngine.consultasSecopII('x', '2026-09-26', ['', ' ', 'a']);
   assert(JSON.stringify(base) === JSON.stringify(conVacios), 'geos inútiles no cambian la consulta');
   assert(JSON.stringify(base) === JSON.stringify(expEngine.consultasSecopII('x', '2026-09-26', [])), 'geos vacío = antes');
+});
+
+await check('Ubicación: vigentes con departamento «No Definido» (Otanche) entran a la consulta y se resuelven por municipio solo si el municipio es de UN solo departamento', () => {
+  const C = Coincidencia;
+  const w = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Boyacá']).vigentes).get('$where');
+  assert(w.includes("OR departamento_entidad = 'No Definido'"), 'vigentes incluye los sin departamento, fue ' + w);
+  const mapa = C.mapaMunicipios([
+    { ciudad_entidad: 'Otanche', departamento_entidad: 'Boyacá' },
+    { ciudad_entidad: 'Cúcuta', departamento_entidad: 'Norte de Santander' },
+    { ciudad_entidad: 'Caldas', departamento_entidad: 'Boyacá' }, { ciudad_entidad: 'Caldas', departamento_entidad: 'Antioquia' },
+    { ciudad_entidad: 'No Definido', departamento_entidad: 'No Definido' },
+    { ciudad_entidad: 'Tunja', departamento_entidad: 'No Definido' }
+  ]);
+  const u = (dep, ciu, unidad) => C.ubicacionDeRegistro({ departamento_entidad: dep, ciudad_entidad: ciu, ciudad_de_la_unidad_de: unidad }, mapa);
+  const o = u('No Definido', 'No Definido', 'Otanche');
+  assert(o.departamento === 'Boyacá' && o.ciudad === 'Otanche' && o.deducido === true, 'Otanche -> Boyacá, deducido: ' + JSON.stringify(o));
+  assert(u('No Definido', 'No Definido', 'OTANCHE').departamento === 'Boyacá', 'sin importar mayúsculas');
+  assert(u('No Definido', 'No Definido', 'Caldas').departamento === null, 'Caldas existe en Boyacá y Antioquia: NO se adivina');
+  assert(u('No Definido', 'No Definido', 'Tunja').departamento === null, 'un municipio visto solo con "No Definido" no se resuelve');
+  assert(u('No Definido', 'No Definido', 'Pueblo Inventado').departamento === null, 'municipio desconocido: sin dato');
+  const n = u('Norte de Santander', 'Cúcuta', 'Cúcuta');
+  assert(n.departamento === 'Norte de Santander' && n.deducido === false, 'si el dataset ya trae departamento, se respeta y no se deduce');
+  assert(u(null, null, null).departamento === null && C.ubicacionDeRegistro({}, null).departamento === null, 'sin datos ni mapa no revienta');
+  assert(C.matchesGeo(o.departamento, 'Boyacá') === true && C.matchesGeo(u('No Definido', 'No Definido', 'Caldas').departamento, 'Boyacá') === false, 'el filtro por departamento usa el deducido y descarta el ambiguo');
+});
+
+await check('Ubicación: municipios.json (DIVIPOLA + SECOP II) existe, resuelve los municipios de uso común, deja los ambiguos en null, se carga desde el mismo sitio y pages.yml lo publica', () => {
+  const m = JSON.parse(readFileSync(path.join(ROOT, 'municipios.json'), 'utf8'));
+  assert(Object.keys(m).length > 1000, 'trae los ~1.100 municipios');
+  assert(m.otanche === 'Boyacá' && m.tunja === 'Boyacá' && m.cucuta === 'Norte de Santander' && m['san jose de cucuta'] === 'Norte de Santander', 'Otanche, Tunja y Cúcuta (también con su nombre oficial)');
+  assert(m.caldas === null && m.belen === null, 'Caldas y Belén existen en varios departamentos: null, no se adivina');
+  assert(m.bogota === 'Distrito Capital de Bogotá', 'usa el nombre de departamento que escribe SECOP II');
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/fetch\('municipios\.json'/.test(html), 'la app carga municipios.json del mismo sitio (connect-src \'self\')');
+  assert(!/\$group=ciudad_entidad,departamento_entidad/.test(html), 'ya no consulta el mapa a datos.gov.co en cada búsqueda (tardaba 16-19 s)');
+  assert(/cp index\.html [^\n]*municipios\.json/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia municipios.json al sitio');
 });
 
 // ---- S2-003: estados que ya no son una oportunidad ---------------------------

@@ -126,7 +126,7 @@
   // sobre 300 filas: en Boyacá (~9.500 procesos en 60 días) esas 300 eran contratación directa y mínima cuantía,
   // y las 30 licitaciones de obra quedaban fuera (0 de 300). Las vocales se vuelven comodín `_` para no depender
   // de las tildes del dato ("BOYAC_" casa con "Boyacá"); matchesGeo sigue siendo el filtro exacto del navegador.
-  function filtroDepartamento(geos) {
+  function filtroDepartamento(geos, conSinDepartamento) {
     const patrones = [];
     (geos || []).forEach(g => {
       const n = normalizeGeo(g);
@@ -136,7 +136,47 @@
     });
     if (!patrones.length) return '';
     const cond = patrones.map(p => "upper(departamento_entidad) like '" + p + "'");
+    // Algunas entidades (Otanche) vienen con departamento «No Definido» y solo el municipio en
+    // ciudad_de_la_unidad_de: en las VIGENTES (pocas: ~60 en todo el país) se traen también y el
+    // navegador las resuelve por municipio con ubicacionDeRegistro (nunca si el municipio es ambiguo).
+    if (conSinDepartamento) cond.push("departamento_entidad = 'No Definido'");
     return cond.length === 1 ? cond[0] : '(' + cond.join(' OR ') + ')';
+  }
+
+  // Mapa municipio -> departamento sacado del propio dataset (pares ciudad_entidad/departamento_entidad
+  // de las entidades que sí traen ambos). Un municipio que aparece en MÁS de un departamento (Caldas,
+  // Belén, Santa María...) queda en null: no se adivina. Claves sin tildes ni mayúsculas.
+  const SIN_DEPARTAMENTO = 'nodefinido';
+  const sinDef = v => { const t = normalizeGeo(v); return !t || t.replace(/\s/g, '') === SIN_DEPARTAMENTO; };
+  function mapaMunicipios(filas) {
+    const vistos = {};
+    (filas || []).forEach(f => {
+      if (!f || sinDef(f.ciudad_entidad) || sinDef(f.departamento_entidad)) return;
+      const c = normalizeGeo(f.ciudad_entidad);
+      const d = String(f.departamento_entidad).trim();
+      if (!vistos[c]) vistos[c] = {};
+      vistos[c][normalizeGeo(d)] = d;
+    });
+    const mapa = {};
+    Object.keys(vistos).forEach(c => {
+      const ds = Object.keys(vistos[c]);
+      mapa[c] = ds.length === 1 ? vistos[c][ds[0]] : null;
+    });
+    return mapa;
+  }
+
+  // Departamento y ciudad de un registro de SECOP II. Si el dataset ya trae departamento se respeta; si dice
+  // «No Definido» se deduce por el municipio de la unidad de contratación SOLO cuando ese municipio es de un
+  // único departamento. `deducido` avisa de que no es un dato del dataset.
+  function ubicacionDeRegistro(rec, mapa) {
+    const r = rec || {};
+    const dep = sinDef(r.departamento_entidad) ? null : String(r.departamento_entidad).trim();
+    const ciu = !sinDef(r.ciudad_entidad) ? String(r.ciudad_entidad).trim()
+      : (!sinDef(r.ciudad_de_la_unidad_de) ? String(r.ciudad_de_la_unidad_de).trim() : null);
+    if (dep) return { departamento: dep, ciudad: ciu, deducido: false };
+    const clave = sinDef(r.ciudad_entidad) ? r.ciudad_de_la_unidad_de : r.ciudad_entidad;
+    const d = mapa && !sinDef(clave) ? mapa[normalizeGeo(clave)] : null;
+    return { departamento: d || null, ciudad: ciu, deducido: !!d };
   }
 
   function consultasSecopII(qTerm, hoyISO, geos) {
@@ -145,9 +185,10 @@
       : '';
     const dep = filtroDepartamento(geos);
     const y = dep ? ' AND ' + dep : '';
+    const yVigentes = dep ? ' AND ' + filtroDepartamento(geos, true) : '';
     return {
       vigentes: '$limit=300' + q +
-        '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'" + y) +
+        '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'" + yVigentes) +
         '&$order=' + encodeURIComponent('fecha_de_recepcion_de ASC'),
       recientes: '$limit=300' + q +
         '&$where=' + encodeURIComponent('fecha_de_publicacion_del IS NOT NULL' + y) +
@@ -158,6 +199,7 @@
   const Coincidencia = {
     parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
     findField: findField, prepararBusquedaPorNombre: prepararBusquedaPorNombre,
+    mapaMunicipios: mapaMunicipios, ubicacionDeRegistro: ubicacionDeRegistro,
     esEstadoNoVigente: esEstadoNoVigente, consultasSecopII: consultasSecopII
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = Coincidencia;
