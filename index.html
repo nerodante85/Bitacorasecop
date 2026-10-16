@@ -2117,7 +2117,7 @@
 <script src="magnitudes.js"></script>
 <script>
 // Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
-const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
+const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdjudicacionesDe, parseNumCO, normalizeGeo, palabrasDeEntidad, matchesMunicipio, coincideEntidad, esLicitacionObra, opcionesDeAlerta, coincideFiltrosAlerta, departamentoSecop, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
 (function(){
   // Shim de almacenamiento: si corre como artifact de Claude, usa window.storage
   // (persistente en la nube); si corre como sitio independiente (GitHub Pages, etc.),
@@ -4103,12 +4103,6 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     if (valor == null || !isFinite(v) || v <= 0) return true;
     return (!minV || v >= minV) && (!maxV || v <= maxV);
   }
-  function coincideEntidad(entidad, texto){
-    const palabras = normalizeGeo(texto).split(' ').filter(w => w.length >= 2);
-    if (!palabras.length) return true;
-    const e = ' ' + normalizeGeo(entidad) + ' ';
-    return palabras.every(w => e.indexOf(w) !== -1);
-  }
   function cierraEnDias(daysLeft, limite){
     const n = Number(limite);
     if (!n) return true;
@@ -4907,7 +4901,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // storage.get/set que el resto de la app (localStorage o, con cuenta
   // conectada, sincronizado vía Supabase -- ver SYNCED_KEYS más arriba).
   // ==========================================================================
-  let alertas = []; // { id, nombre, keywords, geos, minV, maxV, creadaEn, ultimaRevision, ultimoConteo, revisando, error }
+  let alertas = []; // { id, nombre, keywords, geos, municipios, entidad, soloLicitacion, minV, maxV, creadaEn, ultimaRevision, ultimoConteo, revisando, error }
 
   function nuevaAlertaId(){
     return 'al' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -4929,6 +4923,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // estado transitorio de la sesión actual, no algo que persistir.
       const paraGuardar = alertas.map(a => ({
         id: a.id, nombre: a.nombre, keywords: a.keywords, geos: a.geos,
+        municipios: a.municipios, entidad: a.entidad, soloLicitacion: a.soloLicitacion,
         minV: a.minV, maxV: a.maxV, creadaEn: a.creadaEn,
         ultimaRevision: a.ultimaRevision, ultimoConteo: a.ultimoConteo
       }));
@@ -4938,15 +4933,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
   }
 
+  // Lo que define una alerta: los campos de Buscar procesos que filtran de verdad (palabras clave, departamento,
+  // municipio, entidad, valor y «Solo Licitación Pública»). «Publicados ≤30 días» y «Ocultar vencidos» son de la vista.
+  function datosDeAlertaActual(){
+    const i = getInputs();
+    return Object.assign({}, i, { entidad: entidadEl ? entidadEl.value.trim() : '', soloLicitacion: onlyLicitacionEl.checked });
+  }
+
   function guardarAlertaActual(nombre){
-    const { keywords, geos, minV, maxV } = getInputs();
-    if (!keywords.length && !geos.length){
-      return { ok: false, error: 'Agrega al menos una especialidad o un departamento antes de guardar la alerta.' };
+    const { keywords, geos, minV, maxV, municipios, entidad, soloLicitacion } = datosDeAlertaActual();
+    if (!keywords.length && !geos.length && !municipios.length && !entidad){
+      return { ok: false, error: 'Agrega al menos una especialidad, un departamento, un municipio o una entidad antes de guardar la alerta.' };
     }
     const alerta = {
       id: nuevaAlertaId(),
-      nombre: (nombre || '').trim() || (keywords[0] || geos[0] || 'Alerta sin nombre'),
-      keywords: keywords, geos: geos, minV: minV, maxV: maxV,
+      nombre: (nombre || '').trim() || (keywords[0] || municipios[0] || geos[0] || entidad || 'Alerta sin nombre'),
+      keywords: keywords, geos: geos, municipios: municipios, entidad: entidad, soloLicitacion: soloLicitacion, minV: minV, maxV: maxV,
       creadaEn: new Date().toISOString(),
       // arranca "al día": no tendría sentido mostrar como "nuevo" lo que ya se
       // estaba viendo en pantalla justo al guardar la alerta.
@@ -10854,8 +10856,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   async function buscarAdjudicaciones(entidad){
     const { ancla, coincide, coincideEstricta, palabras } = prepararBusquedaPorNombre(entidad);
 
-    async function deSecopII(){
-      const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?$limit=400&$q=' + encodeURIComponent(ancla);
+    // `consulta`: la consulta ya filtrada por nombre exacto de entidad y adjudicado (consultaAdjudicacionesDe); sin ella
+    // (o si no devuelve nada) se usa la ancla de siempre: 400 filas por palabras del nombre, filtradas aquí.
+    async function deSecopII(consulta){
+      const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?' + (consulta || '$limit=400&$q=' + encodeURIComponent(ancla));
       const res = await withTimeout(fetch(url, socrataFetchOptions()), 15000, 'La consulta de adjudicaciones (SECOP II)');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
@@ -10887,7 +10891,22 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     }
 
     let resII;
-    try { resII = { ok: true, value: await deSecopII() }; }
+    try {
+      let filas = [];
+      const qNombres = consultaNombresEntidad(entidad);
+      if (qNombres){
+        try {
+          const rn = await withTimeout(fetch('https://www.datos.gov.co/resource/p6dx-8zbt.json?' + qNombres, socrataFetchOptions()), 15000, 'La búsqueda del nombre de la entidad');
+          if (!rn.ok) throw new Error('HTTP ' + rn.status);
+          const grupos = await rn.json();
+          const nombres = (Array.isArray(grupos) ? grupos : []).map(g => g && g.entidad).filter(n => n && coincide(n));
+          const q = consultaAdjudicacionesDe(nombres);
+          if (q) filas = await deSecopII(q);
+        } catch(e){ console.warn('Adjudicaciones: la consulta por nombre exacto falló, se usa la ancla', e); }
+      }
+      if (!filas.length) filas = await deSecopII(null);
+      resII = { ok: true, value: filas };
+    }
     catch(e){
       console.error('No se pudo consultar adjudicaciones de SECOP II', e);
       resII = { ok: false, error: String(e && e.message || e || 'error') };
@@ -10937,8 +10956,43 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // Mismo criterio de siempre: el $q de Socrata es solo un ancla gruesa del
   // lado del servidor, matchesTerm() (raíz de 6 letras, misma que usa
   // runSearch) hace el filtro fino real del lado del cliente.
-  async function buscarPAA(keywords){
+  // entidades.json: codigo_entidad -> departamento (scripts/generar-entidades.mjs). Se pide una vez por sesión y solo
+  // si el PAA se busca por departamento; si falla, se cae al cruce por nombre de siempre (departamentoPorEntidad).
+  let mapaEntidadesActual = null;
+  async function cargarMapaEntidades(){
+    if (mapaEntidadesActual) return mapaEntidadesActual;
+    try {
+      const res = await withTimeout(fetch('entidades.json', { cache: 'force-cache' }), 10000, 'El mapa de entidades');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const mapa = await res.json();
+      if (mapa && typeof mapa === 'object' && Object.keys(mapa).length > 5000) mapaEntidadesActual = mapa;
+    } catch(e){ /* sin mapa: se usa el cruce por nombre */ }
+    return mapaEntidadesActual;
+  }
+
+  // Con departamento y mapa de entidades, el PAA se pide YA filtrado por el código de cada entidad del departamento
+  // (consultasPAA) y el resultado trae `porCodigo = true`; sin mapa o sin departamento, como antes.
+  async function buscarPAA(keywords, geos){
     if (!keywords.length) return [];
+    const mapa = geos && geos.length ? await cargarMapaEntidades() : null;
+    if (mapa){
+      const codigos = codigosDeDepartamento(mapa, geos);
+      const consultas = [];
+      keywords.forEach(k => consultasPAA(k, codigos).forEach(q => consultas.push(q)));
+      const lotes = await Promise.all(consultas.map(async q => {
+        const res = await withTimeout(fetch('https://www.datos.gov.co/resource/' + PAA_DATASET + '.json?' + q, socrataFetchOptions()), 15000, 'La consulta del PAA');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+        return data;
+      }));
+      const vistos = new Set();
+      const items = [].concat(...lotes).filter(r => { const k = r.identificador_unico || r.id || JSON.stringify(r); if (vistos.has(k)) return false; vistos.add(k); return true; })
+        .map(normalizePAA).filter(item => keywords.some(k => matchesTerm(item.searchable, k)));
+      items.porCodigo = true;
+      items.entidadesDelDepartamento = codigos.length;
+      return items;
+    }
     const registros = await fetchAllForDataset(PAA_DATASET, keywords, 'PAA', 'fecha_de_carga_del_paa');
     return registros
       .map(normalizePAA)
@@ -12539,10 +12593,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // "licitación pública" como "obra" -- la licitación pública genérica (sin la
       // palabra obra) puede ser para consultoría, bienes u otros servicios, no
       // necesariamente para construcción.
-      if (onlyLicitacion) paso('licitacion', '"Solo Licitación Pública"', s => {
-        const m = (s.item.modalidad || '').toLowerCase();
-        return /licitaci[oó]n\s*p[uú]blica/i.test(m) && /obra/i.test(m);
-      });
+      if (onlyLicitacion) paso('licitacion', '"Solo Licitación Pública"', s => esLicitacionObra(s.item.modalidad));
     }
 
     // Filtro por ESTADO: los valores posibles varían según lo que traiga la consulta
@@ -13089,29 +13140,12 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   function getInputs(){
     const keywords = kwInput.value.split(',').map(s => s.trim()).filter(Boolean);
-    const geos = geoInput.value.split(',').map(s => s.trim()).filter(Boolean);
+    const geos = geoInput.value.split(',').map(s => s.trim()).filter(Boolean).map(departamentoSecop);
     const municipios = municipioInput ? municipioInput.value.split(',').map(s => s.trim()).filter(Boolean) : [];
     const minV = Number(minInput.value) || 0;
     const maxV = Number(maxInput.value) || 0;
     const numProceso = procesoInput ? procesoInput.value.trim() : '';
     return { keywords, geos, municipios, minV, maxV, numProceso };
-  }
-
-  // "Cúcuta" también debe encontrar "San José de Cúcuta" -- una comparación
-  // EXACTA (como matchesGeo, adecuada para departamento) sería demasiado
-  // estricta para municipios, que casi siempre traen un nombre oficial más
-  // largo del que la gente usa a diario. Mismo criterio de coincidencia
-  // tolerante por palabras ya probado en prepararBusquedaPorNombre() para
-  // nombres de entidad: toda palabra significativa (>=4 letras) del término
-  // buscado debe aparecer en el nombre del municipio.
-  function matchesMunicipio(ciudad, term){
-    const c = normalizeGeo(ciudad);
-    const t = normalizeGeo(term);
-    if (!c || !t) return false;
-    if (c === t) return true;
-    const palabras = t.split(' ').filter(w => w.length >= 4);
-    if (!palabras.length) return c.indexOf(t) !== -1;
-    return palabras.every(w => c.indexOf(w) !== -1);
   }
 
   // Búsqueda directa por Nº de proceso / referencia: substring simple (sin la
@@ -13180,7 +13214,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     } catch(e){ /* sin mapa: solo se pierden los procesos sin departamento */ }
   }
 
-  async function fetchSecopDataset(datasetId, qTerm, fuente, ordenCol, geos){
+  async function fetchSecopDataset(datasetId, qTerm, fuente, ordenCol, geos, opcionesConsulta){
     const base = 'https://www.datos.gov.co/resource/' + datasetId + '.json?$limit=300' +
       (qTerm ? ('&$q=' + encodeURIComponent(qTerm)) : '');
     // Socrata no garantiza ningún orden por defecto. Con $limit=300 y palabras
@@ -13207,7 +13241,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       // Ver consultasSecopII (S2-001/S2-002): vigentes + recientes, sin tildes.
       const hoy = new Date();
       const hoyISO = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') + '-' + String(hoy.getDate()).padStart(2, '0');
-      const c = consultasSecopII(qTerm, hoyISO, geos);
+      const c = consultasSecopII(qTerm, hoyISO, geos, opcionesConsulta);
       const url = p => 'https://www.datos.gov.co/resource/' + datasetId + '.json?' + p;
       try {
         const [vigentes, recientes] = await Promise.all([intentar(url(c.vigentes)), intentar(url(c.recientes))]);
@@ -13234,9 +13268,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   }
 
   // `geos` (solo SECOP II): departamentos que filtran EN EL SERVIDOR (ver filtroDepartamento en coincidencia.js).
-  async function fetchAllForDataset(datasetId, anchors, fuente, ordenCol, geos){
+  async function fetchAllForDataset(datasetId, anchors, fuente, ordenCol, geos, opcionesConsulta){
     const list = anchors.length ? anchors : [null];
-    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente, ordenCol, geos)));
+    const batches = await Promise.all(list.map(a => fetchSecopDataset(datasetId, a, fuente, ordenCol, geos, opcionesConsulta)));
     const merged = [].concat(...batches);
     const seen = new Set();
     const deduped = [];
@@ -13274,8 +13308,8 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
   // contra una muestra vieja y estática daría un conteo directamente falso,
   // peor que no mostrar nada -- se prefiere marcar la alerta con error.
   async function evaluarAlerta(alerta){
-    if (alerta.geos.length) await cargarMapaMunicipios();
-    const registros = await fetchAllForDataset('p6dx-8zbt', alerta.keywords, 'II', undefined, alerta.geos);
+    if (alerta.geos.length || (alerta.municipios || []).length) await cargarMapaMunicipios();
+    const registros = await fetchAllForDataset('p6dx-8zbt', alerta.keywords, 'II', undefined, alerta.geos, opcionesDeAlerta(alerta));
     const desde = alerta.ultimaRevision ? new Date(alerta.ultimaRevision).getTime() : 0;
     let coincidencias = 0;
     let nuevos = 0;
@@ -13283,6 +13317,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       const item = normalize(r);
       if (alerta.keywords.length && !alerta.keywords.some(k => matchesTerm(item.searchable, k))) return;
       if (alerta.geos.length && !alerta.geos.some(g => matchesGeo(item.geoSearchable, g))) return;
+      if (!coincideFiltrosAlerta(alerta, { ciudad: item.ciudad, entidad: item.entidad, modalidad: item.modalidad })) return;
       // S2-003: una alerta avisa de oportunidades nuevas; un proceso cancelado,
       // en borrador o ya adjudicado no lo es.
       if (esEstadoNoVigente(item.estado)) return;
@@ -13333,17 +13368,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     minInput.value = a.minV || '';
     maxInput.value = a.maxV || '';
     if (procesoInput) procesoInput.value = '';
-    // La alerta se define SOLO por especialidades/departamento/valor -- "≤30
-    // días" y "Solo Licitación Pública" son filtros adicionales de esta
-    // vista, no parte de la alerta. Si quedaban marcados de una búsqueda
-    // anterior, podían ocultar justo los procesos nuevos que la alerta
-    // encontró (bug real visto al probar: alerta con "121 nuevos" mostraba
-    // "0 procesos" en pantalla por esto). "Ocultar vencidos" sí se deja tal
-    // cual -- un proceso ya vencido no sirve aunque sea "nuevo". Municipio
-    // (nuevo, tampoco es parte de la alerta) se limpia por el mismo motivo.
-    if (municipioInput) municipioInput.value = '';
+    // La alerta se define por especialidades, departamento, municipio, entidad, valor y «Solo Licitación Pública»
+    // (lo que se guardó; una alerta anterior sin esos campos los deja vacíos). "≤30 días" es un filtro adicional de
+    // esta vista, no parte de la alerta: si quedaba marcado de una búsqueda anterior podía ocultar justo los procesos
+    // nuevos que la alerta encontró (bug real: alerta con "121 nuevos" mostraba "0 procesos"). "Ocultar vencidos" sí se
+    // deja tal cual -- un proceso ya vencido no sirve aunque sea "nuevo".
+    if (municipioInput) municipioInput.value = (a.municipios || []).join(', ');
+    if (entidadEl) entidadEl.value = a.entidad || '';
     hideOldEl.checked = false;
-    onlyLicitacionEl.checked = false;
+    onlyLicitacionEl.checked = !!a.soloLicitacion;
     await runSearch();
     a.ultimaRevision = new Date().toISOString();
     a.ultimoConteo = 0;
@@ -13387,9 +13420,11 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     paaStatusEl.textContent = 'Consultando el Plan Anual de Adquisiciones…';
     paaListEl.innerHTML = '';
     try {
-      let items = await buscarPAA(keywords);
+      let items = await buscarPAA(keywords, geos);
       let notaGeo = '';
-      if (geos.length && items.length){
+      if (items.porCodigo){
+        notaGeo = ' Filtrado por departamento con el código de cada entidad (' + items.entidadesDelDepartamento + ' entidades de ' + geos.join(', ') + ' en SECOP II).';
+      } else if (geos.length && items.length){
         const antes = items.length;
         const entidadesConDepto = await departamentoPorEntidad(keywords);
         items = items.filter(it => {
@@ -13409,6 +13444,15 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     } catch(e){
       paaStatusEl.textContent = 'No se pudo consultar el Plan Anual de Adquisiciones (' + (e && e.message ? e.message : 'error') + ').';
     }
+  }
+
+  // Con la casilla «Solo Licitación Pública» el SERVIDOR ya filtró la muestra: al cambiarla hay que volver a consultar
+  // (re-pintar la muestra vieja escondería licitaciones que no entraron o mezclaría otras modalidades).
+  let ultimaConsultaSoloLic = false;
+  function alCambiarSoloLicitacion(){
+    const hayBusquedaEnVivo = !!lastConsultaISO && !!lastRecords && modoDatos() === 'vivo';
+    if (hayBusquedaEnVivo && !procesoInput.value.trim() && onlyLicitacionEl.checked !== ultimaConsultaSoloLic) runSearch();
+    else rerender();
   }
 
   async function runSearch(){
@@ -13448,7 +13492,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     await appReady;
     try {
       if (geosServidor.length) await cargarMapaMunicipios();
-      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor);
+      const soloLic = !numProceso && onlyLicitacionEl.checked;
+      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor, { soloLicitacionObra: soloLic, municipios: numProceso ? [] : municipios, entidad: numProceso || !entidadEl ? '' : entidadEl.value.trim(), minV: numProceso ? 0 : minV, maxV: numProceso ? 0 : maxV });
+      ultimaConsultaSoloLic = soloLic;
       lastRecords = live;
       lastConsultaISO = new Date().toISOString();
       render(live, keywords, geos, municipios, minV, maxV, numProceso);
@@ -13924,7 +13970,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   hideClosedEl.addEventListener('change', rerender);
   hideOldEl.addEventListener('change', rerender);
-  onlyLicitacionEl.addEventListener('change', rerender);
+  onlyLicitacionEl.addEventListener('change', alCambiarSoloLicitacion);
   hideDiscardedEl.addEventListener('change', rerender);
   if (ordenEl) ordenEl.addEventListener('change', rerender);
   enContenedoresDeProceso('click', async function manejarClickEvaluacion(e){
@@ -15074,7 +15120,10 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
       else if (k === 'licitacion') onlyLicitacionEl.checked = false;
       else if (k === 'descartados') hideDiscardedEl.checked = false;
       else if (k === 'estado') Object.keys(estadoSeleccionado).forEach(x => { estadoSeleccionado[x] = true; });
-      rerender();
+      // Palabra clave, departamento, municipio, entidad, valor y licitación filtran EN EL SERVIDOR: quitarlos obliga a volver a
+      // consultar (repintar la muestra vieja dejaría fuera lo que el filtro había descartado).
+      if (['kw', 'geo', 'mun', 'entidad', 'licitacion', 'valor'].indexOf(k) !== -1 && modoDatos() === 'vivo' && lastConsultaISO) runSearch();
+      else rerender();
       return;
     }
 
@@ -15957,6 +16006,9 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
     const partes = [];
     if (a.keywords && a.keywords.length) partes.push(a.keywords.join(', '));
     if (a.geos && a.geos.length) partes.push(a.geos.join(', '));
+    if (a.municipios && a.municipios.length) partes.push(a.municipios.join(', '));
+    if (a.entidad) partes.push('Entidad: ' + a.entidad);
+    if (a.soloLicitacion) partes.push('Solo licitación de obra');
     if (a.minV || a.maxV){
       const fmt = n => '$' + Number(n).toLocaleString('es-CO');
       partes.push((a.minV ? fmt(a.minV) : '$0') + ' - ' + (a.maxV ? fmt(a.maxV) : 'sin tope'));

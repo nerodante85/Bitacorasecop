@@ -130,7 +130,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'evaluarExperienciaDeProceso', 'pareceRequisitoDeExperienciaReal',
     // Hacia paridad con LicitIA (ver CLAUDE.md): Fase A (PAA), Fase B (RUT),
     // Fase E (Generador de Propuestas, paquete completo).
-    'normalizePAA', 'buscarPAA', 'departamentoPorEntidad', 'matchesMunicipio',
+    'normalizePAA', 'buscarPAA', 'departamentoPorEntidad',
     'parsearRUT', 'itemsDeCampoRUT', 'limitesColumnaRUT', 'campoTextoRUT', 'campoNumericoRUT',
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
     // Requisitos habilitantes con IA (ver CLAUDE.md).
@@ -1603,9 +1603,9 @@ await check('SECOP II: con departamento, AMBAS consultas lo filtran en el servid
 
 await check('SECOP II: varios departamentos van con OR entre paréntesis; las vocales se vuelven comodín (tildes) y "Departamento de X" se limpia', () => {
   const w = new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Norte de Santander', 'Departamento de Boyacá']).vigentes).get('$where');
-  assert(w.includes("(upper(departamento_entidad) like 'N_RT_ D_ S_NT_ND_R' OR upper(departamento_entidad) like 'B_Y_C_' OR departamento_entidad = 'No Definido')"), 'OR agrupado (las vigentes incluyen los sin departamento), fue ' + w);
+  assert(w.includes("(upper(departamento_entidad) like '__RT_%D_%S__T__D_R' OR upper(departamento_entidad) like 'B_Y_C_' OR departamento_entidad = 'No Definido')"), 'OR agrupado (las vigentes incluyen los sin departamento), fue ' + w);
   const r = new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Norte de Santander', 'Departamento de Boyacá']).recientes).get('$where');
-  assert(r.includes("(upper(departamento_entidad) like 'N_RT_ D_ S_NT_ND_R' OR upper(departamento_entidad) like 'B_Y_C_')") && !r.includes('No Definido'), 'las recientes NO traen los sin departamento (llenarían las 300 filas con todo el país), fue ' + r);
+  assert(r.includes("(upper(departamento_entidad) like '__RT_%D_%S__T__D_R' OR upper(departamento_entidad) like 'B_Y_C_')") && !r.includes('No Definido'), 'las recientes NO traen los sin departamento (llenarían las 300 filas con todo el país), fue ' + r);
   assert(new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Boyacá']).vigentes).get('$q') === 'acueducto', 'la palabra clave sigue yendo en $q');
 });
 
@@ -1614,6 +1614,153 @@ await check('SECOP II: un departamento vacío o de menos de 3 letras no genera f
   const conVacios = expEngine.consultasSecopII('x', '2026-09-26', ['', ' ', 'a']);
   assert(JSON.stringify(base) === JSON.stringify(conVacios), 'geos inútiles no cambian la consulta');
   assert(JSON.stringify(base) === JSON.stringify(expEngine.consultasSecopII('x', '2026-09-26', [])), 'geos vacío = antes');
+});
+
+await check('SECOP II: Nariño (Ñ) no devolvía NADA en el servidor: la ñ del dato no casaba con la «n» del patrón; ahora la «n» también es comodín', () => {
+  const w = new URLSearchParams(Coincidencia.consultasSecopII(null, '2026-10-16', ['Nariño']).recientes).get('$where');
+  const patron = /like '([^']+)'/.exec(w)[1];
+  const comoRegex = new RegExp('^' + patron.replace(/_/g, '.') + '$');
+  assert(comoRegex.test('NARIÑO'), 'el patrón ' + patron + ' debe casar con NARIÑO');
+  assert(!comoRegex.test('CAUCA'), 'y no con cualquier cosa');
+  const santander = new RegExp('^' + /like '([^']+)'/.exec(new URLSearchParams(Coincidencia.consultasSecopII(null, '2026-10-16', ['Santander']).recientes).get('$where'))[1].replace(/_/g, '.') + '$');
+  assert(santander.test('SANTANDER') && !santander.test('NORTE DE SANTANDER'), 'Santander sigue sin traer Norte de Santander');
+});
+
+await check('Departamento escrito a mano: «Bogotá», «San Andrés», «Guajira» se traducen al nombre que usa SECOP II (el dataset dice «Distrito Capital de Bogotá»; con «Bogotá» daba 0 resultados)', () => {
+  const C = Coincidencia;
+  assert(typeof C.departamentoSecop === 'function', 'falta departamentoSecop');
+  ['Bogotá', 'bogota d.c.', 'Bogotá D.C.', 'Distrito Capital', 'BOGOTA'].forEach(t => assert(C.departamentoSecop(t) === 'Distrito Capital de Bogotá', t + ' -> ' + C.departamentoSecop(t)));
+  ['San Andrés', 'San Andrés y Providencia', 'san andres providencia y santa catalina'].forEach(t => assert(C.departamentoSecop(t) === 'San Andrés, Providencia y Santa Catalina', t + ' -> ' + C.departamentoSecop(t)));
+  assert(C.departamentoSecop('Guajira') === 'La Guajira', 'Guajira');
+  assert(C.departamentoSecop('Norte de Santander') === 'Norte de Santander' && C.departamentoSecop('Departamento de Boyacá') === 'Departamento de Boyacá', 'los demás quedan como los escribió el usuario');
+  assert(C.matchesGeo('Distrito Capital de Bogotá', C.departamentoSecop('Bogotá')), 'y el filtro exacto del navegador lo acepta');
+});
+
+await check('SECOP II: «Solo Licitación Pública (Obra pública)» filtra en el SERVIDOR las dos consultas (antes se filtraba tras traer 300 filas y llegaba ~25 % de las licitaciones de obra: Norte de Santander 5 de 21, Bogotá 5 de 80)', () => {
+  const C = Coincidencia;
+  const sin = C.consultasSecopII(null, '2026-10-16', ['Boyacá']);
+  const con = C.consultasSecopII(null, '2026-10-16', ['Boyacá'], { soloLicitacionObra: true });
+  for (const k of ['vigentes', 'recientes']) {
+    const w = new URLSearchParams(con[k]).get('$where');
+    assert(w.includes("upper(modalidad_de_contratacion) like '%LICITACI%BLICA%'") && w.includes("upper(modalidad_de_contratacion) like '%OBRA%'"), k + ': falta el filtro de modalidad, fue ' + w);
+    assert(w.includes("like 'B_Y_C_'"), k + ': conserva el departamento');
+    assert(!new URLSearchParams(sin[k]).get('$where').includes('modalidad_de_contratacion'), k + ': sin la casilla no se filtra por modalidad');
+  }
+  const nac = new URLSearchParams(C.consultasSecopII('acueducto', '2026-10-16', [], { soloLicitacionObra: true }).recientes).get('$where');
+  assert(nac.startsWith('fecha_de_publicacion_del IS NOT NULL AND upper(modalidad'), 'sin departamento también filtra: ' + nac);
+  assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], {})) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'opciones vacías = antes');
+});
+
+await check('SECOP II: la ñ de una palabra clave NO se pierde en $q (señalización: 4.789 procesos con ñ vs 128 sin ella; diseño: 144.804 vs 2.220) y las demás tildes siguen quitándose', () => {
+  const q = t => new URLSearchParams(Coincidencia.consultasSecopII(t, '2026-10-16', []).recientes).get('$q');
+  assert(q('señalización') === 'señalizacion', 'fue ' + q('señalización'));
+  assert(q('Diseño de pavimentación') === 'Diseño de pavimentacion', 'fue ' + q('Diseño de pavimentación'));
+  assert(q('Interventoría') === 'Interventoria' && q('Ñoño') === 'Ñoño', 'sin regresión en el resto');
+});
+
+await check('SECOP II: el municipio también filtra en el servidor (ciudad de la entidad o de la unidad) con las vocales como comodín y Ñ/N como alternativas -- en Ocaña llegaban 15 de 459 procesos de 60 días', () => {
+  const C = Coincidencia;
+  const w = (m, k) => new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Norte de Santander'], { municipios: m })[k || 'recientes']).get('$where');
+  for (const k of ['vigentes', 'recientes']) {
+    const x = w(['Ocaña'], k);
+    assert(x.includes("upper(ciudad_entidad) like '%_C_Ñ_%'") && x.includes("upper(ciudad_de_la_unidad_de) like '%_C_Ñ_%'"), k + ': Ocaña con ñ es Ñ literal, fue ' + x);
+  }
+  const sin = w(['Ocana']);
+  assert(sin.includes("like '%_C_N_%'") && sin.includes("like '%_C_Ñ_%'"), 'Ocana sin ñ prueba N y Ñ: ' + sin);
+  const dos = w(['San José de Cúcuta']);
+  assert(dos.includes("'%J_S_%'") && dos.includes("'%C_C_T_%'") && !dos.includes("'%S%N%'"), 'solo palabras de 4+ letras (San y de no), cada una exigida: ' + dos);
+  assert(/\) AND \(/.test(dos), 'las palabras van unidas con AND');
+  const dep = w(['Ocaña']);
+  assert(dep.includes('like \'__RT_%D_%S__T__D_R\'') && dep.indexOf('departamento_entidad') < dep.indexOf('ciudad_entidad'), 'conserva el departamento');
+  assert(!new URLSearchParams(C.consultasSecopII(null, '2026-10-16', [], { municipios: ['El'] }).recientes).get('$where').includes('ciudad_entidad'), 'un municipio de menos de 3 letras no genera filtro');
+  assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], { municipios: [] })) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'sin municipios = antes');
+  const vig = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Boyacá'], { municipios: ['Otanche'] }).vigentes).get('$where');
+  assert(vig.includes("departamento_entidad = 'No Definido'") && vig.includes('ciudad_de_la_unidad_de'), 'Otanche (departamento «No Definido») sigue entrando por su municipio: ' + vig);
+});
+
+await check('SECOP II: «Entidad (contiene)» también filtra en el servidor (la UFPS tenía 385 procesos en 60 días y llegaban 3; INVÍAS ninguno de ~5.000): cada palabra significativa debe estar en el nombre de la entidad', () => {
+  const C = Coincidencia;
+  const w = (e, k) => new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Norte de Santander'], { entidad: e })[k || 'recientes']).get('$where');
+  for (const k of ['vigentes', 'recientes']) {
+    const x = w('Universidad Francisco de Paula', k);
+    assert(x.includes("upper(entidad) like '%_N_V_RS_D_D%'") && x.includes("upper(entidad) like '%_Ñ_V_RS_D_D%'"), k + ': universidad como vocales como comodín y N/Ñ, fue ' + x);
+    assert(x.includes("'%FR_NC_SC_%'") && x.includes("'%P__L_%'"), k + ': francisco y paula, fue ' + x);
+    assert(!x.includes("like '%D%'"), k + ': "de" (2 letras) no se exige');
+    assert(x.indexOf('departamento_entidad') !== -1, k + ': conserva el departamento');
+  }
+  const pocas = w('ESE Hospital');
+  assert(/H_SP_T_L/.test(pocas) && !/like '%S%'/.test(pocas), 'ESE (3 letras) no se exige cuando hay una palabra de 4+: ' + pocas);
+  const sigla = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', [], { entidad: 'INVÍAS' }).recientes).get('$where');
+  assert(/upper\(entidad\) like '%_NV__S%'/.test(sigla), 'una sigla de 6 letras: ' + sigla);
+  const alc = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', [], { entidad: 'Alcaldía de Cúcuta' }).recientes).get('$where');
+  assert(alc.includes("'%C_C_T_%'") && alc.includes("upper(entidad) like '%_LC_LD__%'") && alc.includes("upper(entidad) like '%M_N_C_P__%'"), '«Alcaldía de X» también trae «Municipio de X»: ' + alc);
+  assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], { entidad: '' })) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'sin entidad = antes');
+});
+
+await check('SECOP II: el rango de valor (desde/hasta) también filtra en el servidor y conserva la regla «un proceso sin valor no se oculta» (antes llegaba ~6 % de los que cumplen: Norte de Santander 500–3.000 M, 10 de 165)', () => {
+  const C = Coincidencia;
+  const w = (o, k) => new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Boyacá'], o)[k || 'recientes']).get('$where');
+  for (const k of ['vigentes', 'recientes']) {
+    const x = w({ minV: 500000000, maxV: 3000000000 }, k);
+    assert(x.includes('(precio_base IS NULL OR precio_base <= 0 OR (precio_base >= 500000000 AND precio_base <= 3000000000))'), k + ': rango completo, fue ' + x);
+    assert(x.includes("like 'B_Y_C_'"), k + ': conserva el departamento');
+  }
+  assert(w({ minV: 500000000 }).includes('(precio_base IS NULL OR precio_base <= 0 OR (precio_base >= 500000000))'), 'solo mínimo');
+  assert(w({ maxV: 800000000 }).includes('(precio_base IS NULL OR precio_base <= 0 OR (precio_base <= 800000000))'), 'solo máximo');
+  assert(!w({ minV: 0, maxV: 0 }).includes('precio_base') && !w({}).includes('precio_base'), 'sin rango no se filtra');
+  assert(!w({ minV: -5, maxV: NaN }).includes('precio_base') && !w({ minV: 'abc' }).includes('precio_base'), 'valores inválidos no generan filtro ni inyectan texto');
+  assert(w({ minV: 5e8 }).includes('precio_base >= 500000000') && !/e\+/.test(w({ minV: 5e20 })), 'cifras grandes sin notación científica');
+});
+
+await check('Adjudicaciones de la entidad: primero se resuelve el NOMBRE EXACTO de la entidad (agrupando adjudicados) y luego se piden sus adjudicaciones más recientes; antes eran 400 filas sin filtrar y la app veía 43 de 5.829 de la Gobernación de Norte de Santander y 0 de 612 de la Alcaldía de Ocaña (la sugerencia de oferta se calculaba con eso)', () => {
+  const C = Coincidencia;
+  assert(typeof C.consultaNombresEntidad === 'function' && typeof C.consultaAdjudicacionesDe === 'function', 'faltan consultaNombresEntidad/consultaAdjudicacionesDe');
+  const p = new URLSearchParams(C.consultaNombresEntidad('Alcaldía de Ocaña'));
+  const w = p.get('$where');
+  assert(w.includes("adjudicado = 'Si'") && w.includes("upper(entidad) like '%_LC_LD__%'") && w.includes("upper(entidad) like '%M_N_C_P__%'") && /like '%_C_[NÑ]_%'/.test(w), 'entidad (alcaldía = municipio): ' + w);
+  assert(p.get('$group') === 'entidad' && /count\(\*\)/.test(p.get('$select')) && Number(p.get('$limit')) > 0, 'agrupa por entidad');
+  assert(C.consultaNombresEntidad('') === null && C.consultaNombresEntidad('de la') === null, 'un nombre sin palabras útiles no genera consulta (se usa el respaldo por ancla)');
+  const q = new URLSearchParams(C.consultaAdjudicacionesDe(["ALCALDIA MUNICIPAL DE OCAÑA", "O'Higgins"]));
+  const x = q.get('$where');
+  assert(x.includes("adjudicado = 'Si'") && x.includes("entidad IN ('ALCALDIA MUNICIPAL DE OCAÑA', 'O''Higgins')") && x.includes('fecha_de_publicacion_del IS NOT NULL'), 'por nombre exacto y con comillas escapadas: ' + x);
+  assert(q.get('$order') === 'fecha_de_publicacion_del DESC' && Number(q.get('$limit')) >= 400 && !q.has('$q'), 'más recientes primero, al menos 400 filas');
+  assert(C.consultaAdjudicacionesDe([]) === null && C.consultaAdjudicacionesDe(null) === null, 'sin nombres no hay consulta');
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/consultaNombresEntidad\(entidad\)/.test(html) && /consultaAdjudicacionesDe\(/.test(html), 'buscarAdjudicaciones resuelve el nombre y consulta por nombre exacto, con la ancla de respaldo');
+});
+
+await check('PAA por departamento: se busca por CÓDIGO de entidad (el PAA no trae departamento pero sí codigo_entidad, igual que SECOP II); antes se cruzaba por nombre y para «pavimento» en Norte de Santander encontraba 6 de 88 planeaciones (acueducto: 6 de 839)', () => {
+  const C = Coincidencia;
+  assert(typeof C.codigosDeDepartamento === 'function' && typeof C.consultasPAA === 'function', 'faltan codigosDeDepartamento/consultasPAA');
+  const mapa = { '1': 'Norte de Santander', '2': 'norte de santander', '3': 'Boyacá', '4': 'Santander', '5': 'Distrito Capital de Bogotá' };
+  assert(JSON.stringify(C.codigosDeDepartamento(mapa, ['Norte de Santander']).sort()) === '["1","2"]', 'departamento exacto (sin tildes ni mayúsculas), sin traer Santander');
+  assert(JSON.stringify(C.codigosDeDepartamento(mapa, ['Santander'])) === '["4"]', 'Santander no trae Norte de Santander');
+  assert(JSON.stringify(C.codigosDeDepartamento(mapa, ['Bogotá']).sort()) === '["5"]', 'alias Bogotá -> Distrito Capital');
+  assert(JSON.stringify(C.codigosDeDepartamento(mapa, ['Boyacá', 'Norte de Santander']).sort()) === '["1","2","3"]', 'varios departamentos');
+  assert(C.codigosDeDepartamento(mapa, []).length === 0 && C.codigosDeDepartamento(null, ['Boyacá']).length === 0, 'sin mapa o sin departamentos: nada');
+  const codigos = Array.from({ length: 250 }, (_, i) => String(700000000 + i));
+  const qs = C.consultasPAA('señalización', codigos);
+  assert(qs.length === 3, 'tandas de 100 códigos: ' + qs.length);
+  qs.forEach(q => {
+    const p = new URLSearchParams(q);
+    assert(p.get('$q') === 'señalizacion' && /^codigo_entidad in \(('\d+',?)+\)$/.test(p.get('$where')), 'cada tanda filtra por código y la palabra clave conserva la ñ: ' + q.slice(0, 120));
+    assert(p.get('$order') === 'fecha_de_carga_del_paa DESC' && Number(p.get('$limit')) === 300, 'lo más reciente primero, 300');
+  });
+  assert(C.consultasPAA('x', []).length === 0, 'sin códigos no hay consulta');
+  assert(C.consultasPAA('x', ["12'3", '45']).every(q => !q.includes('%2712')), 'solo códigos numéricos (nada se inyecta)');
+  const m = JSON.parse(readFileSync(path.join(ROOT, 'entidades.json'), 'utf8'));
+  assert(Object.keys(m).length > 5000 && m['700000011'] === 'Distrito Capital de Bogotá', 'entidades.json existe y es plausible');
+  assert(C.codigosDeDepartamento(m, ['Norte de Santander']).length > 300, 'Norte de Santander tiene unos 360 códigos de entidad');
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/fetch\('entidades\.json'/.test(html) && /consultasPAA\(/.test(html) && /codigosDeDepartamento\(/.test(html), 'la app carga entidades.json y busca el PAA por código');
+  assert(/cp index\.html [^\n]*entidades\.json/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia entidades.json al sitio');
+});
+
+await check('Buscar procesos: la casilla «Solo Licitación Pública» vuelve a consultar SECOP al cambiar (el servidor ya filtró: re-pintar la muestra vieja escondería o mezclaría procesos)', () => {
+  assert(!/onlyLicitacionEl\.addEventListener\('change', rerender\)/.test(html), 'la casilla no puede re-pintar a secas');
+  assert(/onlyLicitacionEl\.addEventListener\('change', alCambiarSoloLicitacion\)/.test(html), 'falta alCambiarSoloLicitacion');
+  assert(/consultasSecopII\(qTerm, hoyISO, geos, opcionesConsulta\)/.test(html), 'fetchSecopDataset debe pasar las opciones');
+  assert(/\['kw', 'geo', 'mun', 'entidad', 'licitacion', 'valor'\]\.indexOf\(k\) !== -1 && modoDatos\(\) === 'vivo' && lastConsultaISO\) runSearch\(\)/.test(html), '«quitar este filtro» de un filtro de servidor debe volver a consultar');
 });
 
 await check('Ubicación: vigentes con departamento «No Definido» (Otanche) entran a la consulta y se resuelven por municipio solo si el municipio es de UN solo departamento', () => {
@@ -3063,6 +3210,11 @@ await check('Filtros de Buscar: el valor, la entidad y la fecha de cierre filtra
   assert(e('GOBERNACIÓN DE NORTE DE SANTANDER', 'gobernacion') === true && e('Alcaldía de San José de Cúcuta', 'alcaldia cucuta') === true, 'sin tildes ni mayúsculas, por palabras');
   assert(e('INSTITUTO NACIONAL DE VÍAS - INVÍAS', 'invias') === true && e('Alcaldía de Ocaña', 'cucuta') === false && e('', 'alcaldia') === false, 'no coincide / entidad vacía');
   assert(e('Cualquiera', '') === true && e('Cualquiera', '   ') === true, 'sin texto no filtra');
+  // «Alcaldía de X» y «Municipio de X» son la misma entidad: el dataset llama MUNICIPIO DE SAN JOSE DE CUCUTA (30.051 procesos) a la alcaldía de Cúcuta y ALCALDIA MUNICIPAL DE OCAÑA a la de Ocaña.
+  assert(e('MUNICIPIO DE SAN JOSE DE CUCUTA.', 'Alcaldía de Cúcuta') === true && e('ALCALDIA MUNICIPAL DE OCAÑA', 'municipio de Ocaña') === true, 'alcaldía = municipio');
+  assert(e('MUNICIPIO DE LOS PATIOS', 'alcaldia municipal de los patios') === true, '«municipal» sobra cuando se dice alcaldía/municipio');
+  assert(e('INSTITUTO MUNICIPAL PARA LA RECREACION Y EL DEPORTE DE CUCUTA', 'Alcaldía de Cúcuta') === false && e('POLICIA METROPOLITANA DE CUCUTA', 'alcaldia de cucuta') === false, 'un instituto o la policía de Cúcuta NO es la alcaldía');
+  assert(e('MUNICIPIO DE PAMPLONA', 'alcaldia') === true && e('GOBERNACION NORTE DE SANTANDER', 'alcaldia') === false, 'solo «alcaldía»: cualquier alcaldía o municipio');
   const c = expEngine.cierraEnDias;
   assert(c(5, 7) === true && c(7, 7) === true && c(0, 7) === true && c(8, 7) === false && c(-1, 7) === false, 'ventana de cierre (un vencido no cuenta)');
   assert(c(null, 7) === false, 'con el filtro puesto, un proceso sin fecha de cierre confiable no se muestra como "cierra pronto"');
@@ -4485,6 +4637,37 @@ await check('Coincidencia (módulo): geografía exacta, término con raíz de 6 
   const b = C.prepararBusquedaPorNombre('Gobernación de Norte de Santander');
   assert(b.coincide('GOBERNACION DE NORTE DE SANTANDER') && !b.coincideEstricta('SANTANDER - GOBERNACION'), 'tolerante vs estricta (SI-001)');
   assert(C.findField({ Valor_Total: 5 }, ['valor_total']) === 5 && C.findField({ a: 1 }, ['b']) === null, 'findField sin distinguir mayúsculas');
+});
+
+await check('Alertas: los filtros extra (municipio, entidad, solo licitación de obra) los decide UNA función compartida; una alerta guardada antes, sin esos campos, se comporta como siempre', () => {
+  const C = Coincidencia;
+  assert(typeof C.coincideFiltrosAlerta === 'function' && typeof C.opcionesDeAlerta === 'function' && typeof C.esLicitacionObra === 'function', 'faltan coincideFiltrosAlerta/opcionesDeAlerta/esLicitacionObra');
+  const reg = { ciudad: 'Ocaña', entidad: 'ALCALDIA MUNICIPAL DE OCAÑA', modalidad: 'Licitación pública Obra Publica' };
+  assert(C.coincideFiltrosAlerta({ keywords: ['x'], geos: [] }, reg) === true, 'alerta antigua: todo pasa');
+  assert(C.coincideFiltrosAlerta({ municipios: [], entidad: '', soloLicitacion: false }, reg) === true, 'campos vacíos: todo pasa');
+  assert(C.coincideFiltrosAlerta({ municipios: ['Ocaña'] }, reg) === true && C.coincideFiltrosAlerta({ municipios: ['Pamplona', 'Ocana'] }, reg) === true, 'municipio (cualquiera de la lista)');
+  assert(C.coincideFiltrosAlerta({ municipios: ['Pamplona'] }, reg) === false && C.coincideFiltrosAlerta({ municipios: ['Ocaña'] }, { ...reg, ciudad: null }) === false, 'otro municipio o sin ciudad: no');
+  assert(C.coincideFiltrosAlerta({ entidad: 'Municipio de Ocaña' }, reg) === true && C.coincideFiltrosAlerta({ entidad: 'Gobernación' }, reg) === false, 'entidad (alcaldía = municipio)');
+  assert(C.coincideFiltrosAlerta({ soloLicitacion: true }, reg) === true && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: 'Contratación directa' }) === false && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: 'Licitación pública' }) === false && C.coincideFiltrosAlerta({ soloLicitacion: true }, { ...reg, modalidad: null }) === false, 'licitación pública Y obra; sin modalidad no pasa');
+  assert(C.coincideFiltrosAlerta({ municipios: ['Ocaña'], entidad: 'Gobernación' }, reg) === false, 'todos los filtros a la vez');
+  const o = C.opcionesDeAlerta({ municipios: ['Ocaña', '', 5], entidad: '  INVIAS ', soloLicitacion: 'si' });
+  assert(JSON.stringify(o) === JSON.stringify({ soloLicitacionObra: true, municipios: ['Ocaña'], entidad: 'INVIAS', minV: 0, maxV: 0 }), 'opciones saneadas: ' + JSON.stringify(o));
+  assert(JSON.stringify(C.opcionesDeAlerta({ keywords: ['x'] })) === JSON.stringify({ soloLicitacionObra: false, municipios: [], entidad: '', minV: 0, maxV: 0 }), 'alerta antigua: opciones vacías');
+});
+
+await check('Alertas: el cliente guarda, evalúa y reabre municipio, entidad y licitación; el correo diario consulta con departamento + esos filtros (antes ignoraba geos en el servidor y usaba el departamento como palabra clave)', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const dd = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  assert(/id: a\.id, nombre: a\.nombre, keywords: a\.keywords, geos: a\.geos,\s*municipios: a\.municipios, entidad: a\.entidad, soloLicitacion: a\.soloLicitacion,/.test(html), 'persistirAlertas debe guardar los campos nuevos');
+  assert(/const \{ keywords, geos, minV, maxV, municipios, entidad, soloLicitacion \} = datosDeAlertaActual\(\);/.test(html) && /!keywords\.length && !geos\.length && !municipios\.length && !entidad/.test(html), 'guardarAlertaActual lee y valida los campos nuevos');
+  assert(/fetchAllForDataset\('p6dx-8zbt', alerta\.keywords, 'II', undefined, alerta\.geos, opcionesDeAlerta\(alerta\)\)/.test(html) && /coincideFiltrosAlerta\(alerta, \{ ciudad: item\.ciudad, entidad: item\.entidad, modalidad: item\.modalidad \}\)/.test(html), 'evaluarAlerta consulta y filtra con los campos nuevos');
+  assert(/municipioInput\.value = \(a\.municipios \|\| \[\]\)\.join\(', '\)/.test(html) && /onlyLicitacionEl\.checked = !!a\.soloLicitacion/.test(html) && /entidadEl\.value = a\.entidad \|\| ''/.test(html), 'verNuevosDeAlerta reabre la alerta completa');
+  assert(/consultasSecopII\(qTerm, hoyISO, geos, opciones\)/.test(dd) && /fetchAllForDataset\(SECOP_II_DATASET, alerta\.keywords, 'fecha_de_publicacion_del', alerta\.geos, opcionesDeAlerta\(alerta\)\)/.test(dd) && /coincideFiltrosAlerta\(alerta,/.test(dd), 'el digest pasa geos y opciones al servidor y filtra igual que el cliente');
+  assert(!/const anchors = alerta\.keywords\.length \? alerta\.keywords : alerta\.geos;/.test(dd), 'el digest ya no usa el departamento como palabra clave');
+  ['coincideFiltrosAlerta', 'opcionesDeAlerta', 'esLicitacionObra', 'matchesMunicipio', 'coincideEntidad'].forEach(n => {
+    assert(!new RegExp('^\\s*function ' + n + '\\(', 'm').test(html), 'index.html no debe redefinir ' + n);
+    assert(!new RegExp('^function ' + n + '\\(', 'm').test(dd), 'el digest no debe redefinir ' + n);
+  });
 });
 
 await check('Coincidencia (módulo): UN solo origen -- daily-digest usa una copia idéntica y ya no define las reglas por su cuenta', () => {
