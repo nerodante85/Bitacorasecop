@@ -6196,6 +6196,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // inicio DESPUÉS del fin (fechas invertidas) NO acredita nada: cuenta como
   // "sin fecha confiable" (NO DETERMINABLE), nunca como "dentro de la ventana".
   function estadoTemporalDeContrato(c, limite, hoy){
+    // Auditoría CR2-8: con solo la fecha de INICIO no se sabe si el contrato terminó (un contrato de 2025 aún en ejecución entraba «dentro
+    // de los últimos 5 años»): sin fecha de terminación la ventana no se puede aplicar (NO DETERMINABLE).
+    if (c && !c.fechaFin) return 'sin-fecha';
     const fecha = fechaReferenciaContrato(c);
     if (!fecha) return 'sin-fecha';
     const d = new Date(fecha + 'T00:00:00');

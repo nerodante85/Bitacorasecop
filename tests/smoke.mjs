@@ -2477,6 +2477,13 @@ await check('CR2-12: encabezados de participación habituales ("Part. %", "% Par
     assert(r.resultado === 'NO CUMPLE', 'encabezado "' + h + '": se esperaba NO CUMPLE, fue ' + r.resultado);
   });
 });
+await check('CR2-8: con ventana "últimos 5 años", un contrato con solo fecha de INICIO (sin terminación) no acredita: NO DETERMINABLE, y con fecha de terminación dentro sí', () => {
+  const txt = 'Mínimo 1 contrato de construcción de puentes vehiculares dentro de los últimos 5 años';
+  const solo = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor', 'Fecha de inicio'], [[PUENTE, 'Alcaldía', '900000000', '01/03/2025']]).r;
+  assert(solo.resultado === 'NO DETERMINABLE', 'solo inicio: se esperaba NO DETERMINABLE, fue ' + solo.resultado + ' -- ' + solo.justificacion);
+  const con = evaluarReqTexto(txt, H_FECHAS, [[PUENTE, 'Alcaldía', '900000000', '01/03/2024', '01/03/2025']]).r;
+  assert(con.resultado === 'CUMPLE', 'control con terminación dentro de la ventana: ' + con.resultado + ' -- ' + con.justificacion);
+});
 await check('MC-010: si la columna de valor ya es la ajustada por participación no se pondera dos veces', () => {
   const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $250.000.000';
   const { r } = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor contrato actualizado (según % participación)', '% participación'],
