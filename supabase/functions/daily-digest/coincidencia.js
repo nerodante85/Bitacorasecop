@@ -157,6 +157,44 @@
     return cond.length === 1 ? cond[0] : '(' + cond.join(' OR ') + ')';
   }
 
+  // Municipio EN EL SERVIDOR (superconjunto del filtro exacto del navegador, matchesMunicipio): cada palabra de 4+ letras
+  // debe aparecer en la ciudad de la entidad o en la de la unidad de contratación. Como el dato lleva tildes y Ñ
+  // ("Ocaña", "CÚCUTA") y LIKE no las ignora, cada palabra se reduce a su esqueleto de consonantes con '%' donde había
+  // vocales ("cucuta" -> %C%C%T%); la N se prueba como N y como Ñ (una Ñ escrita por el usuario queda literal).
+  function patronesMunicipio(palabra) {
+    const base = String(palabra).toLowerCase().replace(/ñ/g, '\u0001').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z\u0001]/g, '');
+    const ns = (base.match(/n/g) || []).length;
+    let patrones = [''];
+    base.split('').forEach(ch => {
+      let opciones;
+      if (ch === '\u0001') opciones = ['Ñ'];
+      else if (/[aeiou]/.test(ch)) opciones = ['%'];
+      else if (ch === 'n') opciones = ns <= 2 ? ['N', 'Ñ'] : ['_'];
+      else opciones = [ch.toUpperCase()];
+      const sig = [];
+      patrones.forEach(pt => opciones.forEach(o => sig.push(o === '%' && pt.slice(-1) === '%' ? pt : pt + o)));
+      patrones = sig;
+    });
+    return patrones.map(pt => '%' + pt.replace(/%+/g, '%').replace(/^%/, '').replace(/%$/, '') + '%');
+  }
+  function filtroMunicipio(municipios) {
+    const grupos = [];
+    (municipios || []).forEach(m => {
+      const t = normalizeGeo(m);
+      let palabras = t.split(' ').filter(w => w.length >= 4);
+      if (!palabras.length && t.replace(/\s/g, '').length >= 3) palabras = [t.replace(/\s/g, '')];
+      if (!palabras.length) return;
+      const conds = palabras.map(w => {
+        const ps = patronesMunicipio(String(m).toLowerCase().split(/\s+/).find(x => normalizeGeo(x) === w) || w);
+        const porColumna = ['ciudad_entidad', 'ciudad_de_la_unidad_de'].map(col => ps.map(p => "upper(" + col + ") like '" + p + "'"));
+        return '(' + porColumna[0].concat(porColumna[1]).join(' OR ') + ')';
+      });
+      grupos.push(conds.length === 1 ? conds[0] : '(' + conds.join(' AND ') + ')');
+    });
+    if (!grupos.length) return '';
+    return grupos.length === 1 ? grupos[0] : '(' + grupos.join(' OR ') + ')';
+  }
+
   // Mapa municipio -> departamento sacado del propio dataset (pares ciudad_entidad/departamento_entidad
   // de las entidades que sí traen ambos). Un municipio que aparece en MÁS de un departamento (Caldas,
   // Belén, Santa María...) queda en null: no se adivina. Claves sin tildes ni mayúsculas.
@@ -197,14 +235,18 @@
   // navegador: la modalidad dice «licitación pública» Y «obra»). Antes se aplicaba tras traer 300 filas y solo llegaba
   // ~25 % de las licitaciones de obra de los últimos 60 días (Norte de Santander 5 de 21, Bogotá 5 de 80).
   function consultasSecopII(qTerm, hoyISO, geos, opciones) {
+    // Las tildes se quitan (pavimentación = pavimentacion) pero la Ñ NO: en $q "señalización" trae 4.789 procesos y
+    // "senalizacion" 128 ("diseño" 144.804 contra "diseno" 2.220).
     const q = qTerm
-      ? '&$q=' + encodeURIComponent(String(qTerm).normalize('NFD').replace(/[̀-ͯ]/g, ''))
+      ? '&$q=' + encodeURIComponent(String(qTerm).replace(/ñ/g, '\u0001').replace(/Ñ/g, '\u0002').normalize('NFD')
+        .replace(/[̀-ͯ]/g, '').replace(/\u0001/g, 'ñ').replace(/\u0002/g, 'Ñ'))
       : '';
     const dep = filtroDepartamento(geos);
     const lic = opciones && opciones.soloLicitacionObra
       ? " AND upper(modalidad_de_contratacion) like '%LICITACI%BLICA%' AND upper(modalidad_de_contratacion) like '%OBRA%'" : '';
-    const y = (dep ? ' AND ' + dep : '') + lic;
-    const yVigentes = (dep ? ' AND ' + filtroDepartamento(geos, true) : '') + lic;
+    const mun = filtroMunicipio(opciones && opciones.municipios);
+    const y = (dep ? ' AND ' + dep : '') + lic + (mun ? ' AND ' + mun : '');
+    const yVigentes = (dep ? ' AND ' + filtroDepartamento(geos, true) : '') + lic + (mun ? ' AND ' + mun : '');
     return {
       vigentes: '$limit=300' + q +
         '&$where=' + encodeURIComponent("fecha_de_recepcion_de >= '" + hoyISO + "'" + yVigentes) +

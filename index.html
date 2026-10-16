@@ -13458,7 +13458,7 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
     try {
       if (geosServidor.length) await cargarMapaMunicipios();
       const soloLic = !numProceso && onlyLicitacionEl.checked;
-      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor, { soloLicitacionObra: soloLic });
+      const live = await fetchAllForDataset('p6dx-8zbt', anchors, 'II', undefined, geosServidor, { soloLicitacionObra: soloLic, municipios: numProceso ? [] : municipios });
       ultimaConsultaSoloLic = soloLic;
       lastRecords = live;
       lastConsultaISO = new Date().toISOString();

@@ -1651,6 +1651,33 @@ await check('SECOP II: «Solo Licitación Pública (Obra pública)» filtra en e
   assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], {})) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'opciones vacías = antes');
 });
 
+await check('SECOP II: la ñ de una palabra clave NO se pierde en $q (señalización: 4.789 procesos con ñ vs 128 sin ella; diseño: 144.804 vs 2.220) y las demás tildes siguen quitándose', () => {
+  const q = t => new URLSearchParams(Coincidencia.consultasSecopII(t, '2026-10-16', []).recientes).get('$q');
+  assert(q('señalización') === 'señalizacion', 'fue ' + q('señalización'));
+  assert(q('Diseño de pavimentación') === 'Diseño de pavimentacion', 'fue ' + q('Diseño de pavimentación'));
+  assert(q('Interventoría') === 'Interventoria' && q('Ñoño') === 'Ñoño', 'sin regresión en el resto');
+});
+
+await check('SECOP II: el municipio también filtra en el servidor (ciudad de la entidad o de la unidad) por esqueleto de consonantes y con Ñ/N como alternativas -- en Ocaña llegaban 15 de 459 procesos de 60 días', () => {
+  const C = Coincidencia;
+  const w = (m, k) => new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Norte de Santander'], { municipios: m })[k || 'recientes']).get('$where');
+  for (const k of ['vigentes', 'recientes']) {
+    const x = w(['Ocaña'], k);
+    assert(x.includes("upper(ciudad_entidad) like '%C%Ñ%'") && x.includes("upper(ciudad_de_la_unidad_de) like '%C%Ñ%'"), k + ': Ocaña con ñ es Ñ literal, fue ' + x);
+  }
+  const sin = w(['Ocana']);
+  assert(sin.includes("like '%C%N%'") && sin.includes("like '%C%Ñ%'"), 'Ocana sin ñ prueba N y Ñ: ' + sin);
+  const dos = w(['San José de Cúcuta']);
+  assert(dos.includes("'%J%S%'") && dos.includes("'%C%C%T%'") && !dos.includes("'%S%N%'"), 'solo palabras de 4+ letras (San y de no), cada una exigida: ' + dos);
+  assert(/\) AND \(/.test(dos), 'las palabras van unidas con AND');
+  const dep = w(['Ocaña']);
+  assert(dep.includes('like \'__RT_%D_%S__T__D_R\'') && dep.indexOf('departamento_entidad') < dep.indexOf('ciudad_entidad'), 'conserva el departamento');
+  assert(!new URLSearchParams(C.consultasSecopII(null, '2026-10-16', [], { municipios: ['El'] }).recientes).get('$where').includes('ciudad_entidad'), 'un municipio de menos de 3 letras no genera filtro');
+  assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], { municipios: [] })) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'sin municipios = antes');
+  const vig = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', ['Boyacá'], { municipios: ['Otanche'] }).vigentes).get('$where');
+  assert(vig.includes("departamento_entidad = 'No Definido'") && vig.includes('ciudad_de_la_unidad_de'), 'Otanche (departamento «No Definido») sigue entrando por su municipio: ' + vig);
+});
+
 await check('Buscar procesos: la casilla «Solo Licitación Pública» vuelve a consultar SECOP al cambiar (el servidor ya filtró: re-pintar la muestra vieja escondería o mezclaría procesos)', () => {
   assert(!/onlyLicitacionEl\.addEventListener\('change', rerender\)/.test(html), 'la casilla no puede re-pintar a secas');
   assert(/onlyLicitacionEl\.addEventListener\('change', alCambiarSoloLicitacion\)/.test(html), 'falta alCambiarSoloLicitacion');
