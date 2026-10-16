@@ -167,6 +167,7 @@ sincronización, Edge Functions de IA y correo).
   (aun así puede pedir login: se muestra la Referencia como respaldo).
 - Los filtros de fábrica no deben esconder procesos: Especialidades y Cobertura nacen **vacíos**; "Solo Licitación Pública" nace
   desmarcado; "Número de proceso" ignora los demás filtros (y se avisa).
+- **El departamento se filtra EN EL SERVIDOR** (`filtroDepartamento` en `coincidencia.js`, columna `departamento_entidad`, `upper(...) like` con vocales como comodín `_` para no depender de tildes). Sin eso, un departamento grande (Boyacá: ~9.500 procesos en 60 días) llenaba las 300 filas con contratación directa y mínima cuantía y las 30 licitaciones de obra no entraban (0 resultados con «Solo Licitación Pública (Obra pública)», aunque sí existen). Sin palabras clave ya no se usa el departamento como ancla `$q`. Reportado 2026-10-16 comparando contra colombialicita. `matchesGeo` sigue siendo el filtro exacto del navegador.
 - Con `$limit` se avisa si hay más resultados. SECOP I se retiró (no se consulta).
 
 **Documentos**

@@ -1590,6 +1590,30 @@ await check('SECOP II: sin término no se manda $q, y las dos consultas conserva
   }
 });
 
+await check('SECOP II: con departamento, AMBAS consultas lo filtran en el servidor (departamento_entidad, sin depender de tildes) -- Boyacá: 300 recientes de ~9.500 no traían ninguna licitación de obra', () => {
+  const c = expEngine.consultasSecopII(null, '2026-09-26', ['Boyacá']);
+  for (const k of ['vigentes', 'recientes']) {
+    const w = new URLSearchParams(c[k]).get('$where');
+    assert(w.includes("upper(departamento_entidad) like 'B_Y_C_'"), k + ': falta el filtro de departamento, fue ' + w);
+  }
+  assert(new URLSearchParams(c.vigentes).get('$where').includes("fecha_de_recepcion_de >= '2026-09-26'"), 'vigentes conserva su condición de cierre');
+  assert(new URLSearchParams(c.recientes).get('$where').includes('fecha_de_publicacion_del IS NOT NULL'), 'recientes conserva su condición de publicación');
+  assert(!new URLSearchParams(c.vigentes).has('$q'), 'sin palabra clave no se manda $q (el departamento ya va en el $where)');
+});
+
+await check('SECOP II: varios departamentos van con OR entre paréntesis; las vocales se vuelven comodín (tildes) y "Departamento de X" se limpia', () => {
+  const w = new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Norte de Santander', 'Departamento de Boyacá']).vigentes).get('$where');
+  assert(w.includes("(upper(departamento_entidad) like 'N_RT_ D_ S_NT_ND_R' OR upper(departamento_entidad) like 'B_Y_C_')"), 'OR agrupado, fue ' + w);
+  assert(new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Boyacá']).vigentes).get('$q') === 'acueducto', 'la palabra clave sigue yendo en $q');
+});
+
+await check('SECOP II: un departamento vacío o de menos de 3 letras no genera filtro (no se vacía la consulta); sin geos todo queda IGUAL que antes', () => {
+  const base = expEngine.consultasSecopII('x', '2026-09-26');
+  const conVacios = expEngine.consultasSecopII('x', '2026-09-26', ['', ' ', 'a']);
+  assert(JSON.stringify(base) === JSON.stringify(conVacios), 'geos inútiles no cambian la consulta');
+  assert(JSON.stringify(base) === JSON.stringify(expEngine.consultasSecopII('x', '2026-09-26', [])), 'geos vacío = antes');
+});
+
 // ---- S2-003: estados que ya no son una oportunidad ---------------------------
 await check('S2-003: Cancelado, Borrador, Seleccionado, Suspendido, Aprobado, En aprobación y Evaluación NO son vigentes (estados reales de SECOP II)', () => {
   for (const e of ['Cancelado', 'Borrador', 'Seleccionado', 'Suspendido', 'Aprobado', 'En aprobación', 'Evaluación', 'evaluacion', 'CANCELADO']) {
