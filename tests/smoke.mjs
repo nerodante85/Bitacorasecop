@@ -2136,6 +2136,33 @@ await check('IA2-5: regla_conversion_smmlv declarada debe estar en el pliego le�
   assert(verificarUna(fila('fecha_inicio'), con).verificada === false, 'regla contraria a la del pliego');
   assert(verificarUna(fila(null), sin).verificada === true, 'sin regla declarada no se exige');
 });
+// ---- Auditoría 2026-10-16 (IA2-4, IA2-6, IA2-7): obligatoriedad, naturaleza y objeto literal ----
+const globalIA = filas => {
+  const ver = expEngine.verificarFilasIA(filas, IA_TEXTO_AUD, [{ pagina: 1, hasta: IA_TEXTO_AUD.length }]);
+  const reqs = expEngine.requisitosDeExperienciaDesdeIA(ver);
+  return expEngine.evaluarExperienciaCompleta(contratosPuentes('12000000000', '15/03/2024'), reqs, new Date('2026-06-01T00:00:00'));
+};
+const IA_TEXTO_AUD = 'Puentes vehiculares: mínimo 2 contratos, valor acumulado 15.000 SMMLV. Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. Andenes y ciclorrutas: mínimo 1 contrato. Podrá acreditar además vías urbanas: mínimo 1 contrato. Se otorgarán 10 puntos por cada contrato adicional de puentes vehiculares. ';
+const filaOblig = () => filaIA({ pagina: 1, min_contratos: 2, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, cita_textual: 'Puentes vehiculares: mínimo 2 contratos', objeto_literal: 'puentes vehiculares' });
+await check('IA2-4: una fila opcional/alternativa cuya cita no lo indica (podría ser obligatoria) impide un CUMPLE global; con el marcador en la cita no', () => {
+  const dudosa = filaIA({ pagina: 1, obligatoriedad: 'opcional', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'andenes y ciclorrutas', cita_textual: 'Andenes y ciclorrutas: mínimo 1 contrato', descripcion: 'Experiencia en andenes y ciclorrutas' });
+  assert(globalIA([filaOblig()]).resultadoGlobal === 'CUMPLE', 'control: la fila obligatoria sola cumple');
+  const con = globalIA([filaOblig(), dudosa]).resultadoGlobal;
+  assert(con !== 'CUMPLE', 'con una fila "opcional" dudosa el global no puede ser CUMPLE: ' + con);
+  const marcada = filaIA({ pagina: 1, obligatoriedad: 'opcional', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'vías urbanas', cita_textual: 'Podrá acreditar además vías urbanas: mínimo 1 contrato', descripcion: 'Experiencia en vías urbanas' });
+  assert(globalIA([filaOblig(), marcada]).resultadoGlobal === 'CUMPLE', 'una opcional con "podrá" en la cita no frena');
+});
+await check('IA2-6: una fila marcada "ponderable" cuya cita no habla de puntaje no se descarta en silencio (podría ser habilitante)', () => {
+  const pond = filaIA({ pagina: 1, naturaleza: 'ponderable', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'andenes y ciclorrutas', cita_textual: 'Andenes y ciclorrutas: mínimo 1 contrato', descripcion: 'Experiencia en andenes y ciclorrutas' });
+  assert(globalIA([filaOblig(), pond]).resultadoGlobal !== 'CUMPLE', 'ponderable sin marcador de puntaje: no CUMPLE global');
+  const real = filaIA({ pagina: 1, naturaleza: 'ponderable', obligatoriedad: 'opcional', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'puentes vehiculares', cita_textual: 'Se otorgarán 10 puntos por cada contrato adicional de puentes vehiculares', descripcion: 'Puntaje por contratos adicionales' });
+  assert(globalIA([filaOblig(), real]).resultadoGlobal === 'CUMPLE', 'control: un criterio de puntaje real sigue sin decidir');
+});
+await check('IA2-7: un objeto_literal truncado ("puentes" de "puentes vehiculares") no se acepta; completo o terminado en conector sí', () => {
+  const v = o => expEngine.verificarFilasIA([filaIA({ pagina: 1, objeto_literal: o })], IA_TEXTO_AUD, [{ pagina: 1, hasta: IA_TEXTO_AUD.length }])[0];
+  assert(/objeto/i.test(expEngine.motivoBloqueoFilaIA(v('puentes')) || ''), 'literal truncado debe bloquear por el objeto');
+  assert(!/objeto/i.test(expEngine.motivoBloqueoFilaIA(v('puentes vehiculares')) || ''), 'literal completo no bloquea');
+});
 await check('IA-001: cifra alterada que SÍ aparece en otra parte de la página ("2" de "plazo 2 meses") NO se verifica (antes pasaba como aproximada)', () => {
   const fila = filaIA({ pagina: 1, min_contratos: 2, cita_textual: 'valor acumulado 15.000 SMMLV puentes vehiculares mínimo 2 contratos' });
   const v = verificarUna(fila, PAG_BASE);

@@ -7258,6 +7258,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // no decide el resultado, pero tampoco puede quedar invisible tras un "CUMPLE" global.
     const noObligatoriosIncumplidos = resultados.filter(r => r.requisito.obligatoriedad !== 'obligatorio' && !r.requisito.grupo && r.resultado === 'NO CUMPLE');
     if (resultadoGlobal === 'CUMPLE' && noObligatoriosIncumplidos.length) resultadoGlobal = 'REQUIERE REVISIÓN';
+    // Auditoría IA2-4: una fila opcional/alternativa/complementaria que quedó sin determinar por duda (cita sin verificar, obligatoriedad
+    // sin respaldo...) podría ser obligatoria: no se puede declarar CUMPLE global mientras exista.
+    if (resultadoGlobal === 'CUMPLE' && resultados.some(r => !r.requisito.grupo && r.requisito.obligatoriedad !== 'obligatorio' && r.requisito.forzarNoDeterminable)) resultadoGlobal = 'REQUIERE REVISIÓN';
     // Experiencia general = la que trae el Excel del proponente, sin más (solo se
     // identifica, no se evalúa cumplimiento sobre ella sola). Experiencia
     // específica = la que de verdad decide CUMPLE/NO CUMPLE/NO DETERMINABLE,
@@ -9279,7 +9282,29 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   function objetoLiteralVerificado(f){
     const o = normHeader(f.objeto_literal || '');
     if (o.length < 4) return false;
-    return (' ' + normHeader(f.cita_textual || '') + ' ').indexOf(' ' + o + ' ') !== -1;
+    const c = ' ' + normHeader(f.cita_textual || '') + ' ';
+    // Auditoría IA2-7: un literal TRUNCADO («puentes» de «puentes vehiculares») pasaba y daba CUMPLE con puentes peatonales. El literal debe
+    // terminar donde termina la frase del objeto: fin de la cita o un conector (de, con, en, que, y, o, para...) y no una palabra de contenido.
+    const FIN = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'con', 'en', 'que', 'y', 'o', 'u', 'e', 'para', 'por', 'cuyo', 'cuya', 'cuyos', 'cuyas', 'a', 'al', 'como', 'sobre', 'mediante', 'segun', 'ubicado', 'ubicados', 'sea', 'sean', 'debera', 'deberan', 'minimo', 'maximo', 'cada', 'valor', 'no', 'se']);
+    let desde = 0, i;
+    while ((i = c.indexOf(' ' + o + ' ', desde)) !== -1){
+      const resto = c.slice(i + o.length + 2).trim();
+      const siguiente = resto.split(' ')[0];
+      if (!siguiente || FIN.has(siguiente) || /^\d/.test(siguiente)) return true;
+      desde = i + 1;
+    }
+    return false;
+  }
+
+  // Auditoría IA2-6: una fila marcada ponderable / obligación contractual se descartaba sin comprobar la cita (solo se vigilaba el
+  // sentido contrario): una exigencia habilitante mal clasificada desaparecía y el global pasaba a CUMPLE. Si la cita no tiene ninguna
+  // expresión propia de esa naturaleza, la fila no se descarta: queda sin determinar hasta que el usuario la confirme.
+  function motivoNaturalezaDudosa(f){
+    if (filaIAHabilitante(f)) return null;
+    const c = normHeader(f.cita_textual || '');
+    if (f.naturaleza === 'ponderable' && !/\b(puntaje|puntos|se otorgar\w*|ponderab\w*|calificab\w*|asignar\w*|calificacion|evaluacion|factor)\b/.test(c)) return 'La IA clasificó este requisito como "ponderable" (puntaje) pero la cita no habla de puntaje ni de evaluación: podría ser un requisito habilitante.';
+    if (f.naturaleza === 'obligacion_contractual' && !/\b(contratista|ejecucion|obligacion\w*|suscripcion|adjudicacion|acta|durante|contrato)\b/.test(c)) return 'La IA clasificó este requisito como obligación contractual pero la cita no lo indica: podría ser un requisito habilitante.';
+    return null;
   }
 
   // IA-005: la obligatoriedad que declara la IA debe tener respaldo en la cita.
@@ -9591,7 +9616,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // para no perder un guardarraíl que la descripción resumida haya omitido.
   function filaIAaRequisito(fila, i){
     if (fila.categoria !== 'experiencia_general' && fila.categoria !== 'experiencia_especifica') return null;
-    if (!filaIAHabilitante(fila)) return null; // puntaje / obligación contractual / informativo: no decide
+    const dudosaNat = motivoNaturalezaDudosa(fila);
+    if (!filaIAHabilitante(fila) && !dudosaNat) return null; // puntaje / obligación contractual / informativo: no decide
     const descripcion = String(fila.descripcion || '').trim();
     if (!descripcion) return null;
     // El objeto exigido sale del fragmento LITERAL de la cita (IA-003); solo si falta se cae
@@ -9641,6 +9667,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     req.confianzaIA = fila.confianza || null;
     if (!filaIAConfiable(fila)){
       req.forzarNoDeterminable = motivoBloqueoFilaIA(fila) + ' Aún no lo has confirmado.';
+    } else if (dudosaNat && fila.confirmadaPorUsuario !== true){
+      req.forzarNoDeterminable = dudosaNat + ' Aún no lo has confirmado.';
     }
     return req;
   }
