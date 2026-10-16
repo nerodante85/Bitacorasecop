@@ -8157,6 +8157,10 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const pagina = idx => { if (idx == null || idx < 0 || inicios.length < 2) return null; let n = 1; for (let i = 0; i < inicios.length; i++){ if (inicios[i] <= idx) n = i + 1; else break; } return n; };
     const add = (grupo, requisito, exige, cifras, extra) => filas.push(Object.assign({ grupo: grupo, requisito: requisito, exige: exige || '', cifras: cifras || '', aviso: '' }, extra || {}));
     const num = x => parseFloat(String(x).replace(/\./g, '').replace(',', '.'));
+    // Índices y medidas pequeñas (1.5, 0.70, 45.5): hasta 2 decimales con punto o coma son DECIMALES, no miles (auditoría FI2-1);
+    // `num` borraría el punto y daría 15 / 70 / 455. Con tres o más cifras tras el separador («1.500») se sigue leyendo como miles.
+    // Con «%» (FI2-2) el valor se guarda como razón (70% → 0,7), la misma escala del perfil de la empresa.
+    const numInd = (x, pct) => { const s = String(x).trim(); const v = /^\d+[.,]\d{1,2}$/.test(s) ? parseFloat(s.replace(',', '.')) : num(s); return pct ? v / 100 : v; };
     // Puntos para PREGUNTAR a la entidad (borrador de observaciones): cada uno con su página y redactado como solicitud concreta.
     const obs = (tema, texto, idx) => observaciones.push({ tema: tema, texto: texto, pagina: (idx != null && idx >= 0) ? pagina(idx) : null });
 
@@ -8277,7 +8281,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (mLuz){
       const mMetros = t.slice(mLuz.index).match(/luz\s+principal[^.]{0,120}?es\s+de\s+(\d+(?:[.,]\d+)?)\s*metros/i);
       const pct = parseInt(mLuz[2], 10);
-      const metros = mMetros ? num(mMetros[1]) : null;
+      const metros = mMetros ? numInd(mMetros[1]) : null;
       add('Experiencia', 'Específica: magnitud del puente', 'Un contrato de construcción de puente (tipología de la Matriz 1 del documento) con luz principal de al menos ' + pct + '% de la del puente a contratar',
         metros ? 'Luz mínima: ' + fmt1(metros * pct / 100) + ' m (' + pct + '% de ' + fmt1(metros) + ' m)' : '', { pagina: pagina(mLuz.index) });
     }
@@ -8380,18 +8384,18 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       const INDS = [['Índice de liquidez', /[ÍI]ndice\s+de\s+liquidez/i], ['Índice de endeudamiento', /[ÍI]ndice\s+de\s+endeudamiento/i],
         ['Razón de cobertura de intereses', /Raz[óo]n\s+de\s+cobertura\s+de\s+intereses|cobertura\s+de\s+intereses/i],
         ['Rentabilidad del patrimonio', /Rentabilidad\s+del\s+patrimonio/i], ['Rentabilidad del activo', /Rentabilidad\s+del\s+activo/i]];
-      const leer = (sec, re) => { const m = sec.match(new RegExp('(?:' + re.source + ')\\s*([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)\\s*([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)', 'i')); return m ? (rango === 1 ? { op: m[1], v: m[2] } : { op: m[3], v: m[4] }) : null; };
+      const leer = (sec, re) => { const m = sec.match(new RegExp('(?:' + re.source + ')\\s*([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)(\\s*%)?\\s*([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)(\\s*%)?', 'i')); return m ? (rango === 1 ? { op: m[1], v: m[2], pct: !!m[3] } : { op: m[4], v: m[5], pct: !!m[6] }) : null; };
       INDS.forEach(ind => {
         const d = leer(secDem, ind[1]), mi = leer(secMi, ind[1]);
         if (!d && !mi) return;
-        add('Capacidad financiera', ind[0] + ' (rango ' + rango + ')', d ? d.op + ' ' + d.v : '—', mi ? 'Mipyme: ' + mi.op + ' ' + mi.v : '', { pagina: pagina(iDem), dato: { tipo: 'indice', clave: ind[0], demas: d ? { op: d.op, v: num(d.v) } : null, mipyme: mi ? { op: mi.op, v: num(mi.v) } : null } });
+        add('Capacidad financiera', ind[0] + ' (rango ' + rango + ')', d ? d.op + ' ' + d.v + (d.pct ? '%' : '') : '—', mi ? 'Mipyme: ' + mi.op + ' ' + mi.v + (mi.pct ? '%' : '') : '', { pagina: pagina(iDem), dato: { tipo: 'indice', clave: ind[0], demas: d ? { op: d.op, v: numInd(d.v, d.pct) } : null, mipyme: mi ? { op: mi.op, v: numInd(mi.v, mi.pct) } : null } });
       });
     }
 
     // Indicadores con valor directo (tabla «INDICADOR | PARÁMETRO EXIGIDO» y «ÍNDICES | ÍNDICE REQUERIDO»), sin la Matriz 2 de por medio.
     // Solo se leen detrás de esos encabezados. En rentabilidad, «≥ 0,06 ≥ 0,03 Mipyme» se lee como general y Mipyme (y se avisa).
     if (!filas.some(f => f.dato && f.dato.tipo === 'indice')){
-      const OP = '([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)';
+      const OP = '([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)(\\s*%)?';
       const zonas = []; const reZ = /INDICADOR\s+PAR[ÁA]METRO\s+EXIGIDO|[ÍI]NDICES\s+[ÍI]NDICE\s+REQUERIDO/ig; let mz;
       while ((mz = reZ.exec(t))) zonas.push({ i: mz.index, texto: t.slice(mz.index, mz.index + 420) });
       const ya = {};
@@ -8402,16 +8406,16 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         if (ya[L[0]]) return;
         const m = z.texto.match(L[1]); if (!m) return;
         ya[L[0]] = true;
-        const demas = { op: m[1], v: num(m[2]) }, mi = (L[2] && m[3]) ? { op: m[3], v: num(m[4]) } : null;
+        const demas = { op: m[1], v: numInd(m[2], !!m[3]) }, mi = (L[2] && m[4]) ? { op: m[4], v: numInd(m[5], !!m[6]) } : null;
         let aviso = '';
         if (L[0] === 'Índice de liquidez' && demas.op === '≥' && demas.v >= 5) aviso = 'Una liquidez mínima de ' + m[2] + ' es inusualmente alta (lo habitual es cerca de 1 a 2): confirma que no sea un error del documento, porque dejaría fuera a casi todos los proponentes.';
         if (L[0] === 'Razón de cobertura de intereses' && demas.op === '≥' && demas.v >= 10) aviso = 'Una cobertura de intereses mínima de ' + m[2] + ' es inusualmente alta: confirma que no sea un error del documento.';
         if (aviso && !mi) obs(L[0], 'El documento exige ' + (L[0] === 'Índice de liquidez' ? 'un índice de liquidez' : 'una razón de cobertura de intereses') + ' de ' + demas.op + ' ' + m[2] + ', un valor muy superior al habitual. Solicitamos confirmar que es el valor correcto, pues restringiría de forma desproporcionada la participación.', z.i);
         if (mi){
           aviso = (aviso ? aviso + ' ' : '') + 'El documento trae dos valores y se leyó el segundo como el de Mipyme: confírmalo.';
-          obs(L[0], 'La tabla de ' + L[0].toLowerCase() + ' trae dos valores (' + demas.op + ' ' + m[2] + ' y ' + mi.op + ' ' + m[4] + ' «Mipyme») sin que el encabezado diga a qué tipo de proponente corresponde cada uno. Solicitamos indicarlo.', z.i);
+          obs(L[0], 'La tabla de ' + L[0].toLowerCase() + ' trae dos valores (' + demas.op + ' ' + m[2] + ' y ' + mi.op + ' ' + m[5] + ' «Mipyme») sin que el encabezado diga a qué tipo de proponente corresponde cada uno. Solicitamos indicarlo.', z.i);
         }
-        add('Capacidad financiera', L[0], demas.op + ' ' + m[2], mi ? 'Mipyme: ' + mi.op + ' ' + m[4] : '', { pagina: pagina(z.i), aviso: aviso, dato: { tipo: 'indice', clave: L[0], demas: demas, mipyme: mi } });
+        add('Capacidad financiera', L[0], demas.op + ' ' + m[2] + (m[3] ? '%' : ''), mi ? 'Mipyme: ' + mi.op + ' ' + m[5] + (m[6] ? '%' : '') : '', { pagina: pagina(z.i), aviso: aviso, dato: { tipo: 'indice', clave: L[0], demas: demas, mipyme: mi } });
       }));
     }
     if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /Matriz\s*2/i.test(t) && /[ÍI]ndice\s+de\s+liquidez|capacidad\s+organizacional/i.test(t)) {

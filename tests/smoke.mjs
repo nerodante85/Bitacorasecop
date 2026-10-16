@@ -3753,6 +3753,37 @@ const EP_SILVANIA_PAGINAS = [
 const EP_SILVANIA = EP_SILVANIA_PAGINAS.slice(0, 3).concat([TABLA_TRAMOS_TIPO], EP_SILVANIA_PAGINAS.slice(3)).join('\n');
 const fichaDe = () => expEngine.fichaHabilitante(EP_SILVANIA, { anio: 2026 });
 const filaF = (f, nombre) => f.filas.find(x => x.requisito.indexOf(nombre) === 0);
+// ---- Auditoría 2026-10-16, familia 1: lectura numérica de la ficha (FI2-1, FI2-2) ----
+const AUD_BASE = 'El presupuesto oficial es de $3.185.389.625. El plazo de ejecución del contrato será de CUATRO (4) MESES. No se otorgará anticipo. ';
+await check('FI2-1: indicadores con decimal escrito con punto (1.5, 0.70, 2.0) se leen como 1,5 / 0,7 / 2, no ×10 ni ×100', () => {
+  const f = expEngine.fichaHabilitante(AUD_BASE + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1.5 Índice de endeudamiento ≤ 0.70 Razón de cobertura de intereses ≥ 2.0', { anio: 2026 });
+  const v = c => { const x = f.filas.find(r => r.dato && r.dato.tipo === 'indice' && r.dato.clave === c); return x && x.dato.demas && x.dato.demas.v; };
+  assert(v('Índice de liquidez') === 1.5, 'liquidez: ' + v('Índice de liquidez'));
+  assert(v('Índice de endeudamiento') === 0.7, 'endeudamiento: ' + v('Índice de endeudamiento'));
+  assert(v('Razón de cobertura de intereses') === 2, 'cobertura: ' + v('Razón de cobertura de intereses'));
+  const c = expEngine.cruceFichaEmpresa(f.filas, { liquidez: 2, endeudamiento: 0.8, cobertura: 3 });
+  assert(c['Índice de liquidez'].estado === 'CUMPLE', 'liquidez 2 ≥ 1,5: ' + c['Índice de liquidez'].estado);
+  assert(c['Índice de endeudamiento'].estado === 'NO CUMPLE', 'endeudamiento 0,8 > 0,7 debe NO CUMPLIR: ' + c['Índice de endeudamiento'].estado);
+  assert(!f.filas.some(r => r.aviso && /inusualmente alta/.test(r.aviso)), 'no debe avisar "inusualmente alta" por un 15 inventado');
+});
+await check('FI2-1: la coma decimal y los miles con punto siguen leyéndose igual (1,5 / 0,70)', () => {
+  const f = expEngine.fichaHabilitante(AUD_BASE + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1,5 Índice de endeudamiento ≤ 0,70', { anio: 2026 });
+  const x = f.filas.find(r => r.dato && r.dato.clave === 'Índice de liquidez');
+  assert(x && x.dato.demas.v === 1.5, 'liquidez 1,5');
+});
+await check('FI2-2: endeudamiento escrito en porcentaje ("≤ 70%") se guarda como razón 0,7 y se cruza bien con el perfil', () => {
+  const f = expEngine.fichaHabilitante(AUD_BASE + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1,5 Índice de endeudamiento ≤ 70% Razón de cobertura de intereses ≥ 2', { anio: 2026 });
+  const x = f.filas.find(r => r.dato && r.dato.clave === 'Índice de endeudamiento');
+  assert(x && x.dato.demas.v === 0.7, 'endeudamiento 70% = 0,7: ' + (x && x.dato.demas.v));
+  assert(expEngine.cruceFichaEmpresa(f.filas, { liquidez: 2, endeudamiento: 0.8, cobertura: 3 })['Índice de endeudamiento'].estado === 'NO CUMPLE', '0,8 > 70% debe NO CUMPLIR');
+  assert(expEngine.cruceFichaEmpresa(f.filas, { liquidez: 2, endeudamiento: 0.5, cobertura: 3 })['Índice de endeudamiento'].estado === 'CUMPLE', '0,5 ≤ 70% cumple');
+});
+await check('FI2-1: la luz del puente con decimal en punto ("45.5 metros") no se multiplica por 10', () => {
+  const t = 'La experiencia específica corresponda a la construcción de puentes vehiculares en concreto reforzado cuya luz principal sea mayor o igual al 50% de la longitud del puente a contratar. La luz principal del puente a contratar es de 45.5 metros.';
+  const f = expEngine.fichaHabilitante(t, { anio: 2026 });
+  const m = f.filas.find(r => r.requisito === 'Específica: magnitud del puente');
+  assert(m && !/455|227/.test(m.cifras) && /22[,.]8|22,7|22[,.]75/.test(m.cifras.replace(/\s/g, '')), 'luz mínima: ' + (m && m.cifras));
+});
 await check('fichaHabilitante: datos del proceso (objeto, presupuesto en pesos y SMMLV, plazo, sin anticipo) con la página de cada dato', () => {
   const f = fichaDe();
   assert(/PUENTE DE LA MIEL/.test(filaF(f, 'Objeto').exige), 'objeto');
