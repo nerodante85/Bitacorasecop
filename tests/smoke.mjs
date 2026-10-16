@@ -3841,6 +3841,34 @@ await check('FI2-1: la luz del puente con decimal en punto ("45.5 metros") no se
   const m = f.filas.find(r => r.requisito === 'Específica: magnitud del puente');
   assert(m && !/455|227/.test(m.cifras) && /22[,.]8|22,7|22[,.]75/.test(m.cifras.replace(/\s/g, '')), 'luz mínima: ' + (m && m.cifras));
 });
+// ---- Auditoría 2026-10-16: valores derivados de la ficha (FI2-3 capital de trabajo, FI2-4 anticipo) ----
+const fila6 = (f, n) => f.filas.find(x => x.requisito === n);
+await check('FI2-4: "no se otorgará anticipo por un valor superior al 30%" o una contradicción con "el anticipo será del 30%" NO es "sin anticipo" (no se calcula CT ni K)', () => {
+  const base = 'El presupuesto oficial es de $6.000.000.000. El plazo de ejecución del contrato será de CUATRO (4) MESES. Capital de trabajo demandado CTd = (POE - Anticipo o Pago anticipado) x 33%. CRPC = POE - Anticipo. ';
+  const a = expEngine.fichaHabilitante(base + 'No se otorgará anticipo por un valor superior al treinta por ciento (30%) del valor del contrato.', { anio: 2026 });
+  assert(!fila6(a, 'Anticipo'), '"por un valor superior al 30%" no es sin anticipo');
+  assert(!fila6(a, 'Capital de trabajo demandado') && !fila6(a, 'Capacidad residual del proceso (K)'), 'no se calcula CT ni K con un anticipo posible');
+  const b = expEngine.fichaHabilitante(base + 'No se entregará anticipo hasta tanto el contratista presente el plan de inversión. El anticipo será del 30% del valor del contrato.', { anio: 2026 });
+  assert(!fila6(b, 'Anticipo') && !fila6(b, 'Capital de trabajo demandado'), 'contradicción: no se afirma sin anticipo');
+  assert(b.avisos.some(x => /anticipo/i.test(x)), 'y se avisa');
+  const c = expEngine.fichaHabilitante(base + 'El anticipo será del 30% del valor del contrato. En el contrato de interventoría no se otorgará anticipo.', { anio: 2026 });
+  assert(!fila6(c, 'Anticipo') && !fila6(c, 'Capital de trabajo demandado'), 'la negación de OTRO contrato no anula el anticipo de la obra');
+  const ok = expEngine.fichaHabilitante(base + 'No se otorgará anticipo.', { anio: 2026 });
+  assert(fila6(ok, 'Anticipo') && fila6(ok, 'Capital de trabajo demandado'), 'control: sin anticipo claro sí calcula');
+});
+await check('FI2-3: el capital de trabajo toma el porcentaje del propio documento (40%, 15%) y no aplica el 33% / la tabla CCE por defecto', () => {
+  const pre = 'El presupuesto oficial es de $3.185.389.625. No se otorgará anticipo. ';
+  const A = expEngine.fichaHabilitante(pre + 'El plazo de ejecución del contrato será de CUATRO (4) MESES. El capital de trabajo demandado será igual al cuarenta por ciento (40%) del presupuesto oficial.', { anio: 2026 });
+  const ctA = fila6(A, 'Capital de trabajo demandado');
+  assert(ctA && /40%/.test(ctA.exige) && /\$1\.274\.155\.850/.test(ctA.cifras), 'A: 40% = $1.274.155.850, fue ' + (ctA && ctA.exige + ' | ' + ctA.cifras));
+  const B = expEngine.fichaHabilitante('El presupuesto oficial es de $6.000.000.000. No se otorgará anticipo. El plazo de ejecución del contrato será de DIECIOCHO (18) MESES. Capital de trabajo demandado: 15% del presupuesto oficial.', { anio: 2026 });
+  const ctB = fila6(B, 'Capital de trabajo demandado');
+  assert(ctB && /15%/.test(ctB.exige) && /\$900\.000\.000/.test(ctB.cifras), 'B: 15% = $900.000.000, fue ' + (ctB && ctB.exige + ' | ' + ctB.cifras));
+  const C = expEngine.fichaHabilitante(pre + 'El plazo de ejecución del contrato será de CUATRO (4) MESES. Capital de trabajo demandado: 40% del presupuesto oficial. Más adelante, el capital de trabajo demandado: 25% del presupuesto oficial.', { anio: 2026 });
+  assert(!fila6(C, 'Capital de trabajo demandado') && C.avisos.some(x => /capital de trabajo/i.test(x)), 'dos porcentajes distintos: no se elige, se avisa');
+  const D = expEngine.fichaHabilitante(pre + 'El plazo de ejecución del contrato será de CUATRO (4) MESES. Capital de trabajo demandado para el proceso.', { anio: 2026 });
+  assert(!fila6(D, 'Capital de trabajo demandado'), 'sin porcentaje ni fórmula en el documento no se inventa el 33%');
+});
 await check('fichaHabilitante: datos del proceso (objeto, presupuesto en pesos y SMMLV, plazo, sin anticipo) con la página de cada dato', () => {
   const f = fichaDe();
   assert(/PUENTE DE LA MIEL/.test(filaF(f, 'Objeto').exige), 'objeto');
