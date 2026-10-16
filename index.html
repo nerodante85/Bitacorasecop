@@ -2117,7 +2117,7 @@
 <script src="magnitudes.js"></script>
 <script>
 // Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
-const { consultaNombresEntidad, consultaAdjudicacionesDe, parseNumCO, normalizeGeo, palabrasDeEntidad, matchesMunicipio, coincideEntidad, esLicitacionObra, opcionesDeAlerta, coincideFiltrosAlerta, departamentoSecop, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
+const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdjudicacionesDe, parseNumCO, normalizeGeo, palabrasDeEntidad, matchesMunicipio, coincideEntidad, esLicitacionObra, opcionesDeAlerta, coincideFiltrosAlerta, departamentoSecop, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
 (function(){
   // Shim de almacenamiento: si corre como artifact de Claude, usa window.storage
   // (persistente en la nube); si corre como sitio independiente (GitHub Pages, etc.),
@@ -10956,8 +10956,43 @@ const { consultaNombresEntidad, consultaAdjudicacionesDe, parseNumCO, normalizeG
   // Mismo criterio de siempre: el $q de Socrata es solo un ancla gruesa del
   // lado del servidor, matchesTerm() (raíz de 6 letras, misma que usa
   // runSearch) hace el filtro fino real del lado del cliente.
-  async function buscarPAA(keywords){
+  // entidades.json: codigo_entidad -> departamento (scripts/generar-entidades.mjs). Se pide una vez por sesión y solo
+  // si el PAA se busca por departamento; si falla, se cae al cruce por nombre de siempre (departamentoPorEntidad).
+  let mapaEntidadesActual = null;
+  async function cargarMapaEntidades(){
+    if (mapaEntidadesActual) return mapaEntidadesActual;
+    try {
+      const res = await withTimeout(fetch('entidades.json', { cache: 'force-cache' }), 10000, 'El mapa de entidades');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const mapa = await res.json();
+      if (mapa && typeof mapa === 'object' && Object.keys(mapa).length > 5000) mapaEntidadesActual = mapa;
+    } catch(e){ /* sin mapa: se usa el cruce por nombre */ }
+    return mapaEntidadesActual;
+  }
+
+  // Con departamento y mapa de entidades, el PAA se pide YA filtrado por el código de cada entidad del departamento
+  // (consultasPAA) y el resultado trae `porCodigo = true`; sin mapa o sin departamento, como antes.
+  async function buscarPAA(keywords, geos){
     if (!keywords.length) return [];
+    const mapa = geos && geos.length ? await cargarMapaEntidades() : null;
+    if (mapa){
+      const codigos = codigosDeDepartamento(mapa, geos);
+      const consultas = [];
+      keywords.forEach(k => consultasPAA(k, codigos).forEach(q => consultas.push(q)));
+      const lotes = await Promise.all(consultas.map(async q => {
+        const res = await withTimeout(fetch('https://www.datos.gov.co/resource/' + PAA_DATASET + '.json?' + q, socrataFetchOptions()), 15000, 'La consulta del PAA');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('respuesta inesperada');
+        return data;
+      }));
+      const vistos = new Set();
+      const items = [].concat(...lotes).filter(r => { const k = r.identificador_unico || r.id || JSON.stringify(r); if (vistos.has(k)) return false; vistos.add(k); return true; })
+        .map(normalizePAA).filter(item => keywords.some(k => matchesTerm(item.searchable, k)));
+      items.porCodigo = true;
+      items.entidadesDelDepartamento = codigos.length;
+      return items;
+    }
     const registros = await fetchAllForDataset(PAA_DATASET, keywords, 'PAA', 'fecha_de_carga_del_paa');
     return registros
       .map(normalizePAA)
@@ -13385,9 +13420,11 @@ const { consultaNombresEntidad, consultaAdjudicacionesDe, parseNumCO, normalizeG
     paaStatusEl.textContent = 'Consultando el Plan Anual de Adquisiciones…';
     paaListEl.innerHTML = '';
     try {
-      let items = await buscarPAA(keywords);
+      let items = await buscarPAA(keywords, geos);
       let notaGeo = '';
-      if (geos.length && items.length){
+      if (items.porCodigo){
+        notaGeo = ' Filtrado por departamento con el código de cada entidad (' + items.entidadesDelDepartamento + ' entidades de ' + geos.join(', ') + ' en SECOP II).';
+      } else if (geos.length && items.length){
         const antes = items.length;
         const entidadesConDepto = await departamentoPorEntidad(keywords);
         items = items.filter(it => {

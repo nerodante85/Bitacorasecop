@@ -307,6 +307,27 @@
       '&$order=' + encodeURIComponent('fecha_de_publicacion_del DESC');
   }
 
+  // PAA por departamento. El PAA (9sue-ezhx) no trae departamento pero sí `codigo_entidad`, el mismo código que SECOP II;
+  // entidades.json (scripts/generar-entidades.mjs) lo traduce a departamento. Antes se cruzaba por NOMBRE de entidad contra
+  // una muestra de SECOP II y para «pavimento» en Norte de Santander se hallaban 6 de 88 planeaciones («acueducto»: 6 de
+  // 839). Los códigos se piden en tandas de 100 (largo de la URL); solo se aceptan códigos numéricos.
+  function codigosDeDepartamento(mapa, geos) {
+    if (!mapa || typeof mapa !== 'object') return [];
+    const dd = (geos || []).map(g => normalizeGeo(departamentoSecop(g))).filter(Boolean);
+    if (!dd.length) return [];
+    return Object.keys(mapa).filter(cod => /^\d+$/.test(cod) && dd.indexOf(normalizeGeo(mapa[cod])) !== -1);
+  }
+  function consultasPAA(qTerm, codigos) {
+    const cods = (codigos || []).map(String).filter(c => /^\d+$/.test(c));
+    const out = [];
+    for (let i = 0; i < cods.length; i += 100) {
+      out.push('$limit=300' + (qTerm ? '&$q=' + encodeURIComponent(terminoQ(qTerm)) : '') +
+        '&$where=' + encodeURIComponent('codigo_entidad in (' + cods.slice(i, i + 100).map(c => "'" + c + "'").join(',') + ')') +
+        '&$order=' + encodeURIComponent('fecha_de_carga_del_paa DESC'));
+    }
+    return out;
+  }
+
   // Mapa municipio -> departamento sacado del propio dataset (pares ciudad_entidad/departamento_entidad
   // de las entidades que sí traen ambos). Un municipio que aparece en MÁS de un departamento (Caldas,
   // Belén, Santa María...) queda en null: no se adivina. Claves sin tildes ni mayúsculas.
@@ -343,16 +364,18 @@
     return { departamento: d || null, ciudad: ciu, deducido: !!d };
   }
 
+  // Las tildes se quitan (pavimentación = pavimentacion) pero la Ñ NO: en $q "señalización" trae 4.789 procesos y
+  // "senalizacion" 128 ("diseño" 144.804 contra "diseno" 2.220).
+  function terminoQ(qTerm) {
+    return String(qTerm).replace(/ñ/g, '\u0001').replace(/Ñ/g, '\u0002').normalize('NFD')
+      .replace(/[̀-ͯ]/g, '').replace(/\u0001/g, 'ñ').replace(/\u0002/g, 'Ñ');
+  }
+
   // `opciones.soloLicitacionObra`: «Solo Licitación Pública (Obra pública)» se filtra en el servidor (misma regla que el
   // navegador: la modalidad dice «licitación pública» Y «obra»). Antes se aplicaba tras traer 300 filas y solo llegaba
   // ~25 % de las licitaciones de obra de los últimos 60 días (Norte de Santander 5 de 21, Bogotá 5 de 80).
   function consultasSecopII(qTerm, hoyISO, geos, opciones) {
-    // Las tildes se quitan (pavimentación = pavimentacion) pero la Ñ NO: en $q "señalización" trae 4.789 procesos y
-    // "senalizacion" 128 ("diseño" 144.804 contra "diseno" 2.220).
-    const q = qTerm
-      ? '&$q=' + encodeURIComponent(String(qTerm).replace(/ñ/g, '\u0001').replace(/Ñ/g, '\u0002').normalize('NFD')
-        .replace(/[̀-ͯ]/g, '').replace(/\u0001/g, 'ñ').replace(/\u0002/g, 'Ñ'))
-      : '';
+    const q = qTerm ? '&$q=' + encodeURIComponent(terminoQ(qTerm)) : '';
     const dep = filtroDepartamento(geos);
     const lic = opciones && opciones.soloLicitacionObra
       ? " AND upper(modalidad_de_contratacion) like '%LICITACI%BLICA%' AND upper(modalidad_de_contratacion) like '%OBRA%'" : '';
@@ -374,7 +397,7 @@
 
   const Coincidencia = {
     parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, palabrasDeEntidad: palabrasDeEntidad, matchesMunicipio: matchesMunicipio, coincideEntidad: coincideEntidad,
-    esLicitacionObra: esLicitacionObra, consultaNombresEntidad: consultaNombresEntidad, consultaAdjudicacionesDe: consultaAdjudicacionesDe, opcionesDeAlerta: opcionesDeAlerta, coincideFiltrosAlerta: coincideFiltrosAlerta, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
+    esLicitacionObra: esLicitacionObra, codigosDeDepartamento: codigosDeDepartamento, consultasPAA: consultasPAA, consultaNombresEntidad: consultaNombresEntidad, consultaAdjudicacionesDe: consultaAdjudicacionesDe, opcionesDeAlerta: opcionesDeAlerta, coincideFiltrosAlerta: coincideFiltrosAlerta, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
     findField: findField, prepararBusquedaPorNombre: prepararBusquedaPorNombre,
     mapaMunicipios: mapaMunicipios, ubicacionDeRegistro: ubicacionDeRegistro,
     esEstadoNoVigente: esEstadoNoVigente, consultasSecopII: consultasSecopII

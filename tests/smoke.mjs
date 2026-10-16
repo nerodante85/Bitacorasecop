@@ -1729,6 +1729,33 @@ await check('Adjudicaciones de la entidad: primero se resuelve el NOMBRE EXACTO 
   assert(/consultaNombresEntidad\(entidad\)/.test(html) && /consultaAdjudicacionesDe\(/.test(html), 'buscarAdjudicaciones resuelve el nombre y consulta por nombre exacto, con la ancla de respaldo');
 });
 
+await check('PAA por departamento: se busca por CÓDIGO de entidad (el PAA no trae departamento pero sí codigo_entidad, igual que SECOP II); antes se cruzaba por nombre y para «pavimento» en Norte de Santander encontraba 6 de 88 planeaciones (acueducto: 6 de 839)', () => {
+  const C = Coincidencia;
+  assert(typeof C.codigosDeDepartamento === 'function' && typeof C.consultasPAA === 'function', 'faltan codigosDeDepartamento/consultasPAA');
+  const mapa = { '1': 'Norte de Santander', '2': 'norte de santander', '3': 'Boyacá', '4': 'Santander', '5': 'Distrito Capital de Bogotá' };
+  assert(JSON.stringify(C.codigosDeDepartamento(mapa, ['Norte de Santander']).sort()) === '["1","2"]', 'departamento exacto (sin tildes ni mayúsculas), sin traer Santander');
+  assert(JSON.stringify(C.codigosDeDepartamento(mapa, ['Santander'])) === '["4"]', 'Santander no trae Norte de Santander');
+  assert(JSON.stringify(C.codigosDeDepartamento(mapa, ['Bogotá']).sort()) === '["5"]', 'alias Bogotá -> Distrito Capital');
+  assert(JSON.stringify(C.codigosDeDepartamento(mapa, ['Boyacá', 'Norte de Santander']).sort()) === '["1","2","3"]', 'varios departamentos');
+  assert(C.codigosDeDepartamento(mapa, []).length === 0 && C.codigosDeDepartamento(null, ['Boyacá']).length === 0, 'sin mapa o sin departamentos: nada');
+  const codigos = Array.from({ length: 250 }, (_, i) => String(700000000 + i));
+  const qs = C.consultasPAA('señalización', codigos);
+  assert(qs.length === 3, 'tandas de 100 códigos: ' + qs.length);
+  qs.forEach(q => {
+    const p = new URLSearchParams(q);
+    assert(p.get('$q') === 'señalizacion' && /^codigo_entidad in \(('\d+',?)+\)$/.test(p.get('$where')), 'cada tanda filtra por código y la palabra clave conserva la ñ: ' + q.slice(0, 120));
+    assert(p.get('$order') === 'fecha_de_carga_del_paa DESC' && Number(p.get('$limit')) === 300, 'lo más reciente primero, 300');
+  });
+  assert(C.consultasPAA('x', []).length === 0, 'sin códigos no hay consulta');
+  assert(C.consultasPAA('x', ["12'3", '45']).every(q => !q.includes('%2712')), 'solo códigos numéricos (nada se inyecta)');
+  const m = JSON.parse(readFileSync(path.join(ROOT, 'entidades.json'), 'utf8'));
+  assert(Object.keys(m).length > 5000 && m['700000011'] === 'Distrito Capital de Bogotá', 'entidades.json existe y es plausible');
+  assert(C.codigosDeDepartamento(m, ['Norte de Santander']).length > 300, 'Norte de Santander tiene unos 360 códigos de entidad');
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/fetch\('entidades\.json'/.test(html) && /consultasPAA\(/.test(html) && /codigosDeDepartamento\(/.test(html), 'la app carga entidades.json y busca el PAA por código');
+  assert(/cp index\.html [^\n]*entidades\.json/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia entidades.json al sitio');
+});
+
 await check('Buscar procesos: la casilla «Solo Licitación Pública» vuelve a consultar SECOP al cambiar (el servidor ya filtró: re-pintar la muestra vieja escondería o mezclaría procesos)', () => {
   assert(!/onlyLicitacionEl\.addEventListener\('change', rerender\)/.test(html), 'la casilla no puede re-pintar a secas');
   assert(/onlyLicitacionEl\.addEventListener\('change', alCambiarSoloLicitacion\)/.test(html), 'falta alCambiarSoloLicitacion');
