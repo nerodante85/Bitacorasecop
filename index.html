@@ -2117,7 +2117,7 @@
 <script src="magnitudes.js"></script>
 <script>
 // Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
-const { parseNumCO, normalizeGeo, palabrasDeEntidad, matchesMunicipio, coincideEntidad, esLicitacionObra, opcionesDeAlerta, coincideFiltrosAlerta, departamentoSecop, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
+const { consultaNombresEntidad, consultaAdjudicacionesDe, parseNumCO, normalizeGeo, palabrasDeEntidad, matchesMunicipio, coincideEntidad, esLicitacionObra, opcionesDeAlerta, coincideFiltrosAlerta, departamentoSecop, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
 (function(){
   // Shim de almacenamiento: si corre como artifact de Claude, usa window.storage
   // (persistente en la nube); si corre como sitio independiente (GitHub Pages, etc.),
@@ -10856,8 +10856,10 @@ const { parseNumCO, normalizeGeo, palabrasDeEntidad, matchesMunicipio, coincideE
   async function buscarAdjudicaciones(entidad){
     const { ancla, coincide, coincideEstricta, palabras } = prepararBusquedaPorNombre(entidad);
 
-    async function deSecopII(){
-      const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?$limit=400&$q=' + encodeURIComponent(ancla);
+    // `consulta`: la consulta ya filtrada por nombre exacto de entidad y adjudicado (consultaAdjudicacionesDe); sin ella
+    // (o si no devuelve nada) se usa la ancla de siempre: 400 filas por palabras del nombre, filtradas aquí.
+    async function deSecopII(consulta){
+      const url = 'https://www.datos.gov.co/resource/p6dx-8zbt.json?' + (consulta || '$limit=400&$q=' + encodeURIComponent(ancla));
       const res = await withTimeout(fetch(url, socrataFetchOptions()), 15000, 'La consulta de adjudicaciones (SECOP II)');
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
@@ -10889,7 +10891,22 @@ const { parseNumCO, normalizeGeo, palabrasDeEntidad, matchesMunicipio, coincideE
     }
 
     let resII;
-    try { resII = { ok: true, value: await deSecopII() }; }
+    try {
+      let filas = [];
+      const qNombres = consultaNombresEntidad(entidad);
+      if (qNombres){
+        try {
+          const rn = await withTimeout(fetch('https://www.datos.gov.co/resource/p6dx-8zbt.json?' + qNombres, socrataFetchOptions()), 15000, 'La búsqueda del nombre de la entidad');
+          if (!rn.ok) throw new Error('HTTP ' + rn.status);
+          const grupos = await rn.json();
+          const nombres = (Array.isArray(grupos) ? grupos : []).map(g => g && g.entidad).filter(n => n && coincide(n));
+          const q = consultaAdjudicacionesDe(nombres);
+          if (q) filas = await deSecopII(q);
+        } catch(e){ console.warn('Adjudicaciones: la consulta por nombre exacto falló, se usa la ancla', e); }
+      }
+      if (!filas.length) filas = await deSecopII(null);
+      resII = { ok: true, value: filas };
+    }
     catch(e){
       console.error('No se pudo consultar adjudicaciones de SECOP II', e);
       resII = { ok: false, error: String(e && e.message || e || 'error') };

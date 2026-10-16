@@ -283,6 +283,30 @@
     return '(precio_base IS NULL OR precio_base <= 0 OR (' + rango + '))';
   }
 
+  // Adjudicaciones de una entidad (base de la sugerencia de oferta). Antes eran 400 filas por palabra clave, sin orden ni
+  // filtro, y la app veía 43 de 5.829 adjudicaciones de la Gobernación de Norte de Santander y 0 de 612 de la Alcaldía de
+  // Ocaña. Ahora en dos pasos: 1) `consultaNombresEntidad` agrupa los adjudicados por nombre de entidad con un filtro
+  // flojo (vocales comodín) y el navegador se queda con los nombres que `coincide`; 2) `consultaAdjudicacionesDe`
+  // pide, por nombre EXACTO, sus adjudicaciones más recientes (con el patrón flojo solo, una "OCAÑA" traía 500 filas y
+  // 24 eran de la alcaldía). Devuelven null si no hay con qué consultar (quien llama usa la ancla de siempre).
+  function consultaNombresEntidad(nombre) {
+    // Sin ninguna palabra de 4+ letras (o sin «alcaldía/municipio») el filtro sería casi todo el dataset.
+    const e = palabrasDeEntidad(nombre);
+    if (!e.generica && !e.requeridas.some(w => w.length >= 4)) return null;
+    const ent = filtroEntidad(nombre);
+    if (!ent) return null;
+    return '$select=' + encodeURIComponent('entidad,count(*) as n') +
+      '&$where=' + encodeURIComponent("adjudicado = 'Si' AND " + ent) +
+      '&$group=entidad&$order=' + encodeURIComponent('n DESC') + '&$limit=40';
+  }
+  function consultaAdjudicacionesDe(nombres) {
+    const lista = (Array.isArray(nombres) ? nombres : []).filter(n => typeof n === 'string' && n.trim()).slice(0, 10);
+    if (!lista.length) return null;
+    const en = lista.map(n => "'" + n.replace(/'/g, "''") + "'").join(', ');
+    return '$limit=500&$where=' + encodeURIComponent("adjudicado = 'Si' AND fecha_de_publicacion_del IS NOT NULL AND entidad IN (" + en + ")") +
+      '&$order=' + encodeURIComponent('fecha_de_publicacion_del DESC');
+  }
+
   // Mapa municipio -> departamento sacado del propio dataset (pares ciudad_entidad/departamento_entidad
   // de las entidades que sí traen ambos). Un municipio que aparece en MÁS de un departamento (Caldas,
   // Belén, Santa María...) queda en null: no se adivina. Claves sin tildes ni mayúsculas.
@@ -350,7 +374,7 @@
 
   const Coincidencia = {
     parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, palabrasDeEntidad: palabrasDeEntidad, matchesMunicipio: matchesMunicipio, coincideEntidad: coincideEntidad,
-    esLicitacionObra: esLicitacionObra, opcionesDeAlerta: opcionesDeAlerta, coincideFiltrosAlerta: coincideFiltrosAlerta, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
+    esLicitacionObra: esLicitacionObra, consultaNombresEntidad: consultaNombresEntidad, consultaAdjudicacionesDe: consultaAdjudicacionesDe, opcionesDeAlerta: opcionesDeAlerta, coincideFiltrosAlerta: coincideFiltrosAlerta, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
     findField: findField, prepararBusquedaPorNombre: prepararBusquedaPorNombre,
     mapaMunicipios: mapaMunicipios, ubicacionDeRegistro: ubicacionDeRegistro,
     esEstadoNoVigente: esEstadoNoVigente, consultasSecopII: consultasSecopII

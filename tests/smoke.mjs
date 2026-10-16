@@ -1712,6 +1712,23 @@ await check('SECOP II: el rango de valor (desde/hasta) también filtra en el ser
   assert(w({ minV: 5e8 }).includes('precio_base >= 500000000') && !/e\+/.test(w({ minV: 5e20 })), 'cifras grandes sin notación científica');
 });
 
+await check('Adjudicaciones de la entidad: primero se resuelve el NOMBRE EXACTO de la entidad (agrupando adjudicados) y luego se piden sus adjudicaciones más recientes; antes eran 400 filas sin filtrar y la app veía 43 de 5.829 de la Gobernación de Norte de Santander y 0 de 612 de la Alcaldía de Ocaña (la sugerencia de oferta se calculaba con eso)', () => {
+  const C = Coincidencia;
+  assert(typeof C.consultaNombresEntidad === 'function' && typeof C.consultaAdjudicacionesDe === 'function', 'faltan consultaNombresEntidad/consultaAdjudicacionesDe');
+  const p = new URLSearchParams(C.consultaNombresEntidad('Alcaldía de Ocaña'));
+  const w = p.get('$where');
+  assert(w.includes("adjudicado = 'Si'") && w.includes("upper(entidad) like '%_LC_LD__%'") && w.includes("upper(entidad) like '%M_N_C_P__%'") && /like '%_C_[NÑ]_%'/.test(w), 'entidad (alcaldía = municipio): ' + w);
+  assert(p.get('$group') === 'entidad' && /count\(\*\)/.test(p.get('$select')) && Number(p.get('$limit')) > 0, 'agrupa por entidad');
+  assert(C.consultaNombresEntidad('') === null && C.consultaNombresEntidad('de la') === null, 'un nombre sin palabras útiles no genera consulta (se usa el respaldo por ancla)');
+  const q = new URLSearchParams(C.consultaAdjudicacionesDe(["ALCALDIA MUNICIPAL DE OCAÑA", "O'Higgins"]));
+  const x = q.get('$where');
+  assert(x.includes("adjudicado = 'Si'") && x.includes("entidad IN ('ALCALDIA MUNICIPAL DE OCAÑA', 'O''Higgins')") && x.includes('fecha_de_publicacion_del IS NOT NULL'), 'por nombre exacto y con comillas escapadas: ' + x);
+  assert(q.get('$order') === 'fecha_de_publicacion_del DESC' && Number(q.get('$limit')) >= 400 && !q.has('$q'), 'más recientes primero, al menos 400 filas');
+  assert(C.consultaAdjudicacionesDe([]) === null && C.consultaAdjudicacionesDe(null) === null, 'sin nombres no hay consulta');
+  const html = readFileSync(HTML_PATH, 'utf8');
+  assert(/consultaNombresEntidad\(entidad\)/.test(html) && /consultaAdjudicacionesDe\(/.test(html), 'buscarAdjudicaciones resuelve el nombre y consulta por nombre exacto, con la ancla de respaldo');
+});
+
 await check('Buscar procesos: la casilla «Solo Licitación Pública» vuelve a consultar SECOP al cambiar (el servidor ya filtró: re-pintar la muestra vieja escondería o mezclaría procesos)', () => {
   assert(!/onlyLicitacionEl\.addEventListener\('change', rerender\)/.test(html), 'la casilla no puede re-pintar a secas');
   assert(/onlyLicitacionEl\.addEventListener\('change', alCambiarSoloLicitacion\)/.test(html), 'falta alCambiarSoloLicitacion');
