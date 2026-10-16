@@ -195,16 +195,29 @@
     return grupos.length === 1 ? grupos[0] : '(' + grupos.join(' OR ') + ')';
   }
 
+  // Palabras de «Entidad (contiene)». «Alcaldía» y «municipio» son la MISMA entidad con nombres distintos en el dataset
+  // (la alcaldía de Cúcuta es «MUNICIPIO DE SAN JOSE DE CUCUTA.», la de Ocaña «ALCALDIA MUNICIPAL DE OCAÑA»): si el
+  // texto trae una de las dos, basta que el nombre traiga cualquiera (`generica`) y «municipal» deja de exigirse.
+  // Un «instituto municipal…» o la policía de Cúcuta NO son la alcaldía (no traen alcaldía ni municipio).
+  function palabrasDeEntidad(texto) {
+    const ws = normalizeGeo(texto).split(' ').filter(w => w.length >= 2);
+    const generica = ws.some(w => w === 'alcaldia' || w === 'municipio');
+    const requeridas = ws.filter(w => w !== 'alcaldia' && w !== 'municipio' && !(generica && w === 'municipal'));
+    return { requeridas: requeridas, generica: generica };
+  }
+
   // Entidad EN EL SERVIDOR (superconjunto de coincideEntidad del navegador): basta con exigir las palabras largas
   // (4+ letras; si no hay, las de 3 o 2), cada una con las vocales como comodín '_'. Con la entidad solo en el navegador la
   // UFPS tenía 385 procesos en 60 días y llegaban 3 (INVÍAS: ninguno de ~5.000).
   function filtroEntidad(texto) {
-    const todas = normalizeGeo(texto).split(' ').filter(w => w.length >= 2);
-    if (!todas.length) return '';
-    let palabras = todas.filter(w => w.length >= 4);
-    if (!palabras.length) palabras = todas.filter(w => w.length >= 3);
-    if (!palabras.length) palabras = todas;
-    const conds = palabras.map(w => '(' + patronesMunicipio(w).map(p => "upper(entidad) like '" + p + "'").join(' OR ') + ')');
+    const e = palabrasDeEntidad(texto);
+    if (!e.requeridas.length && !e.generica) return '';
+    let palabras = e.requeridas.filter(w => w.length >= 4);
+    if (!palabras.length) palabras = e.requeridas.filter(w => w.length >= 3);
+    if (!palabras.length) palabras = e.requeridas;
+    const como = w => '(' + patronesMunicipio(w).map(p => "upper(entidad) like '" + p + "'").join(' OR ') + ')';
+    const conds = palabras.map(como);
+    if (e.generica) conds.push('(' + como('alcaldia') + ' OR ' + como('municipio') + ')');
     return conds.length === 1 ? conds[0] : '(' + conds.join(' AND ') + ')';
   }
 
@@ -273,7 +286,7 @@
   }
 
   const Coincidencia = {
-    parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
+    parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, palabrasDeEntidad: palabrasDeEntidad, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
     findField: findField, prepararBusquedaPorNombre: prepararBusquedaPorNombre,
     mapaMunicipios: mapaMunicipios, ubicacionDeRegistro: ubicacionDeRegistro,
     esEstadoNoVigente: esEstadoNoVigente, consultasSecopII: consultasSecopII

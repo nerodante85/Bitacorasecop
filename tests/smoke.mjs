@@ -1692,6 +1692,8 @@ await check('SECOP II: «Entidad (contiene)» también filtra en el servidor (la
   assert(/H_SP_T_L/.test(pocas) && !/like '%S%'/.test(pocas), 'ESE (3 letras) no se exige cuando hay una palabra de 4+: ' + pocas);
   const sigla = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', [], { entidad: 'INVÍAS' }).recientes).get('$where');
   assert(/upper\(entidad\) like '%_NV__S%'/.test(sigla), 'una sigla de 6 letras: ' + sigla);
+  const alc = new URLSearchParams(C.consultasSecopII(null, '2026-10-16', [], { entidad: 'Alcaldía de Cúcuta' }).recientes).get('$where');
+  assert(alc.includes("'%C_C_T_%'") && alc.includes("upper(entidad) like '%_LC_LD__%'") && alc.includes("upper(entidad) like '%M_N_C_P__%'"), '«Alcaldía de X» también trae «Municipio de X»: ' + alc);
   assert(JSON.stringify(C.consultasSecopII('x', '2026-10-16', [], { entidad: '' })) === JSON.stringify(C.consultasSecopII('x', '2026-10-16', [])), 'sin entidad = antes');
 });
 
@@ -3149,6 +3151,11 @@ await check('Filtros de Buscar: el valor, la entidad y la fecha de cierre filtra
   assert(e('GOBERNACIÓN DE NORTE DE SANTANDER', 'gobernacion') === true && e('Alcaldía de San José de Cúcuta', 'alcaldia cucuta') === true, 'sin tildes ni mayúsculas, por palabras');
   assert(e('INSTITUTO NACIONAL DE VÍAS - INVÍAS', 'invias') === true && e('Alcaldía de Ocaña', 'cucuta') === false && e('', 'alcaldia') === false, 'no coincide / entidad vacía');
   assert(e('Cualquiera', '') === true && e('Cualquiera', '   ') === true, 'sin texto no filtra');
+  // «Alcaldía de X» y «Municipio de X» son la misma entidad: el dataset llama MUNICIPIO DE SAN JOSE DE CUCUTA (30.051 procesos) a la alcaldía de Cúcuta y ALCALDIA MUNICIPAL DE OCAÑA a la de Ocaña.
+  assert(e('MUNICIPIO DE SAN JOSE DE CUCUTA.', 'Alcaldía de Cúcuta') === true && e('ALCALDIA MUNICIPAL DE OCAÑA', 'municipio de Ocaña') === true, 'alcaldía = municipio');
+  assert(e('MUNICIPIO DE LOS PATIOS', 'alcaldia municipal de los patios') === true, '«municipal» sobra cuando se dice alcaldía/municipio');
+  assert(e('INSTITUTO MUNICIPAL PARA LA RECREACION Y EL DEPORTE DE CUCUTA', 'Alcaldía de Cúcuta') === false && e('POLICIA METROPOLITANA DE CUCUTA', 'alcaldia de cucuta') === false, 'un instituto o la policía de Cúcuta NO es la alcaldía');
+  assert(e('MUNICIPIO DE PAMPLONA', 'alcaldia') === true && e('GOBERNACION NORTE DE SANTANDER', 'alcaldia') === false, 'solo «alcaldía»: cualquier alcaldía o municipio');
   const c = expEngine.cierraEnDias;
   assert(c(5, 7) === true && c(7, 7) === true && c(0, 7) === true && c(8, 7) === false && c(-1, 7) === false, 'ventana de cierre (un vencido no cuenta)');
   assert(c(null, 7) === false, 'con el filtro puesto, un proceso sin fecha de cierre confiable no se muestra como "cierra pronto"');

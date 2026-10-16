@@ -2117,7 +2117,7 @@
 <script src="magnitudes.js"></script>
 <script>
 // Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
-const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
+const { parseNumCO, normalizeGeo, palabrasDeEntidad, departamentoSecop, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
 (function(){
   // Shim de almacenamiento: si corre como artifact de Claude, usa window.storage
   // (persistente en la nube); si corre como sitio independiente (GitHub Pages, etc.),
@@ -4104,10 +4104,11 @@ const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, fi
     return (!minV || v >= minV) && (!maxV || v <= maxV);
   }
   function coincideEntidad(entidad, texto){
-    const palabras = normalizeGeo(texto).split(' ').filter(w => w.length >= 2);
-    if (!palabras.length) return true;
+    const p = palabrasDeEntidad(texto);
+    if (!p.requeridas.length && !p.generica) return true;
     const e = ' ' + normalizeGeo(entidad) + ' ';
-    return palabras.every(w => e.indexOf(w) !== -1);
+    if (p.generica && e.indexOf('alcaldia') === -1 && e.indexOf('municipio') === -1) return false;
+    return p.requeridas.every(w => e.indexOf(w) !== -1);
   }
   function cierraEnDias(daysLeft, limite){
     const n = Number(limite);
