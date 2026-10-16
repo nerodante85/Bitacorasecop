@@ -1603,9 +1603,9 @@ await check('SECOP II: con departamento, AMBAS consultas lo filtran en el servid
 
 await check('SECOP II: varios departamentos van con OR entre paréntesis; las vocales se vuelven comodín (tildes) y "Departamento de X" se limpia', () => {
   const w = new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Norte de Santander', 'Departamento de Boyacá']).vigentes).get('$where');
-  assert(w.includes("(upper(departamento_entidad) like 'N_RT_ D_ S_NT_ND_R' OR upper(departamento_entidad) like 'B_Y_C_' OR departamento_entidad = 'No Definido')"), 'OR agrupado (las vigentes incluyen los sin departamento), fue ' + w);
+  assert(w.includes("(upper(departamento_entidad) like '__RT_%D_%S__T__D_R' OR upper(departamento_entidad) like 'B_Y_C_' OR departamento_entidad = 'No Definido')"), 'OR agrupado (las vigentes incluyen los sin departamento), fue ' + w);
   const r = new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Norte de Santander', 'Departamento de Boyacá']).recientes).get('$where');
-  assert(r.includes("(upper(departamento_entidad) like 'N_RT_ D_ S_NT_ND_R' OR upper(departamento_entidad) like 'B_Y_C_')") && !r.includes('No Definido'), 'las recientes NO traen los sin departamento (llenarían las 300 filas con todo el país), fue ' + r);
+  assert(r.includes("(upper(departamento_entidad) like '__RT_%D_%S__T__D_R' OR upper(departamento_entidad) like 'B_Y_C_')") && !r.includes('No Definido'), 'las recientes NO traen los sin departamento (llenarían las 300 filas con todo el país), fue ' + r);
   assert(new URLSearchParams(expEngine.consultasSecopII('acueducto', '2026-09-26', ['Boyacá']).vigentes).get('$q') === 'acueducto', 'la palabra clave sigue yendo en $q');
 });
 
@@ -1614,6 +1614,26 @@ await check('SECOP II: un departamento vacío o de menos de 3 letras no genera f
   const conVacios = expEngine.consultasSecopII('x', '2026-09-26', ['', ' ', 'a']);
   assert(JSON.stringify(base) === JSON.stringify(conVacios), 'geos inútiles no cambian la consulta');
   assert(JSON.stringify(base) === JSON.stringify(expEngine.consultasSecopII('x', '2026-09-26', [])), 'geos vacío = antes');
+});
+
+await check('SECOP II: Nariño (Ñ) no devolvía NADA en el servidor: la ñ del dato no casaba con la «n» del patrón; ahora la «n» también es comodín', () => {
+  const w = new URLSearchParams(Coincidencia.consultasSecopII(null, '2026-10-16', ['Nariño']).recientes).get('$where');
+  const patron = /like '([^']+)'/.exec(w)[1];
+  const comoRegex = new RegExp('^' + patron.replace(/_/g, '.') + '$');
+  assert(comoRegex.test('NARIÑO'), 'el patrón ' + patron + ' debe casar con NARIÑO');
+  assert(!comoRegex.test('CAUCA'), 'y no con cualquier cosa');
+  const santander = new RegExp('^' + /like '([^']+)'/.exec(new URLSearchParams(Coincidencia.consultasSecopII(null, '2026-10-16', ['Santander']).recientes).get('$where'))[1].replace(/_/g, '.') + '$');
+  assert(santander.test('SANTANDER') && !santander.test('NORTE DE SANTANDER'), 'Santander sigue sin traer Norte de Santander');
+});
+
+await check('Departamento escrito a mano: «Bogotá», «San Andrés», «Guajira» se traducen al nombre que usa SECOP II (el dataset dice «Distrito Capital de Bogotá»; con «Bogotá» daba 0 resultados)', () => {
+  const C = Coincidencia;
+  assert(typeof C.departamentoSecop === 'function', 'falta departamentoSecop');
+  ['Bogotá', 'bogota d.c.', 'Bogotá D.C.', 'Distrito Capital', 'BOGOTA'].forEach(t => assert(C.departamentoSecop(t) === 'Distrito Capital de Bogotá', t + ' -> ' + C.departamentoSecop(t)));
+  ['San Andrés', 'San Andrés y Providencia', 'san andres providencia y santa catalina'].forEach(t => assert(C.departamentoSecop(t) === 'San Andrés, Providencia y Santa Catalina', t + ' -> ' + C.departamentoSecop(t)));
+  assert(C.departamentoSecop('Guajira') === 'La Guajira', 'Guajira');
+  assert(C.departamentoSecop('Norte de Santander') === 'Norte de Santander' && C.departamentoSecop('Departamento de Boyacá') === 'Departamento de Boyacá', 'los demás quedan como los escribió el usuario');
+  assert(C.matchesGeo('Distrito Capital de Bogotá', C.departamentoSecop('Bogotá')), 'y el filtro exacto del navegador lo acepta');
 });
 
 await check('Ubicación: vigentes con departamento «No Definido» (Otanche) entran a la consulta y se resuelven por municipio solo si el municipio es de UN solo departamento', () => {

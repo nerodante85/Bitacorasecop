@@ -2117,7 +2117,7 @@
 <script src="magnitudes.js"></script>
 <script>
 // Reglas compartidas con la función diaria (coincidencia.js, cargado antes de este script).
-const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
+const { parseNumCO, normalizeGeo, departamentoSecop, matchesGeo, matchesTerm, findField, prepararBusquedaPorNombre, esEstadoNoVigente, consultasSecopII, ubicacionDeRegistro } = Coincidencia;
 (function(){
   // Shim de almacenamiento: si corre como artifact de Claude, usa window.storage
   // (persistente en la nube); si corre como sitio independiente (GitHub Pages, etc.),
@@ -13089,7 +13089,7 @@ const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, prepararBu
 
   function getInputs(){
     const keywords = kwInput.value.split(',').map(s => s.trim()).filter(Boolean);
-    const geos = geoInput.value.split(',').map(s => s.trim()).filter(Boolean);
+    const geos = geoInput.value.split(',').map(s => s.trim()).filter(Boolean).map(departamentoSecop);
     const municipios = municipioInput ? municipioInput.value.split(',').map(s => s.trim()).filter(Boolean) : [];
     const minV = Number(minInput.value) || 0;
     const maxV = Number(maxInput.value) || 0;

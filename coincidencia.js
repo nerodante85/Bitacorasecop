@@ -40,6 +40,19 @@
       .replace(/\s+/g, ' ')
       .trim();
   }
+  // Nombres con los que la gente escribe un departamento a mano y que SECOP II guarda distinto
+  // («Bogotá» -> "Distrito Capital de Bogotá"; con el texto crudo el servidor y matchesGeo daban 0 resultados).
+  // Cualquier otro texto se devuelve tal cual lo escribió el usuario. Claves ya normalizadas con normalizeGeo.
+  const DEPARTAMENTOS_ALIAS = {
+    'bogota': 'Distrito Capital de Bogotá', 'bogota d c': 'Distrito Capital de Bogotá', 'bogota dc': 'Distrito Capital de Bogotá',
+    'distrito capital': 'Distrito Capital de Bogotá', 'distrito capital de bogota': 'Distrito Capital de Bogotá',
+    'san andres': 'San Andrés, Providencia y Santa Catalina', 'san andres y providencia': 'San Andrés, Providencia y Santa Catalina',
+    'san andres providencia y santa catalina': 'San Andrés, Providencia y Santa Catalina',
+    'guajira': 'La Guajira'
+  };
+  function departamentoSecop(texto) {
+    return DEPARTAMENTOS_ALIAS[normalizeGeo(texto)] || texto;
+  }
   function matchesGeo(departamento, term) {
     const d = normalizeGeo(departamento);
     const t = normalizeGeo(term);
@@ -131,7 +144,8 @@
     (geos || []).forEach(g => {
       const n = normalizeGeo(g);
       if (n.replace(/\s/g, '').length < 3) return;
-      const p = n.toUpperCase().replace(/[AEIOU]/g, '_').replace(/'/g, "''");
+      // La N también es comodín: «Nariño» llega como «narino» y el dato tiene Ñ ("NARIÑO"), que no casa con N.
+      const p = n.toUpperCase().replace(/[AEIOUN]/g, '_').replace(/ +/g, '%').replace(/'/g, "''");
       if (patrones.indexOf(p) === -1) patrones.push(p);
     });
     if (!patrones.length) return '';
@@ -197,7 +211,7 @@
   }
 
   const Coincidencia = {
-    parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
+    parseNumCO: parseNumCO, normalizeGeo: normalizeGeo, departamentoSecop: departamentoSecop, matchesGeo: matchesGeo, matchesTerm: matchesTerm,
     findField: findField, prepararBusquedaPorNombre: prepararBusquedaPorNombre,
     mapaMunicipios: mapaMunicipios, ubicacionDeRegistro: ubicacionDeRegistro,
     esEstadoNoVigente: esEstadoNoVigente, consultasSecopII: consultasSecopII
