@@ -96,7 +96,7 @@
     // CR2-6: componentes de un pozo (cono, anillo, brocal, escalones, losa, cañuela) y otros «pozos» (séptico, de bombeo, húmedo) o
     // ajustes a pozos existentes no son pozos de inspección nuevos: sumarlos al pozo duplicaba la cuenta.
     if (/\bpozos?\b|\b(?:cono|conos|anillo|anillos|brocal|escalon|escalones|peldano|peldanos)\b/.test(s) &&
-        /\b(?:cono|conos|anillo|anillos|brocal|escalon|escalones|peldano|peldanos|losa|canuela|canuelas|septic\w*|bombeo|elevacion|humedo|aforo|ajuste|ajustes|existentes?)\b/.test(s))
+        /\b(?:cono|conos|anillo|anillos|brocal|escalon|escalones|peldano|peldanos|losa|canuela|canuelas|camara|camaras|caida|septic\w*|bombeo|elevacion|humedo|aforo|ajuste|ajustes|existentes?)\b/.test(s))
       return { actividad: null, certeza: 'alta', nota: 'Componente de un pozo, otro tipo de pozo o ajuste a un pozo existente: no cuenta como pozo de inspección nuevo.' };
     if (/\bpozos?\b/.test(s) && !/adecuacion|reparacion|tapa|cuerpo\s+de/.test(s)) {
       // Un pozo se cuenta en unidades: 40 m³ de excavación no son 40 pozos (RA2-2); sin unidad no se afirma.

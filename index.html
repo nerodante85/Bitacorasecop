@@ -4822,6 +4822,10 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
           (typeof contratantesCompatibles !== 'function' || contratantesCompatibles(x.contratante, ct.contratante))) : null;
         if (previo){
           if (String(previo._perfilNombre).indexOf(nombrePerfil) === -1) previo._perfilNombre += ' + ' + nombrePerfil;
+          // La participación del contrato unido es la SUMA de la de los integrantes que lo aportan (60% + 40% = 100%): conservar solo la
+          // primera hacía que un contrato ejecutado al 100% por el consorcio se ponderara al 60%.
+          const pa = previo.participacion && previo.participacion.valor, pb = ct.participacion && ct.participacion.valor;
+          if (typeof pa === 'number' && typeof pb === 'number') previo.participacion = Object.assign({}, previo.participacion, { valor: Math.min(100, pa + pb) });
           compartidos++;
           return;
         }
@@ -5530,7 +5534,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     actividades: ['actividades ejecutadas', 'trabajos ejecutados', 'alcance de actividades', 'actividades'],
     numeroContrato: ['numero de contrato', 'no de contrato', 'contrato no', 'numero contrato'],
     // CR2-12: «Part. %», «% Part.», «Aporte (%)» no se reconocían y un consorcio al 30% contaba como 100%.
-    participacion: ['porcentaje de participacion', 'participacion', 'part %', '% part', '% de participacion', '% participacion', 'aporte %', '% aporte', 'porcentaje de aporte', 'porcentaje aporte']
+    participacion: ['porcentaje de participacion', 'participacion', 'part %', '% part', '% de participacion', '% participacion', 'aporte %', '% aporte', 'porcentaje de aporte', 'porcentaje aporte', '% ut', '% consorcio', '% de part', 'porc part', 'porcentaje ut', 'porcentaje consorcio']
   };
   const DICC_REQUISITO = {
     criterio: ['requisito', 'descripcion del requisito', 'experiencia requerida', 'experiencia exigida', 'objeto exigido', 'criterio', 'descripcion'],
@@ -7570,7 +7574,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const montos = nums.filter(x => x.smm || x.monto);
     if (montos.some(x => x.smm) && montos.some(x => !x.smm)) return null;
     if (new Set(montos.map(x => Math.round(x.n * 1000))).size > 1) return null;
-    return { valor: Math.max.apply(null, nums.map(x => x.n)), unidad: smmlv ? 'SMMLV' : 'COP' };
+    const elegido = nums.reduce((a, b) => (b.n > a.n ? b : a));
+    return { valor: elegido.n, unidad: (elegido.smm || (smmlv && !elegido.monto)) ? 'SMMLV' : 'COP' };
   }
 
   // ── Red flags del pliego: mínimos legales de garantías ──────────────────
@@ -8112,6 +8117,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         const mio = clave ? emp[clave] : null;
         if (!clave) r = { estado: 'NO DETERMINABLE', detalle: 'Este indicador no se cruza con tu perfil (no se guarda).' };
         else if (mio == null || !isFinite(mio)) r = { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene este dato legible (escríbelo como razón, ej. 0,6).' };
+        else if (clave === 'endeudamiento' && [d.demas, d.mipyme].some(u => u && u.v > 5)) r = { estado: 'NO DETERMINABLE', detalle: 'El documento exige un endeudamiento de ' + [d.demas, d.mipyme].filter(Boolean).map(u => u.v).join(' / ') + ' sin indicar si es porcentaje o razón: confírmalo en el pliego.' };
         else {
           const umbrales = [d.demas, d.mipyme].filter(Boolean);
           const res = umbrales.map(u => pasa(mio, u.op, u.v));
@@ -8444,7 +8450,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // Indicadores con valor directo (tabla «INDICADOR | PARÁMETRO EXIGIDO» y «ÍNDICES | ÍNDICE REQUERIDO»), sin la Matriz 2 de por medio.
     // Solo se leen detrás de esos encabezados. En rentabilidad, «≥ 0,06 ≥ 0,03 Mipyme» se lee como general y Mipyme (y se avisa).
     if (!filas.some(f => f.dato && f.dato.tipo === 'indice')){
-      const OP = '([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)(\\s*%)?';
+      const OP = '([≥≤<>]=?)\\s*(\\d+(?:[.,]\\d+)?)(\\s*(?:%|por\\s*ciento))?';
       const zonas = []; const reZ = /INDICADOR\s+PAR[ÁA]METRO\s+EXIGIDO|[ÍI]NDICES\s+[ÍI]NDICE\s+REQUERIDO/ig; let mz;
       while ((mz = reZ.exec(t))) zonas.push({ i: mz.index, texto: t.slice(mz.index, mz.index + 420) });
       const ya = {};
@@ -8707,7 +8713,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
           for (const c of w.matchAll(/(\d{1,3}(?:\.\d{3})+|\d{1,4})\)?\s*(?:smmlv|smlmv|salarios?\s+m[íi]nimos)/gi)){
             const antes = w.slice(Math.max(0, c.index - 80), c.index);
             if (/deducible|franquicia|tope\s+m[áa]ximo|superiores?\s+a/i.test(antes)) continue; // otra cifra, no el valor asegurado
-            figs.push({ c: c, umbral: /(?:inferior(?:es)?|menor(?:es)?|hasta|superior(?:es)?|mayor(?:es)?|entre|desde|igual\s+o\s+(?:inferior|superior))\s*(?:a|que|de|al|del)?\s*(?:[a-záéíóúñ]+\s+){0,6}\(?\s*[\s$]*(?:\d{1,3}(?:\.\d{3})*\s*(?:y|a)\s*)?$/i.test(antes.slice(-70)) });
+            figs.push({ c: c, umbral: !/\bno\s+(?:debe\s+ser\s+|ser[áa]\s+)?(?:inferior|menor)\s+a\s*:?\s*(?:valor\s+)?[\s(]*(?:[a-záéíóúñ]+\s*)?\(?$/i.test(antes.slice(-50)) && /(?:inferior(?:es)?|menor(?:es)?|hasta|superior(?:es)?|mayor(?:es)?|entre|desde|igual\s+o\s+(?:inferior|superior))\s*(?:a|que|de|al|del)?\s*(?:[a-záéíóúñ]+\s+){0,6}\(?\s*[\s$]*(?:\d{1,3}(?:\.\d{3})*\s*(?:y|a)\s*)?$/i.test(antes.slice(-70)) });
           }
           const valoresRC = figs.filter(f => !f.umbral), umbralesRC = figs.filter(f => f.umbral);
           if (umbralesRC.length >= 2 || new Set(valoresRC.map(f => f.c[1])).size > 1){
@@ -8969,12 +8975,12 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // "millones"/"mil millones" (que hay que escalar) de los literales.
   function candidatosDeValorEnCita(cita){
     const literales = [], escalados = [], convertidos = [];
-    const re = /(\d[\d.,]*)(\s*(?:mil\s+millones|millones|mill[oó]n))?/gi;
+    const re = /(\d[\d.,]*)(\s*(?:mil\s+millones|millones|mill[oó]n|billones|bill[oó]n|mm(?![a-z])))?/gi;
     let m;
     while ((m = re.exec(String(cita || '')))){
       const n = parseNumCO(m[1]);
       if (n == null) continue;
-      if (m[2]){ escalados.push(n); convertidos.push(n * (/mil\s+millones/i.test(m[2]) ? 1e9 : 1e6)); }
+      if (m[2]){ escalados.push(n); convertidos.push(n * (/mil\s+millones/i.test(m[2]) ? 1e9 : (/bill/i.test(m[2]) ? 1e12 : 1e6))); }
       else literales.push(n);
     }
     return { literales: literales, escalados: escalados, convertidos: convertidos };
@@ -9053,10 +9059,10 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   function motivoCamposSinRespaldoEnCita(fila, citaNorm){
     const t = ' ' + citaNorm + ' ';
     const RE_SUMA = /\b(suma|sumas|sumatoria|sumatorias|sumados|acumul\w*|en conjunto|total de los contratos)\b/;
-    const RE_MAX = /\b(maximo|maximos|maxima|maximas)\b|\bno (?:mayor|superior) a\b|\ba lo sumo\b/;
+    const RE_MAX = /\b(maximo|maximos|maxima|maximas)\b|\bno (?:mayor|superior) a\b|\ba lo sumo\b|\bmas de \d+ contrat|\bhasta (?:\d+|un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)(?: \d+)? contrat/;
     const RE_MIN = /\b(minimo|minimos|minima|minimas|al menos|por lo menos|igual o superior|igual o mayor|mayor o igual|no menor|como minimo)\b/;
     const conCifraMinima = fila.min_contratos != null || fila.valor_minimo_numero != null || fila.cantidad_minima_numero != null;
-    if (conCifraMinima && RE_MAX.test(t) && !RE_MIN.test(t)) return 'La cita habla de un máximo (tope), no de un mínimo exigido: la fila lo tomó como mínimo.';
+    if (conCifraMinima && RE_MAX.test(t) && !RE_MIN.test(t) && !/\b(puntos|puntaje)\b/.test(t)) return 'La cita habla de un máximo (tope), no de un mínimo exigido: la fila lo tomó como mínimo.';
     if (fila.valor_minimo_numero != null || fila.cantidad_minima_numero != null){
       if (fila.acumulable === true && !RE_SUMA.test(t)) return 'La IA marcó el valor como acumulable (suma de contratos) pero la cita no habla de suma ni acumulación.';
       if (fila.acumulable !== true && RE_SUMA.test(t)) return 'La cita habla de suma o acumulación y la IA no marcó el requisito como acumulable: contarlo por contrato individual daría un resultado falso.';
@@ -9282,16 +9288,20 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   function objetoLiteralVerificado(f){
     const o = normHeader(f.objeto_literal || '');
     if (o.length < 4) return false;
-    const c = ' ' + normHeader(f.cita_textual || '') + ' ';
     // Auditoría IA2-7: un literal TRUNCADO («puentes» de «puentes vehiculares») pasaba y daba CUMPLE con puentes peatonales. El literal debe
-    // terminar donde termina la frase del objeto: fin de la cita o un conector (de, con, en, que, y, o, para...) y no una palabra de contenido.
+    // terminar donde termina la frase del objeto: fin de la cita, un signo (coma, barra de celda, punto...) o un conector (de, con, en, que,
+    // y, o, para...) y no una palabra de contenido.
     const FIN = new Set(['de', 'del', 'la', 'el', 'los', 'las', 'con', 'en', 'que', 'y', 'o', 'u', 'e', 'para', 'por', 'cuyo', 'cuya', 'cuyos', 'cuyas', 'a', 'al', 'como', 'sobre', 'mediante', 'segun', 'ubicado', 'ubicados', 'sea', 'sean', 'debera', 'deberan', 'minimo', 'maximo', 'cada', 'valor', 'no', 'se']);
-    let desde = 0, i;
-    while ((i = c.indexOf(' ' + o + ' ', desde)) !== -1){
-      const resto = c.slice(i + o.length + 2).trim();
-      const siguiente = resto.split(' ')[0];
+    const raw = String(f.cita_textual || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+    const palabras = o.split(' ').map(w => w.replace(/[^a-z0-9%]/g, '')).filter(Boolean);
+    if (!palabras.length) return false;
+    const re = new RegExp('(?<![a-z0-9])' + palabras.join('[^a-z0-9]+') + '(?![a-z0-9])', 'g');
+    let m;
+    while ((m = re.exec(raw)) !== null){
+      const resto = raw.slice(m.index + m[0].length);
+      if (/^\s*(?:$|[|,;:.)(\u2022\u25cf\-])/.test(resto)) return true;
+      const siguiente = (resto.trim().match(/^[a-z0-9]+/) || [''])[0];
       if (!siguiente || FIN.has(siguiente) || /^\d/.test(siguiente)) return true;
-      desde = i + 1;
     }
     return false;
   }
@@ -9303,6 +9313,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (filaIAHabilitante(f)) return null;
     const c = normHeader(f.cita_textual || '');
     if (f.naturaleza === 'ponderable' && !/\b(puntaje|puntos|se otorgar\w*|ponderab\w*|calificab\w*|asignar\w*|calificacion|evaluacion|factor)\b/.test(c)) return 'La IA clasificó este requisito como "ponderable" (puntaje) pero la cita no habla de puntaje ni de evaluación: podría ser un requisito habilitante.';
+    if (f.naturaleza === 'informativo' && /\b(minimo|minimos|acreditar|acredite|debera\w*|exige\w*|requiere\w*|habilitante\w*|obligatori\w*)\b/.test(c)) return 'La IA clasificó este requisito como informativo pero la cita usa lenguaje de exigencia (mínimo, acreditar, deberá...): podría ser un requisito habilitante.';
     if (f.naturaleza === 'obligacion_contractual' && !/\b(contratista|ejecucion|obligacion\w*|suscripcion|adjudicacion|acta|durante|contrato)\b/.test(c)) return 'La IA clasificó este requisito como obligación contractual pero la cita no lo indica: podría ser un requisito habilitante.';
     return null;
   }
@@ -9363,6 +9374,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // eran dos causas (cita sin verificar / confianza baja) con las nuevas.
   function motivoBloqueoFilaIA(f){
     if (f.verificada !== true) return 'No se pudo verificar la cita de este requisito contra el PDF (' + (f.motivoVerificacion || 'sin verificar') + ').';
+    // Re-auditoría IA2-3: una coincidencia «aproximada» (bolsa de palabras con las cifras pegadas) NO prueba que la cita exista tal cual: una
+    // cita armada con celdas de dos filas o con el operador invertido pasa. Hasta que el usuario compare la cita con el PDF, no decide.
+    if (f.tipoVerificacion === 'aproximada' && f.confirmadaPorUsuario !== true) return 'La cita solo coincide de forma aproximada con el PDF (tabla con otro orden de lectura): compárala con el documento y confírmala a mano.';
     if (f.confianza === 'baja') return 'La IA marcó este requisito con confianza baja.';
     if (f.conflictoIA) return f.conflictoIA;
     if (f.sospechaInyeccion) return 'El PDF contiene texto dirigido a una IA (' + f.sospechaInyeccion + '): ninguna fila se da por buena hasta que la confirmes a mano.';
@@ -9946,7 +9960,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       if (!cands.length) continue;
       // Auditoría CR2-4: «Endeudamiento: 0,35 (2022) y 0,82 (2023)» tomaba el primero (pasaba ≤ 0,6). En un índice, dos valores
       // distintos en la misma mención no se desempatan: queda ambiguo.
-      if (unSoloValor && new Set(cands.map(c => c.valor + '|' + c.pct)).size > 1) return { ambiguo: true };
+      if (unSoloValor && new Set(cands.map(c => Math.round((c.pct ? c.valor / 100 : c.valor) * 1e6))).size > 1) return { ambiguo: true };
       const pref = cands.filter(c => /[:=$]\s*$/.test(c.antes));
       const c = pref.length ? pref[0] : cands[0];
       valores.push(c);

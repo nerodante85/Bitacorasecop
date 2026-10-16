@@ -236,7 +236,7 @@
     const stemsDe = txt => new Set(normHeader(txt || '').split(' ').filter(Boolean).map(stem));
     const coincidencias = [], parciales = [];
     hallazgos.forEach(h => {
-      const distintivas = palabrasClaveDe(h.snippet).filter(p => !PALABRAS_GENERICAS_OBRA.has(p) && !PERSONAL_GENERICAS.has(p) && NUM_ANOS[p] == null && !esTokenNumerico(p));
+      const distintivas = palabrasClaveDe(h.snippet).filter(p => (!PALABRAS_GENERICAS_OBRA.has(p) || p === 'obra' || p === 'obras') && !PERSONAL_GENERICAS.has(p) && NUM_ANOS[p] == null && !esTokenNumerico(p));
       const anosReq = anosExigidosEnTexto(h.snippet);
       Object.keys(personal).forEach(pid => {
         const pp = personal[pid];
@@ -246,12 +246,12 @@
         const cargo = stemsDe(pp.cargo);
         const coinciden = distintivas.filter(p => todos.has(stem(p)));
         if (!coinciden.length) return;
-        const enCargo = distintivas.some(p => cargo.has(stem(p)));
+        const enCargo = distintivas.some(p => p !== 'obra' && p !== 'obras' && cargo.has(stem(p)));
         const anosPerfil = (String(pp.anos || '').match(/\d+(?:[.,]\d+)?/) || [null])[0];
         const anosPerfilN = anosPerfil == null ? null : Number(String(anosPerfil).replace(',', '.'));
         const faltantes = [];
         if (!enCargo) faltantes.push('el cargo del perfil no coincide con el del requisito');
-        if (coinciden.length < Math.min(2, distintivas.length)) faltantes.push('solo coincide ' + coinciden.length + ' de ' + distintivas.length + ' palabras distintivas');
+        if (coinciden.length < Math.min(distintivas.length, Math.max(2, Math.ceil(distintivas.length * 0.6)))) faltantes.push('solo coincide ' + coinciden.length + ' de ' + distintivas.length + ' palabras distintivas');
         if (anosReq != null && anosPerfilN == null) faltantes.push('el pliego pide ' + anosReq + ' años y el perfil no dice sus años');
         else if (anosReq != null && anosPerfilN < anosReq) faltantes.push('el pliego pide ' + anosReq + ' años y el perfil tiene ' + anosPerfilN);
         const etiqueta = nombre + ' (coincide: ' + coinciden.join(', ') + ')';

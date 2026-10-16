@@ -2163,6 +2163,68 @@ await check('IA2-7: un objeto_literal truncado ("puentes" de "puentes vehiculare
   assert(/objeto/i.test(expEngine.motivoBloqueoFilaIA(v('puentes')) || ''), 'literal truncado debe bloquear por el objeto');
   assert(!/objeto/i.test(expEngine.motivoBloqueoFilaIA(v('puentes vehiculares')) || ''), 'literal completo no bloquea');
 });
+// ---- Re-auditoría 2026-10-16: variantes no cubiertas y sobre-bloqueos ----
+await check('RE: una verificación solo "aproximada" (tabla reordenada) no decide sola: bloquea hasta que el usuario confirme (IA2-3)', () => {
+  const tabla = 'Objeto | Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV | Los valores en SMMLV se convierten con el salario mínimo vigente a la fecha de terminación del contrato. ';
+  const f = filaIA({ pagina: 1, cita_textual: 'Puentes vehiculares mínimo 2 contratos valor acumulado 15.000 SMMLV' });
+  const v = expEngine.verificarFilasIA([f], tabla, [{ pagina: 1, hasta: tabla.length }])[0];
+  assert(v.verificada === true && v.tipoVerificacion === 'aproximada', 'el fixture es una coincidencia aproximada: ' + JSON.stringify([v.verificada, v.tipoVerificacion, v.motivoVerificacion]));
+  assert(/aproximad/i.test(expEngine.motivoBloqueoFilaIA(v) || ''), 'aproximada debe bloquear hasta confirmar');
+  assert(expEngine.filaIAConfiable(Object.assign({}, v, { confirmadaPorUsuario: true })) === true, 'confirmada a mano sí decide');
+  const exacta = expEngine.verificarFilasIA([filaIA({ pagina: 1, cita_textual: 'Puentes vehiculares | Contratos | mínimo 2 contratos | Valor | valor acumulado 15.000 SMMLV' })], tabla, [{ pagina: 1, hasta: tabla.length }])[0];
+  assert(exacta.tipoVerificacion === 'exacta' && expEngine.motivoBloqueoFilaIA(exacta) === null, 'la exacta no se bloquea: ' + expEngine.motivoBloqueoFilaIA(exacta));
+});
+await check('RE: "≤ 70" sin % o con "por ciento" no da CUMPLE falso en endeudamiento (FI2-2)', () => {
+  const base = 'El presupuesto oficial es de $3.185.389.625. No se otorgará anticipo. El plazo de ejecución del contrato será de CUATRO (4) MESES. ';
+  const f1 = expEngine.fichaHabilitante(base + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1,5 Índice de endeudamiento ≤ 70 por ciento', { anio: 2026 });
+  const x = f1.filas.find(r => r.dato && r.dato.clave === 'Índice de endeudamiento');
+  assert(x && x.dato.demas.v === 0.7, 'por ciento = 0,7: ' + (x && x.dato.demas.v));
+  const f2 = expEngine.fichaHabilitante(base + 'INDICADOR PARÁMETRO EXIGIDO Índice de liquidez ≥ 1,5 Índice de endeudamiento ≤ 70', { anio: 2026 });
+  assert(expEngine.cruceFichaEmpresa(f2.filas, { liquidez: 2, endeudamiento: 0.8 })['Índice de endeudamiento'].estado === 'NO DETERMINABLE', '70 sin %: ambiguo, no CUMPLE');
+});
+await check('RE: "$1.200 MM", "$1.2 billones" declarados sin escalar no se verifican (IA2-1)', () => {
+  const p = (cita, v) => verificarUna(filaAud({ indicador: 'patrimonio', operador: '>=', valor_indicador: v, unidad_indicador: 'COP', cita_textual: cita }), cita);
+  assert(p('Patrimonio igual o superior a $1.200 MM de pesos', 1200).verificada === false, 'MM');
+  assert(p('Patrimonio igual o superior a $1,2 billones de pesos', 1.2).verificada === false, 'billones');
+  assert(p('Patrimonio igual o superior a $1.200 millones de pesos', 1200000000).verificada === true, 'control');
+});
+await check('RE: "no se aceptarán más de 3" / "hasta 3 contratos" no se verifican como mínimo (IA2-5)', () => {
+  const f = cita => verificarUna(filaAud({ categoria: 'experiencia_especifica', min_contratos: 3, cita_textual: cita }), cita);
+  assert(f('No se aceptarán más de 3 contratos para acreditar la experiencia').verificada === false, 'más de');
+  assert(f('Podrá aportar hasta 3 contratos para acreditar la experiencia').verificada === false, 'hasta');
+  assert(f('El proponente deberá acreditar como mínimo 3 contratos').verificada === true, 'control');
+});
+await check('RE: naturaleza "informativo" con lenguaje de exigencia en la cita no se descarta en silencio (IA2-6)', () => {
+  const info = filaIA({ pagina: 1, naturaleza: 'informativo', min_contratos: 1, valor_minimo_numero: null, valor_minimo_unidad: null, regla_conversion_smmlv: null, acumulable: null, objeto_literal: 'andenes y ciclorrutas', cita_textual: 'Andenes y ciclorrutas: mínimo 1 contrato', descripcion: 'Experiencia en andenes y ciclorrutas' });
+  assert(globalIA([filaOblig(), info]).resultadoGlobal !== 'CUMPLE', 'informativo con "mínimo": no CUMPLE global');
+});
+await check('RE: sobre-bloqueos corregidos -- "no inferior a 200 SMMLV" (RC), "Endeudamiento: 0,4 (40%)", personal "Director de obra" vs "Director comercial"', () => {
+  const rc = expEngine.fichaHabilitante('Se exigirá responsabilidad civil extracontractual no inferior a 200 SMMLV.', { anio: 2026 }).filas.find(x => x.requisito === 'Garantía de responsabilidad civil extracontractual');
+  assert(rc && /200 SMMLV/.test(rc.exige), 'RC "no inferior a 200": ' + (rc && rc.exige));
+  assert(expEngine.leerIndiceDePerfil('Endeudamiento: 0,4 (40%)', /endeudamiento/i, 'endeudamiento') === 0.4, 'mismo valor en razón y en %');
+  const g = (req, o) => expEngine.gatePersonalRequerido([{ snippet: req }], { x: Object.assign({ nombre: 'P', cargo: '', formacion: '', anos: '' }, o) });
+  assert(g('Director de obra ingeniero civil con 10 años de experiencia', { cargo: 'Director comercial', formacion: 'Ingeniero civil', anos: '12' }).estado !== 'ok', 'director comercial no acredita director de obra');
+  assert(g('Director de obra ingeniero civil o arquitecto con 10 años de experiencia', { cargo: 'Director de obra', formacion: 'Ingeniero civil', anos: '12' }).estado === 'ok', 'director de obra con ingeniero civil sí');
+});
+await check('RE: consorcio -- el contrato unido suma las participaciones de los integrantes; "K en pesos (SMMLV 2024)" no se rotula SMMLV; encabezados «% UT» / «Porc. Part.»; cámara de caída no es pozo', () => {
+  const ct = (pct) => ({ objeto: 'Puente', valor: 1000000000, numeroContrato: 'LP-012-2021', contratante: 'Municipio de Cúcuta', fechaInicio: '2021-03-01', fechaFin: '2022-02-28', participacion: { valor: pct } });
+  const exp = c => ({ headers: ['Objeto'], cols: {}, contratos: [c], nHojas: 1, fuente: 'xlsx' });
+  expEngine.setPerfiles(Object.assign({}, perfilFixture('a', 'Alfa'), perfilFixture('b', 'Beta')));
+  expEngine.setPerfilesActivos(['a', 'b']); expEngine.setPerfilActivoId('a');
+  expEngine.setExpevalPorPerfil({ a: { contratos: exp(ct(60)), meta: {} }, b: { contratos: exp(ct(40)), meta: {} } });
+  expEngine.recalcularExpevalActivo();
+  const m = expEngine.getExpevalContratos().contratos;
+  assert(m.length === 1 && m[0].participacion.valor === 100, 'participaciones sumadas: ' + JSON.stringify(m.map(c => c.participacion)));
+  const k = expEngine.parseValorUnidad('K residual 2.500.000.000 pesos (SMMLV 2024)');
+  assert(k && k.unidad === 'COP' && k.valor === 2500000000, 'unidad COP: ' + JSON.stringify(k));
+  const txt = 'Un contrato de construcción de puentes vehiculares por valor mínimo de $500.000.000';
+  ['% UT', 'Porc. Part.', '% Consorcio'].forEach(h => {
+    const { r } = evaluarReqTexto(txt, ['Objeto', 'Contratante', 'Valor del contrato', h], [[PUENTE, 'Alcaldía', '900000000', '30%']]);
+    assert(r.resultado === 'NO CUMPLE', 'encabezado "' + h + '": ' + r.resultado);
+  });
+  const itemsC = [['Pozo de inspección h=2.0 m', 10, 'und'], ['Cámara de caída para pozo', 10, 'und']].map(([i, c, u]) => ({ item: i, cantidad: c, unidad: u }));
+  assert(Magnitudes.evaluar(Magnitudes.parsearExigencia('Por lo menos uno (1) de los contratos válidos aportados debe contar con pozos de inspección y por lo tanto acredite 19 UND.'), [{ numeroContrato: 'C1', formatoMaestro: { cantidades: itemsC } }], {}).estado === 'NO CUMPLE', 'cámara de caída no es un pozo');
+});
 await check('IA-001: cifra alterada que SÍ aparece en otra parte de la página ("2" de "plazo 2 meses") NO se verifica (antes pasaba como aproximada)', () => {
   const fila = filaIA({ pagina: 1, min_contratos: 2, cita_textual: 'valor acumulado 15.000 SMMLV puentes vehiculares mínimo 2 contratos' });
   const v = verificarUna(fila, PAG_BASE);
