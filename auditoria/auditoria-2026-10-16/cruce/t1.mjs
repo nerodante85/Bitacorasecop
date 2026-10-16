@@ -1,0 +1,10 @@
+import { expEngine as E, fakeWorkbook } from './harness.mjs';
+const HOY = new Date('2026-10-16T00:00:00');
+const OBJ = 'Construcción de puentes vehiculares';
+const req = E.construirRequisitoDesdeTexto('Experiencia específica: mínimo 1 contrato de construcción de puentes vehiculares dentro de los últimos 5 años', 0, {});
+console.log(JSON.stringify(req.condicionTemporal), req.palabrasDistintivas);
+const run = (t, headers, row) => { const p = E.parsearExcelExperiencia(fakeWorkbook(headers,[row])); const r = E.evaluarRequisito(req, p.contratos, HOY); console.log(t.padEnd(60), '=>', r.resultado, '|', r.justificacion.slice(0,140)); };
+run('solo fecha de inicio 2025-03-01 (sin fin)', ['Objeto','Contratante','Valor','Fecha de inicio'], [OBJ,'A',9e8,'2025-03-01']);
+run('fin 2021-11-01 (ventana 5 años desde 2026-10-16 -> limite 2021-10-16): dentro', ['Objeto','Contratante','Valor','Fecha de terminación'], [OBJ,'A',9e8,'2021-11-01']);
+run('fin 2021-09-01: fuera por 1.5 mes', ['Objeto','Contratante','Valor','Fecha de terminación'], [OBJ,'A',9e8,'2021-09-01']);
+run('inicio 2021-06 fin 2022-01 con fecha cierre del proceso 2026-12 (ok)', ['Objeto','Contratante','Valor','Fecha de inicio','Fecha de terminación'], [OBJ,'A',9e8,'2021-06-01','2022-01-01']);
