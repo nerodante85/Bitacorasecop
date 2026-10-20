@@ -4284,6 +4284,32 @@ await check('Cruce de personal (IMRD): el mismo profesional no se da por válido
   const out = expEngine.cruceFichaEmpresa(imrdFicha().filas, { personal: [p] });
   assert(out[IMRD_CARGOS[0]].estado === 'REVISAR' && out[IMRD_CARGOS[1]].estado === 'REVISAR' && /tambi[eé]n .*otro cargo|mismo profesional/i.test(out[IMRD_CARGOS[1]].detalle), 'aviso de duplicidad: ' + out[IMRD_CARGOS[1]].detalle);
 });
+// Documento base CCE de selección abreviada de menor cuantía de obra (SAMC 005 de 2026, Alcaldía de Puerto Santander): texto REAL de pdf.js.
+const PS_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'puerto-santander-pdfjs.json'), 'utf8'));
+const PS_TEXTO = (function(){ const l = []; for (let n = 1; n <= PS_FIX.total; n++) l.push(PS_FIX.paginas[String(n)] || ''); return l.join('\n'); })();
+const psFicha = () => expEngine.fichaHabilitante(PS_TEXTO, { anio: 2026 });
+await check('fichaHabilitante (documento base CCE menor cuantía, Puerto Santander, pdf.js): presupuesto, plazo «CUARENTA Y CINCO (45) DIAS» (número compuesto) de la tabla 1.1, anticipo «No se dará anticipo» y capital de trabajo', () => {
+  const f = psFicha();
+  const po = f.filas.find(x => x.requisito === 'Presupuesto oficial');
+  assert(po && po.exige === '$451.999.714' && po.pagina === 6, 'presupuesto: ' + JSON.stringify(po));
+  const pl = f.filas.find(x => x.requisito === 'Plazo de ejecución');
+  assert(pl && /45 d[ií]as/.test(pl.exige) && pl.pagina === 6, 'plazo: ' + JSON.stringify(pl));
+  const an = f.filas.find(x => x.requisito === 'Anticipo');
+  assert(an && /No hay anticipo/.test(an.exige) && an.pagina === 80, 'anticipo: ' + JSON.stringify(an));
+  const ct = f.filas.find(x => /Capital de trabajo/i.test(x.requisito));
+  assert(ct && ct.dato && Math.abs(ct.dato.min - 451999714 * 0.33) < 2, 'capital de trabajo (plazo < 12 meses: 33 % del presupuesto): ' + JSON.stringify(ct));
+  assert(!f.avisos.some(a => /No se pudo confirmar si hay anticipo/.test(a)), 'con anticipo confirmado no debe avisar');
+});
+await check('fichaHabilitante (documento base CCE menor cuantía, pdf.js): el amparo «1 0% del valor del contrato» que pdf.js parte es 10 %, no 0 %', () => {
+  const f = psFicha();
+  const est = f.filas.find(x => x.requisito === 'Garantía de estabilidad y calidad de la obra');
+  assert(est && est.exige === '10% del valor del contrato' && !/1 0/.test(est.cifras || ''), 'estabilidad: ' + JSON.stringify(est));
+});
+await check('fichaHabilitante (documento base CCE menor cuantía): la justificación dice «presupuesto inferior a 100 SMMLV» pero el presupuesto de la tabla 1.1 son ~258 SMMLV → observación con su página', () => {
+  const f = psFicha();
+  const o = f.observaciones.find(x => /SMMLV/.test(x.tema));
+  assert(o && /100 SMMLV/.test(o.texto) && /451\.999\.714/.test(o.texto) && o.pagina === 28, 'observación: ' + JSON.stringify(o));
+});
 // Proyecto de pliego SIM-SAMC-008-2026 (Alcaldía de Cúcuta, selección abreviada de menor cuantía, plantilla propia): texto REAL de pdf.js.
 const SIM_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'sim-cucuta-pdfjs.json'), 'utf8'));
 const SIM_TEXTO = (function(){ const l = []; for (let n = 1; n <= SIM_FIX.total; n++) l.push(SIM_FIX.paginas[String(n)] || ''); return l.join('\n'); })();
