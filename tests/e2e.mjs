@@ -1040,9 +1040,9 @@ await check('Ficha del pliego con el Formato Maestro y el personal de la empresa
     formatoMaestro: { estado: 'Terminado', unspsc: i % 2 ? cods : [], cantidades: [], enRup: i % 3 ? 'si' : '' } }));
   const entrada = { 'E2E-IMRD': { id: 'E2E-IMRD', ts: Date.now(), fileName: 'imrd.pdf', pagesRead: fix.total, numPages: fix.total, text: texto,
     proceso: { entidad: 'IMRD Cúcuta', objeto: 'Mantenimiento de parques', modalidad: 'Licitación pública', valor: 600000000, closingRaw: new Date(Date.now() + 14 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
-    comps: [{ perfilNombre: 'Dora Garay', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };
+    comps: [{ perfilNombre: 'Empresa de prueba', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };
   const sem = {
-    bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Dora Garay', nit: '900', k: '', kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']),
+    bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa de prueba', nit: '900', k: '', kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']),
     bitacora_experiencia_evaluacion: JSON.stringify({ porPerfil: { p1: { contratos: { headers: [], cols: {}, contratos, fuente: 'formato-maestro' }, meta: { fileName: 'fm.xlsx' } } } }),
     bitacora_perfiles_profesionales: JSON.stringify({ q1: { nombre: 'Marta Ruiz', cargo: 'Directora de proyectos', formacion: 'Ingeniera civil', anos: '22', especializaciones: 'Especialización en gerencia de proyectos', experiencia: '', competencias: '' } }), bitacora_personal_activo_id: 'q1',
     bitacora_analisis_pliegos: JSON.stringify(entrada)
@@ -1112,9 +1112,9 @@ await check('Matrices y anexos: la Matriz 2 cargada (PDF escaneado, texto real) 
   const D = { AC: 649046318, PC: 53554509, AT: 737303721, PT: 183768204, PAT: 553535517, UO: 9648701, GI: 3860257 };
   const entrada = conAnexos => ({ 'E2E-M2': Object.assign({ id: 'E2E-M2', ts: Date.now(), fileName: 'docbase.pdf', pagesRead: base.total, numPages: base.total, text: unir(base),
     proceso: { entidad: 'Alcaldía de Puerto Santander', objeto: 'Mantenimiento y rehabilitación de vías', modalidad: 'Selección abreviada de menor cuantía', valor: 451999714, closingRaw: new Date(Date.now() + 14 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
-    comps: [{ perfilNombre: 'Dora', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 }, conAnexos ? { anexos: [{ nombre: 'MATRIZ_2.pdf', texto: unir(m2), paginaOffsets: [] }] } : {}) });
+    comps: [{ perfilNombre: 'Empresa de prueba', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 }, conAnexos ? { anexos: [{ nombre: 'MATRIZ_2.pdf', texto: unir(m2), paginaOffsets: [] }] } : {}) });
   const leer = async conAnexos => {
-    const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Dora', k: kDe(D), kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']), bitacora_analisis_pliegos: JSON.stringify(entrada(conAnexos)) } });
+    const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa de prueba', k: kDe(D), kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']), bitacora_analisis_pliegos: JSON.stringify(entrada(conAnexos)) } });
     await pg.click('#bt-nav-documentos');
     await pg.locator('#bt-docs-out [data-abrir-proceso="E2E-M2"]').click();
     await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .ficha-tabla'));
@@ -1145,9 +1145,9 @@ await check('Experiencia por tramos (documento base CCE de infraestructura socia
     mk('ALC-1', 'RECUPERACION DE LA RED DE ALCANTARILLADO', 'Alcantarillado', '2011-02-01', '2012-02-01', 1968000000, 60)];
   const entrada = { 'E2E-CEM': { id: 'E2E-CEM', ts: Date.now(), fileName: 'docbase.pdf', pagesRead: fix.total, numPages: fix.total, text: texto,
     proceso: { entidad: 'Alcaldía de Cúcuta', objeto: 'Obras del Cementerio Central', modalidad: 'Selección abreviada de menor cuantía', valor: 250000000, closingRaw: new Date(Date.now() + 10 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
-    comps: [{ perfilNombre: 'Dora Garay', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };
+    comps: [{ perfilNombre: 'Empresa de prueba', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };
   const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: {
-    bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Dora Garay', nit: '900', k: '', kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']),
+    bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa de prueba', nit: '900', k: '', kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']),
     bitacora_experiencia_evaluacion: JSON.stringify({ porPerfil: { p1: { contratos: { headers: [], cols: {}, contratos, fuente: 'formato-maestro' }, meta: { fileName: 'fm.xlsx' } } } }),
     bitacora_analisis_pliegos: JSON.stringify(entrada) } });
   await pg.click('#bt-nav-documentos');
@@ -1157,6 +1157,46 @@ await check('Experiencia por tramos (documento base CCE de infraestructura socia
   assert(t && /REVISAR/.test(t) && !/CUMPLE\s*Con tus/.test(t), 'estado de la experiencia: ' + (t || '').slice(0, 200));
   assert(/LPNS-015-02/.test(t) && /214\/2014/.test(t) && !/ALC-1 \(/.test(t.split('Mejor combinación')[1] || ''), 'la combinación usa el polideportivo y el aula, no el alcantarillado: ' + (t || '').slice(0, 700));
   assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
+await check('Tamaño de empresa (RUP): el selector del perfil se guarda, y una microempresa cruza la Matriz 2 con los umbrales Mipyme (rentabilidad del activo CUMPLE, la del patrimonio sigue sin cumplir) y los indicadores del RUP', async () => {
+  const lee = async nombre => JSON.parse(await readFile(join(RAIZ, 'tests', 'fixtures', nombre), 'utf8'));
+  const base = await lee('puerto-santander-pdfjs.json'), m2 = await lee('matriz2-cce-pdfjs.json');
+  const unir = f => Array.from({ length: f.total }, (_, i) => f.paginas[String(i + 1)] || '').join('\n');
+  const kDe = ['Activo corriente = 649046318', 'Pasivo corriente = 53554509', 'Activo total = 737303721', 'Pasivo total = 183768204', 'Patrimonio = 553535517', 'Utilidad operacional = 9648701', 'Gastos de intereses = 3860257'].join('\n');
+  const entrada = { 'E2E-TAM': { id: 'E2E-TAM', ts: Date.now(), fileName: 'docbase.pdf', pagesRead: base.total, numPages: base.total, text: unir(base), anexos: [{ nombre: 'MATRIZ_2.pdf', texto: unir(m2), paginaOffsets: [] }],
+    proceso: { entidad: 'Alcaldía de Puerto Santander', objeto: 'Mantenimiento de vías', modalidad: 'Selección abreviada de menor cuantía', valor: 451999714, closingRaw: new Date(Date.now() + 14 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
+    comps: [{ perfilNombre: 'Empresa de prueba', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };
+  const leer = async tam => {
+    const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa de prueba', k: kDe, kResidual: '', rup: '', tamanoEmpresa: tam } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']), bitacora_analisis_pliegos: JSON.stringify(entrada) } });
+    await pg.click('#bt-nav-documentos');
+    await pg.locator('#bt-docs-out [data-abrir-proceso="E2E-TAM"]').click();
+    await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .ficha-tabla'));
+    const filas = await pg.evaluate(() => Object.fromEntries([...document.querySelectorAll('#bt-analisis-out .ficha-tabla tbody tr')].filter(tr => tr.children.length > 1).map(tr => [tr.children[0].textContent.trim(), tr.children[tr.children.length - 1].textContent.replace(/\s+/g, ' ').trim()])));
+    assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+    await ctx.close();
+    return filas;
+  };
+  const micro = await leer('microempresa');
+  assert(/CUMPLE/.test(micro['Rentabilidad del activo']) && !/NO CUMPLE/.test(micro['Rentabilidad del activo']) && /Mipyme/.test(micro['Rentabilidad del activo']), 'microempresa, activo: ' + micro['Rentabilidad del activo']);
+  assert(/NO CUMPLE/.test(micro['Rentabilidad del patrimonio']), 'microempresa, patrimonio: ' + micro['Rentabilidad del patrimonio']);
+  const grande = await leer('grande');
+  assert(/NO CUMPLE/.test(grande['Rentabilidad del activo']), 'gran empresa, activo: ' + grande['Rentabilidad del activo']);
+  const sin = await leer('');
+  assert(/NO DETERMINABLE/.test(sin['Rentabilidad del activo']), 'sin tamaño, activo: ' + sin['Rentabilidad del activo']);
+  // El selector del perfil se guarda
+  const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa de prueba', k: '', kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']) } });
+  await pg.click('#bt-nav-empresa');
+  await pg.selectOption('#bt-perfil-tamano', 'pequena');
+  await pg.click('#bt-perfil-save');
+  await pg.waitForTimeout(300);
+  const guardado = await pg.evaluate(() => JSON.parse(localStorage.getItem('bitacora_perfiles_empresa')).p1.tamanoEmpresa);
+  assert(guardado === 'pequena', 'tamaño guardado: ' + guardado);
+  await pg.reload();
+  await pg.waitForTimeout(800);
+  await pg.click('#bt-nav-empresa');
+  assert(await pg.evaluate(() => document.getElementById('bt-perfil-tamano').value) === 'pequena', 'el selector recuerda el tamaño al volver a abrir el perfil');
   await ctx.close();
 });
 

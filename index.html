@@ -1721,6 +1721,16 @@
                   <option value="natural">Persona natural</option>
                 </select>
               </div>
+              <div class="field full">
+                <label for="bt-perfil-tamano">Tamaño de empresa (según el RUP: define si aplican los umbrales Mipyme de los pliegos)</label>
+                <select id="bt-perfil-tamano">
+                  <option value="">Sin indicar</option>
+                  <option value="microempresa">Microempresa</option>
+                  <option value="pequena">Pequeña empresa</option>
+                  <option value="mediana">Mediana empresa</option>
+                  <option value="grande">Gran empresa</option>
+                </select>
+              </div>
               <div class="field-row2 full">
                 <div class="field">
                   <label for="bt-perfil-nit">NIT</label>
@@ -2824,6 +2834,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   const perfilKResidualEl = document.getElementById('bt-perfil-k-residual');
   const perfilNitEl = document.getElementById('bt-perfil-nit');
   const perfilTipoPersonaEl = document.getElementById('bt-perfil-tipo-persona');
+  const perfilTamanoEl = document.getElementById('bt-perfil-tamano');
   const perfilRepresentanteEl = document.getElementById('bt-perfil-representante');
   const perfilRepresentanteCedulaEl = document.getElementById('bt-perfil-representante-cedula');
   const perfilTelefonoEl = document.getElementById('bt-perfil-telefono');
@@ -3518,7 +3529,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // gate go/no-go.
     nit: '', representanteLegal: '', representanteCedula: '', telefono: '', direccion: '', ciudad: '', correo: '', objeto_social: '',
     // RA3-4: 'natural' | 'juridica' | '' (sin indicar). Cambia la redacción y la firma de los documentos; nunca se asume.
-    tipoPersona: ''
+    tipoPersona: '',
+    // 'microempresa' | 'pequena' | 'mediana' | 'grande' | '' (sin indicar): el RUP lo trae; micro, pequeña y mediana son Mipyme y usan los umbrales Mipyme. Nunca se asume.
+    tamanoEmpresa: ''
   };
   let perfiles = {}; // { id: { nombre, rup, k, kResidual, contratosEnEjecucion } }
   let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
@@ -3664,6 +3677,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     setCampo(perfilKResidualEl, perfil.kResidual);
     setCampo(perfilNitEl, perfil.nit);
     setCampo(perfilTipoPersonaEl, perfil.tipoPersona);
+    setCampo(perfilTamanoEl, perfil.tamanoEmpresa);
     setCampo(perfilRepresentanteEl, perfil.representanteLegal);
     setCampo(perfilRepresentanteCedulaEl, perfil.representanteCedula);
     setCampo(perfilTelefonoEl, perfil.telefono);
@@ -3687,6 +3701,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       kResidual: getCampo(perfilKResidualEl),
       nit: getCampo(perfilNitEl),
       tipoPersona: getCampo(perfilTipoPersonaEl),
+      tamanoEmpresa: getCampo(perfilTamanoEl),
       representanteLegal: getCampo(perfilRepresentanteEl),
       representanteCedula: getCampo(perfilRepresentanteCedulaEl),
       telefono: getCampo(perfilTelefonoEl),
@@ -4247,7 +4262,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     grab('Patrimonio', '(?<!RENTABILIDAD DEL )PATRIMONIO', MONTO);
     grab('Activo total', 'ACTIVO\\s+TOTAL|TOTAL\\s+ACTIVOS?', MONTO);
     grab('Pasivo total', 'PASIVO\\s+TOTAL|TOTAL\\s+PASIVOS?', MONTO);
-    grab('Utilidad operacional', 'UTILIDAD\\s+OPERACIONAL|UTILIDAD\\s+OPERATIVA', MONTO);
+    grab('Utilidad operacional', 'UTILIDAD\\s*\\/\\s*P[ÉE]RDIDA\\s+OPERACIONAL|UTILIDAD\\s+OPERACIONAL|UTILIDAD\\s+OPERATIVA', MONTO);
     grab('Gastos de intereses', 'GASTOS?\\s+(?:DE\\s+)?INTERESES|GASTOS?\\s+FINANCIEROS', MONTO);
     grab('Capital de trabajo', 'CAPITAL\\s+DE\\s+TRABAJO', MONTO);
     grab('Capacidad de organización', 'CAPACIDAD\\s+DE\\s+ORGANIZACI[ÓO]N', MONTO);
@@ -4287,10 +4302,15 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // sirve separarlos por coma).
     const capK = ind.join('\n') || null;
 
+    // «TAMAÑO DE EMPRESA: MICROEMPRESA» (micro, pequeña, mediana o grande): decide si aplican los umbrales Mipyme de los pliegos.
+    let tamano = null;
+    const mTam = flat.match(/TAMA[ÑN]O\s+DE\s+EMPRESA\s*:\s*(MICRO|PEQUE[ÑN]A|MEDIANA|GRAN(?:DE)?)/i);
+    if (mTam){ const w = mTam[1].toUpperCase().replace('Ñ', 'N'); tamano = w === 'MICRO' ? 'microempresa' : w === 'PEQUENA' ? 'pequena' : w === 'MEDIANA' ? 'mediana' : 'grande'; }
+
     return {
       unspsc: clasif.lista, unspscTotal: clasif.total, unspscRecortado: clasif.recortado,
-      capResidual, capK,
-      encontrado: clasif.lista.length + (capResidual ? 1 : 0) + ind.length
+      capResidual, capK, tamano,
+      encontrado: clasif.lista.length + (capResidual ? 1 : 0) + ind.length + (tamano ? 1 : 0)
     };
   }
 
@@ -4315,6 +4335,10 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (data.capK){
       if (!getCampo(perfilKEl)){ setCampo(perfilKEl, data.capK); partes.push('indicadores financieros → Capacidad K (verifica los valores)'); }
       else partes.push('Capacidad K no sobrescrita (ya tenía datos); en el RUP: ' + data.capK.replace(/\n/g, ' · '));
+    }
+    if (data.tamano){
+      if (!getCampo(perfilTamanoEl)){ setCampo(perfilTamanoEl, data.tamano); partes.push('tamaño de empresa → ' + ({ microempresa: 'microempresa', pequena: 'pequeña', mediana: 'mediana', grande: 'gran empresa' }[data.tamano])); }
+      else partes.push('Tamaño de empresa no sobrescrito (ya estaba indicado)');
     }
     if (data.capResidual){
       if (!getCampo(perfilKResidualEl)){ setCampo(perfilKResidualEl, data.capResidual); partes.push('capacidad residual → Capacidad K residual'); }
@@ -8372,12 +8396,14 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         const nombre = { capitalTrabajo: 'capital de trabajo', patrimonio: 'patrimonio', kResidual: 'capacidad residual (K) disponible' }[d.clave] || d.clave;
         if (mio == null || !isFinite(mio)) r = { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene ' + nombre + ' legible: cárgalo desde el RUP o el cálculo de capacidad.' };
         else {
-          const estricto = mio >= d.min, laxo = d.minMipyme != null ? mio >= d.minMipyme : estricto;
-          const base = 'Tu ' + nombre + ': ' + money(mio) + ' frente a ' + money(d.min) + ' exigidos.';
-          if (!estricto && !laxo) r = { estado: 'NO CUMPLE', detalle: base + ' Te faltan ' + money(d.min - mio) + '.' };
+          // Con el tamaño del RUP: Mipyme → solo su umbral; no Mipyme → solo el general.
+          const estricto = mio >= (emp.mipyme === true && d.minMipyme != null ? d.minMipyme : d.min), laxo = emp.mipyme === false ? estricto : (d.minMipyme != null ? mio >= d.minMipyme : estricto);
+          const exig = emp.mipyme === true && d.minMipyme != null ? d.minMipyme : d.min;
+          const base = 'Tu ' + nombre + ': ' + money(mio) + ' frente a ' + money(exig) + ' exigidos' + (emp.mipyme === true && d.minMipyme != null ? ' (umbral Mipyme, según tu RUP).' : '.');
+          if (!estricto && !laxo) r = { estado: 'NO CUMPLE', detalle: base + ' Te faltan ' + money(exig - mio) + '.' };
           else if (!estricto) r = { estado: 'NO DETERMINABLE', detalle: base + ' Solo alcanzas el umbral Mipyme (' + money(d.minMipyme) + '): depende de si te acreditas como Mipyme.' };
           else if (d.clave === 'kResidual' && emp.kIncompleto) r = { estado: 'REVISAR', detalle: base + ' Alcanza, pero hay contratos en ejecución con datos incompletos en tu cálculo de K.' };
-          else r = { estado: 'CUMPLE', detalle: base + ' Margen ' + money(mio - d.min) + ' (según tu perfil; verifica con tu RUP vigente).' };
+          else r = { estado: 'CUMPLE', detalle: base + ' Margen ' + money(mio - exig) + ' (según tu perfil; verifica con tu RUP vigente).' };
         }
       } else if (d.tipo === 'indice'){
         const clave = /liquidez/i.test(d.clave) ? 'liquidez' : /endeudamiento/i.test(d.clave) ? 'endeudamiento' : /cobertura/i.test(d.clave) ? 'cobertura' : /rentabilidad.*patrimonio/i.test(d.clave) ? 'rentPatrimonio' : /rentabilidad.*activo/i.test(d.clave) ? 'rentActivo' : null;
@@ -8392,11 +8418,12 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         }
         else if (mio == null || !isFinite(mio)) r = { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene este dato legible (escríbelo como razón, ej. 0,6).' };
         else {
-          const umbrales = [d.demas, d.mipyme].filter(Boolean);
+          // Con el tamaño de empresa del RUP se usa SOLO el umbral que le corresponde; sin él, ambos (y si discrepan queda NO DETERMINABLE).
+          const umbrales = (emp.mipyme === true && d.mipyme ? [d.mipyme] : (emp.mipyme === false && d.demas ? [d.demas] : [d.demas, d.mipyme])).filter(Boolean);
           const res = umbrales.map(u => pasa(mio, u.op, u.v));
           if (res.some(x => x === null)) r = { estado: 'NO DETERMINABLE', detalle: 'Operador del umbral no reconocido.' };
           else {
-            const base = 'Tu valor: ' + razon(mio) + '. Exigido: ' + [d.demas && ('demás ' + d.demas.op + ' ' + razon(d.demas.v)), d.mipyme && ('Mipyme ' + d.mipyme.op + ' ' + razon(d.mipyme.v))].filter(Boolean).join(' / ') + '.';
+            const base = 'Tu valor: ' + razon(mio) + '. Exigido: ' + (emp.mipyme === true && d.mipyme ? 'Mipyme ' + d.mipyme.op + ' ' + razon(d.mipyme.v) + ' (tu RUP: Mipyme)' : (emp.mipyme === false && d.demas ? d.demas.op + ' ' + razon(d.demas.v) + ' (tu RUP: no Mipyme)' : [d.demas && ('demás ' + d.demas.op + ' ' + razon(d.demas.v)), d.mipyme && ('Mipyme ' + d.mipyme.op + ' ' + razon(d.mipyme.v))].filter(Boolean).join(' / '))) + '.';
             if (res.every(x => x === true)) r = { estado: 'CUMPLE', detalle: base + ' (según tu perfil; verifica con tu RUP vigente).' };
             else if (res.every(x => x === false)) r = { estado: 'NO CUMPLE', detalle: base };
             else r = { estado: 'NO DETERMINABLE', detalle: base + ' Cumples solo uno de los dos umbrales: depende de si te acreditas como Mipyme.' };
@@ -12593,7 +12620,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       // Sin pasivo corriente o sin gastos de intereses la razón es infinita (los pliegos habilitan) y solo la ficha lo sabe leer.
       const der = indicadoresDeComponentes(mat.componentes);
       const ind = { liquidez: mat.liquidez != null ? mat.liquidez : (der.liquidez === Infinity ? Infinity : null), endeudamiento: mat.endeudamiento, cobertura: mat.cobertura != null ? mat.cobertura : (der.cobertura === Infinity ? Infinity : null), rentPatrimonio: mat.rentPatrimonio, rentActivo: mat.rentActivo };
-      return { nombre: mat.nombre, personal: Object.keys(perfilesProfesionales || {}).map(id => perfilesProfesionales[id]), contratos: contratosExp, baseCantidades: (entry.baseCantidades === 'total' || entry.baseCantidades === 'prorrata') ? entry.baseCantidades : null, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k,
+      const tam = p.tamanoEmpresa;
+      const mipyme = (tam === 'microempresa' || tam === 'pequena' || tam === 'mediana') ? true : (tam === 'grande' ? false : null);
+      return { nombre: mat.nombre, mipyme: mipyme, personal: Object.keys(perfilesProfesionales || {}).map(id => perfilesProfesionales[id]), contratos: contratosExp, baseCantidades: (entry.baseCantidades === 'total' || entry.baseCantidades === 'prorrata') ? entry.baseCantidades : null, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k,
         liquidez: ind.liquidez, endeudamiento: ind.endeudamiento, cobertura: ind.cobertura, rentPatrimonio: ind.rentPatrimonio, rentActivo: ind.rentActivo,
         kIncompleto: !!(mat.capacidadEstimada && mat.capacidadEstimada.incompletos > 0) };
     } catch (e) { return null; }

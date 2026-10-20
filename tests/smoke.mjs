@@ -3131,6 +3131,17 @@ await check('QA-001 RUP: los códigos UNSPSC con formato "NN NN NN NN :" se leen
   assert(expEngine.parsearRUP('Este texto no trae ningún código ni indicador.').encontrado === 0, 'texto sin datos => nada encontrado');
 });
 
+// RUP real (texto de pdf.js, SIN datos de identificación): tamaño de empresa e indicadores tal como los reporta la Cámara de Comercio.
+const RUP_TAMANO = 'CERTIFICA: IDENTIFICACIÓN ORGANIZACIÓN: PERSONA NATURAL TAMAÑO DE EMPRESA: MICROEMPRESA CERTIFICA: DOMICILIO QUE EN RELACIÓN A SU INFORMACIÓN FINANCIERA EL PROPONENTE REPORTÓ: FECHA CORTE DE LA INFORMACIÓN FINANCIERA : 31/12/2025 ACTIVO CORRIENTE : $649.046.318,00 ACTIVO TOTAL : $737.303.721,00 PASIVO CORRIENTE : $53.554.509,00 PASIVO TOTAL : $183.768.204,00 PATRIMONIO : $553.535.517,00 UTILIDAD/PERDIDA OPERACIONAL : $9.648.701,00 GASTOS DE INTERESES : $3.860.257,00 CERTIFICA: CAPACIDAD FINANCIERA INDICE DE LIQUIDEZ : 12,11 INDICE DE ENDEUDAMIENTO : 0,24 RAZÓN DE COBERTURA DE INTERESES : 2,49 CERTIFICA: CAPACIDAD ORGANIZACIONAL RENTABILIDAD DEL PATRIMONIO : 0,01 RENTABILIDAD DEL ACTIVO : 0,01 CERTIFICA: EXPERIENCIA';
+await check('RUP: lee el TAMAÑO DE EMPRESA (microempresa) para saber si aplican los umbrales Mipyme; un RUP sin esa línea no lo inventa', () => {
+  const r = expEngine.parsearRUP(RUP_TAMANO);
+  assert(r.tamano === 'microempresa', 'tamaño: ' + r.tamano);
+  assert(/Rentabilidad del patrimonio: 0,01/.test(r.capK) && /Índice de liquidez: 12,11/.test(r.capK), 'indicadores del RUP: ' + r.capK);
+  assert(/Utilidad operacional: \$9\.648\.701/.test(r.capK) && /Gastos de intereses: \$3\.860\.257/.test(r.capK), 'el RUP escribe «UTILIDAD/PERDIDA OPERACIONAL»: ' + r.capK);
+  for (const [txt, esperado] of [['TAMAÑO DE EMPRESA: PEQUEÑA', 'pequena'], ['TAMAÑO DE EMPRESA: MEDIANA', 'mediana'], ['TAMAÑO DE EMPRESA: GRANDE', 'grande'], ['TAMANO DE EMPRESA: PEQUEÑA EMPRESA', 'pequena']])
+    assert(expEngine.parsearRUP('X ' + txt + ' Y').tamano === esperado, txt + ' → ' + expEngine.parsearRUP('X ' + txt + ' Y').tamano);
+  assert(expEngine.parsearRUP(RUP_REAL).tamano === null, 'sin la línea no hay tamaño');
+});
 await check('QA-001 RUP: indicadores financieros con su valor; "Rentabilidad del patrimonio" no se confunde con el patrimonio; no se inventa capacidad residual', () => {
   const r = expEngine.parsearRUP(RUP_REAL);
   const k = r.capK || '';
@@ -4345,7 +4356,7 @@ await check('fichaHabilitante (documento base CCE social, pdf.js): la experienci
   assert(d.inicioMin === '1998-01-09' && d.maxAntes === 1 && d.nsrAlguno === '2010-07-15' && d.unicoDesde === '2010-07-15', 'fechas NSR: ' + JSON.stringify(d));
   assert(r.pagina === 44, 'página de la tabla 3.5.8: ' + r.pagina);
 });
-// Contratos de prueba (valores reales del caso Dora, con participación): el polideportivo de 2003 (100 %), el CIC de Gramalote de 2015 (5 %) y el aula de 2014 (10 %).
+// Contratos de prueba (valores reales de un caso real, con participación): el polideportivo de 2003 (100 %), el CIC de Gramalote de 2015 (5 %) y el aula de 2014 (10 %).
 const mkT = (num, ini, fin, valor, part, extra) => Object.assign({ numeroContrato: num, objeto: 'CONSTRUCCION DE AULAS EN INSTITUCION EDUCATIVA ' + num, valor: valor, participacion: { valor: part, unidad: '%', raw: part + ' %' }, fechaInicio: ini, fechaFin: fin, enEjecucion: false, formatoMaestro: { enRup: 'si', unspsc: ['72101500'], estado: 'Terminado' } }, extra || {});
 const T_POLI = mkT('LPNS-015-02', '2002-10-28', '2003-03-01', 379318000, 100, { objeto: 'CONSTRUCCION POLIDEPORTIVO Y PARQUE INFANTIL' });
 T_POLI.formatoMaestro.especialidad = 'Edificaciones deportivas y recreativas';
@@ -4428,6 +4439,24 @@ await check('fichaHabilitante (Matriz 2 CCE): si los valores no cuadran con lo e
   assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), 'no debe leer indicadores con valores implausibles');
   assert(f.avisos.some(a => /Matriz 2/.test(a)), 'debe avisar que no se pudo leer');
 });
+await check('cruceFichaEmpresa con la Matriz 2: si el RUP dice microempresa (Mipyme) rigen SOLO los umbrales Mipyme (rentabilidad del activo ≥ 0,01 cumple; la del patrimonio ≥ 0,02 sigue sin cumplir); si es grande rigen solo los generales; sin dato, como antes', () => {
+  const f = expEngine.fichaHabilitante(M2_TEXTO, { anio: 2026 });
+  const base = { liquidez: 12.11, endeudamiento: 0.24, cobertura: 2.49, rentPatrimonio: 0.0174, rentActivo: 0.0131, contratos: [], personal: [] };
+  const mi = expEngine.cruceFichaEmpresa(f.filas, Object.assign({ mipyme: true }, base));
+  assert(mi['Rentabilidad del activo'].estado === 'CUMPLE' && /Mipyme/.test(mi['Rentabilidad del activo'].detalle) && !/demás/.test(mi['Rentabilidad del activo'].detalle), 'RoA Mipyme: ' + JSON.stringify(mi['Rentabilidad del activo']));
+  assert(mi['Rentabilidad del patrimonio'].estado === 'NO CUMPLE' && /0,02/.test(mi['Rentabilidad del patrimonio'].detalle), 'RoE Mipyme: ' + JSON.stringify(mi['Rentabilidad del patrimonio']));
+  const gr = expEngine.cruceFichaEmpresa(f.filas, Object.assign({ mipyme: false }, base));
+  assert(gr['Rentabilidad del activo'].estado === 'NO CUMPLE' && /0,02/.test(gr['Rentabilidad del activo'].detalle) && !/Mipyme ≥/.test(gr['Rentabilidad del activo'].detalle), 'RoA grande: ' + JSON.stringify(gr['Rentabilidad del activo']));
+  const nd = expEngine.cruceFichaEmpresa(f.filas, Object.assign({ mipyme: null }, base));
+  assert(nd['Rentabilidad del activo'].estado === 'NO DETERMINABLE', 'sin dato del tamaño: ' + JSON.stringify(nd['Rentabilidad del activo']));
+});
+await check('cruceFichaEmpresa con un monto con umbral Mipyme (patrimonio): solo el Mipyme si la empresa lo es; solo el general si no; sin dato, NO DETERMINABLE', () => {
+  const filas = [{ requisito: 'Patrimonio', dato: { tipo: 'monto', clave: 'patrimonio', min: 100e6, minMipyme: 50e6 } }];
+  const mk = m => expEngine.cruceFichaEmpresa(filas, { patrimonio: 70e6, mipyme: m, contratos: [], personal: [] })['Patrimonio'];
+  assert(mk(true).estado === 'CUMPLE', 'Mipyme: ' + JSON.stringify(mk(true)));
+  assert(mk(false).estado === 'NO CUMPLE', 'no Mipyme: ' + JSON.stringify(mk(false)));
+  assert(mk(null).estado === 'NO DETERMINABLE', 'sin dato: ' + JSON.stringify(mk(null)));
+});
 const M2R_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'matriz2-social-ruidosa-pdfjs.json'), 'utf8'));
 await check('fichaHabilitante (Matriz 2 de infraestructura social, escaneado MUY ruidoso: «Induce de liquidez», «lead», «active», sin «Valor concertado» legible): no inventa indicadores y avisa que no se pudo leer con seguridad', () => {
   const f = expEngine.fichaHabilitante(Array.from({ length: M2R_FIX.total }, (_, i) => M2R_FIX.paginas[String(i + 1)]).join('\n'), { anio: 2026 });
@@ -4438,7 +4467,7 @@ await check('fichaHabilitante (Matriz 2 CCE): un valor de más o de menos en un 
   const f = expEngine.fichaHabilitante(M2_TEXTO.replace('之1,3', '之1,3 5'), { anio: 2026 });
   assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), 'con 6 valores no debe leer');
 });
-await check('cruceFichaEmpresa con la Matriz 2 CCE: Dora (RoE 0,0174, RoA 0,0131) → rentabilidad del patrimonio NO CUMPLE (ni Mipyme la salva), del activo NO DETERMINABLE (solo Mipyme), liquidez/endeudamiento/cobertura CUMPLE', () => {
+await check('cruceFichaEmpresa con la Matriz 2 CCE: una empresa (RoE 0,0174, RoA 0,0131) → rentabilidad del patrimonio NO CUMPLE (ni Mipyme la salva), del activo NO DETERMINABLE (solo Mipyme), liquidez/endeudamiento/cobertura CUMPLE', () => {
   const f = expEngine.fichaHabilitante(M2_TEXTO, { anio: 2026 });
   const cr = expEngine.cruceFichaEmpresa(f.filas, { liquidez: 12.12, endeudamiento: 0.2492, cobertura: 2.5, rentPatrimonio: 0.0174, rentActivo: 0.0131, contratos: [], personal: [] });
   const de = n => cr[n];
