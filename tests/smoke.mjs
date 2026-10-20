@@ -369,7 +369,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { fichaHabilitante, cruceFichaEmpresa, tramosDeSumatoria, unoPctPresupuestoDeTexto, unirItemsDePdf, parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, observacionesTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, coleccionComoMapa, diferenciasColeccion, armarColeccion, leerColeccionRemota, guardarColeccionRemota, reemplazarColeccionRemota, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { fichaHabilitante, cruceFichaEmpresa, cruceExperienciaCriterios, tramosDeSumatoria, unoPctPresupuestoDeTexto, unirItemsDePdf, parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, observacionesTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, coleccionComoMapa, diferenciasColeccion, armarColeccion, leerColeccionRemota, guardarColeccionRemota, reemplazarColeccionRemota, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -4108,12 +4108,15 @@ await check('fichaHabilitante (pliego real IMRD, pdf.js): indicadores con la FÓ
 });
 await check('fichaHabilitante (pliego real IMRD, pdf.js): experiencia general y específica por viñetas bajo «CRITERIO» — contratos, valor frente al presupuesto, ítem, liquidación — y la lista COMPLETA de 15 códigos UNSPSC (no 8)', () => {
   const f = imrdFicha();
-  const gen = f.filas.filter(x => x.requisito === 'Experiencia general'), esp = f.filas.filter(x => x.requisito === 'Experiencia específica');
+  const gen = f.filas.filter(x => /^Experiencia general: /.test(x.requisito)), esp = f.filas.filter(x => /^Experiencia específica: /.test(x.requisito));
+  assert(new Set(f.filas.map(x => x.requisito)).size === f.filas.length, 'cada fila tiene un nombre único (el cruce se indexa por nombre)');
+  assert(gen[0].requisito === 'Experiencia general: contratos' && gen.map(x => x.requisito).join('|') === 'Experiencia general: contratos|Experiencia general: valor|Experiencia general: ítem|Experiencia general: liquidación', 'nombres general: ' + gen.map(x => x.requisito).join('|'));
+  assert(esp.map(x => x.requisito).join('|') === 'Experiencia específica: contratos|Experiencia específica: valor|Experiencia específica: terminación', 'nombres específica: ' + esp.map(x => x.requisito).join('|'));
   assert(gen.length === 4 && gen.every(x => x.pagina === 75), 'general: ' + gen.length + ' filas');
   assert(/UNO O MAXIMO 2 CONTRATOS/i.test(gen[0].exige) && /ESTUDIOS Y DISE/i.test(gen[0].exige), 'contratos generales: ' + gen[0].exige);
   const valG = gen.find(x => /valor de cada contrato/i.test(x.exige));
   assert(valG && /\$600\.000\.000/.test(valG.cifras), 'valor general: ' + JSON.stringify(valG));
-  assert(/por sí solo/.test(valG.aviso) && !/por sí solo/.test(f.filas.find(x => x.requisito === 'Experiencia específica' && /sumatoria/i.test(x.exige)).aviso), 'avisa que el valor es por contrato, no suma (solo en la general)');
+  assert(/por sí solo/.test(valG.aviso) && !/por sí solo/.test(f.filas.find(x => x.requisito === 'Experiencia específica: valor').aviso), 'avisa que el valor es por contrato, no suma (solo en la general)');
   assert(gen.some(x => /SIEMBRA DE GRAMA/i.test(x.exige)) && gen.some(x => /acta de liquidaci/i.test(x.exige)), 'ítem de grama y liquidación');
   assert(esp.length === 3 && /Cuatro contratos/i.test(esp[0].exige) && /SUMINISTRO DE MATERIALES DE CONSTRUCCION/i.test(esp[0].exige), 'específica: ' + (esp[0] && esp[0].exige));
   const sum = esp.find(x => /sumatoria/i.test(x.exige));
@@ -4122,6 +4125,75 @@ await check('fichaHabilitante (pliego real IMRD, pdf.js): experiencia general y 
   assert(cG && cG.exige.split(', ').length === 15 && cE && cE.exige.split(', ').length === 15, 'códigos: ' + (cG && cG.exige.split(', ').length) + ' / ' + (cE && cE.exige.split(', ').length));
   assert(/al menos 8/i.test(cE.cifras), 'regla de la específica: ' + cE.cifras);
   assert(!f.filas.some(x => x.requisito === 'Clasificación UNSPSC del proceso' && x.exige.split(', ').length === 8), 'ya no queda la lista cortada en 8');
+});
+// Cruce de la experiencia del pliego IMRD con los contratos del Formato Maestro de la empresa. Nunca da CUMPLE (el objeto y el ítem de grama
+// los confirma una persona): NO CUMPLE solo si ningún contrato puede alcanzar un criterio objetivo; REVISAR si hay contratos que pasan todo lo
+// verificable; NO DETERMINABLE si falta un dato (valor, participación, códigos) que decidiría.
+const IMRD_CODIGOS = ['30191500', '22101500', '40141700', '30111600', '30131500', '30131600', '30102400', '40171600', '40183100', '39112300', '30111800', '72101500', '95121700', '30121700', '81101500'];
+const ctoFM = (extra) => Object.assign({ objeto: 'Estudios y diseños de parque deportivo', valor: 700000000, participacion: { valor: 100, unidad: '%' }, enEjecucion: false, numeroContrato: 'C-1',
+  formatoMaestro: { estado: 'Liquidado', unspsc: IMRD_CODIGOS.slice(0, 9), cantidades: [{ item: 'Siembra de grama', cantidad: 10, unidad: 'm2' }], enRup: 'si' } }, extra || {});
+const cruceExp = (nombre, contratos) => expEngine.cruceFichaEmpresa(imrdFicha().filas, { contratos: contratos })[nombre];
+await check('fichaHabilitante (IMRD real): la primera fila de cada sección de experiencia lleva los criterios estructurados (contratos, valor por contrato o suma, liquidación, códigos y mínimo de códigos)', () => {
+  const f = imrdFicha();
+  const g = f.filas.find(x => x.requisito === 'Experiencia general: contratos').dato, e = f.filas.find(x => x.requisito === 'Experiencia específica: contratos').dato;
+  assert(g && g.tipo === 'expCriterios' && g.seccion === 'general' && g.nMin === 1 && g.nMax === 2 && g.valorModo === 'cada' && g.valorMin === 600000000 && g.liquidado === true && g.codigos.length === 15 && g.minCodigos === null && /ESTUDIOS Y DISE/i.test(g.objeto) && /GRAMA/i.test(g.item), 'general: ' + JSON.stringify(g));
+  assert(e && e.seccion === 'específica' && e.nMin === 4 && e.nMax === 4 && e.valorModo === 'suma' && e.valorMin === 600000000 && e.terminado === true && e.liquidado === false && e.minCodigos === 8 && /SUMINISTRO DE MATERIALES/i.test(e.objeto), 'específica: ' + JSON.stringify(e));
+});
+await check('Cruce experiencia general (IMRD): un contrato terminado, liquidado, de estudios y diseños, ≥ $600 M y con ítem de grama → REVISAR (nunca CUMPLE: el objeto lo confirma una persona), citando el contrato', () => {
+  const r = cruceExp('Experiencia general: contratos', [ctoFM()]);
+  assert(r && r.estado === 'REVISAR' && /C-1/.test(r.detalle), JSON.stringify(r));
+});
+await check('Cruce experiencia general (IMRD): ningún contrato alcanza el valor del presupuesto → NO CUMPLE; contrato en ejecución, o fuera del RUP, tampoco cuenta', () => {
+  assert(cruceExp('Experiencia general: contratos', [ctoFM({ valor: 500000000 })]).estado === 'NO CUMPLE', 'valor menor');
+  assert(cruceExp('Experiencia general: contratos', [ctoFM({ enEjecucion: true })]).estado === 'NO CUMPLE', 'en ejecución');
+  assert(cruceExp('Experiencia general: contratos', [ctoFM({ formatoMaestro: { estado: 'Liquidado', unspsc: IMRD_CODIGOS, cantidades: [], enRup: 'no' } })]).estado === 'NO CUMPLE', 'fuera del RUP');
+});
+await check('Cruce experiencia general (IMRD): la participación se pondera (consorcio 40 % de $1.000 M = $400 M no alcanza $600 M); sin participación o sin valor es NO DETERMINABLE, nunca NO CUMPLE', () => {
+  assert(cruceExp('Experiencia general: contratos', [ctoFM({ valor: 1000000000, participacion: { valor: 40, unidad: '%' } })]).estado === 'NO CUMPLE', 'ponderado');
+  assert(cruceExp('Experiencia general: contratos', [ctoFM({ valor: null, participacion: null })]).estado === 'NO DETERMINABLE', 'sin valor');
+  assert(cruceExp('Experiencia general: contratos', []).estado === 'NO DETERMINABLE', 'sin contratos');
+});
+await check('Cruce experiencia general (IMRD): contrato de estudios y diseños sin códigos UNSPSC cargados → NO DETERMINABLE (el pliego pide codificación y no se asume); un contrato cuyo objeto no menciona estudios ni diseños no se cuenta', () => {
+  const sin = ctoFM({ formatoMaestro: { estado: 'Liquidado', unspsc: [], cantidades: [{ item: 'Siembra de grama', cantidad: 1, unidad: 'm2' }], enRup: 'si' } });
+  const rSin = cruceExp('Experiencia general: contratos', [sin]);
+  assert(rSin.estado === 'NO DETERMINABLE' && /c[oó]digos UNSPSC cargados/.test(rSin.detalle), 'sin códigos: ' + JSON.stringify(rSin));
+  const otro = ctoFM({ objeto: 'Construcción de acueducto veredal' });
+  const r = cruceExp('Experiencia general: contratos', [otro]);
+  assert(r.estado !== 'REVISAR' && !/C-1.*pasa/i.test(r.detalle), 'objeto distinto: ' + JSON.stringify(r));
+});
+await check('Cruce experiencia específica (IMRD): 4 contratos de suministro, cada uno con ≥ 8 de los 15 códigos y suma ≥ $600 M → REVISAR; con 3 que pasan → NO CUMPLE; con un código de menos de 8 → ese no cuenta', () => {
+  const cs = (n, extra) => Array.from({ length: n }, (_, i) => ctoFM(Object.assign({ numeroContrato: 'S-' + (i + 1), objeto: 'Suministro de materiales de construcción para escenario deportivo', valor: 200000000 }, extra || {})));
+  assert(cruceExp('Experiencia específica: contratos', cs(4)).estado === 'REVISAR', '4 buenos: ' + JSON.stringify(cruceExp('Experiencia específica: contratos', cs(4))));
+  assert(cruceExp('Experiencia específica: contratos', cs(3)).estado === 'NO CUMPLE', 'solo 3');
+  const pocos = cs(3).concat(ctoFM({ numeroContrato: 'S-4', objeto: 'Suministro de materiales de construcción', valor: 200000000, formatoMaestro: { estado: 'Terminado', unspsc: IMRD_CODIGOS.slice(0, 7), cantidades: [], enRup: 'si' } }));
+  assert(cruceExp('Experiencia específica: contratos', pocos).estado === 'NO CUMPLE', 'uno con 7 códigos no cuenta: quedan 3');
+  assert(cruceExp('Experiencia específica: contratos', cs(4, { valor: 100000000 })).estado === 'NO CUMPLE', 'suma $400 M < $600 M');
+});
+await check('Cruce experiencia general (IMRD): sin acta de liquidación confirmada, sin ítem de grama en las cantidades, o sin ningún código de la lista → no se da por revisado (NO DETERMINABLE / NO CUMPLE), y se dice por qué', () => {
+  const terminado = cruceExp('Experiencia general: contratos', [ctoFM({ formatoMaestro: { estado: 'Terminado', unspsc: IMRD_CODIGOS.slice(0, 9), cantidades: [{ item: 'Siembra de grama', cantidad: 1, unidad: 'm2' }], enRup: 'si' } })]);
+  assert(terminado.estado === 'NO DETERMINABLE' && /liquidaci/i.test(terminado.detalle), 'Terminado sin liquidar: ' + JSON.stringify(terminado));
+  const sinGrama = cruceExp('Experiencia general: contratos', [ctoFM({ formatoMaestro: { estado: 'Liquidado', unspsc: IMRD_CODIGOS.slice(0, 9), cantidades: [{ item: 'Excavación mecánica', cantidad: 1, unidad: 'm3' }], enRup: 'si' } })]);
+  assert(sinGrama.estado === 'NO DETERMINABLE' && /grama/i.test(sinGrama.detalle), 'sin grama: ' + JSON.stringify(sinGrama));
+  const otrosCodigos = cruceExp('Experiencia general: contratos', [ctoFM({ formatoMaestro: { estado: 'Liquidado', unspsc: ['11111111', '22222222'], cantidades: [], enRup: 'si' } })]);
+  assert(otrosCodigos.estado === 'NO CUMPLE', 'códigos que no están en la lista: ' + JSON.stringify(otrosCodigos));
+  const aviso = cruceExp('Experiencia general: contratos', [ctoFM()]);
+  assert(/no dice cu[aá]ntos/i.test(aviso.detalle), 'avisa que el pliego no dice cuántos códigos: ' + aviso.detalle);
+});
+await check('Cruce experiencia específica (IMRD): 4 contratos que pasan suman $400 M y un quinto por confirmar elevaría la suma → NO DETERMINABLE (la suma de lo seguro no alcanza; no se da REVISAR)', () => {
+  const base = { objeto: 'Suministro de materiales de construcción', valor: 100000000 };
+  const cs = Array.from({ length: 4 }, (_, i) => ctoFM(Object.assign({ numeroContrato: 'S-' + (i + 1) }, base)));
+  const dudoso = ctoFM({ numeroContrato: 'S-5', objeto: 'Compra de papelería', valor: 500000000 });
+  const r = cruceExp('Experiencia específica: contratos', cs.concat(dudoso));
+  assert(r.estado === 'NO DETERMINABLE' && /S-5/.test(r.detalle), JSON.stringify(r));
+});
+await check('Cruce experiencia (IMRD): una sección sin presupuesto conocido no inventa el valor mínimo → NO DETERMINABLE; las filas que no son la primera no llevan cruce', () => {
+  const filas = expEngine.fichaHabilitante(IMRD_TEXTO.replace(/\$ ?60 ?0\. ?\.?000\.000,00/g, 'X'), { anio: 2026 }).filas;
+  const g = filas.find(x => x.requisito === 'Experiencia general: contratos');
+  assert(g && g.dato && g.dato.valorMin === null, 'valorMin sin presupuesto: ' + JSON.stringify(g && g.dato));
+  const sinPo = expEngine.cruceFichaEmpresa(filas, { contratos: [ctoFM()] })['Experiencia general: contratos'];
+  assert(sinPo && sinPo.estado === 'NO DETERMINABLE' && /presupuesto/i.test(sinPo.detalle), 'sin presupuesto: ' + JSON.stringify(sinPo));
+  const out = expEngine.cruceFichaEmpresa(imrdFicha().filas, { contratos: [ctoFM()] });
+  assert(Object.keys(out).filter(k => /^Experiencia (general|específica): /.test(k)).sort().join('|') === 'Experiencia específica: contratos|Experiencia general: contratos', 'solo las dos filas con dato: ' + Object.keys(out));
 });
 await check('Observaciones al pliego (IMRD real): corte de indicadores 2024, liquidez ≥ 5, cuántos códigos pide la experiencia general, calificar precio con tarifas reguladas y texto de «transporte» copiado — cada una con su página', () => {
   const ob = imrdFicha().observaciones;
@@ -4138,7 +4210,7 @@ await check('fichaHabilitante: una mención suelta de «ÍNDICE DE LIQUIDEZ Acti
 });
 await check('fichaHabilitante: un pliego sin viñetas «CRITERIO» ni tabla con fórmula (Líbano) NO recibe filas ni observaciones del formato IMRD', () => {
   const f = expEngine.fichaHabilitante(PDFJS_LIBANO_INDICADORES, { anio: 2026 });
-  assert(!f.filas.some(x => /^Experiencia (general|específica)$|^Corte de los indicadores|^Códigos UNSPSC \(/.test(x.requisito)), 'filas del formato IMRD en otro pliego');
+  assert(!f.filas.some(x => /^Experiencia (general|específica): |^Corte de los indicadores|^Códigos UNSPSC \(/.test(x.requisito)), 'filas del formato IMRD en otro pliego');
   assert(!f.observaciones.some(o => /^Corte de los indicadores|^Experiencia general: códigos|^Criterios de calificación|^Texto de otro proceso/.test(o.tema)), 'observaciones del formato IMRD en otro pliego');
   assert(f.filas.filter(x => x.dato && x.dato.tipo === 'indice').length === 5 && f.filas.find(x => x.requisito === 'Índice de liquidez').dato.demas.v === 15, 'la lectura de Líbano sigue igual');
 });

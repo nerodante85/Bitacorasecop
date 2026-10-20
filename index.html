@@ -8053,6 +8053,82 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // { capitalTrabajo, patrimonio, kResidual (todo en pesos), liquidez, endeudamiento, cobertura (razones), kIncompleto }
   // y devuelve { [requisito]: { estado, detalle } }. Reglas: CUMPLE solo si TODOS los umbrales aplicables se superan;
   // si depende de si la empresa es Mipyme, o falta el dato, NO DETERMINABLE; NO CUMPLE solo si falla incluso el umbral más laxo.
+  // Cruce de la experiencia por CRITERIOS (pliegos del IMRD: viñetas de contratos, valor, liquidación y códigos UNSPSC) con los contratos de la
+  // empresa. Nunca da CUMPLE: el objeto del contrato y el ítem los confirma una persona. NO CUMPLE solo cuando ningún contrato puede alcanzar un
+  // criterio OBJETIVO (en ejecución, fuera del RUP, valor acreditable menor, menos códigos de los exigidos); un dato que falta (valor,
+  // participación, códigos, liquidación) deja al contrato como «por confirmar»; REVISAR cuando hay contratos que pasan todo lo verificable.
+  function cruceExperienciaCriterios(d, contratos){
+    const lista = (contratos || []).filter(Boolean);
+    if (!lista.length) return { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene contratos cargados: cárgalos con el Formato Maestro de Experiencia.' };
+    if (d.valorModo && d.valorMin == null) return { estado: 'NO DETERMINABLE', detalle: 'No se pudo leer el presupuesto oficial del documento: sin él no se puede comparar el valor de tus contratos.' };
+    const money = n => '$' + Math.round(n).toLocaleString('es-CO');
+    const nombre = c => c.numeroContrato || ('fila ' + (c.fila != null ? c.fila : '?'));
+    const GEN = ['publica', 'publico', 'publicas', 'publicos'];
+    const clave = w => String(w).slice(0, 5);
+    const palabrasObj = palabrasClaveDe(d.objeto || '').filter(w => !PALABRAS_GENERICAS_OBRA.has(w) && GEN.indexOf(w) === -1);
+    const palabrasItem = palabrasClaveDe(d.item || '').filter(w => !PALABRAS_GENERICAS_OBRA.has(w));
+    const notas = [];
+    const evaluar = c => {
+      const fm = c.formatoMaestro || null, falla = [], duda = [];
+      if (c.enEjecucion) falla.push(c.estadoDesconocido ? 'su estado no se reconoce como terminado' : 'no ha terminado');
+      if (d.enRup){
+        if (fm && fm.enRup === 'no') falla.push('no está en el RUP');
+        else if (!fm || fm.enRup !== 'si') duda.push('sin confirmar que esté en el RUP');
+      }
+      if (d.valorModo === 'cada'){
+        const v = valorAcreditable(c);
+        if (v == null) duda.push('sin valor o participación legible');
+        else if (v < d.valorMin) falla.push('su valor acreditable (' + money(v) + ') no alcanza ' + money(d.valorMin));
+      }
+      if (d.codigos && d.codigos.length){
+        const mios = fm && fm.unspsc ? fm.unspsc : [];
+        if (!mios.length) duda.push('sin códigos UNSPSC cargados');
+        else {
+          const n = mios.filter(x => d.codigos.indexOf(x) !== -1).length;
+          if (d.minCodigos != null){ if (n < d.minCodigos) falla.push('solo ' + n + ' de los ' + d.minCodigos + ' códigos exigidos'); }
+          else if (n === 0) falla.push('ninguno de sus códigos está en la lista del pliego');
+          else notas.push(nombre(c) + ' tiene ' + n + ' de los ' + d.codigos.length + ' códigos: el pliego no dice cuántos debe tener');
+        }
+      }
+      if (d.liquidado){
+        const est = fm ? String(fm.estado || '') : '';
+        if (!/liquidad/i.test(est)) duda.push('sin confirmar el acta de liquidación (estado: ' + (est || 'sin dato') + ')');
+      }
+      if (palabrasObj.length){
+        const raices = new Set(palabrasClaveDe((c.objeto || '') + ' ' + (c.actividades || '')).map(clave));
+        if (!palabrasObj.every(w => raices.has(clave(w)))) duda.push('su objeto no menciona «' + palabrasObj.join('», «') + '»');
+      }
+      if (palabrasItem.length){
+        const cants = fm && fm.cantidades ? fm.cantidades : [];
+        if (!cants.length) duda.push('sin cantidades cargadas para ver el ítem «' + d.item + '»');
+        else if (!cants.some(q => { const r = new Set(palabrasClaveDe(q.item || '').map(clave)); return palabrasItem.every(w => r.has(clave(w))); })) duda.push('ningún ítem de sus cantidades es «' + d.item + '»');
+      }
+      return { c: c, falla: falla, duda: duda };
+    };
+    const evs = lista.map(evaluar);
+    const posibles = evs.filter(e => !e.falla.length), seguros = posibles.filter(e => !e.duda.length);
+    const nMin = d.nMin != null ? d.nMin : 1;
+    const suma = es => es.reduce((a, e) => a + (valorAcreditable(e.c) || 0), 0);
+    const sumaConocida = posibles.every(e => valorAcreditable(e.c) != null);
+    const lineas = ['Con tus ' + lista.length + ' contrato(s):'];
+    if (seguros.length) lineas.push('pasan todo lo verificable: ' + seguros.slice(0, 5).map(e => nombre(e.c)).join(', ') + (seguros.length > 5 ? ' y ' + (seguros.length - 5) + ' más' : '') + '.');
+    const dudosos = posibles.filter(e => e.duda.length);
+    if (dudosos.length) lineas.push('por confirmar: ' + dudosos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.duda.join('; ') + ')').join(' · ') + (dudosos.length > 3 ? ' · y ' + (dudosos.length - 3) + ' más' : '') + '.');
+    const caidos = evs.filter(e => e.falla.length);
+    if (caidos.length) lineas.push('no cuentan: ' + caidos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.falla.join('; ') + ')').join(' · ') + (caidos.length > 3 ? ' · y ' + (caidos.length - 3) + ' más' : '') + '.');
+    if (d.valorModo === 'suma') lineas.push('suma acreditable de los que pasan: ' + money(suma(seguros)) + ' frente a ' + money(d.valorMin) + (seguros.length < nMin ? '' : '.'));
+    if (d.nMax && seguros.length > d.nMax) lineas.push('el pliego admite hasta ' + d.nMax + ' contrato(s).');
+    notas.slice(0, 2).forEach(n => lineas.push(n + '.'));
+    if (d.seccion === 'específica') lineas.push('Deben ser distintos de los de la experiencia general.');
+    let estado;
+    if (posibles.length < nMin) estado = 'NO CUMPLE';
+    else if (d.valorModo === 'suma' && sumaConocida && suma(posibles) < d.valorMin) estado = 'NO CUMPLE';
+    else if (seguros.length >= nMin && (d.valorModo !== 'suma' || suma(seguros) >= d.valorMin)) estado = 'REVISAR';
+    else estado = 'NO DETERMINABLE';
+    if (estado === 'REVISAR') lineas.push('Falta que confirmes que el objeto' + (d.objeto ? ' («' + d.objeto + '»)' : '') + (d.item ? ' y el ítem «' + d.item + '»' : '') + ' corresponden: no se da por cumplido.');
+    return { estado: estado, detalle: lineas.join(' ') };
+  }
+
   function cruceFichaEmpresa(filas, emp){
     emp = emp || {};
     const out = {};
@@ -8090,6 +8166,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
             else r = { estado: 'NO DETERMINABLE', detalle: base + ' Cumples solo uno de los dos umbrales: depende de si te acreditas como Mipyme.' };
           }
         }
+      }
+      else if (d.tipo === 'expCriterios'){
+        r = cruceExperienciaCriterios(d, emp.contratos || []);
       }
       else if (d.tipo === 'magnitud'){
         // Cantidades por ítem de los contratos de la empresa (hoja CANTIDADES del Formato Maestro): ver magnitudes.js.
@@ -8340,7 +8419,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         const crit = cuerpo.slice(mC.index + 8, iTab > mC.index ? iTab : cuerpo.length);
         const trozos = crit.split(/\s*[•●]\s*/).map(x => x.trim()).filter(x => x.length > 10);
         if (!trozos.length) return;
-        const nombreFila = 'Experiencia ' + sec.nombre;
+        const usados = {};
         trozos.forEach(tr1 => {
           textoCriterios.push(tr1);
           // La viñeta «Cada contrato debe estar acreditado en el RUP … codificación UNSPSC» se muestra en la fila de códigos.
@@ -8353,14 +8432,19 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
             cifras = money(presupuesto) + (poSmmlv ? ' · ' + fmt1(poSmmlv) + ' SMMLV' : '');
             if (/cada\s+contrato/i.test(tr1)) aviso = 'Cada contrato debe valer por sí solo al menos el presupuesto oficial (el 100 %), no es una suma de contratos.';
           }
+          const tipoFila = /valor|sumatoria/i.test(tr1) ? 'valor' : /[íi]tems?\s+ejecutados/i.test(tr1) ? 'ítem' : /liquidaci/i.test(tr1) ? 'liquidación' : /terminad/i.test(tr1) ? 'terminación' : (/contratos?/i.test(tr1) ? 'contratos' : 'otro');
+          usados[tipoFila] = (usados[tipoFila] || 0) + 1;
+          const nombreFila = 'Experiencia ' + sec.nombre + ': ' + tipoFila + (usados[tipoFila] > 1 ? ' ' + usados[tipoFila] : '');
           add('Experiencia', nombreFila, tr1.length > 420 ? tr1.slice(0, 420) + '…' : tr1, cifras, { pagina: pagina(t.indexOf(tr1.slice(0, 40), sec.desde)), aviso: aviso });
           agregoExp = true;
         });
+        let codigosSec = [], minCodSec = null;
         if (iTab >= 0){
           const fin = cuerpo.slice(iTab).search(/Nota\s+1\s*:/i);
           const codigos = Array.from(new Set(cuerpo.slice(iTab, fin > 0 ? iTab + fin : cuerpo.length).match(/\b[2-9]\d{7}\b/g) || []));
           if (codigos.length){
             const mMin = crit.match(/al\s+menos\s+(\d{1,2})\s+c[óo]digos/i);
+            codigosSec = codigos; minCodSec = mMin ? parseInt(mMin[1], 10) : null;
             if (sec.nombre === 'general'){ pagCrGeneral = pagina(sec.desde + mC.index); reglaCodigosGeneral = !!mMin; }
             add('Experiencia', 'Códigos UNSPSC (experiencia ' + sec.nombre + ')', codigos.join(', '),
               mMin ? 'Cada contrato en el RUP con al menos ' + mMin[1] + ' de estos ' + codigos.length + ' códigos' : 'Cada contrato en el RUP «con la siguiente codificación»: el documento no dice cuántos de estos ' + codigos.length + ' códigos',
@@ -8370,6 +8454,22 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
               obs('Experiencia general: códigos UNSPSC', 'La experiencia general pide contratos de estudios y diseños que estén en el RUP «con la siguiente codificación» de ' + codigos.length + ' códigos UNSPSC, sin decir cuántos de ellos debe tener cada contrato (uno, varios o todos). Solicitamos precisar la cantidad mínima y confirmar que la codificación es coherente con el objeto de los contratos que se piden.', sec.desde + mC.index);
             }
           }
+        }
+        // Criterios estructurados para cruzarlos con los contratos de la empresa (cruceExperienciaCriterios). Van en la primera fila de la sección.
+        const filaCt = filas.find(f => f.requisito === 'Experiencia ' + sec.nombre + ': contratos');
+        if (filaCt){
+          const dMax = trozos[0].match(/UNO\s+O\s+M[ÁA]XIMO\s+(\d{1,2})\s+CONTRATOS?/i), dCant = trozos[0].match(/\b(?:Un|Dos|Tres|Cuatro|Cinco|Seis|Siete|Ocho)\s+contratos?\s*\((\d{1,2})\)/i);
+          const mObjeto = trozos[0].match(/relacionados?\s+con\s*:?\s*(.{5,200}?)(?=\s+y\s+que\b|$)/i);
+          const trValor = trozos.find(x => /igual\s+o\s+superior\s+al\s+PRESUPUESTO\s+OFICIAL/i.test(x));
+          const trItem = trozos.find(x => /se\s+encuentre\s+/i.test(x));
+          filaCt.dato = { tipo: 'expCriterios', seccion: sec.nombre,
+            objeto: mObjeto ? mObjeto[1].trim() : null,
+            nMin: dMax ? 1 : (dCant ? parseInt(dCant[1], 10) : null), nMax: dMax ? parseInt(dMax[1], 10) : (dCant ? parseInt(dCant[1], 10) : null),
+            valorModo: trValor ? (/cada\s+contrato/i.test(trValor) ? 'cada' : (/sumatoria/i.test(trValor) ? 'suma' : null)) : null,
+            valorMin: trValor && presupuesto ? presupuesto : null,
+            liquidado: trozos.some(x => /acta\s+de\s+liquidaci/i.test(x)), terminado: trozos.some(x => /terminados?\b/i.test(x)),
+            item: trItem ? trItem.replace(/^[\s\S]*?se\s+encuentre\s+/i, '').trim() : null,
+            enRup: trozos.some(x => /acreditados?\s+en\s+el\s+RUP/i.test(x)), codigos: codigosSec, minCodigos: minCodSec };
         }
       });
       if (agregoExp){
