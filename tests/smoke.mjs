@@ -4210,6 +4210,30 @@ await check('Cruce experiencia (IMRD): el detalle abre con un resumen en embudo 
   const sinObj = cruceExp('Experiencia general: contratos', [ctoFM({ objeto: 'Construcción de vía' })]);
   assert(/«estudios»/.test(sinObj.detalle) && /«diseños»/.test(sinObj.detalle) && !/disenos/.test(sinObj.detalle), 'palabras originales: ' + sinObj.detalle);
 });
+// Base del valor en consorcio / unión temporal: el IMRD lo dice (Nota 2: «la experiencia en valor será tomada de acuerdo con el porcentaje de
+// participación»); otros pliegos callan. Si callan y el resultado cambia entre contar el contrato completo o prorrateado, es NO DETERMINABLE.
+const dCal = (extra) => Object.assign({ tipo: 'expCriterios', seccion: 'general', objeto: 'drenaje canales', nMin: 1, nMax: 2, valorModo: 'suma', valorMin: 1244985525, baseValor: null, liquidado: false, terminado: true, item: null, enRup: false, codigos: [], minCodigos: null }, extra || {});
+const cDren = (num, valor, pct) => ({ numeroContrato: num, objeto: 'Construcción de canal de drenaje', valor: valor, participacion: { valor: pct, unidad: '%' }, enEjecucion: false, formatoMaestro: { estado: 'Terminado', unspsc: [], cantidades: [], enRup: 'si' } });
+await check('fichaHabilitante (IMRD real): la Nota 2 («la experiencia en valor será tomada de acuerdo con el porcentaje de participación») fija baseValor = prorrata; un pliego que calla lo deja en null', () => {
+  const f = imrdFicha();
+  assert(f.filas.find(x => x.requisito === 'Experiencia general: contratos').dato.baseValor === 'prorrata' && f.filas.find(x => x.requisito === 'Experiencia específica: contratos').dato.baseValor === 'prorrata', 'IMRD prorrata');
+  const g = expEngine.fichaHabilitante(IMRD_TEXTO.replace(/la experiencia en valor ser[áa] tomada de acuerdo con el porcentaje de participaci[óo]n/ig, 'x'), { anio: 2026 }).filas.find(x => x.requisito === 'Experiencia general: contratos');
+  assert(g.dato.baseValor === null, 'sin la nota: ' + g.dato.baseValor);
+});
+await check('Cruce de valor en consorcio (pliego que CALLA): contar el contrato completo o prorrateado cambia el resultado → NO DETERMINABLE y lo dice; si da igual, no se pregunta', () => {
+  const cs = [cDren('A', 730000000, 50), cDren('B', 2286000000, 30)];
+  const r = expEngine.cruceExperienciaCriterios(dCal(), cs);
+  assert(r.estado === 'NO DETERMINABLE' && /no dice si el valor de un contrato en consorcio/i.test(r.detalle) && /NO CUMPLE/.test(r.detalle) && /REVISAR/.test(r.detalle), JSON.stringify(r));
+  const igual = expEngine.cruceExperienciaCriterios(dCal(), [cDren('A', 800000000, 100), cDren('B', 800000000, 100)]);
+  assert(igual.estado === 'REVISAR' && !/no dice si el valor/i.test(igual.detalle), 'con 100 % no hay ambigüedad: ' + JSON.stringify(igual));
+  const nunca = expEngine.cruceExperienciaCriterios(dCal(), [cDren('A', 100000000, 50), cDren('B', 200000000, 30)]);
+  assert(nunca.estado === 'NO CUMPLE', 'ni completo alcanza: ' + JSON.stringify(nunca));
+});
+await check('Cruce de valor en consorcio: con baseValor «prorrata» (el pliego lo dice) se prorratea; con «total» se cuenta completo', () => {
+  const cs = [cDren('A', 730000000, 50), cDren('B', 2286000000, 30)];
+  assert(expEngine.cruceExperienciaCriterios(dCal({ baseValor: 'prorrata' }), cs).estado === 'NO CUMPLE', 'prorrata: 365 M + 686 M < 1.245 M');
+  assert(expEngine.cruceExperienciaCriterios(dCal({ baseValor: 'total' }), cs).estado === 'REVISAR', 'total: 730 M + 2.286 M ≥ 1.245 M');
+});
 await check('Cruce experiencia (IMRD): una sección sin presupuesto conocido no inventa el valor mínimo → NO DETERMINABLE; las filas que no son la primera no llevan cruce', () => {
   const filas = expEngine.fichaHabilitante(IMRD_TEXTO.replace(/\$ ?60 ?0\. ?\.?000\.000,00/g, 'X'), { anio: 2026 }).filas;
   const g = filas.find(x => x.requisito === 'Experiencia general: contratos');

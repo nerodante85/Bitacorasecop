@@ -8059,6 +8059,19 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // participación, códigos, liquidación) deja al contrato como «por confirmar»; REVISAR cuando hay contratos que pasan todo lo verificable.
   function cruceExperienciaCriterios(d, contratos){
     const lista = (contratos || []).filter(Boolean);
+    const parcial = lista.some(c => c.participacion && c.participacion.valor != null && c.participacion.valor < 100);
+    // El pliego puede callar si en consorcio el valor se toma completo o por el porcentaje de participación (el IMRD lo dice en su Nota 2).
+    // Si calla y el resultado cambia, no se elige una base: NO DETERMINABLE.
+    if (d.valorModo && !d.baseValor && parcial){
+      const a = cruceExperienciaCriteriosBase(d, contratos, 'prorrata'), b = cruceExperienciaCriteriosBase(d, contratos, 'total');
+      if (a.estado === b.estado) return a;
+      return { estado: 'NO DETERMINABLE', detalle: a.detalle + ' El pliego no dice si el valor de un contrato en consorcio o unión temporal se toma completo o por tu porcentaje de participación: prorrateado daría ' + a.estado + ' y completo ' + b.estado + '. Pregúntalo a la entidad.' };
+    }
+    return cruceExperienciaCriteriosBase(d, contratos, d.baseValor === 'total' ? 'total' : 'prorrata');
+  }
+  function cruceExperienciaCriteriosBase(d, contratos, base){
+    const lista = (contratos || []).filter(Boolean);
+    const valorDe = c => base === 'total' ? (c.valor == null ? null : c.valor) : valorAcreditable(c);
     if (!lista.length) return { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene contratos cargados: cárgalos con el Formato Maestro de Experiencia.' };
     if (d.valorModo && d.valorMin == null) return { estado: 'NO DETERMINABLE', detalle: 'No se pudo leer el presupuesto oficial del documento: sin él no se puede comparar el valor de tus contratos.' };
     const money = n => '$' + Math.round(n).toLocaleString('es-CO');
@@ -8079,7 +8092,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         else f.rup = true;
       }
       if (d.valorModo === 'cada'){
-        const v = valorAcreditable(c);
+        const v = valorDe(c);
         f.valor = v == null ? null : v >= d.valorMin;
         if (v == null) duda.push('sin valor o participación legible');
         else if (v < d.valorMin) falla.push('su valor acreditable (' + money(v) + ') no alcanza ' + money(d.valorMin));
@@ -8119,8 +8132,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const evs = lista.map(evaluar);
     const posibles = evs.filter(e => !e.falla.length), seguros = posibles.filter(e => !e.duda.length);
     const nMin = d.nMin != null ? d.nMin : 1;
-    const suma = es => es.reduce((a, e) => a + (valorAcreditable(e.c) || 0), 0);
-    const sumaConocida = posibles.every(e => valorAcreditable(e.c) != null);
+    const suma = es => es.reduce((a, e) => a + (valorDe(e.c) || 0), 0);
+    const sumaConocida = posibles.every(e => valorDe(e.c) != null);
     // Embudo: cuántos contratos siguen en pie tras cada criterio (los que no tienen el dato cuentan y se anotan «sin dato»).
     const pasos = []; let vivos = evs;
     const paso = (clave, texto) => {
@@ -8495,7 +8508,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
             valorMin: trValor && presupuesto ? presupuesto : null,
             liquidado: trozos.some(x => /acta\s+de\s+liquidaci/i.test(x)), terminado: trozos.some(x => /terminados?\b/i.test(x)),
             item: trItem ? trItem.replace(/^[\s\S]*?se\s+encuentre\s+/i, '').trim() : null,
-            enRup: trozos.some(x => /acreditados?\s+en\s+el\s+RUP/i.test(x)), codigos: codigosSec, minCodigos: minCodSec };
+            enRup: trozos.some(x => /acreditados?\s+en\s+el\s+RUP/i.test(x)), codigos: codigosSec, minCodigos: minCodSec,
+            baseValor: /experiencia\s+en\s+valor\s+ser[áa]\s+tomada\s+de\s+acuerdo\s+con\s+el\s+porcentaje\s+de\s+participaci[óo]n/i.test(t) ? 'prorrata' : null };
         }
       });
       if (agregoExp){
