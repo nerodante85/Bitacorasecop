@@ -369,7 +369,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { fichaHabilitante, cruceFichaEmpresa, cruceExperienciaCriterios, tramosDeSumatoria, unoPctPresupuestoDeTexto, unirItemsDePdf, parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, observacionesTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, coleccionComoMapa, diferenciasColeccion, armarColeccion, leerColeccionRemota, guardarColeccionRemota, reemplazarColeccionRemota, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { fichaHabilitante, cruceFichaEmpresa, cruceExperienciaCriterios, componentesFinancierosDePerfil, indicadoresDeComponentes, indicadoresPonderados, tramosDeSumatoria, unoPctPresupuestoDeTexto, unirItemsDePdf, parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, observacionesTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, coleccionComoMapa, diferenciasColeccion, armarColeccion, leerColeccionRemota, guardarColeccionRemota, reemplazarColeccionRemota, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -3136,6 +3136,7 @@ await check('QA-001 RUP: indicadores financieros con su valor; "Rentabilidad del
   const k = r.capK || '';
   assert(/Patrimonio: \$3\.200\.000\.000/.test(k), 'patrimonio real: ' + k);
   assert(!/Patrimonio: \$?0\b/.test(k), 'no debe tomar la rentabilidad del patrimonio');
+  assert(!/Rentabilidad del patrimonio/.test(k), 'una «rentabilidad» escrita en pesos ($ 150.000) no se lee como razón: ' + k);
   assert(/Índice de liquidez: 3,0/.test(k) && /Índice de endeudamiento: 0,42/.test(k), 'razones: ' + k);
   assert(/Razón de cobertura de intereses: INDETERMINADO/.test(k), 'cobertura indeterminada se conserva como tal');
   assert(r.capResidual === null, 'el RUP no trae capacidad residual: no se inventa');
@@ -4379,6 +4380,104 @@ await check('Cruce SIM Cúcuta: sin ninguna clase del pliego en los códigos del
   assert(gen.estado === 'NO DETERMINABLE' && /no dice si el valor de un contrato/i.test(gen.detalle), 'base callada: ' + JSON.stringify(gen));
   const ok = cruceSim('Experiencia general: contratos', [simCto({ numeroContrato: 'A', valor: 700000000 }), simCto({ numeroContrato: 'B', valor: 600000000 })]);
   assert(ok.estado === 'REVISAR' && /A/.test(ok.detalle), 'dos contratos al 100 % suman $1.300 M: ' + JSON.stringify(ok));
+});
+// ---- Datos financieros por componentes, rentabilidades y consorcio ponderado (cifras sintéticas) ----
+const K_A = 'Activo corriente = 600.000.000\nPasivo corriente = 60.000.000\nActivo total = 800.000.000\nPasivo total = 200.000.000\nPatrimonio = 600.000.000\nUtilidad operacional = 12.000.000\nGastos de intereses = 4.000.000';
+const MIEMBROS_SIN = [
+  { nombre: 'A', participacion: 10, c: { AC: 600e6, PC: 60e6, AT: 800e6, PT: 200e6, UO: 12e6, GI: 4e6, PAT: 600e6 } },
+  { nombre: 'B', participacion: 40, c: { AC: 700e6, PC: 70e6, AT: 700e6, PT: 70e6, UO: 350e6, GI: 50000, PAT: 630e6 } },
+  { nombre: 'C', participacion: 50, c: { AC: 950e6, PC: 3e6, AT: 1100e6, PT: 210e6, UO: 90e6, GI: 0, PAT: 890e6 } }
+];
+const cerca = (a, b, tol) => Math.abs(a - b) <= (tol || 1e-9);
+await check('Perfil: los componentes del balance se leen del texto «K / financiera» (activo y pasivo corriente y total, patrimonio, utilidad operacional, gastos de intereses) y «Rentabilidad del patrimonio» no se confunde con el patrimonio', () => {
+  const c = expEngine.componentesFinancierosDePerfil(K_A + '\nRentabilidad del patrimonio = 0,02');
+  assert(c.AC === 600e6 && c.PC === 60e6 && c.AT === 800e6 && c.PT === 200e6 && c.PAT === 600e6 && c.UO === 12e6 && c.GI === 4e6, JSON.stringify(c));
+  const v = expEngine.componentesFinancierosDePerfil('Activo corriente: $ 600.000.000\nPatrimonio: 5');
+  assert(v.AC === 600e6 && v.PC === null && v.UO === null, 'lo que falta es null, nunca 0: ' + JSON.stringify(v));
+});
+await check('Perfil: rentabilidad del patrimonio y del activo se leen como razón («0,0174», «1,74 %»); una cifra mayor que 1 sin «%» es ambigua y no se adivina', () => {
+  const m = (k) => expEngine.matrizCapacidad({ nombre: 'X', k: k, rup: '', kResidual: '' });
+  const a = m('Rentabilidad del patrimonio = 0,0174\nRentabilidad del activo = 1,31 %\nPatrimonio = 500.000.000');
+  assert(cerca(a.rentPatrimonio, 0.0174) && cerca(a.rentActivo, 0.0131) && a.patrimonio === 500000000, JSON.stringify([a.rentPatrimonio, a.rentActivo, a.patrimonio]));
+  const b = m('Rentabilidad del patrimonio = 1,74\nRentabilidad del activo = 0,3');
+  assert(b.rentPatrimonio === null && cerca(b.rentActivo, 0.3), 'ambiguo: ' + JSON.stringify([b.rentPatrimonio, b.rentActivo]));
+  assert(m('Liquidez = 1,3').rentPatrimonio === null, 'sin dato: null');
+});
+await check('Perfil: con los componentes se DERIVAN liquidez, endeudamiento, cobertura y rentabilidades (A: 10; 0,25; 3; 0,02; 0,015); un índice escrito a mano manda sobre el derivado', () => {
+  const m = expEngine.matrizCapacidad({ nombre: 'A', k: K_A, rup: '', kResidual: '' });
+  assert(cerca(m.liquidez, 10) && cerca(m.endeudamiento, 0.25) && cerca(m.cobertura, 3) && cerca(m.rentPatrimonio, 0.02) && cerca(m.rentActivo, 0.015), JSON.stringify([m.liquidez, m.endeudamiento, m.cobertura, m.rentPatrimonio, m.rentActivo]));
+  const x = expEngine.matrizCapacidad({ nombre: 'A', k: K_A + '\nLiquidez = 1,5', rup: '', kResidual: '' });
+  assert(cerca(x.liquidez, 1.5), 'el índice escrito manda: ' + x.liquidez);
+  const sinPC = expEngine.indicadoresDeComponentes({ AC: 5, PC: 0, AT: 10, PT: 2, UO: 1, GI: 0, PAT: 8 });
+  assert(sinPC.liquidez === Infinity && sinPC.cobertura === Infinity, 'sin pasivo corriente ni intereses el pliego habilita: ' + JSON.stringify(sinPC));
+  const falta = expEngine.indicadoresDeComponentes({ AC: 5, PC: null, AT: 10, PT: 2, UO: 1, GI: 1, PAT: 8 });
+  assert(falta.liquidez === null && cerca(falta.endeudamiento, 0.2), 'falta el pasivo corriente: liquidez null, el resto se calcula: ' + JSON.stringify(falta));
+});
+await check('Consorcio: los indicadores se ponderan POR COMPONENTE (suma ponderada del numerador sobre la del denominador, no el promedio de razones): 10/40/50 → liquidez 22,96; endeudamiento 0,168; cobertura 443,3; rentabilidades 0,246 y 0,205', () => {
+  const r = expEngine.indicadoresPonderados(MIEMBROS_SIN);
+  assert(cerca(r.liquidez, 22.95774647887324, 1e-6) && cerca(r.endeudamiento, 0.16813186813186815, 1e-9) && cerca(r.cobertura, 443.3333333333333, 1e-6) && cerca(r.rentPatrimonio, 0.24597093791281374, 1e-9) && cerca(r.rentActivo, 0.20461538461538462, 1e-9), JSON.stringify(r));
+  const promedio = (10 * .1 + 11.42 * .4 + 367.9 * .5);
+  assert(Math.abs(r.liquidez - promedio) > 1, 'no es el promedio simple de razones');
+  assert(r.miembros.length === 3 && !r.avisos.length, 'sin avisos: ' + JSON.stringify(r.avisos));
+});
+await check('Consorcio: participaciones que no suman 100 %, un miembro sin porcentaje o con un componente que falta → ese indicador queda null y se explica (nunca se inventa)', () => {
+  const mal = expEngine.indicadoresPonderados(MIEMBROS_SIN.map((m, i) => Object.assign({}, m, { participacion: i === 0 ? 20 : m.participacion })));
+  assert(mal.liquidez === null && /suman 110/.test(mal.avisos.join(' ')), 'suman 110: ' + JSON.stringify(mal));
+  const sinPct = expEngine.indicadoresPonderados(MIEMBROS_SIN.map((m, i) => Object.assign({}, m, { participacion: i === 1 ? null : m.participacion })));
+  assert(sinPct.liquidez === null && /sin porcentaje/i.test(sinPct.avisos.join(' ')) && /B/.test(sinPct.avisos.join(' ')), 'sin %: ' + JSON.stringify(sinPct.avisos));
+  const sinUO = expEngine.indicadoresPonderados(MIEMBROS_SIN.map((m, i) => Object.assign({}, m, { c: i === 2 ? Object.assign({}, m.c, { UO: null }) : m.c })));
+  assert(sinUO.rentPatrimonio === null && sinUO.cobertura === null && cerca(sinUO.liquidez, 22.95774647887324, 1e-6) && /utilidad operacional/i.test(sinUO.avisos.join(' ')) && /C/.test(sinUO.avisos.join(' ')), 'falta la utilidad de C: ' + JSON.stringify(sinUO));
+  const uno = expEngine.indicadoresPonderados([{ nombre: 'A', participacion: 100, c: MIEMBROS_SIN[0].c }]);
+  assert(cerca(uno.liquidez, 10) && cerca(uno.rentPatrimonio, 0.02), 'un solo integrante al 100 % = sus propias razones');
+});
+await check('RUP: además del activo y pasivo corriente, el patrimonio y los índices, se leen activo total, pasivo total, utilidad operacional, gastos de intereses y las rentabilidades (razón, no pesos)', () => {
+  const rup = 'Información financiera: ACTIVO CORRIENTE : $ 600.000.000 PASIVO CORRIENTE : $ 60.000.000 ACTIVO TOTAL : $ 800.000.000 PASIVO TOTAL : $ 200.000.000 PATRIMONIO : $ 600.000.000 UTILIDAD OPERACIONAL : $ 12.000.000 GASTOS DE INTERESES : $ 4.000.000 RENTABILIDAD DEL PATRIMONIO : 0,02 RENTABILIDAD DEL ACTIVO : 0,015 ÍNDICE DE LIQUIDEZ : 10';
+  const k = expEngine.parsearRUP(rup).capK || '';
+  assert(/Activo total: \$800\.000\.000/.test(k) && /Pasivo total: \$200\.000\.000/.test(k) && /Utilidad operacional: \$12\.000\.000/.test(k) && /Gastos de intereses: \$4\.000\.000/.test(k), 'componentes: ' + k);
+  assert(/Rentabilidad del patrimonio: 0,02/.test(k) && /Rentabilidad del activo: 0,015/.test(k) && /Patrimonio: \$600\.000\.000/.test(k) && !/Patrimonio: \$?0\b/.test(k), 'rentabilidades y patrimonio: ' + k);
+  const m = expEngine.matrizCapacidad({ nombre: 'A', k: k, rup: '', kResidual: '' });
+  assert(cerca(m.rentPatrimonio, 0.02) && cerca(m.liquidez, 10) && m.patrimonio === 600000000, 'lo que escribe el RUP lo lee el perfil: ' + JSON.stringify([m.rentPatrimonio, m.liquidez, m.patrimonio]));
+});
+const filaInd = (nombre, op, v) => ({ requisito: nombre, dato: { tipo: 'indice', clave: nombre, demas: { op: op, v: v }, mipyme: null } });
+await check('Cruce de rentabilidades (ficha): ≥ 0,10 contra 0,0174 → NO CUMPLE; contra 0,25 → CUMPLE; sin dato → NO DETERMINABLE; cobertura o liquidez «infinitas» (sin intereses / sin pasivo corriente) cumplen y se dice por qué', () => {
+  const f = [filaInd('Rentabilidad del patrimonio', '≥', 0.1), filaInd('Rentabilidad del activo', '≥', 0.1), filaInd('Razón de cobertura de intereses', '≥', 4.27), filaInd('Índice de liquidez', '≥', 5)];
+  const o1 = expEngine.cruceFichaEmpresa(f, { rentPatrimonio: 0.0174, rentActivo: 0.25, cobertura: Infinity, liquidez: Infinity });
+  assert(o1['Rentabilidad del patrimonio'].estado === 'NO CUMPLE' && /0,017/.test(o1['Rentabilidad del patrimonio'].detalle), JSON.stringify(o1['Rentabilidad del patrimonio']));
+  assert(o1['Rentabilidad del activo'].estado === 'CUMPLE', 'activo 0,25: ' + JSON.stringify(o1['Rentabilidad del activo']));
+  assert(o1['Razón de cobertura de intereses'].estado === 'CUMPLE' && /sin gastos de intereses/i.test(o1['Razón de cobertura de intereses'].detalle), 'cobertura sin intereses: ' + JSON.stringify(o1['Razón de cobertura de intereses']));
+  assert(o1['Índice de liquidez'].estado === 'CUMPLE' && /sin pasivo corriente/i.test(o1['Índice de liquidez'].detalle), 'liquidez sin pasivo corriente: ' + JSON.stringify(o1['Índice de liquidez']));
+  const o2 = expEngine.cruceFichaEmpresa(f, {});
+  assert(o2['Rentabilidad del patrimonio'].estado === 'NO DETERMINABLE' && !/no se guarda/.test(o2['Rentabilidad del patrimonio'].detalle), 'sin dato: ' + JSON.stringify(o2['Rentabilidad del patrimonio']));
+});
+await check('Cruce en consorcio: capital de trabajo, patrimonio y K residual dependen de cómo el pliego sume a los integrantes → NO DETERMINABLE con esa explicación (no se toman de un solo integrante); una razón que no se pudo ponderar explica por qué', () => {
+  const f = [{ requisito: 'Capital de trabajo demandado', dato: { tipo: 'monto', clave: 'capitalTrabajo', min: 1000 } }, { requisito: 'Patrimonio demandado', dato: { tipo: 'monto', clave: 'patrimonio', min: 1000 } }, { requisito: 'K', dato: { tipo: 'monto', clave: 'kResidual', min: 1000 } }, filaInd('Índice de liquidez', '≥', 1.2)];
+  const o = expEngine.cruceFichaEmpresa(f, { capitalTrabajo: 5000, patrimonio: 5000, kResidual: 5000, liquidez: null, consorcio: { miembros: [{ nombre: 'A', participacion: 60 }, { nombre: 'B', participacion: 40 }], avisos: ['Falta el pasivo corriente de B: no se calculan los indicadores que lo usan.'] } });
+  assert(o['Capital de trabajo demandado'].estado === 'NO DETERMINABLE' && /consorcio/i.test(o['Capital de trabajo demandado'].detalle) && o['Patrimonio demandado'].estado === 'NO DETERMINABLE' && o['K'].estado === 'NO DETERMINABLE', JSON.stringify([o['Capital de trabajo demandado'], o['K']]));
+  assert(o['Índice de liquidez'].estado === 'NO DETERMINABLE' && /No se pudo ponderar el consorcio: Falta el pasivo corriente de B/.test(o['Índice de liquidez'].detalle), JSON.stringify(o['Índice de liquidez']));
+  const solo = expEngine.cruceFichaEmpresa(f.slice(0, 3), { capitalTrabajo: 5000, patrimonio: 5000, kResidual: 5000 });
+  assert(solo['Capital de trabajo demandado'].estado === 'CUMPLE' && solo['K'].estado === 'CUMPLE', 'una sola empresa sigue como antes');
+});
+await check('Perfil: «participacion» se copia al guardar (savePerfil reconstruye el objeto: lo que no se copia se borra) y existe en PERFIL_VACIO; el campo del formulario existe', () => {
+  const i0 = html.indexOf('async function savePerfil(){'), i1 = html.indexOf('async function nuevoPerfil(){', i0);
+  assert(i0 > 0 && i1 > i0 && /participacion:\s*getCampo\(perfilParticipacionEl\)/.test(html.slice(i0, i1)), 'savePerfil no copia participacion');
+  assert(/const PERFIL_VACIO = \{[\s\S]{0,900}participacion: ''/.test(html), 'PERFIL_VACIO sin participacion');
+  assert(html.indexOf('id="bt-perfil-participacion"') !== -1 && /setCampo\(perfilParticipacionEl, perfil\.participacion\)/.test(html), 'el formulario no carga/guarda el campo');
+});
+await check('empresaParaFicha pondera el consorcio solo con 2 o más empresas marcadas Y un porcentaje en cada una (si no, sigue usando la mejor empresa sola)', () => {
+  const i0 = html.indexOf('function empresaParaFicha(entry){'), i1 = html.indexOf('function celdaCruceDetalle(c){', i0);
+  const cuerpo = html.slice(i0, i1);
+  assert(/marcados\.length >= 2 && marcados\.every\(q => partic\(q\) != null\)/.test(cuerpo) && /indicadoresPonderados\(/.test(cuerpo) && /consorcio: consorcio/.test(cuerpo), 'regla del consorcio');
+});
+await check('Perfil: sin pasivo corriente o sin gastos de intereses la liquidez y la cobertura NO se guardan como infinito en el perfil (los gates y la pantalla no lo muestran); y en el cruce el infinito solo vale contra un mínimo («≥»), no contra un máximo', () => {
+  const m = expEngine.matrizCapacidad({ nombre: 'X', k: 'Activo corriente = 5.000.000\nPasivo corriente = 0\nUtilidad operacional = 1.000.000\nGastos de intereses = 0', rup: '', kResidual: '' });
+  assert(m.liquidez === null && m.cobertura === null, 'infinitos fuera del perfil: ' + JSON.stringify([m.liquidez, m.cobertura]));
+  const o = expEngine.cruceFichaEmpresa([filaInd('Razón de cobertura de intereses', '≤', 3), { requisito: 'Cobertura Mipyme', dato: { tipo: 'indice', clave: 'Razón de cobertura de intereses', demas: { op: '≥', v: 2 }, mipyme: { op: '≤', v: 9 } } }], { cobertura: Infinity });
+  assert(o['Razón de cobertura de intereses'].estado === 'NO DETERMINABLE' && o['Cobertura Mipyme'].estado === 'NO DETERMINABLE', 'contra un máximo no se da por cumplido: ' + JSON.stringify(o));
+});
+await check('Cruce de indicadores de un consorcio: el detalle dice que se ponderó y con qué participaciones', () => {
+  const f = [filaInd('Rentabilidad del patrimonio', '≥', 0.1)];
+  const o = expEngine.cruceFichaEmpresa(f, { rentPatrimonio: 0.246, consorcio: { miembros: [{ nombre: 'A', participacion: 10 }, { nombre: 'B', participacion: 40 }, { nombre: 'C', participacion: 50 }] } });
+  assert(o['Rentabilidad del patrimonio'].estado === 'CUMPLE' && /consorcio|ponder/i.test(o['Rentabilidad del patrimonio'].detalle) && /A 10 %/.test(o['Rentabilidad del patrimonio'].detalle) && /C 50 %/.test(o['Rentabilidad del patrimonio'].detalle), JSON.stringify(o['Rentabilidad del patrimonio']));
 });
 await check('Cruce experiencia (IMRD): una sección sin presupuesto conocido no inventa el valor mínimo → NO DETERMINABLE; las filas que no son la primera no llevan cruce', () => {
   const filas = expEngine.fichaHabilitante(IMRD_TEXTO.replace(/\$ ?60 ?0\. ?\.?000\.000,00/g, 'X'), { anio: 2026 }).filas;

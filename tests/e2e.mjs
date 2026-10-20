@@ -1073,6 +1073,57 @@ await check('Ficha del pliego con el Formato Maestro y el personal de la empresa
   }
 });
 
+await check('Indicadores en la ficha: con datos del balance una empresa sola NO cumple las rentabilidades (0,02 y 0,015 contra 0,10), y como consorcio 10/40/50 los indicadores se ponderan por componente y cumplen; el porcentaje de participación se guarda desde el formulario', async () => {
+  const fix = JSON.parse(await readFile(join(RAIZ, 'tests', 'fixtures', 'imrd-lp-pdfjs.json'), 'utf8'));
+  const texto = Array.from({ length: fix.total }, (_, i) => fix.paginas[String(i + 1)] || '').join('\n');
+  const kDe = c => ['Activo corriente = ' + c.AC, 'Pasivo corriente = ' + c.PC, 'Activo total = ' + c.AT, 'Pasivo total = ' + c.PT, 'Patrimonio = ' + c.PAT, 'Utilidad operacional = ' + c.UO, 'Gastos de intereses = ' + c.GI].join('\n');
+  const A = { AC: 600e6, PC: 60e6, AT: 800e6, PT: 200e6, UO: 12e6, GI: 4e6, PAT: 600e6 }, B = { AC: 700e6, PC: 70e6, AT: 700e6, PT: 70e6, UO: 350e6, GI: 50000, PAT: 630e6 }, C = { AC: 950e6, PC: 3e6, AT: 1100e6, PT: 210e6, UO: 90e6, GI: 0, PAT: 890e6 };
+  const perfiles = (conPct) => ({ pa: { nombre: 'Empresa A', nit: '1', k: kDe(A), kResidual: '', rup: '', participacion: conPct ? '10' : '' }, pb: { nombre: 'Empresa B', nit: '2', k: kDe(B), kResidual: '', rup: '', participacion: conPct ? '40' : '' }, pc: { nombre: 'Empresa C', nit: '3', k: kDe(C), kResidual: '', rup: '', participacion: conPct ? '50' : '' } });
+  const entrada = { 'E2E-IND': { id: 'E2E-IND', ts: Date.now(), fileName: 'imrd.pdf', pagesRead: fix.total, numPages: fix.total, text: texto,
+    proceso: { entidad: 'IMRD Cúcuta', objeto: 'Mantenimiento de parques', modalidad: 'Licitación pública', valor: 600000000, closingRaw: new Date(Date.now() + 14 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
+    comps: [{ perfilNombre: 'Empresa A', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };
+  const leer = async (sem) => {
+    const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: sem });
+    await pg.click('#bt-nav-documentos');
+    await pg.locator('#bt-docs-out [data-abrir-proceso="E2E-IND"]').click();
+    await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .ficha-tabla'));
+    const filas = await pg.evaluate(() => Object.fromEntries([...document.querySelectorAll('#bt-analisis-out .ficha-tabla tbody tr')].filter(tr => tr.children.length > 1).map(tr => [tr.children[0].textContent.trim(), tr.children[tr.children.length - 1].textContent.replace(/\s+/g, ' ').trim()])));
+    assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+    return { filas, ctx, pg };
+  };
+  // 1) Empresa A sola
+  let r = await leer({ bitacora_perfiles_empresa: JSON.stringify({ pa: perfiles(false).pa }), bitacora_perfil_activo_id: 'pa', bitacora_perfiles_activos: JSON.stringify(['pa']), bitacora_analisis_pliegos: JSON.stringify(entrada) });
+  assert(/NO CUMPLE/.test(r.filas['Rentabilidad del patrimonio']) && /0,02/.test(r.filas['Rentabilidad del patrimonio']), 'A sola, patrimonio: ' + r.filas['Rentabilidad del patrimonio']);
+  assert(/NO CUMPLE/.test(r.filas['Rentabilidad del activo']) && /0,015/.test(r.filas['Rentabilidad del activo']), 'A sola, activo: ' + r.filas['Rentabilidad del activo']);
+  assert(/CUMPLE/.test(r.filas['Índice de liquidez']) && !/NO CUMPLE/.test(r.filas['Índice de liquidez']) && /CUMPLE/.test(r.filas['Índice de endeudamiento']), 'A sola cumple liquidez y endeudamiento derivados del balance');
+  await r.ctx.close();
+  // 2) A + B + C con porcentajes: consorcio ponderado; los 14 contratos son SOLO de B (la experiencia del consorcio es la suma de los integrantes)
+  const contratosB = Array.from({ length: 14 }, (_, i) => ({ fila: i + 1, numeroContrato: 'B-' + (i + 1), objeto: 'CONSTRUCCION DE OBRA CIVIL ' + (i + 1), contratante: 'ALCALDIA X', valor: 800000000, participacion: { valor: 100, unidad: '%' }, enEjecucion: false, formatoMaestro: { estado: 'Terminado', unspsc: [], cantidades: [], enRup: 'si' } }));
+  r = await leer({ bitacora_perfiles_empresa: JSON.stringify(perfiles(true)), bitacora_perfil_activo_id: 'pa', bitacora_perfiles_activos: JSON.stringify(['pa', 'pb', 'pc']), bitacora_analisis_pliegos: JSON.stringify(entrada),
+    bitacora_experiencia_evaluacion: JSON.stringify({ porPerfil: { pb: { contratos: { headers: [], cols: {}, contratos: contratosB, fuente: 'formato-maestro' }, meta: { fileName: 'fm.xlsx' } } } }) });
+  assert(/Con tus 14 contratos/.test(r.filas['Experiencia general: contratos'] || ''), 'en consorcio la experiencia es la suma de los integrantes (14 contratos de B): ' + (r.filas['Experiencia general: contratos'] || '').slice(0, 140));
+  const rp = r.filas['Rentabilidad del patrimonio'];
+  assert(/CUMPLE/.test(rp) && !/NO CUMPLE/.test(rp) && /0,246/.test(rp) && /consorcio/i.test(rp) && /Empresa A 10 %/.test(rp) && /Empresa C 50 %/.test(rp), 'consorcio, patrimonio: ' + rp);
+  assert(/0,2046/.test(r.filas['Rentabilidad del activo']) && /CUMPLE/.test(r.filas['Rentabilidad del activo']) && !/NO CUMPLE/.test(r.filas['Rentabilidad del activo']), 'consorcio, activo: ' + r.filas['Rentabilidad del activo']);
+  await r.ctx.close();
+  // 3) Con empresas marcadas pero SIN porcentajes: no es consorcio, se usa la mejor empresa sola (como antes)
+  r = await leer({ bitacora_perfiles_empresa: JSON.stringify(perfiles(false)), bitacora_perfil_activo_id: 'pa', bitacora_perfiles_activos: JSON.stringify(['pa', 'pb', 'pc']), bitacora_analisis_pliegos: JSON.stringify(entrada) });
+  assert(!/consorcio/i.test(r.filas['Rentabilidad del patrimonio']), 'sin porcentajes no se pondera: ' + r.filas['Rentabilidad del patrimonio']);
+  await r.ctx.close();
+  // 4) El campo del formulario guarda el porcentaje
+  const { ctx, pg } = await abrir({ sembrar: { bitacora_perfiles_empresa: JSON.stringify({ pa: perfiles(false).pa }), bitacora_perfil_activo_id: 'pa', bitacora_perfiles_activos: JSON.stringify(['pa']) } });
+  await pg.click('#bt-nav-empresa'); await pg.click('#bt-empresa-tab-perfil');
+  await pg.fill('#bt-perfil-participacion', '40');
+  await pg.click('#bt-perfil-save');
+  const guardado = await pg.evaluate(() => JSON.parse(localStorage.getItem('bitacora_perfiles_empresa')).pa.participacion);
+  assert(guardado === '40', 'participación guardada: ' + guardado);
+  await pg.reload(); await pg.waitForTimeout(800);
+  await pg.click('#bt-nav-empresa'); await pg.click('#bt-empresa-tab-perfil');
+  assert(await pg.inputValue('#bt-perfil-participacion') === '40', 'el campo vuelve con el valor guardado');
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');

@@ -1695,7 +1695,7 @@
                 <textarea id="bt-perfil-rup" rows="2" placeholder="ej. 72101507, 72141108, construcción de vías, alcantarillado"></textarea>
               </div>
               <div class="field full">
-                <label for="bt-perfil-k">Capacidad K / financiera (un dato por línea; el RUP la rellena automáticamente con activo/pasivo corriente, patrimonio e indicadores)</label>
+                <label for="bt-perfil-k">Capacidad K / financiera (un dato por línea; el RUP la rellena con activo y pasivo corriente y total, patrimonio, utilidad operacional, gastos de intereses e indicadores; con esos datos se calculan liquidez, endeudamiento, cobertura y rentabilidades)</label>
                 <!-- Auditoría "primer uso": el placeholder anterior mostraba
                      "K = ... · Patrimonio = ... · Liquidez = ..." separado
                      por "·", pero compararConPerfil() (más abajo) parte este
@@ -1707,7 +1707,12 @@
                      parsearRUP), que sí coincide con el separador real y
                      además evita la coma decimal colombiana ("1,3") que
                      habría partido un ejemplo separado por comas.-->
-                <textarea id="bt-perfil-k" rows="3" placeholder="ej.&#10;K = 3.500.000.000&#10;Patrimonio = 450.000.000&#10;Liquidez = 1,3"></textarea>
+                <textarea id="bt-perfil-k" rows="3" placeholder="ej.&#10;K = 3.500.000.000&#10;Patrimonio = 450.000.000&#10;Liquidez = 1,3&#10;Rentabilidad del patrimonio = 0,05"></textarea>
+              </div>
+              <div class="field">
+                <label for="bt-perfil-participacion">Participación en consorcio o unión temporal (%, opcional)</label>
+                <input id="bt-perfil-participacion" type="text" inputmode="decimal" placeholder="ej. 40">
+                <span class="saved-note">Si marcas varias empresas para comparar y escribes el porcentaje de cada una, los indicadores del pliego se calculan como consorcio.</span>
               </div>
               <div class="field full">
                 <label for="bt-perfil-k-residual">Capacidad K residual (texto libre; en pesos si quieres que se calcule tu capacidad disponible más abajo)</label>
@@ -2822,6 +2827,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   const perfilRupEl = document.getElementById('bt-perfil-rup');
   const perfilKEl = document.getElementById('bt-perfil-k');
   const perfilKResidualEl = document.getElementById('bt-perfil-k-residual');
+  const perfilParticipacionEl = document.getElementById('bt-perfil-participacion');
   const perfilNitEl = document.getElementById('bt-perfil-nit');
   const perfilTipoPersonaEl = document.getElementById('bt-perfil-tipo-persona');
   const perfilRepresentanteEl = document.getElementById('bt-perfil-representante');
@@ -3518,7 +3524,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // gate go/no-go.
     nit: '', representanteLegal: '', representanteCedula: '', telefono: '', direccion: '', ciudad: '', correo: '', objeto_social: '',
     // RA3-4: 'natural' | 'juridica' | '' (sin indicar). Cambia la redacción y la firma de los documentos; nunca se asume.
-    tipoPersona: ''
+    tipoPersona: '',
+    // Participación (%) de esta empresa en un consorcio o unión temporal: con 2 o más empresas marcadas y un porcentaje en cada una, los indicadores se ponderan.
+    participacion: ''
   };
   let perfiles = {}; // { id: { nombre, rup, k, kResidual, contratosEnEjecucion } }
   let perfilActivoId = null;      // el perfil que muestran/guardan los campos de abajo (uno a la vez)
@@ -3662,6 +3670,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     setCampo(perfilRupEl, perfil.rup);
     setCampo(perfilKEl, perfil.k);
     setCampo(perfilKResidualEl, perfil.kResidual);
+    setCampo(perfilParticipacionEl, perfil.participacion);
     setCampo(perfilNitEl, perfil.nit);
     setCampo(perfilTipoPersonaEl, perfil.tipoPersona);
     setCampo(perfilRepresentanteEl, perfil.representanteLegal);
@@ -3685,6 +3694,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       rup: getCampo(perfilRupEl),
       k: getCampo(perfilKEl),
       kResidual: getCampo(perfilKResidualEl),
+      participacion: getCampo(perfilParticipacionEl),
       nit: getCampo(perfilNitEl),
       tipoPersona: getCampo(perfilTipoPersonaEl),
       representanteLegal: getCampo(perfilRepresentanteEl),
@@ -4245,11 +4255,18 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     grab('Activo corriente', 'ACTIVO\\s+CORRIENTE', MONTO);
     grab('Pasivo corriente', 'PASIVO\\s+CORRIENTE', MONTO);
     grab('Patrimonio', '(?<!RENTABILIDAD DEL )PATRIMONIO', MONTO);
+    grab('Activo total', 'ACTIVO\\s+TOTAL|TOTAL\\s+ACTIVOS?', MONTO);
+    grab('Pasivo total', 'PASIVO\\s+TOTAL|TOTAL\\s+PASIVOS?', MONTO);
+    grab('Utilidad operacional', 'UTILIDAD\\s+OPERACIONAL|UTILIDAD\\s+OPERATIVA', MONTO);
+    grab('Gastos de intereses', 'GASTOS?\\s+(?:DE\\s+)?INTERESES|GASTOS?\\s+FINANCIEROS', MONTO);
     grab('Capital de trabajo', 'CAPITAL\\s+DE\\s+TRABAJO', MONTO);
     grab('Capacidad de organización', 'CAPACIDAD\\s+DE\\s+ORGANIZACI[ÓO]N', MONTO);
     grab('Índice de liquidez', '[ÍI]NDICE\\s+DE\\s+LIQUIDEZ|RAZ[ÓO]N\\s+DE\\s+LIQUIDEZ', RATIO);
     grab('Índice de endeudamiento', '[ÍI]NDICE\\s+DE\\s+ENDEUDAMIENTO|NIVEL\\s+DE\\s+ENDEUDAMIENTO', RATIO);
     grab('Razón de cobertura de intereses', 'RAZ[ÓO]N\\s+DE\\s+COBERTURA\\s+DE\\s+INTERESES', RATIO);
+    // Las rentabilidades del RUP son razones (0,02); si el RUP las trae en pesos («$ 150.000») no se leen como razón.
+    grab('Rentabilidad del patrimonio', 'RENTABILIDAD\\s+DEL\\s+PATRIMONIO', '(?!\\$)' + RATIO);
+    grab('Rentabilidad del activo', 'RENTABILIDAD\\s+DEL\\s+ACTIVO', '(?!\\$)' + RATIO);
     return out;
   }
 
@@ -8257,12 +8274,15 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const out = {};
     const usadosPersonal = {};
     const money = n => '$' + Math.round(n).toLocaleString('es-CO');
-    const razon = n => (Math.round(n * 100) / 100).toLocaleString('es-CO');
+    const razon = n => (Math.abs(n) < 1 ? Math.round(n * 10000) / 10000 : Math.round(n * 100) / 100).toLocaleString('es-CO', { maximumFractionDigits: 4 });
     const pasa = (v, op, u) => op === '≥' ? v >= u : op === '≤' ? v <= u : op === '>' ? v > u : op === '<' ? v < u : null;
     (filas || []).forEach(function(f){
       const d = f.dato; if (!d) return;
       let r;
-      if (d.tipo === 'monto'){
+      if (d.tipo === 'monto' && emp.consorcio && emp.consorcio.miembros && emp.consorcio.miembros.length && ['capitalTrabajo', 'patrimonio', 'kResidual'].indexOf(d.clave) !== -1){
+        // En un consorcio o unión temporal cómo se suman estos montos lo define cada pliego (capacidad residual: suma de los integrantes sin ponderar): no se toman de un solo integrante.
+        r = { estado: 'NO DETERMINABLE', detalle: 'Es un consorcio o unión temporal (' + emp.consorcio.miembros.map(m => m.nombre + ' ' + m.participacion + ' %').join(', ') + '): cómo se suma este monto entre los integrantes lo define el pliego y no se calcula aquí.' };
+      } else if (d.tipo === 'monto'){
         const mio = emp[d.clave];
         const nombre = { capitalTrabajo: 'capital de trabajo', patrimonio: 'patrimonio', kResidual: 'capacidad residual (K) disponible' }[d.clave] || d.clave;
         if (mio == null || !isFinite(mio)) r = { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene ' + nombre + ' legible: cárgalo desde el RUP o el cálculo de capacidad.' };
@@ -8275,18 +8295,26 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
           else r = { estado: 'CUMPLE', detalle: base + ' Margen ' + money(mio - d.min) + ' (según tu perfil; verifica con tu RUP vigente).' };
         }
       } else if (d.tipo === 'indice'){
-        const clave = /liquidez/i.test(d.clave) ? 'liquidez' : /endeudamiento/i.test(d.clave) ? 'endeudamiento' : /cobertura/i.test(d.clave) ? 'cobertura' : null;
+        const clave = /liquidez/i.test(d.clave) ? 'liquidez' : /endeudamiento/i.test(d.clave) ? 'endeudamiento' : /cobertura/i.test(d.clave) ? 'cobertura' : /rentabilidad.*patrimonio/i.test(d.clave) ? 'rentPatrimonio' : /rentabilidad.*activo/i.test(d.clave) ? 'rentActivo' : null;
         const mio = clave ? emp[clave] : null;
+        const notaConsorcio = emp.consorcio && emp.consorcio.miembros && emp.consorcio.miembros.length ? ' Calculado como consorcio o unión temporal, ponderando por componentes (' + emp.consorcio.miembros.map(m => m.nombre + ' ' + m.participacion + ' %').join(', ') + '): verifica que el pliego use esa fórmula.' : '';
         if (!clave) r = { estado: 'NO DETERMINABLE', detalle: 'Este indicador no se cruza con tu perfil (no se guarda).' };
-        else if (mio == null || !isFinite(mio)) r = { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene este dato legible (escríbelo como razón, ej. 0,6).' };
+        else if (mio === Infinity){
+          // Sin pasivo corriente (liquidez) o sin gastos de intereses (cobertura) los pliegos habilitan; solo vale contra un mínimo («≥», «>»).
+          const motivo = clave === 'liquidez' ? 'sin pasivo corriente' : (clave === 'cobertura' ? 'sin gastos de intereses' : null);
+          const minimos = [d.demas, d.mipyme].filter(Boolean);
+          if (!motivo || !minimos.length || minimos.some(u => u.op !== '≥' && u.op !== '>')) r = { estado: 'NO DETERMINABLE', detalle: 'Tu perfil da un valor infinito para este indicador: confírmalo con el pliego.' };
+          else r = { estado: 'CUMPLE', detalle: 'Tu perfil está ' + motivo + ': el indicador no tiene límite y los pliegos lo habilitan (según tu perfil; verifica con tu RUP vigente).' + notaConsorcio };
+        }
+        else if (mio == null || !isFinite(mio)) r = { estado: 'NO DETERMINABLE', detalle: (emp.consorcio && emp.consorcio.avisos && emp.consorcio.avisos.length) ? 'No se pudo ponderar el consorcio: ' + emp.consorcio.avisos.join(' ') : 'Tu perfil no tiene este dato legible (escríbelo como razón, ej. 0,6).' };
         else {
           const umbrales = [d.demas, d.mipyme].filter(Boolean);
           const res = umbrales.map(u => pasa(mio, u.op, u.v));
           if (res.some(x => x === null)) r = { estado: 'NO DETERMINABLE', detalle: 'Operador del umbral no reconocido.' };
           else {
             const base = 'Tu valor: ' + razon(mio) + '. Exigido: ' + [d.demas && ('demás ' + d.demas.op + ' ' + razon(d.demas.v)), d.mipyme && ('Mipyme ' + d.mipyme.op + ' ' + razon(d.mipyme.v))].filter(Boolean).join(' / ') + '.';
-            if (res.every(x => x === true)) r = { estado: 'CUMPLE', detalle: base + ' (según tu perfil; verifica con tu RUP vigente).' };
-            else if (res.every(x => x === false)) r = { estado: 'NO CUMPLE', detalle: base };
+            if (res.every(x => x === true)) r = { estado: 'CUMPLE', detalle: base + ' (según tu perfil; verifica con tu RUP vigente).' + notaConsorcio };
+            else if (res.every(x => x === false)) r = { estado: 'NO CUMPLE', detalle: base + notaConsorcio };
             else r = { estado: 'NO DETERMINABLE', detalle: base + ' Cumples solo uno de los dos umbrales: depende de si te acreditas como Mipyme.' };
           }
         }
@@ -10289,6 +10317,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (!c || c.ambiguo) return null;
     if (c.pct) return c.valor / 100;
     if (tipo === 'endeudamiento' && c.valor > 5) return null; // sin "%": ¿45 % o razón 45? no se adivina
+    if (tipo === 'rentabilidad' && c.valor > 1) return null; // sin "%": ¿1,74 % o razón 1,74 (174 %)? no se adivina
     return c.valor;
   }
 
@@ -10702,6 +10731,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // registrados, disponible === declarada (mismo comportamiento que antes
     // de esta fase, sin cambios).
     const capacidadEstimada = capacidadContractualEstimada(p);
+    const componentes = componentesFinancierosDePerfil(kTxt), derivados = indicadoresDeComponentes(componentes);
     const kResidualCrudo = parseValorUnidad(p.kResidual);
     const kResidualParaGates = (capacidadEstimada && !capacidadEstimada.sinContratos)
       ? Object.assign({}, kResidualCrudo, { valor: capacidadEstimada.disponible })
@@ -10712,13 +10742,69 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       codigos: (p.rup || '').split(/[,;\n]/).map(s => s.trim()).filter(Boolean),
       kResidual: kResidualParaGates,
       capacidadEstimada: capacidadEstimada,
-      liquidez: indice(/liquidez/i, 'liquidez'),
-      endeudamiento: indice(/endeudamiento/i, 'endeudamiento'),
-      cobertura: indice(/cobertura/i, 'cobertura'),
+      // Un índice escrito a mano manda; si no, se deriva de los componentes del balance (los infinitos —sin pasivo corriente o sin intereses— no se
+      // guardan aquí: los gates y la pantalla no los saben mostrar; la ficha los lee de los componentes).
+      liquidez: preferirDato(indice(/liquidez/i, 'liquidez'), finito(derivados.liquidez)),
+      endeudamiento: preferirDato(indice(/endeudamiento/i, 'endeudamiento'), finito(derivados.endeudamiento)),
+      cobertura: preferirDato(indice(/cobertura/i, 'cobertura'), finito(derivados.cobertura)),
+      rentPatrimonio: preferirDato(indice(/rentabilidad\s+(?:sobre\s+|del\s+|de\s+)?(?:el\s+)?patrimonio/i, 'rentabilidad'), derivados.rentPatrimonio),
+      rentActivo: preferirDato(indice(/rentabilidad\s+(?:sobre\s+|del\s+|de\s+)?(?:los\s+|el\s+)?activos?/i, 'rentabilidad'), derivados.rentActivo),
+      componentes: componentes,
       patrimonio: monto(/patrimonio/i, /rentabilidad\s+(?:sobre\s+|del\s+|de\s+)?(?:el\s+|la\s+)?$/i),
-      capitalTrabajo: monto(/capital\s+de\s+trabajo/i),
+      capitalTrabajo: preferirDato(monto(/capital\s+de\s+trabajo/i), derivados.capitalTrabajo),
       tieneAlgo: false
     };
+  }
+
+  const preferirDato = (a, b) => (a != null ? a : (b != null ? b : null));
+  const finito = x => (x != null && isFinite(x) ? x : null);
+
+  // Componentes del balance escritos en el texto «Capacidad K / financiera» del perfil (el RUP los rellena). Lo que falta es null, nunca 0.
+  function componentesFinancierosDePerfil(kTxt){
+    const m = re => leerMontoDePerfil(kTxt, re);
+    return {
+      AC: m(/activo\s+corriente/i), PC: m(/pasivo\s+corriente/i),
+      AT: m(/activo\s+total|total\s+(?:de\s+)?activos?\b/i), PT: m(/pasivo\s+total|total\s+(?:de\s+)?pasivos?\b/i),
+      UO: m(/utilidad\s+operacional|utilidad\s+operativa/i), GI: m(/gastos?\s+(?:de\s+)?intereses|gastos?\s+financieros/i),
+      PAT: leerMontoDePerfil(kTxt, /patrimonio/i, /rentabilidad\s+(?:sobre\s+|del\s+|de\s+)?(?:el\s+|la\s+)?$/i)
+    };
+  }
+
+  // Razones a partir de los componentes (AC activo corriente, PC pasivo corriente, AT activo total, PT pasivo total, UO utilidad operacional,
+  // GI gastos de intereses, PAT patrimonio). Sin pasivo corriente o sin gastos de intereses la razón es infinita (los pliegos habilitan).
+  function indicadoresDeComponentes(c){
+    c = c || {};
+    const ok = x => x != null && isFinite(x);
+    return {
+      liquidez: ok(c.AC) && ok(c.PC) ? (c.PC === 0 ? Infinity : c.AC / c.PC) : null,
+      endeudamiento: ok(c.PT) && ok(c.AT) && c.AT > 0 ? c.PT / c.AT : null,
+      cobertura: ok(c.UO) && ok(c.GI) ? (c.GI === 0 ? Infinity : c.UO / c.GI) : null,
+      rentPatrimonio: ok(c.UO) && ok(c.PAT) && c.PAT > 0 ? c.UO / c.PAT : null,
+      rentActivo: ok(c.UO) && ok(c.AT) && c.AT > 0 ? c.UO / c.AT : null,
+      capitalTrabajo: ok(c.AC) && ok(c.PC) ? c.AC - c.PC : null,
+      patrimonio: ok(c.PAT) ? c.PAT : null
+    };
+  }
+
+  // Consorcio / unión temporal: cada componente se pondera por la participación de cada integrante y la razón sale de las SUMAS ponderadas (no del
+  // promedio de razones). Participaciones que no suman 100 %, un integrante sin porcentaje o un componente que falta dejan en null lo que dependa de ellos.
+  function indicadoresPonderados(miembros){
+    miembros = (miembros || []).filter(Boolean);
+    const avisos = [], vacio = { liquidez: null, endeudamiento: null, cobertura: null, rentPatrimonio: null, rentActivo: null, miembros: miembros.map(m => ({ nombre: m.nombre, participacion: m.participacion })), avisos: avisos };
+    if (!miembros.length) return vacio;
+    const sinPct = miembros.filter(m => m.participacion == null || !isFinite(m.participacion) || m.participacion <= 0);
+    if (sinPct.length){ avisos.push('Falta el porcentaje de participación en el consorcio de ' + sinPct.map(m => m.nombre || 'Sin nombre').join(', ') + ' (sin porcentaje no se pondera).'); return vacio; }
+    const total = miembros.reduce((a, m) => a + m.participacion, 0);
+    if (Math.abs(total - 100) > 0.01){ avisos.push('Las participaciones suman ' + (Math.round(total * 100) / 100) + ' %, no 100 %: no se pondera.'); return vacio; }
+    const ETQ = { AC: 'el activo corriente', PC: 'el pasivo corriente', AT: 'el activo total', PT: 'el pasivo total', UO: 'la utilidad operacional', GI: 'los gastos de intereses', PAT: 'el patrimonio' };
+    const S = {};
+    Object.keys(ETQ).forEach(k => {
+      const faltan = miembros.filter(m => !m.c || m.c[k] == null || !isFinite(m.c[k]));
+      if (faltan.length){ avisos.push('Falta ' + ETQ[k] + ' de ' + faltan.map(m => m.nombre || 'Sin nombre').join(', ') + ': no se calculan los indicadores que lo usan.'); S[k] = null; }
+      else S[k] = miembros.reduce((a, m) => a + m.c[k] * m.participacion / 100, 0);
+    });
+    const r = indicadoresDeComponentes(S);
+    return { liquidez: r.liquidez, endeudamiento: r.endeudamiento, cobertura: r.cobertura, rentPatrimonio: r.rentPatrimonio, rentActivo: r.rentActivo, miembros: vacio.miembros, avisos: avisos };
   }
 
   // El motor del veredicto GO/NO-GO vive en evaluacion.js (sin DOM ni estado global: lo que necesita
@@ -12344,8 +12430,24 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         else if (/smmlv/i.test(mat.kResidual.unidad || '') && SMMLV_POR_ANIO[new Date().getFullYear()]) k = mat.kResidual.valor * SMMLV_POR_ANIO[new Date().getFullYear()];
       }
       const expP = expevalPorPerfil[res.mejor.perfilId];
-      const contratosExp = (expP && expP.contratos && expP.contratos.contratos) || [];
-      return { nombre: mat.nombre, personal: Object.keys(perfilesProfesionales || {}).map(id => perfilesProfesionales[id]), contratos: contratosExp, baseCantidades: (entry.baseCantidades === 'total' || entry.baseCantidades === 'prorrata') ? entry.baseCantidades : null, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
+      let contratosExp = (expP && expP.contratos && expP.contratos.contratos) || [];
+      // Con 2 o más empresas marcadas Y un porcentaje de participación en cada una es un consorcio o unión temporal: los indicadores se ponderan por componente.
+      // Sin porcentajes se sigue usando la mejor empresa sola (como antes).
+      const partic = q => { const n = parseFloat(String(q.participacion || '').replace(',', '.')); return isFinite(n) && n > 0 ? n : null; };
+      const marcados = perfilesParaComparar();
+      let ind, consorcio = null;
+      if (marcados.length >= 2 && marcados.every(q => partic(q) != null)){
+        const r = indicadoresPonderados(marcados.map(q => ({ nombre: q.nombre || 'Sin nombre', participacion: partic(q), c: componentesFinancierosDePerfil(q.k) })));
+        consorcio = { miembros: r.miembros, avisos: r.avisos };
+        ind = r;
+        // En un consorcio la experiencia es la suma de los contratos de todos los integrantes (el combinado de las empresas marcadas), no la de la mejor empresa sola.
+        contratosExp = (expevalContratos && Array.isArray(expevalContratos.contratos)) ? expevalContratos.contratos : contratosExp;
+      } else {
+        const der = indicadoresDeComponentes(mat.componentes);
+        ind = { liquidez: mat.liquidez != null ? mat.liquidez : (der.liquidez === Infinity ? Infinity : null), endeudamiento: mat.endeudamiento, cobertura: mat.cobertura != null ? mat.cobertura : (der.cobertura === Infinity ? Infinity : null), rentPatrimonio: mat.rentPatrimonio, rentActivo: mat.rentActivo };
+      }
+      return { nombre: mat.nombre, personal: Object.keys(perfilesProfesionales || {}).map(id => perfilesProfesionales[id]), contratos: contratosExp, baseCantidades: (entry.baseCantidades === 'total' || entry.baseCantidades === 'prorrata') ? entry.baseCantidades : null, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k,
+        liquidez: ind.liquidez, endeudamiento: ind.endeudamiento, cobertura: ind.cobertura, rentPatrimonio: ind.rentPatrimonio, rentActivo: ind.rentActivo, consorcio: consorcio,
         kIncompleto: !!(mat.capacidadEstimada && mat.capacidadEstimada.incompletos > 0) };
     } catch (e) { return null; }
   }
