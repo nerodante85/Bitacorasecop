@@ -8506,6 +8506,15 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
           add('Datos del proceso', 'Plazo de ejecución', 'Hasta el ' + dia + ' de ' + mTb[3].toLowerCase() + ' de ' + mTb[4], '', { pagina: pagina(mTb.index) });
           plazoFechaCorta = parseInt(mTb[4], 10) <= anio;
         }
+        else {
+          // Tabla 1.1 con cifras normales: «HASTA EL 31 DE DICIEMBRE DE 2026».
+          const mTn = t.match(/\bHASTA\s+EL\s+(\d{1,2})\s+DE\s+(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+DE\s+(20\d{2})\b/);
+          const dn = mTn ? parseInt(mTn[1], 10) : 0;
+          if (mTn && dn >= 1 && dn <= 31){
+            add('Datos del proceso', 'Plazo de ejecución', 'Hasta el ' + dn + ' de ' + mTn[2].toLowerCase() + ' de ' + mTn[3], '', { pagina: pagina(mTn.index) });
+            plazoFechaCorta = parseInt(mTn[3], 10) <= anio;
+          }
+        }
       }
     }
     const mSinAnt = t.match(/no\s+se\s+dar[áa]\s+anticipos?|no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:al\s+contratista\s+)?(?:ning[úu]n\s+)?anticipo|anticipo\s+y\/o\s+pago\s+anticipado\s+no\s+aplica/i);
@@ -8714,7 +8723,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // Financieros calculados
     const mCt = /capital\s+de\s+trabajo\s+demandado/i.test(t);
     if (mCt && /CTd\s*=\s*\d{1,2}\s*%\s*x\s*\(PO\)/i.test(t) && /CTd\s*=\s*\(?\s*POE/i.test(t)) avisos.push('El documento trae dos fórmulas distintas para el capital de trabajo: confirma cuál aplica.');
-    if (mCt && sinAnticipo && presupuesto && plazo){
+    if (mCt && sinAnticipo && presupuesto && (plazo || plazoFechaCorta)){
       const base = presupuesto - anticipo;
       let ctd, how;
       const porRango = Array.from(t.matchAll(/CTd\s*=\s*(\d{1,2})\s*%\s*x\s*\(PO\)/gi)).map(x => parseInt(x[1], 10));
@@ -8722,7 +8731,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         const k = presupuesto <= 10000000000 ? 0 : (presupuesto <= 20000000000 ? 1 : 2);
         ctd = presupuesto * porRango[k] / 100; how = porRango[k] + '% del presupuesto oficial (según el rango de presupuesto de la tabla del documento: ' + porRango.join('% / ') + '%)';
       }
-      else if (plazo < 12){ ctd = base * 0.33; how = '33% del presupuesto oficial (plazo menor de 12 meses)'; }
+      else if (plazoFechaCorta || plazo < 12){ ctd = base * 0.33; how = '33% del presupuesto oficial (plazo menor de 12 meses)'; }
       else {
         let n = null;
         FICHA_MESES_APALANCAMIENTO.forEach(r => { if (plazo >= r[0]) n = r[1]; });
@@ -8796,7 +8805,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // trae ruido de OCR («之1,2», «三 0,70», «Raz6nde cobertura») y los valores salen separados de sus nombres. Se asocian por el ORDEN estándar de la
     // matriz (liquidez, endeudamiento, cobertura, [capital de trabajo: «definido en los pliegos»], rentabilidad del patrimonio y del activo) y el
     // operador sale de la naturaleza del indicador, no del símbolo mal leído. Solo se acepta si cada grupo trae exactamente 5 valores plausibles.
-    if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /MATRIZ\s*2\s*[-–—]+\s*INDICADORES\s+FINANCIEROS/i.test(t)){
+    if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /MATRIZ\s*2\s*[-–—]+\s*INDICADORES\s+FINANCIEROS/i.test(t) && /Valor\s+concertado/i.test(t)){
       const ESP = [['Índice de liquidez', '≥', v => v >= 0.8 && v <= 5], ['Índice de endeudamiento', '≤', v => v >= 0.3 && v <= 0.95], ['Razón de cobertura de intereses', '≥', v => v >= 0.5 && v <= 10],
         ['Rentabilidad del patrimonio', '≥', v => v >= 0 && v <= 0.3], ['Rentabilidad del activo', '≥', v => v >= 0 && v <= 0.3]];
       const grupos = {};
@@ -12431,6 +12440,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       r.avisos.forEach(function(a){ if (avisos.indexOf(a) === -1) avisos.push(a); });
       (r.observaciones || []).forEach(function(o){ if (!observaciones.some(function(x){ return x.texto === o.texto; })) observaciones.push(Object.assign({ documento: f[0] }, o)); });
     });
+    if (filas.some(function(x){ return x.requisito === 'Anticipo'; })){ for (let i = avisos.length - 1; i >= 0; i--) if (/No se pudo confirmar si hay anticipo/.test(avisos[i])) avisos.splice(i, 1); }
     // Si una matriz cargada trajo los indicadores, el pliego ya no «remite a una Matriz 2 no publicada».
     if (filas.some(function(x){ return x.dato && x.dato.tipo === 'indice' && x.documento !== 'Pliego de Condiciones' && x.documento !== 'Estudio Previo'; })){
       for (let i = avisos.length - 1; i >= 0; i--) if (/remiten a la «Matriz 2»/.test(avisos[i])) avisos.splice(i, 1);
@@ -15258,7 +15268,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       await appReady;
       entry.anexos = entry.anexos || [];
       for (const file of files){
-        if (!esTipoDeArchivoAceptado(file) || !/\.pdf$/i.test(file.name || '')){ sinTexto.push(file.name + ' (solo PDF)'); continue; }
+        if (!esTipoDeArchivoAceptado(file) || !/\.pdf$/i.test(file.name || '')){ sinTexto.push(file.name + ' (solo PDF: guarda el Word como PDF)'); continue; }
         const r = await extractPdfText(file, 40);
         if (!r.text || r.text.replace(/\s+/g, '').length < 100){ sinTexto.push(file.name + ' (sin texto extraíble: parece una imagen escaneada)'); continue; }
         entry.anexos = entry.anexos.filter(a => a.nombre !== file.name).concat([{ nombre: file.name, texto: r.text, paginaOffsets: r.paginaOffsets }]);

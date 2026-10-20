@@ -4310,6 +4310,18 @@ await check('fichaHabilitante (documento base CCE menor cuantía): la justificac
   const o = f.observaciones.find(x => /SMMLV/.test(x.tema));
   assert(o && /100 SMMLV/.test(o.texto) && /451\.999\.714/.test(o.texto) && o.pagina === 28, 'observación: ' + JSON.stringify(o));
 });
+// Documento base CCE de menor cuantía de INFRAESTRUCTURA SOCIAL (2026D-294, Cementerio Central de Cúcuta): texto REAL de pdf.js.
+const CEM_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'cementerio-cucuta-pdfjs.json'), 'utf8'));
+const CEM_TEXTO = (function(){ const l = []; for (let n = 1; n <= CEM_FIX.total; n++) l.push(CEM_FIX.paginas[String(n)] || ''); return l.join('\n'); })();
+await check('fichaHabilitante (documento base CCE infraestructura social, pdf.js): plazo «HASTA EL 31 DE DICIEMBRE DE 2026» con cifras normales, y la lista de matrices del documento NO se confunde con una Matriz 2 escaneada', () => {
+  const f = expEngine.fichaHabilitante(CEM_TEXTO, { anio: 2026 });
+  const pl = f.filas.find(x => x.requisito === 'Plazo de ejecución');
+  assert(pl && /Hasta el 31 de diciembre de 2026/.test(pl.exige) && pl.pagina === 7, 'plazo: ' + JSON.stringify(pl));
+  assert(!f.avisos.some(a => /no se pudo leer con seguridad/.test(a)), 'no debe decir que la Matriz 2 no se pudo leer solo porque el documento la menciona: ' + JSON.stringify(f.avisos));
+  assert(f.avisos.some(a => /remiten a la «Matriz 2»/.test(a)), 'sí debe avisar que la Matriz 2 no está en el texto');
+  const ct = f.filas.find(x => x.requisito === 'Capital de trabajo demandado');
+  assert(ct && ct.dato && Math.abs(ct.dato.min - 82500000) < 2, 'capital de trabajo = 33 % de $250 M (plazo hasta una fecha de 2026, menor de 12 meses, sin anticipo): ' + JSON.stringify(ct));
+});
 // Matriz 2 de la CCE (indicadores de la selección abreviada de menor cuantía de obra de transporte): PDF ESCANEADO, texto REAL de pdf.js con ruido
 // de OCR («之1,2», «三 0,70», «Raz6nde cobertura») y los valores separados de sus nombres.
 const M2_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'matriz2-cce-pdfjs.json'), 'utf8'));
