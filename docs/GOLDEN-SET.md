@@ -45,7 +45,7 @@ Qué enseña este lote:
 
 ## 3. Empresas de prueba
 
-- Dora Garay y Gilli (Formato Maestro cargado; soporte documental de Dora en Drive).
+- Empresa A y Empresa B (Formato Maestro cargado; soporte documental de la Empresa A en Drive).
 - Egida Construcciones (decidida como empresa de prueba; falta cargar su Excel de experiencia).
 - Cada caso se evalúa con **una empresa fija**, anotada en la ficha del caso.
 
@@ -82,7 +82,7 @@ Qué enseña este lote:
 
 ## 7. Caso G-01 — Toledo, avance (2026-10-09)
 
-Empresa: Dora Garay (consorcio con Gilli para capacidad financiera). Resultado esperado hoy:
+Empresa: Empresa A (consorcio con la Empresa B para capacidad financiera). Resultado esperado hoy:
 
 | Requisito | Resultado correcto | Motivo |
 |---|---|---|
