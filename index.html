@@ -8923,7 +8923,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // trae ruido de OCR («之1,2», «三 0,70», «Raz6nde cobertura») y los valores salen separados de sus nombres. Se asocian por el ORDEN estándar de la
     // matriz (liquidez, endeudamiento, cobertura, [capital de trabajo: «definido en los pliegos»], rentabilidad del patrimonio y del activo) y el
     // operador sale de la naturaleza del indicador, no del símbolo mal leído. Solo se acepta si cada grupo trae exactamente 5 valores plausibles.
-    if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /MATRIZ\s*2\s*[-–—]+\s*INDICADORES\s+FINANCIEROS/i.test(t) && /Valor\s+concertado/i.test(t)){
+    if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /MATRIZ\s*2\s*[-–—]+\s*INDICADORES\s+FINANCIEROS/i.test(t) && /[ÍIi]ndices?\s+de\s+capacidad\s+financier\w*\s+y\s+organi\w*/i.test(t)){
       const ESP = [['Índice de liquidez', '≥', v => v >= 0.8 && v <= 5], ['Índice de endeudamiento', '≤', v => v >= 0.3 && v <= 0.95], ['Razón de cobertura de intereses', '≥', v => v >= 0.5 && v <= 10],
         ['Rentabilidad del patrimonio', '≥', v => v >= 0 && v <= 0.3], ['Rentabilidad del activo', '≥', v => v >= 0 && v <= 0.3]];
       const grupos = {};

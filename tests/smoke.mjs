@@ -4428,6 +4428,12 @@ await check('fichaHabilitante (Matriz 2 CCE): si los valores no cuadran con lo e
   assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), 'no debe leer indicadores con valores implausibles');
   assert(f.avisos.some(a => /Matriz 2/.test(a)), 'debe avisar que no se pudo leer');
 });
+const M2R_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'matriz2-social-ruidosa-pdfjs.json'), 'utf8'));
+await check('fichaHabilitante (Matriz 2 de infraestructura social, escaneado MUY ruidoso: «Induce de liquidez», «lead», «active», sin «Valor concertado» legible): no inventa indicadores y avisa que no se pudo leer con seguridad', () => {
+  const f = expEngine.fichaHabilitante(Array.from({ length: M2R_FIX.total }, (_, i) => M2R_FIX.paginas[String(i + 1)]).join('\n'), { anio: 2026 });
+  assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), 'no debe leer indicadores de un escaneado ilegible');
+  assert(f.avisos.some(a => /Matriz 2 viene en un PDF escaneado y no se pudo leer con seguridad/.test(a)), 'debe avisar que la matriz cargada no se pudo leer: ' + JSON.stringify(f.avisos));
+});
 await check('fichaHabilitante (Matriz 2 CCE): un valor de más o de menos en un grupo (no son exactamente 5) → no lee ninguno', () => {
   const f = expEngine.fichaHabilitante(M2_TEXTO.replace('之1,3', '之1,3 5'), { anio: 2026 });
   assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), 'con 6 valores no debe leer');
