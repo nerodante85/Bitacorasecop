@@ -8148,7 +8148,11 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // El texto del documento trae una línea por página: se normaliza cada página (letras matemáticas de las fórmulas -> normales,
     // espacios) y se anota dónde empieza cada una, para citar la página exacta.
     const crudo = String((text && text.texto != null) ? text.texto : text || '');
-    const paginasTxt = crudo.split('\n').map(x => x.normalize('NFKC').replace(/\s+/g, ' ').trim());
+    // pdf.js a veces parte una cifra en dos fragmentos («$ 60 0.000.000», «$ 60 0. .000.000», «de 202 6»): se reparan solo esos patrones.
+    const repararCifrasPdf = x => x
+      .replace(/\$\s*(\d{1,2}) (\d{1,2})\.\s?\.?(\d{3}(?:\.\d{3})+)/g, (m, a1, b1, r1) => (a1 + b1).length <= 3 ? '$' + a1 + b1 + '.' + r1 : m)
+      .replace(/\b(de 20\d) (\d)\b/g, '$1$2');
+    const paginasTxt = crudo.split('\n').map(x => repararCifrasPdf(x.normalize('NFKC').replace(/\s+/g, ' ').trim()));
     const t = paginasTxt.join(' ');
     const inicios = []; { let acc = 0; paginasTxt.forEach(x => { inicios.push(acc); acc += x.length + 1; }); }
     const filas = [], avisos = [], observaciones = [];
@@ -8249,6 +8253,12 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       }
     }
     if (plazo) add('Datos del proceso', 'Plazo de ejecución', plazoDias ? plazoDias + ' días' : plazo + ' meses', '', { pagina: pagina(idxPlazo) });
+    else {
+      // Contratos a monto agotable: «La duración del Contrato será hasta el 31 de diciembre de 2026 o hasta agotar el presupuesto». No hay
+      // un plazo en meses, así que no se calculan capital de trabajo ni K; solo se muestra lo que dice el documento.
+      const mFP = t.match(/duraci[óo]n\s+del\s+contrato\s+ser[áa]\s+hasta\s+el\s+(\d{1,2}\s+de\s+[a-záéíóúñ]+\s+de\s+20\d{2})(\s+o\s+hasta\s+agotar\s+el\s+presupuesto)?/i);
+      if (mFP) add('Datos del proceso', 'Plazo de ejecución', 'Hasta el ' + mFP[1] + (mFP[2] ? ' o hasta agotar el presupuesto' : ''), '', { pagina: pagina(mFP.index) });
+    }
     const sinAnticipo = /no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:al\s+contratista\s+)?(?:ning[úu]n\s+)?anticipo|anticipo\s+y\/o\s+pago\s+anticipado\s+no\s+aplica/i.test(t);
     const conAnticipo = !sinAnticipo && /anticipo\s+del\s+\d/i.test(t);
     if (sinAnticipo) add('Datos del proceso', 'Anticipo', 'No hay anticipo ni pago anticipado', '');
@@ -8309,6 +8319,75 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (iUn >= 0){
       const codigos = Array.from(new Set((t.slice(iUn, iUn + 1100).match(/\b\d{8}\b/g) || [])));
       if (codigos.length) add('Experiencia', 'Clasificación UNSPSC del proceso', codigos.join(', '), '', { pagina: pagina(iUn) });
+    }
+
+    // Experiencia por viñetas bajo «CRITERIO» (pliegos del IMRD de Cúcuta, formato GCO-FO-18): «A. EXPERIENCIA GENERAL DEL PROPONENTE» y
+    // «B. EXPERIENCIA ESPECÍFICA». Cada viñeta es una fila con el texto del documento (no se interpreta lo que no es una cifra); el valor
+    // «igual o superior al PRESUPUESTO OFICIAL» se muestra en pesos y la lista de códigos UNSPSC va completa, hasta la «Nota 1».
+    {
+      const iG = t.search(/A\.\s*EXPERIENCIA\s+GENERAL\s+DEL\s+PROPONENTE/i);
+      const iEr = iG >= 0 ? t.slice(iG).search(/B\.\s*EXPERIENCIA\s+ESPEC[ÍI]FICA/i) : -1;
+      const iE = iEr >= 0 ? iG + iEr : -1;
+      const iFr = iE >= 0 ? t.slice(iE).search(/C\.\s*SEGURIDAD\s+INDUSTRIAL/i) : -1;
+      const secs = iG < 0 ? [] : [{ nombre: 'general', desde: iG, hasta: iE >= 0 ? iE : Math.min(t.length, iG + 6000) }]
+        .concat(iE >= 0 ? [{ nombre: 'específica', desde: iE, hasta: iFr >= 0 ? iE + iFr : Math.min(t.length, iE + 6000) }] : []);
+      const textoCriterios = []; let agregoExp = false; let pagCrGeneral = null; let reglaCodigosGeneral = null;
+      secs.forEach(sec => {
+        const cuerpo = t.slice(sec.desde, sec.hasta);
+        const mC = cuerpo.match(/\bCRITERIO\b/);
+        if (!mC) return;
+        const iTab = cuerpo.search(/CLASIFICACI[ÓO]N\s+UNSPSC/i);
+        const crit = cuerpo.slice(mC.index + 8, iTab > mC.index ? iTab : cuerpo.length);
+        const trozos = crit.split(/\s*[•●]\s*/).map(x => x.trim()).filter(x => x.length > 10);
+        if (!trozos.length) return;
+        const nombreFila = 'Experiencia ' + sec.nombre;
+        trozos.forEach(tr1 => {
+          textoCriterios.push(tr1);
+          // La viñeta «Cada contrato debe estar acreditado en el RUP … codificación UNSPSC» se muestra en la fila de códigos.
+          if (/acreditados?\s+en\s+el\s+RUP/i.test(tr1) && /UNSPSC/i.test(tr1)) return;
+          let cifras = '', aviso = '';
+          const mMax = tr1.match(/UNO\s+O\s+M[ÁA]XIMO\s+(\d{1,2})\s+CONTRATOS?/i), mCant = tr1.match(/\b(?:Un|Dos|Tres|Cuatro|Cinco|Seis|Siete|Ocho)\s+contratos?\s*\((\d{1,2})\)/i);
+          if (mMax) cifras = '1 a ' + mMax[1] + ' contratos';
+          else if (mCant) cifras = mCant[1] + ' contratos';
+          if (/igual\s+o\s+superior\s+al\s+PRESUPUESTO\s+OFICIAL/i.test(tr1) && presupuesto){
+            cifras = money(presupuesto) + (poSmmlv ? ' · ' + fmt1(poSmmlv) + ' SMMLV' : '');
+            if (/cada\s+contrato/i.test(tr1)) aviso = 'Cada contrato debe valer por sí solo al menos el presupuesto oficial (el 100 %), no es una suma de contratos.';
+          }
+          add('Experiencia', nombreFila, tr1.length > 420 ? tr1.slice(0, 420) + '…' : tr1, cifras, { pagina: pagina(t.indexOf(tr1.slice(0, 40), sec.desde)), aviso: aviso });
+          agregoExp = true;
+        });
+        if (iTab >= 0){
+          const fin = cuerpo.slice(iTab).search(/Nota\s+1\s*:/i);
+          const codigos = Array.from(new Set(cuerpo.slice(iTab, fin > 0 ? iTab + fin : cuerpo.length).match(/\b[2-9]\d{7}\b/g) || []));
+          if (codigos.length){
+            const mMin = crit.match(/al\s+menos\s+(\d{1,2})\s+c[óo]digos/i);
+            if (sec.nombre === 'general'){ pagCrGeneral = pagina(sec.desde + mC.index); reglaCodigosGeneral = !!mMin; }
+            add('Experiencia', 'Códigos UNSPSC (experiencia ' + sec.nombre + ')', codigos.join(', '),
+              mMin ? 'Cada contrato en el RUP con al menos ' + mMin[1] + ' de estos ' + codigos.length + ' códigos' : 'Cada contrato en el RUP «con la siguiente codificación»: el documento no dice cuántos de estos ' + codigos.length + ' códigos',
+              { pagina: pagina(sec.desde + iTab), aviso: mMin ? '' : 'No se sabe si basta uno o se piden todos: no se da por cumplido hasta aclararlo.' });
+            agregoExp = true;
+            if (sec.nombre === 'general' && !mMin && /ESTUDIOS|DISE[ÑN]OS/i.test(crit)){
+              obs('Experiencia general: códigos UNSPSC', 'La experiencia general pide contratos de estudios y diseños que estén en el RUP «con la siguiente codificación» de ' + codigos.length + ' códigos UNSPSC, sin decir cuántos de ellos debe tener cada contrato (uno, varios o todos). Solicitamos precisar la cantidad mínima y confirmar que la codificación es coherente con el objeto de los contratos que se piden.', sec.desde + mC.index);
+            }
+          }
+        }
+      });
+      if (agregoExp){
+        // Esta lectura reemplaza la lista de «Clasificación UNSPSC del proceso», que con este formato quedaba cortada a 8 códigos.
+        const kV = filas.findIndex(f => f.requisito === 'Clasificación UNSPSC del proceso');
+        if (kV >= 0) filas.splice(kV, 1);
+        // Texto copiado de otro proceso: criterios de un servicio de transporte en un pliego cuyas exigencias no hablan de transporte.
+        const iTr = t.search(/ejecuci[óo]n\s+del\s+servicio\s+de\s+tran\s?sporte/i);
+        if (iTr >= 0 && !/transporte/i.test(textoCriterios.join(' '))){
+          obs('Texto de otro proceso', 'En el numeral de experiencia se pide acreditar «la ejecución del servicio de transporte», pero el objeto y los criterios de experiencia de este proceso no se refieren a transporte. Solicitamos corregir el texto o aclarar a qué se refiere.', iTr);
+        }
+      }
+    }
+    // Criterio de calificación que se contradice: «no se puede calificar precio por estar reguladas las tarifas» y, a la vez, puntos por la oferta económica.
+    {
+      const mNp = t.match(/no\s+se\s+puede\s+calificar\s+precio[^.]{0,200}?tarifas/i);
+      const mOe = mNp ? t.match(/OFERTA\s+ECON[ÓO]MICA\s+\(?\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:PUNTOS|\)|\s)/i) : null;
+      if (mNp && mOe) obs('Criterios de calificación', 'El numeral de criterios de escogencia dice que no se puede calificar el precio porque las tarifas están reguladas, pero la tabla de puntaje asigna ' + mOe[1] + ' puntos a la oferta económica. Solicitamos aclarar si el factor económico se califica y cómo.', mNp.index);
     }
 
     // Financieros calculados
@@ -8413,6 +8492,41 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         }
         add('Capacidad financiera', L[0], demas.op + ' ' + m[2], mi ? 'Mipyme: ' + mi.op + ' ' + m[4] : '', { pagina: pagina(z.i), aviso: aviso, dato: { tipo: 'indice', clave: L[0], demas: demas, mipyme: mi } });
       }));
+    }
+    // Indicadores con la FÓRMULA entre el nombre y el umbral («ÍNDICE DE LIQUIDEZ Activo Corriente/Pasivo Corriente ≥ 5», «RENTABILIDAD DEL
+    // PATRIMONIO ≥ 0. 1 Utilidad Neta /Patrimonio»; pliegos del IMRD de Cúcuta) y su corte («con corte 31 de Diciembre de 2024»). pdf.js parte
+    // los decimales («0, 40», «0. 1»): se leen sin espacios y con punto o coma como separador decimal (son razones, no montos).
+    if (!filas.some(f => f.dato && f.dato.tipo === 'indice')){
+      const iZ = t.search(/INDICADORES\s+FINANCIEROS\s+PROPUESTOS|capacidad\s+financiera\s+registrada\s+en\s+el\s+RUP/i);
+      const zF = iZ >= 0 ? t.slice(iZ, iZ + 1900) : '';
+      const NUMF = '(\\d+(?:[.,]\\s?\\d+)?)';
+      const decF = x => parseFloat(String(x).replace(/\s/g, '').replace(',', '.'));
+      const LEERF = [['Índice de liquidez', 'LIQUIDEZ\\s+Activo\\s+Corriente\\s*/\\s*Pasivo\\s+Corriente'], ['Índice de endeudamiento', 'ENDEUDAMIENTO\\s+Pasivo\\s+Total\\s*/\\s*Activo\\s+Total'],
+        ['Razón de cobertura de intereses', 'COBERTURA\\s+DE\\s+INTERES[ÉE]S\\s+Utilidad\\s+Operacional\\s*/\\s*Gastos\\s+de\\s+intereses'],
+        ['Rentabilidad del patrimonio', 'RENTABILIDAD\\s+DEL\\s+PATRIMONIO'], ['Rentabilidad del activo', 'RENTABILIDAD\\s+DEL\\s+ACTIVO']];
+      const leidos = LEERF.map(L => { const m = zF.match(new RegExp(L[1] + '\\s*([≥≤<>]=?)\\s*' + NUMF, 'i')); return m ? { nombre: L[0], op: m[1], crudo: m[2].replace(/\s/g, ''), v: decF(m[2]) } : null; }).filter(Boolean);
+      // Con menos de tres indicadores no es esta tabla (se evita leer una mención suelta).
+      if (leidos.length >= 3){
+        leidos.forEach(r => {
+          let aviso = '';
+          if (r.nombre === 'Índice de liquidez' && r.op === '≥' && r.v >= 5){
+            aviso = 'Una liquidez mínima de ' + r.crudo + ' es inusualmente alta (lo habitual es cerca de 1 a 2): confirma que no sea un error del documento, porque dejaría fuera a casi todos los proponentes.';
+            obs(r.nombre, 'El documento exige un índice de liquidez de ' + r.op + ' ' + r.crudo + ', un valor muy superior al habitual. Solicitamos confirmar que es el valor correcto, pues restringiría de forma desproporcionada la participación.', iZ);
+          }
+          if (r.nombre === 'Razón de cobertura de intereses' && r.op === '≥' && r.v >= 10){
+            aviso = 'Una cobertura de intereses mínima de ' + r.crudo + ' es inusualmente alta: confirma que no sea un error del documento.';
+            obs(r.nombre, 'El documento exige una razón de cobertura de intereses de ' + r.op + ' ' + r.crudo + ', un valor muy superior al habitual. Solicitamos confirmar que es el valor correcto, pues restringiría de forma desproporcionada la participación.', iZ);
+          }
+          add('Capacidad financiera', r.nombre, r.op + ' ' + r.crudo, '', { pagina: pagina(iZ), aviso: aviso, dato: { tipo: 'indice', clave: r.nombre, demas: { op: r.op, v: r.v }, mipyme: null } });
+        });
+        const mCorte = zF.match(/con\s+corte\s+(?:al\s+)?(\d{1,2}\s+de\s+[a-záéíóúñ]+\s+de\s+(20\d{2}))/i);
+        if (mCorte){
+          const anioCorte = parseInt(mCorte[2], 10);
+          const desfasado = anioCorte < anio - 1;
+          add('Capacidad financiera', 'Corte de los indicadores (RUP)', mCorte[1], '', { pagina: pagina(iZ + mCorte.index), aviso: desfasado ? 'Un RUP vigente en ' + anio + ' trae estados financieros de ' + (anio - 1) + ' (se renuevan cada año): un corte a ' + mCorte[1] + ' puede ser un error del documento.' : '' });
+          if (desfasado) obs('Corte de los indicadores financieros', 'El documento verifica los indicadores con el RUP «con corte ' + mCorte[1] + '», pero un RUP renovado en ' + anio + ' trae la información financiera con corte a 31 de diciembre de ' + (anio - 1) + '. Solicitamos aclarar con qué corte se verificarán los indicadores.', iZ + mCorte.index);
+        }
+      }
     }
     if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /Matriz\s*2/i.test(t) && /[ÍI]ndice\s+de\s+liquidez|capacidad\s+organizacional/i.test(t)) {
       avisos.push('Los indicadores financieros y organizacionales remiten a la «Matriz 2», cuyos valores no vienen en el texto leído: consúltalos en esa matriz (anexo del proceso).');

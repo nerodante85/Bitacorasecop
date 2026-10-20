@@ -4085,6 +4085,63 @@ await check('fichaHabilitante (texto real de pdf.js): el encabezado de la págin
   const maq = f.filas.find(x => x.grupo === 'Maquinaria');
   assert(maq && maq.exige === 'Excavadora; Vibrocompactador; Motoniveladora; Volquetas; Compactador tipo rana; Herramienta menor; Vehículo de apoyo', 'maquinaria: ' + (maq && maq.exige));
 });
+// Pliego IMRD de Cúcuta (formato GCO-FO-18, 96 págs): texto REAL de pdf.js de las páginas con presupuesto, plazo, indicadores y experiencia.
+// pdf.js parte las cifras («$ 60 0.000.000», «0, 40», «≥ 0. 1», «202 6»); la ficha las repara y lee los criterios por viñetas bajo «CRITERIO».
+const IMRD_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'imrd-lp-pdfjs.json'), 'utf8'));
+const IMRD_TEXTO = (function(){ const l = []; for (let n = 1; n <= IMRD_FIX.total; n++) l.push(IMRD_FIX.paginas[String(n)] || ''); return l.join('\n'); })();
+const imrdFicha = () => expEngine.fichaHabilitante(IMRD_TEXTO, { anio: 2026 });
+await check('fichaHabilitante (pliego real IMRD, pdf.js): el presupuesto de $600 M se lee aunque pdf.js parta la cifra («$ 60 0.000.000» y «$ 60 0. .000.000»), y el plazo «hasta el 31 de diciembre de 202 6 o hasta agotar el presupuesto» sale con su página', () => {
+  const f = imrdFicha();
+  const po = f.filas.find(x => x.requisito === 'Presupuesto oficial');
+  assert(po && po.exige === '$600.000.000', 'presupuesto: ' + (po && po.exige));
+  const pl = f.filas.find(x => x.requisito === 'Plazo de ejecución');
+  assert(pl && /31 de diciembre de 2026/.test(pl.exige) && /agotar el presupuesto/.test(pl.exige) && pl.pagina === 52, 'plazo: ' + JSON.stringify(pl));
+});
+await check('fichaHabilitante (pliego real IMRD, pdf.js): indicadores con la FÓRMULA antes del umbral («Activo Corriente/Pasivo Corriente ≥ 5», «≤ 0, 40», «RENTABILIDAD DEL PATRIMONIO ≥ 0. 1 Utilidad Neta /Patrimonio») y el corte del RUP', () => {
+  const f = imrdFicha();
+  const ind = n => f.filas.find(x => x.dato && x.dato.tipo === 'indice' && x.dato.clave === n);
+  const chk = (n, op, v) => { const r = ind(n); assert(r && r.dato.demas.op === op && r.dato.demas.v === v && r.pagina === 73, n + ': ' + JSON.stringify(r && r.dato) + ' p' + (r && r.pagina)); };
+  chk('Índice de liquidez', '≥', 5); chk('Índice de endeudamiento', '≤', 0.4); chk('Razón de cobertura de intereses', '≥', 2);
+  chk('Rentabilidad del patrimonio', '≥', 0.1); chk('Rentabilidad del activo', '≥', 0.1);
+  const corte = f.filas.find(x => x.requisito === 'Corte de los indicadores (RUP)');
+  assert(corte && /31 de diciembre de 2024/i.test(corte.exige) && corte.pagina === 73, 'corte: ' + JSON.stringify(corte));
+});
+await check('fichaHabilitante (pliego real IMRD, pdf.js): experiencia general y específica por viñetas bajo «CRITERIO» — contratos, valor frente al presupuesto, ítem, liquidación — y la lista COMPLETA de 15 códigos UNSPSC (no 8)', () => {
+  const f = imrdFicha();
+  const gen = f.filas.filter(x => x.requisito === 'Experiencia general'), esp = f.filas.filter(x => x.requisito === 'Experiencia específica');
+  assert(gen.length === 4 && gen.every(x => x.pagina === 75), 'general: ' + gen.length + ' filas');
+  assert(/UNO O MAXIMO 2 CONTRATOS/i.test(gen[0].exige) && /ESTUDIOS Y DISE/i.test(gen[0].exige), 'contratos generales: ' + gen[0].exige);
+  const valG = gen.find(x => /valor de cada contrato/i.test(x.exige));
+  assert(valG && /\$600\.000\.000/.test(valG.cifras), 'valor general: ' + JSON.stringify(valG));
+  assert(/por sí solo/.test(valG.aviso) && !/por sí solo/.test(f.filas.find(x => x.requisito === 'Experiencia específica' && /sumatoria/i.test(x.exige)).aviso), 'avisa que el valor es por contrato, no suma (solo en la general)');
+  assert(gen.some(x => /SIEMBRA DE GRAMA/i.test(x.exige)) && gen.some(x => /acta de liquidaci/i.test(x.exige)), 'ítem de grama y liquidación');
+  assert(esp.length === 3 && /Cuatro contratos/i.test(esp[0].exige) && /SUMINISTRO DE MATERIALES DE CONSTRUCCION/i.test(esp[0].exige), 'específica: ' + (esp[0] && esp[0].exige));
+  const sum = esp.find(x => /sumatoria/i.test(x.exige));
+  assert(sum && /\$600\.000\.000/.test(sum.cifras), 'sumatoria: ' + JSON.stringify(sum));
+  const cG = f.filas.find(x => x.requisito === 'Códigos UNSPSC (experiencia general)'), cE = f.filas.find(x => x.requisito === 'Códigos UNSPSC (experiencia específica)');
+  assert(cG && cG.exige.split(', ').length === 15 && cE && cE.exige.split(', ').length === 15, 'códigos: ' + (cG && cG.exige.split(', ').length) + ' / ' + (cE && cE.exige.split(', ').length));
+  assert(/al menos 8/i.test(cE.cifras), 'regla de la específica: ' + cE.cifras);
+  assert(!f.filas.some(x => x.requisito === 'Clasificación UNSPSC del proceso' && x.exige.split(', ').length === 8), 'ya no queda la lista cortada en 8');
+});
+await check('Observaciones al pliego (IMRD real): corte de indicadores 2024, liquidez ≥ 5, cuántos códigos pide la experiencia general, calificar precio con tarifas reguladas y texto de «transporte» copiado — cada una con su página', () => {
+  const ob = imrdFicha().observaciones;
+  const tema = n => ob.filter(o => o.tema === n);
+  assert(tema('Corte de los indicadores financieros').length === 1 && tema('Corte de los indicadores financieros')[0].pagina === 73 && /2024/.test(tema('Corte de los indicadores financieros')[0].texto), 'corte: ' + JSON.stringify(tema('Corte de los indicadores financieros')));
+  assert(tema('Índice de liquidez').length === 1 && /≥ 5/.test(tema('Índice de liquidez')[0].texto), 'liquidez inusual');
+  assert(tema('Experiencia general: códigos UNSPSC').length === 1 && tema('Experiencia general: códigos UNSPSC')[0].pagina === 75, 'códigos de la general: ' + JSON.stringify(tema('Experiencia general: códigos UNSPSC')));
+  assert(tema('Criterios de calificación').length === 1 && tema('Criterios de calificación')[0].pagina === 82 && /tarifas/i.test(tema('Criterios de calificación')[0].texto), 'calificar precio');
+  assert(tema('Texto de otro proceso').length === 1 && tema('Texto de otro proceso')[0].pagina === 78 && /transporte/i.test(tema('Texto de otro proceso')[0].texto), 'transporte');
+});
+await check('fichaHabilitante: una mención suelta de «ÍNDICE DE LIQUIDEZ Activo Corriente/Pasivo Corriente ≥ 5» (sin la tabla de varios indicadores) no se toma como la tabla de indicadores', () => {
+  const f = expEngine.fichaHabilitante('INDICADORES FINANCIEROS PROPUESTOS REQUERIMIENTO PARA EL PROCESO ÍNDICE DE LIQUIDEZ Activo Corriente/Pasivo Corriente ≥ 5 Mayor o igual a 5', { anio: 2026 });
+  assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), 'una sola fila no es la tabla: ' + JSON.stringify(f.filas.map(x => x.requisito)));
+});
+await check('fichaHabilitante: un pliego sin viñetas «CRITERIO» ni tabla con fórmula (Líbano) NO recibe filas ni observaciones del formato IMRD', () => {
+  const f = expEngine.fichaHabilitante(PDFJS_LIBANO_INDICADORES, { anio: 2026 });
+  assert(!f.filas.some(x => /^Experiencia (general|específica)$|^Corte de los indicadores|^Códigos UNSPSC \(/.test(x.requisito)), 'filas del formato IMRD en otro pliego');
+  assert(!f.observaciones.some(o => /^Corte de los indicadores|^Experiencia general: códigos|^Criterios de calificación|^Texto de otro proceso/.test(o.tema)), 'observaciones del formato IMRD en otro pliego');
+  assert(f.filas.filter(x => x.dato && x.dato.tipo === 'indice').length === 5 && f.filas.find(x => x.requisito === 'Índice de liquidez').dato.demas.v === 15, 'la lectura de Líbano sigue igual');
+});
 await check('Observaciones al pliego (pre-pliego real Líbano): K contra presupuesto, liquidez y cobertura inusuales, Mipyme de la rentabilidad y personal «habilitante o puntaje» salen como solicitudes concretas con su página', () => {
   const f = expEngine.fichaHabilitante(FIN_REAL_LIBANO + '\n' + PERSONAL_REAL_COLUMNAS, { anio: 2026 });
   const ob = f.observaciones;
