@@ -1109,7 +1109,7 @@ await check('Matrices y anexos: la Matriz 2 cargada (PDF escaneado, texto real) 
   const base = await lee('puerto-santander-pdfjs.json'), m2 = await lee('matriz2-cce-pdfjs.json');
   const unir = f => Array.from({ length: f.total }, (_, i) => f.paginas[String(i + 1)] || '').join('\n');
   const kDe = c => ['Activo corriente = ' + c.AC, 'Pasivo corriente = ' + c.PC, 'Activo total = ' + c.AT, 'Pasivo total = ' + c.PT, 'Patrimonio = ' + c.PAT, 'Utilidad operacional = ' + c.UO, 'Gastos de intereses = ' + c.GI].join('\n');
-  const D = { AC: 649046318, PC: 53554509, AT: 737303721, PT: 183768204, PAT: 553535517, UO: 9648701, GI: 3860257 };
+  const D = { AC: 600000000, PC: 50000000, AT: 700000000, PT: 180000000, PAT: 520000000, UO: 9000000, GI: 3600000 };
   const entrada = conAnexos => ({ 'E2E-M2': Object.assign({ id: 'E2E-M2', ts: Date.now(), fileName: 'docbase.pdf', pagesRead: base.total, numPages: base.total, text: unir(base),
     proceso: { entidad: 'Alcaldía de Puerto Santander', objeto: 'Mantenimiento y rehabilitación de vías', modalidad: 'Selección abreviada de menor cuantía', valor: 451999714, closingRaw: new Date(Date.now() + 14 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
     comps: [{ perfilNombre: 'Empresa de prueba', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 }, conAnexos ? { anexos: [{ nombre: 'MATRIZ_2.pdf', texto: unir(m2), paginaOffsets: [] }] } : {}) });
@@ -1128,7 +1128,7 @@ await check('Matrices y anexos: la Matriz 2 cargada (PDF escaneado, texto real) 
   const sin = await leer(false);
   assert(!sin.filas['Rentabilidad del patrimonio'] && /Matriz 2/.test(sin.texto), 'sin la matriz: avisa que falta y no inventa indicadores');
   const con = await leer(true);
-  assert(/NO CUMPLE/.test(con.filas['Rentabilidad del patrimonio']) && /0,0174/.test(con.filas['Rentabilidad del patrimonio']), 'patrimonio: ' + con.filas['Rentabilidad del patrimonio']);
+  assert(/NO CUMPLE/.test(con.filas['Rentabilidad del patrimonio']) && /0,0173/.test(con.filas['Rentabilidad del patrimonio']), 'patrimonio: ' + con.filas['Rentabilidad del patrimonio']);
   assert(/CUMPLE/.test(con.filas['Índice de liquidez']) && !/NO CUMPLE/.test(con.filas['Índice de liquidez']), 'liquidez: ' + con.filas['Índice de liquidez']);
   assert(!/remiten a la «Matriz 2»/.test(con.texto), 'con la matriz ya no debe decir que no está publicada');
   assert(/PDF escaneado/.test(con.texto), 'debe avisar que se leyó de un PDF escaneado');
@@ -1164,7 +1164,7 @@ await check('Tamaño de empresa (RUP): el selector del perfil se guarda, y una m
   const lee = async nombre => JSON.parse(await readFile(join(RAIZ, 'tests', 'fixtures', nombre), 'utf8'));
   const base = await lee('puerto-santander-pdfjs.json'), m2 = await lee('matriz2-cce-pdfjs.json');
   const unir = f => Array.from({ length: f.total }, (_, i) => f.paginas[String(i + 1)] || '').join('\n');
-  const kDe = ['Activo corriente = 649046318', 'Pasivo corriente = 53554509', 'Activo total = 737303721', 'Pasivo total = 183768204', 'Patrimonio = 553535517', 'Utilidad operacional = 9648701', 'Gastos de intereses = 3860257'].join('\n');
+  const kDe = ['Activo corriente = 600000000', 'Pasivo corriente = 50000000', 'Activo total = 700000000', 'Pasivo total = 180000000', 'Patrimonio = 520000000', 'Utilidad operacional = 9000000', 'Gastos de intereses = 3600000'].join('\n');
   const entrada = { 'E2E-TAM': { id: 'E2E-TAM', ts: Date.now(), fileName: 'docbase.pdf', pagesRead: base.total, numPages: base.total, text: unir(base), anexos: [{ nombre: 'MATRIZ_2.pdf', texto: unir(m2), paginaOffsets: [] }],
     proceso: { entidad: 'Alcaldía de Puerto Santander', objeto: 'Mantenimiento de vías', modalidad: 'Selección abreviada de menor cuantía', valor: 451999714, closingRaw: new Date(Date.now() + 14 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
     comps: [{ perfilNombre: 'Empresa de prueba', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };

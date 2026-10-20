@@ -1866,7 +1866,7 @@ await check('Excel real: una celda de fecha (número de serie con formato m/d/yy
 await check('Excel real: una hoja con filas-título de 2 celdas arriba (nombre + cifra) ya no se descarta: el encabezado es la fila que trae los nombres de columna', () => {
   const H = ['No. RUP', 'OBJETO DEL CONTRATO', 'ENTIDAD CONTRATANTE', 'FECHA DE INICIO', 'FECHA DE TERMINACION', 'NUMERO DE CONTRATO', 'VALOR DEL CONTRATO'];
   const hoja = [
-    ['', 'DORA NAHIR GARAY GUTIERREZ', '', '', '', '', '1750905'],
+    ['', 'PERSONA DE PRUEBA', '', '', '', '', '1750905'],
     ['', '', '', '', '', '', ''],
     ['', 'EXPERIENCIA PROFESIONAL EN ESCUELA', '', '', '', '', ''],
     H,
@@ -3132,12 +3132,12 @@ await check('QA-001 RUP: los códigos UNSPSC con formato "NN NN NN NN :" se leen
 });
 
 // RUP real (texto de pdf.js, SIN datos de identificación): tamaño de empresa e indicadores tal como los reporta la Cámara de Comercio.
-const RUP_TAMANO = 'CERTIFICA: IDENTIFICACIÓN ORGANIZACIÓN: PERSONA NATURAL TAMAÑO DE EMPRESA: MICROEMPRESA CERTIFICA: DOMICILIO QUE EN RELACIÓN A SU INFORMACIÓN FINANCIERA EL PROPONENTE REPORTÓ: FECHA CORTE DE LA INFORMACIÓN FINANCIERA : 31/12/2025 ACTIVO CORRIENTE : $649.046.318,00 ACTIVO TOTAL : $737.303.721,00 PASIVO CORRIENTE : $53.554.509,00 PASIVO TOTAL : $183.768.204,00 PATRIMONIO : $553.535.517,00 UTILIDAD/PERDIDA OPERACIONAL : $9.648.701,00 GASTOS DE INTERESES : $3.860.257,00 CERTIFICA: CAPACIDAD FINANCIERA INDICE DE LIQUIDEZ : 12,11 INDICE DE ENDEUDAMIENTO : 0,24 RAZÓN DE COBERTURA DE INTERESES : 2,49 CERTIFICA: CAPACIDAD ORGANIZACIONAL RENTABILIDAD DEL PATRIMONIO : 0,01 RENTABILIDAD DEL ACTIVO : 0,01 CERTIFICA: EXPERIENCIA';
+const RUP_TAMANO = 'CERTIFICA: IDENTIFICACIÓN ORGANIZACIÓN: PERSONA NATURAL TAMAÑO DE EMPRESA: MICROEMPRESA CERTIFICA: DOMICILIO QUE EN RELACIÓN A SU INFORMACIÓN FINANCIERA EL PROPONENTE REPORTÓ: FECHA CORTE DE LA INFORMACIÓN FINANCIERA : 31/12/2025 ACTIVO CORRIENTE : $600.000.000,00 ACTIVO TOTAL : $700.000.000,00 PASIVO CORRIENTE : $50.000.000,00 PASIVO TOTAL : $180.000.000,00 PATRIMONIO : $520.000.000,00 UTILIDAD/PERDIDA OPERACIONAL : $9.000.000,00 GASTOS DE INTERESES : $3.600.000,00 CERTIFICA: CAPACIDAD FINANCIERA INDICE DE LIQUIDEZ : 12,00 INDICE DE ENDEUDAMIENTO : 0,26 RAZÓN DE COBERTURA DE INTERESES : 2,50 CERTIFICA: CAPACIDAD ORGANIZACIONAL RENTABILIDAD DEL PATRIMONIO : 0,01 RENTABILIDAD DEL ACTIVO : 0,01 CERTIFICA: EXPERIENCIA';
 await check('RUP: lee el TAMAÑO DE EMPRESA (microempresa) para saber si aplican los umbrales Mipyme; un RUP sin esa línea no lo inventa', () => {
   const r = expEngine.parsearRUP(RUP_TAMANO);
   assert(r.tamano === 'microempresa', 'tamaño: ' + r.tamano);
-  assert(/Rentabilidad del patrimonio: 0,01/.test(r.capK) && /Índice de liquidez: 12,11/.test(r.capK), 'indicadores del RUP: ' + r.capK);
-  assert(/Utilidad operacional: \$9\.648\.701/.test(r.capK) && /Gastos de intereses: \$3\.860\.257/.test(r.capK), 'el RUP escribe «UTILIDAD/PERDIDA OPERACIONAL»: ' + r.capK);
+  assert(/Rentabilidad del patrimonio: 0,01/.test(r.capK) && /Índice de liquidez: 12,00/.test(r.capK), 'indicadores del RUP: ' + r.capK);
+  assert(/Utilidad operacional: \$9\.000\.000/.test(r.capK) && /Gastos de intereses: \$3\.600\.000/.test(r.capK), 'el RUP escribe «UTILIDAD/PERDIDA OPERACIONAL»: ' + r.capK);
   for (const [txt, esperado] of [['TAMAÑO DE EMPRESA: PEQUEÑA', 'pequena'], ['TAMAÑO DE EMPRESA: MEDIANA', 'mediana'], ['TAMAÑO DE EMPRESA: GRANDE', 'grande'], ['TAMANO DE EMPRESA: PEQUEÑA EMPRESA', 'pequena']])
     assert(expEngine.parsearRUP('X ' + txt + ' Y').tamano === esperado, txt + ' → ' + expEngine.parsearRUP('X ' + txt + ' Y').tamano);
   assert(expEngine.parsearRUP(RUP_REAL).tamano === null, 'sin la línea no hay tamaño');
@@ -3488,7 +3488,7 @@ await check('Excel: la participación numérica 0,125 (12,5%) no se lee como 125
   assert(r.cantidad && r.cantidad.valor === 1250.123, 'cantidad: ' + JSON.stringify(r.cantidad));
 });
 
-// ---- Columna "VALOR CONTRATO ACTUALIZADO ... SMMLV $ 1.750.905" (Egida y Dora): el valor ya está en pesos de 2026 ----
+// ---- Columna "VALOR CONTRATO ACTUALIZADO ... SMMLV $ 1.750.905" (caso real): el valor ya está en pesos de 2026 ----
 const H_ACTUALIZADO = ['Objeto', 'Contratante', 'VALOR CONTRATO ACTUALIZADO (Según % Participacion) SMMLV $ 1.750.905', 'Fecha de terminación'];
 function evaluarSmmlv(headers, valor, fechaFin, minSmmlv) {
   const cs = expEngine.parsearExcelExperiencia(fakeWorkbook(headers, [['Construcción de acueducto veredal', 'Municipio A', valor, fechaFin]])).contratos;
@@ -3608,7 +3608,7 @@ await check('un contrato de acueducto con 3 contratos buenos: la general de Oca�
 });
 const reqOcanaGeneral = () => expEngine.extraerRequisitosDePliego(CLAUSULA_OCANA_COMPLETA, [], 'Pliego de Condiciones').requisitos.find(x => x.tipo === 'general');
 const acueductoSinCodigo = n => ({ objeto: 'CONSTRUCCION DEL ACUEDUCTO VEREDA ' + n, tipo: 'no-clasificado', valor: 300000000, fechaFin: new Date('2024-05-01'), participacion: 1 });
-await check('con contratos de acueducto sin UNSPSC y otro que solo comparte "obra", la explicación habla de la clasificación UNSPSC, no de "palabras genéricas" (caso Dora)', () => {
+await check('con contratos de acueducto sin UNSPSC y otro que solo comparte "obra", la explicación habla de la clasificación UNSPSC, no de "palabras genéricas" (caso real)', () => {
   const otro = { objeto: 'MANTENIMIENTO DE OBRA CIVIL DE UNA ESCUELA', tipo: 'no-clasificado', valor: 100000000, fechaFin: new Date('2024-05-01'), participacion: 1 };
   const res = expEngine.evaluarRequisito(reqOcanaGeneral(), [acueductoSinCodigo('A'), acueductoSinCodigo('B'), otro], new Date('2026-10-08T00:00:00'), { presupuesto: 138776810, anio: 2026 });
   assert(res.resultado === 'NO DETERMINABLE', 'debe seguir NO DETERMINABLE: ' + res.resultado);
@@ -4441,7 +4441,7 @@ await check('fichaHabilitante (Matriz 2 CCE): si los valores no cuadran con lo e
 });
 await check('cruceFichaEmpresa con la Matriz 2: si el RUP dice microempresa (Mipyme) rigen SOLO los umbrales Mipyme (rentabilidad del activo ≥ 0,01 cumple; la del patrimonio ≥ 0,02 sigue sin cumplir); si es grande rigen solo los generales; sin dato, como antes', () => {
   const f = expEngine.fichaHabilitante(M2_TEXTO, { anio: 2026 });
-  const base = { liquidez: 12.11, endeudamiento: 0.24, cobertura: 2.49, rentPatrimonio: 0.0174, rentActivo: 0.0131, contratos: [], personal: [] };
+  const base = { liquidez: 12, endeudamiento: 0.26, cobertura: 2.5, rentPatrimonio: 0.0174, rentActivo: 0.0131, contratos: [], personal: [] };
   const mi = expEngine.cruceFichaEmpresa(f.filas, Object.assign({ mipyme: true }, base));
   assert(mi['Rentabilidad del activo'].estado === 'CUMPLE' && /Mipyme/.test(mi['Rentabilidad del activo'].detalle) && !/demás/.test(mi['Rentabilidad del activo'].detalle), 'RoA Mipyme: ' + JSON.stringify(mi['Rentabilidad del activo']));
   assert(mi['Rentabilidad del patrimonio'].estado === 'NO CUMPLE' && /0,02/.test(mi['Rentabilidad del patrimonio'].detalle), 'RoE Mipyme: ' + JSON.stringify(mi['Rentabilidad del patrimonio']));
@@ -4808,8 +4808,8 @@ await check('parsearExperienciasRUP: lee contratante, valor en SMMLV, participac
 const SMMLV2012 = 566700; // verificado en la tabla de la app
 const ctoCruce = (extra) => Object.assign({ objeto: 'CONSTRUCCION DE ACUEDUCTO', contratante: 'GOBERNACION DE NORTE DE SANTANDER', valor: 5005.21 * 0.5 * SMMLV2012, fechaFin: '2012-05-09', participacion: { valor: 0.5, unidad: 'COP' }, tipo: 'no-clasificado', hoja: 'ACUEDUCTO', fila: 1, numeroContrato: 'A-1' }, extra || {});
 await check('encabezadoRUP: titular, NIT y fecha de expedición', () => {
-  const e = expEngine.encabezadoRUP('Fecha expedición: 06/05/2026 - 08:32:39 Recibo No. S002 IDENTIFICACIÓN NOMBRE:GARAY GUTIERREZ DORA NAHIR NIT:37251479-5 C.C.:37251479 NACIONALIDAD:COLOMBIANA');
-  assert(e.nombre === 'GARAY GUTIERREZ DORA NAHIR' && e.nit === '37251479-5' && e.expedido === '06/05/2026', JSON.stringify(e));
+  const e = expEngine.encabezadoRUP('Fecha expedición: 06/05/2026 - 08:32:39 Recibo No. S002 IDENTIFICACIÓN NOMBRE:PEREZ GOMEZ JUAN NIT:12345678-9 C.C.:12345678 NACIONALIDAD:COLOMBIANA');
+  assert(e.nombre === 'PEREZ GOMEZ JUAN' && e.nit === '12345678-9' && e.expedido === '06/05/2026', JSON.stringify(e));
 });
 await check('proponerCruceRup: valor × participación con contratante compatible = sugerido; contratante distinto = dudoso (nunca sugerido); sin valor / sin pareja se dicen', () => {
   const exps = expEngine.parsearExperienciasRUP(RUP_TEXTO);
