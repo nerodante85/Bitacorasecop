@@ -4664,6 +4664,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         if (t.text) analisis[id].text = t.text;
         if (t.ocrText) analisis[id].ocrText = t.ocrText;
         if (t.estudioPrevioText) analisis[id].estudioPrevioText = t.estudioPrevioText;
+        if (Array.isArray(t.anexos) && t.anexos.length) analisis[id].anexos = t.anexos;
       }
     }));
   }
@@ -4691,11 +4692,12 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         const sp = (lastScoredTodos || []).concat(lastScored || []).find(x => x.item && x.item.id === unId);
         if (sp) e.proceso = snapshotDeProceso(sp.item, modoDatos(), Date.now());
       }
-      const { text, ocrText, estudioPrevioText, ...resto } = e;
-      if (text || ocrText || estudioPrevioText){
-        const ok = await idbSetTexto(unId, { text: text || '', ocrText: ocrText || '', estudioPrevioText: estudioPrevioText || '' });
+      const { text, ocrText, estudioPrevioText, anexos, ...resto } = e;
+      if (anexos && anexos.length) resto.anexosNombres = anexos.map(x => x.nombre);
+      if (text || ocrText || estudioPrevioText || (anexos && anexos.length)){
+        const ok = await idbSetTexto(unId, { text: text || '', ocrText: ocrText || '', estudioPrevioText: estudioPrevioText || '', anexos: anexos || [] });
         if (!ok){
-          e.text = ''; e.ocrText = ''; e.estudioPrevioText = '';
+          e.text = ''; e.ocrText = ''; e.estudioPrevioText = ''; e.anexos = [];
           e.textoLiberado = true;
           resto.textoLiberado = true;
           liberadosPorFalloIdb++;
@@ -8790,6 +8792,36 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       });
     }
 
+    // Matriz 2 de la CCE (selección abreviada de menor cuantía de obra de transporte) como documento aparte, normalmente un PDF ESCANEADO: el texto
+    // trae ruido de OCR («之1,2», «三 0,70», «Raz6nde cobertura») y los valores salen separados de sus nombres. Se asocian por el ORDEN estándar de la
+    // matriz (liquidez, endeudamiento, cobertura, [capital de trabajo: «definido en los pliegos»], rentabilidad del patrimonio y del activo) y el
+    // operador sale de la naturaleza del indicador, no del símbolo mal leído. Solo se acepta si cada grupo trae exactamente 5 valores plausibles.
+    if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /MATRIZ\s*2\s*[-–—]+\s*INDICADORES\s+FINANCIEROS/i.test(t)){
+      const ESP = [['Índice de liquidez', '≥', v => v >= 0.8 && v <= 5], ['Índice de endeudamiento', '≤', v => v >= 0.3 && v <= 0.95], ['Razón de cobertura de intereses', '≥', v => v >= 0.5 && v <= 10],
+        ['Rentabilidad del patrimonio', '≥', v => v >= 0 && v <= 0.3], ['Rentabilidad del activo', '≥', v => v >= 0 && v <= 0.3]];
+      const grupos = {};
+      const reV = /Valor\s+concertado/ig; let mv;
+      while ((mv = reV.exec(t))){
+        const fin = t.slice(mv.index).search(/Rentabilidad\s*del\s*activo/i);
+        if (fin < 0) continue;
+        const seg = t.slice(mv.index, mv.index + fin).replace(/Definido\s+en\s*\w{0,3}\s*\w*\s*\w*\s+Tip\w*/i, ' ');
+        const vals = Array.from(seg.matchAll(/(?<![\w.,])(\d{1,2}(?:[.,]\d{1,2})?)(?![\w.,])/g)).map(x => ({ crudo: x[1], v: parseFloat(x[1].replace(',', '.')) }));
+        let tipo = null; const reH = /financier\w*\s+y\s+organizacional\w*\s+para\s+(Mipyme|1os|los)\b/ig; let mh;
+        const antes = t.slice(0, mv.index);
+        while ((mh = reH.exec(antes))){ tipo = /^mipyme$/i.test(mh[1]) ? 'mipyme' : 'demas'; }
+        if (!tipo || grupos[tipo]) continue;
+        grupos[tipo] = { vals: vals, i: mv.index };
+      }
+      const okG = g => g && g.vals.length === ESP.length && g.vals.every((x, k) => ESP[k][2](x.v));
+      if (okG(grupos.mipyme) && okG(grupos.demas)){
+        ESP.forEach((e, k) => {
+          const d = grupos.demas.vals[k], mi = grupos.mipyme.vals[k];
+          add('Capacidad financiera', e[0], e[1] + ' ' + d.crudo.replace('.', ','), 'Mipyme: ' + e[1] + ' ' + mi.crudo.replace('.', ','), { pagina: pagina(grupos.demas.i), dato: { tipo: 'indice', clave: e[0], demas: { op: e[1], v: d.v }, mipyme: { op: e[1], v: mi.v } } });
+        });
+        avisos.push('La Matriz 2 se leyó de un PDF escaneado (texto de OCR): la ficha asume el orden estándar de la matriz de la CCE y sus operadores (≥ / ≤); verifica los valores contra la imagen de la matriz antes de decidir.');
+      } else avisos.push('La Matriz 2 viene en un PDF escaneado y no se pudo leer con seguridad (los valores no cuadran con el orden esperado): consúltala directamente en el documento.');
+    }
+
     // Indicadores con valor directo (tabla «INDICADOR | PARÁMETRO EXIGIDO» y «ÍNDICES | ÍNDICE REQUERIDO»), sin la Matriz 2 de por medio.
     // Solo se leen detrás de esos encabezados. En rentabilidad, «≥ 0,06 ≥ 0,03 Mipyme» se lee como general y Mipyme (y se avisa).
     if (!filas.some(f => f.dato && f.dato.tipo === 'indice')){
@@ -10574,11 +10606,11 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   function liberarTextoMasAntiguo(analisisObj){
     const ids = Object.keys(analisisObj || {}).filter(id => {
       const e = analisisObj[id];
-      return e && (e.text || e.ocrText || e.estudioPrevioText);
+      return e && (e.text || e.ocrText || e.estudioPrevioText || (e.anexos && e.anexos.length));
     }).sort((a, b) => (analisisObj[a].ts || 0) - (analisisObj[b].ts || 0));
     if (!ids.length) return null;
     const e = analisisObj[ids[0]];
-    e.text = ''; e.ocrText = ''; e.estudioPrevioText = '';
+    e.text = ''; e.ocrText = ''; e.estudioPrevioText = ''; e.anexos = [];
     e.textoLiberado = true;
     return ids[0];
   }
@@ -11806,6 +11838,17 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // botón para reemplazarlo, wireados vía los listeners delegados de
   // resultsEl (data-ep-upload-id / data-ep-id), igual que el resto de los
   // controles dinámicos dentro de .analysis-slot.
+  // Matrices y anexos del proceso (Matriz 1 y 2 de la CCE, anexo técnico…): PDF con texto; cada archivo se lee por separado para que las páginas
+  // citadas sean las de SU documento. La ficha los usa como una fuente más (fichaHabilitanteDe).
+  function anexosUploadHtml(entry){
+    const lista = (entry.anexos || []).map(a => a.nombre);
+    const nombres = lista.length ? lista : (entry.anexosNombres || []);
+    const estado = nombres.length ? '✓ ' + nombres.map(escapeHtml).join(', ') : 'ninguno (opcional -- las matrices de indicadores y de experiencia, y el anexo técnico, completan la ficha).';
+    return '<div class="mb-8 anexos-slot"><strong>Matrices y anexos:</strong> ' + estado + ' ' +
+      '<input type="file" multiple aria-label="Seleccionar las matrices o anexos del proceso (PDF)" accept=".pdf" data-anexos-id="' + escapeHtml(entry.id || '') + '" style="display:none">' +
+      '<button class="link-btn" data-anexos-upload-id="' + escapeHtml(entry.id || '') + '">' + (nombres.length ? '+ Agregar más' : '⬆ Cargar matrices o anexos') + '</button>' +
+      (nombres.length ? ' <button class="link-btn" data-anexos-quitar-id="' + escapeHtml(entry.id || '') + '">Quitar todos</button>' : '') + '</div>';
+  }
   function renderEstudioPrevioUploadHtml(entry){
     // Cuando el documento PRINCIPAL ya es el Estudio Previo (no hay Pliego publicado todavía --
     // ver "📋 Analizar Estudio Previo"), no tiene sentido ofrecer un segundo slot de "Estudio
@@ -11813,7 +11856,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // se publique el Pliego real, hay que analizarlo con el botón normal de la tarjeta (eso crea
     // un análisis nuevo, más completo, con el documento oficial).
     if (entry.esSoloEP){
-      return '<div class="mb-8">' +
+      return anexosUploadHtml(entry) + '<div class="mb-8">' +
         '<strong>Documentos del proceso:</strong> Estudio Previo ✓ (como documento principal -- el Pliego de Condiciones todavía no está publicado).</div>' +
         '<div class="mb-8 saved-note">Cuando se publique el Pliego de Condiciones, vuelve a esta tarjeta y usa "Analizar pliego (PDF)" para completar el análisis con el documento oficial.</div>';
     }
@@ -11821,7 +11864,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const estado = cargado
       ? '✓ ' + escapeHtml(entry.estudioPrevioFileName || 'Estudio Previo') + (entry.estudioPrevioViaOcr ? ' (vía OCR)' : '')
       : 'No cargado (opcional -- si lo tienes, mejora la trazabilidad y permite detectar inconsistencias con el Pliego).';
-    return '<div class="mb-8">' +
+    return anexosUploadHtml(entry) + '<div class="mb-8">' +
       '<strong>Documentos del proceso:</strong> Pliego de Condiciones ✓ · Estudio Previo: ' + estado + ' ' +
       '<input type="file" aria-label="Seleccionar el archivo del Estudio Previo (PDF o Word)" accept=".pdf,.docx" data-ep-id="' + escapeHtml(entry.id || '') + '" style="display:none">' +
       '<button class="link-btn" data-ep-upload-id="' + escapeHtml(entry.id || '') + '">' + (cargado ? '↻ Reemplazar' : '⬆ Cargar Estudio Previo') + '</button>' +
@@ -12377,6 +12420,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // traen la misma fila, manda el pliego. No depende de la IA ni de los datos de la empresa.
   function fichaHabilitanteDe(entry){
     const fuentes = [['Pliego de Condiciones', textoPliegoDe(entry)], ['Estudio Previo', entry && entry.estudioPrevioText]];
+    ((entry && entry.anexos) || []).forEach(function(a){ if (a && a.texto) fuentes.push([a.nombre || 'Anexo', a.texto]); });
     const filas = [], avisos = [], vistos = {}, observaciones = [];
     let lotes = null;
     fuentes.forEach(function(f){
@@ -12387,6 +12431,11 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       r.avisos.forEach(function(a){ if (avisos.indexOf(a) === -1) avisos.push(a); });
       (r.observaciones || []).forEach(function(o){ if (!observaciones.some(function(x){ return x.texto === o.texto; })) observaciones.push(Object.assign({ documento: f[0] }, o)); });
     });
+    // Si una matriz cargada trajo los indicadores, el pliego ya no «remite a una Matriz 2 no publicada».
+    if (filas.some(function(x){ return x.dato && x.dato.tipo === 'indice' && x.documento !== 'Pliego de Condiciones' && x.documento !== 'Estudio Previo'; })){
+      for (let i = avisos.length - 1; i >= 0; i--) if (/remiten a la «Matriz 2»/.test(avisos[i])) avisos.splice(i, 1);
+      for (let i = observaciones.length - 1; i >= 0; i--) if (/«Matriz 2», que no está incluida/.test(observaciones[i].texto)) observaciones.splice(i, 1);
+    }
     return { filas: filas, avisos: avisos, observaciones: observaciones, lotes: lotes };
   }
   // Datos de la mejor empresa registrada, normalizados para cruceFichaEmpresa (null si no hay ninguna).
@@ -15203,6 +15252,26 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     }
   }
 
+  async function cargarAnexosPDF(entry, files, slot){
+    const sinTexto = [];
+    try {
+      await appReady;
+      entry.anexos = entry.anexos || [];
+      for (const file of files){
+        if (!esTipoDeArchivoAceptado(file) || !/\.pdf$/i.test(file.name || '')){ sinTexto.push(file.name + ' (solo PDF)'); continue; }
+        const r = await extractPdfText(file, 40);
+        if (!r.text || r.text.replace(/\s+/g, '').length < 100){ sinTexto.push(file.name + ' (sin texto extraíble: parece una imagen escaneada)'); continue; }
+        entry.anexos = entry.anexos.filter(a => a.nombre !== file.name).concat([{ nombre: file.name, texto: r.text, paginaOffsets: r.paginaOffsets }]);
+      }
+      analisis[entry.id] = entry;
+      saveAnalisis(entry.id);
+    } catch(err){
+      sinTexto.push('error: ' + mensajeErrorPdf(err));
+    }
+    if (slot){ const ctx = itemYScorePara(entry.id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
+    if (sinTexto.length) alert('No se pudo leer: ' + sinTexto.join('; ') + '.');
+  }
+
   async function cargarEstudioPrevioDocx(entry, file, slot){
     try {
       const mammoth = await loadMammothJs();
@@ -15271,7 +15340,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // Estudio Previo), para no perderlos en silencio.
   function conservarCamposAuxiliares(entryNuevo, entryPrevio){
     if (!entryPrevio) return;
-    ['requisitosIA', 'cronogramaIA', 'riesgosIA', 'paginasCitadas', 'estudioPrevioFileName', 'estudioPrevioText', 'estudioPrevioPaginaOffsets', 'estudioPrevioViaOcr', 'estudioPrevioTs'].forEach(k => {
+    ['requisitosIA', 'cronogramaIA', 'riesgosIA', 'paginasCitadas', 'estudioPrevioFileName', 'estudioPrevioText', 'estudioPrevioPaginaOffsets', 'estudioPrevioViaOcr', 'estudioPrevioTs', 'anexos', 'anexosNombres'].forEach(k => {
       if (entryPrevio[k] !== undefined) entryNuevo[k] = entryPrevio[k];
     });
   }
@@ -15802,6 +15871,23 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       return;
     }
 
+    const anxUp = e.target.closest('button[data-anexos-upload-id]');
+    if (anxUp){
+      const input = anxUp.closest('.anexos-slot').querySelector('input[type=file][data-anexos-id]');
+      if (input) input.click();
+      return;
+    }
+    const anxQ = e.target.closest('button[data-anexos-quitar-id]');
+    if (anxQ){
+      const entry = analisis[anxQ.getAttribute('data-anexos-quitar-id')];
+      if (!entry) return;
+      entry.anexos = []; entry.anexosNombres = [];
+      saveAnalisis(entry.id);
+      const slot = anxQ.closest('.row') && anxQ.closest('.row').querySelector('.analysis-slot');
+      if (slot){ const ctx = itemYScorePara(entry.id); slot.innerHTML = renderAnalysisHtml(entry, ctx.item, ctx.s); }
+      return;
+    }
+
     // 0c) "Intentar con OCR" del aviso de Estudio Previo sin texto extraíble
     const epOcrBtn = e.target.closest('button[data-ep-ocr-id]');
     if (epOcrBtn){
@@ -16273,6 +16359,19 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (!entry){ if (slot) slot.innerHTML = '<div class="analysis-block analysis-warn">Analiza primero el pliego de este proceso.</div>'; return; }
     pendingEstudioPrevioFiles[id] = file;
     await cargarEstudioPrevioArchivo(entry, file, slot);
+  });
+
+  enContenedoresDeProceso('change', async function(e){
+    const input = e.target.closest('input[type=file][data-anexos-id]');
+    if (!input) return;
+    const id = input.getAttribute('data-anexos-id');
+    const files = Array.from(input.files || []);
+    input.value = '';
+    if (!files.length) return;
+    const entry = analisis[id];
+    const slot = input.closest('.row').querySelector('.analysis-slot');
+    if (!entry){ if (slot) slot.innerHTML = '<div class="analysis-block analysis-warn">Analiza primero el pliego de este proceso.</div>'; return; }
+    await cargarAnexosPDF(entry, files, slot);
   });
 
   clearHistorialBtn.addEventListener('click', async function(){

@@ -1104,6 +1104,37 @@ await check('Indicadores en la ficha: con los componentes del balance una empres
   await r.ctx.close();
 });
 
+await check('Matrices y anexos: la Matriz 2 cargada (PDF escaneado, texto real) completa la ficha del documento base CCE: 5 indicadores cruzados con la empresa (rentabilidad del patrimonio NO CUMPLE) y desaparece el aviso de «Matriz 2 no publicada»', async () => {
+  const lee = async nombre => JSON.parse(await readFile(join(RAIZ, 'tests', 'fixtures', nombre), 'utf8'));
+  const base = await lee('puerto-santander-pdfjs.json'), m2 = await lee('matriz2-cce-pdfjs.json');
+  const unir = f => Array.from({ length: f.total }, (_, i) => f.paginas[String(i + 1)] || '').join('\n');
+  const kDe = c => ['Activo corriente = ' + c.AC, 'Pasivo corriente = ' + c.PC, 'Activo total = ' + c.AT, 'Pasivo total = ' + c.PT, 'Patrimonio = ' + c.PAT, 'Utilidad operacional = ' + c.UO, 'Gastos de intereses = ' + c.GI].join('\n');
+  const D = { AC: 649046318, PC: 53554509, AT: 737303721, PT: 183768204, PAT: 553535517, UO: 9648701, GI: 3860257 };
+  const entrada = conAnexos => ({ 'E2E-M2': Object.assign({ id: 'E2E-M2', ts: Date.now(), fileName: 'docbase.pdf', pagesRead: base.total, numPages: base.total, text: unir(base),
+    proceso: { entidad: 'Alcaldía de Puerto Santander', objeto: 'Mantenimiento y rehabilitación de vías', modalidad: 'Selección abreviada de menor cuantía', valor: 451999714, closingRaw: new Date(Date.now() + 14 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
+    comps: [{ perfilNombre: 'Dora', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 }, conAnexos ? { anexos: [{ nombre: 'MATRIZ_2.pdf', texto: unir(m2), paginaOffsets: [] }] } : {}) });
+  const leer = async conAnexos => {
+    const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Dora', k: kDe(D), kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']), bitacora_analisis_pliegos: JSON.stringify(entrada(conAnexos)) } });
+    await pg.click('#bt-nav-documentos');
+    await pg.locator('#bt-docs-out [data-abrir-proceso="E2E-M2"]').click();
+    await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .ficha-tabla'));
+    const filas = await pg.evaluate(() => Object.fromEntries([...document.querySelectorAll('#bt-analisis-out .ficha-tabla tbody tr')].filter(tr => tr.children.length > 1).map(tr => [tr.children[0].textContent.trim(), tr.children[tr.children.length - 1].textContent.replace(/\s+/g, ' ').trim()])));
+    const texto = await pg.evaluate(() => document.getElementById('bt-analisis-out').textContent);
+    const slot = await pg.evaluate(() => !!document.querySelector('#bt-analisis-out input[type=file][data-anexos-id]'));
+    assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+    await ctx.close();
+    return { filas, texto, slot };
+  };
+  const sin = await leer(false);
+  assert(!sin.filas['Rentabilidad del patrimonio'] && /Matriz 2/.test(sin.texto), 'sin la matriz: avisa que falta y no inventa indicadores');
+  const con = await leer(true);
+  assert(/NO CUMPLE/.test(con.filas['Rentabilidad del patrimonio']) && /0,0174/.test(con.filas['Rentabilidad del patrimonio']), 'patrimonio: ' + con.filas['Rentabilidad del patrimonio']);
+  assert(/CUMPLE/.test(con.filas['Índice de liquidez']) && !/NO CUMPLE/.test(con.filas['Índice de liquidez']), 'liquidez: ' + con.filas['Índice de liquidez']);
+  assert(!/remiten a la «Matriz 2»/.test(con.texto), 'con la matriz ya no debe decir que no está publicada');
+  assert(/PDF escaneado/.test(con.texto), 'debe avisar que se leyó de un PDF escaneado');
+  assert(con.slot, 'el espacio para cargar matrices y anexos existe');
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');

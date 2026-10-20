@@ -4310,6 +4310,37 @@ await check('fichaHabilitante (documento base CCE menor cuantía): la justificac
   const o = f.observaciones.find(x => /SMMLV/.test(x.tema));
   assert(o && /100 SMMLV/.test(o.texto) && /451\.999\.714/.test(o.texto) && o.pagina === 28, 'observación: ' + JSON.stringify(o));
 });
+// Matriz 2 de la CCE (indicadores de la selección abreviada de menor cuantía de obra de transporte): PDF ESCANEADO, texto REAL de pdf.js con ruido
+// de OCR («之1,2», «三 0,70», «Raz6nde cobertura») y los valores separados de sus nombres.
+const M2_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'matriz2-cce-pdfjs.json'), 'utf8'));
+const M2_TEXTO = (function(){ const l = []; for (let n = 1; n <= M2_FIX.total; n++) l.push(M2_FIX.paginas[String(n)] || ''); return l.join('\n'); })();
+await check('fichaHabilitante (Matriz 2 CCE escaneada, pdf.js): lee los 5 indicadores con su umbral Mipyme y «demás» (liquidez ≥ 1,3/1,2, endeudamiento ≤ 0,70, cobertura ≥ 1, rentabilidades ≥ 0,04/0,02 y ≥ 0,02/0,01) con su página', () => {
+  const f = expEngine.fichaHabilitante(M2_TEXTO, { anio: 2026 });
+  const ind = n => f.filas.find(x => x.dato && x.dato.tipo === 'indice' && x.dato.clave === n);
+  const chk = (n, op, vd, vm) => { const r = ind(n); assert(r && r.dato.demas && r.dato.mipyme && r.dato.demas.op === op && r.dato.mipyme.op === op && Math.abs(r.dato.demas.v - vd) < 1e-9 && Math.abs(r.dato.mipyme.v - vm) < 1e-9 && r.pagina >= 1 && r.pagina <= 2, n + ': ' + JSON.stringify(r && [r.dato, r.pagina])); };
+  chk('Índice de liquidez', '≥', 1.3, 1.2); chk('Índice de endeudamiento', '≤', 0.7, 0.7); chk('Razón de cobertura de intereses', '≥', 1, 1);
+  chk('Rentabilidad del patrimonio', '≥', 0.04, 0.02); chk('Rentabilidad del activo', '≥', 0.02, 0.01);
+  assert(f.filas.filter(x => x.dato && x.dato.tipo === 'indice').length === 5, 'exactamente 5 indicadores');
+  assert(f.filas.some(x => x.aviso && /escane|OCR|verifica/i.test(x.aviso)) || f.avisos.some(a => /Matriz 2.*(escane|verifica)/i.test(a)), 'avisa que se leyó de un escaneado y que se verifique contra la imagen');
+});
+await check('fichaHabilitante (Matriz 2 CCE): si los valores no cuadran con lo esperado (p. ej. endeudamiento 12) NO inventa filas', () => {
+  const malo = M2_TEXTO.replace('0,70', '12,50').replace('0,70', '12,50');
+  const f = expEngine.fichaHabilitante(malo, { anio: 2026 });
+  assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), 'no debe leer indicadores con valores implausibles');
+  assert(f.avisos.some(a => /Matriz 2/.test(a)), 'debe avisar que no se pudo leer');
+});
+await check('fichaHabilitante (Matriz 2 CCE): un valor de más o de menos en un grupo (no son exactamente 5) → no lee ninguno', () => {
+  const f = expEngine.fichaHabilitante(M2_TEXTO.replace('之1,3', '之1,3 5'), { anio: 2026 });
+  assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), 'con 6 valores no debe leer');
+});
+await check('cruceFichaEmpresa con la Matriz 2 CCE: Dora (RoE 0,0174, RoA 0,0131) → rentabilidad del patrimonio NO CUMPLE (ni Mipyme la salva), del activo NO DETERMINABLE (solo Mipyme), liquidez/endeudamiento/cobertura CUMPLE', () => {
+  const f = expEngine.fichaHabilitante(M2_TEXTO, { anio: 2026 });
+  const cr = expEngine.cruceFichaEmpresa(f.filas, { liquidez: 12.12, endeudamiento: 0.2492, cobertura: 2.5, rentPatrimonio: 0.0174, rentActivo: 0.0131, contratos: [], personal: [] });
+  const de = n => cr[n];
+  assert(de('Índice de liquidez').estado === 'CUMPLE' && de('Índice de endeudamiento').estado === 'CUMPLE' && de('Razón de cobertura de intereses').estado === 'CUMPLE', 'índices que cumplen: ' + JSON.stringify(cr));
+  assert(de('Rentabilidad del patrimonio').estado === 'NO CUMPLE', 'RoE: ' + JSON.stringify(de('Rentabilidad del patrimonio')));
+  assert(de('Rentabilidad del activo').estado === 'NO DETERMINABLE' && /Mipyme/.test(de('Rentabilidad del activo').detalle), 'RoA: ' + JSON.stringify(de('Rentabilidad del activo')));
+});
 // Proyecto de pliego SIM-SAMC-008-2026 (Alcaldía de Cúcuta, selección abreviada de menor cuantía, plantilla propia): texto REAL de pdf.js.
 const SIM_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'sim-cucuta-pdfjs.json'), 'utf8'));
 const SIM_TEXTO = (function(){ const l = []; for (let n = 1; n <= SIM_FIX.total; n++) l.push(SIM_FIX.paginas[String(n)] || ''); return l.join('\n'); })();
