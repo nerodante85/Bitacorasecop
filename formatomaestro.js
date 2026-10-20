@@ -209,7 +209,7 @@
         formatoMaestro: {
           idContrato: idContrato, estado: texto(c.ESTADO), especialidad: esp || null, actividad: act || null,
           sujetos: parts.map(p => nombreDe(texto(p.ID_SUJETO))), cargos: cargos, formas: formas, figura: figura || null,
-          unspsc: unspscDe(idContrato), cantidades: cantidadesDe(idContrato), enRup: enRup, alertasOrigen: null
+          fechaLiquidacion: fechaISO(c.FECHA_LIQUIDACION), unspsc: unspscDe(idContrato), cantidades: cantidadesDe(idContrato), enRup: enRup, alertasOrigen: null
         }
       });
       if (ejecucion) {

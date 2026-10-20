@@ -4186,6 +4186,30 @@ await check('Cruce experiencia específica (IMRD): 4 contratos que pasan suman $
   const r = cruceExp('Experiencia específica: contratos', cs.concat(dudoso));
   assert(r.estado === 'NO DETERMINABLE' && /S-5/.test(r.detalle), JSON.stringify(r));
 });
+await check('Formato Maestro: FECHA_LIQUIDACION llega a formatoMaestro.fechaLiquidacion (ISO; vacía o inválida = null, nunca se asume)', () => {
+  const mk = (fl) => FormatoMaestro.importar(FormatoMaestro.leer({ SUJETOS: [{ ID_SUJETO: 'S-001', TIPO: 'Empresa', NOMBRE: 'Constructora X' }], PARTICIPACIONES: [{ ID_CONTRATO: 'C-0009', ID_SUJETO: 'S-001', FORMA_EJECUCION: 'Individual', PORCENTAJE: 1 }],
+    CONTRATOS: [{ ID_CONTRATO: 'C-0009', OBJETO: 'x', ESTADO: 'Terminado', VALOR_CONTRATO: 5, FECHA_LIQUIDACION: fl }] }), { sujetoId: 'S-001' }).contratos[0].formatoMaestro.fechaLiquidacion;
+  assert(mk('2024-05-01') === '2024-05-01' && mk('') === null && mk('31/02/2024') === null, 'fechas: ' + [mk('2024-05-01'), mk(''), mk('31/02/2024')].join(' | '));
+});
+await check('Cruce experiencia (IMRD): un contrato «Terminado» con fecha de liquidación cuenta como liquidado (REVISAR); sin fecha ni estado «Liquidado» queda por confirmar', () => {
+  const conFecha = ctoFM({ formatoMaestro: { estado: 'Terminado', fechaLiquidacion: '2024-05-01', unspsc: IMRD_CODIGOS.slice(0, 9), cantidades: [{ item: 'Siembra de grama', cantidad: 1, unidad: 'm2' }], enRup: 'si' } });
+  assert(cruceExp('Experiencia general: contratos', [conFecha]).estado === 'REVISAR', 'con fecha de liquidación');
+});
+await check('Cruce experiencia (IMRD): el detalle abre con un resumen en embudo (cuántos contratos terminados, con el valor, con los códigos, en el RUP, con el objeto y liquidados) y nombra las palabras del pliego como están escritas («diseños», no «disenos»)', () => {
+  const cs = [ctoFM({ numeroContrato: 'A' }), ctoFM({ numeroContrato: 'B', valor: 100000000 }), ctoFM({ numeroContrato: 'C', enEjecucion: true }), ctoFM({ numeroContrato: 'D', objeto: 'Construcción de vía' })];
+  const r = cruceExp('Experiencia general: contratos', cs);
+  assert(/^Con tus 4 contratos: 3 terminados/.test(r.detalle), 'inicio: ' + r.detalle.slice(0, 120));
+  assert(/2 con valor acreditable/i.test(r.detalle) && /con el objeto/i.test(r.detalle) && /liquidados/i.test(r.detalle), 'embudo: ' + r.detalle.slice(0, 400));
+  const ninguno = cruceExp('Experiencia general: contratos', [ctoFM({ objeto: 'Construcción de vía' }), ctoFM({ numeroContrato: 'Z', objeto: 'Construcción de puente' })]);
+  assert(/Ning[uú]n contrato menciona «estudios», «diseños»/.test(ninguno.detalle) && ninguno.estado === 'NO DETERMINABLE', 'señal fuerte cuando ningún objeto coincide: ' + ninguno.detalle.slice(0, 300));
+  assert(!/Ning[uú]n contrato menciona/.test(cruceExp('Experiencia general: contratos', [ctoFM()]).detalle), 'no la dice si alguno coincide');
+  const sinCod = cruceExp('Experiencia general: contratos', [ctoFM(), ctoFM({ numeroContrato: 'X', formatoMaestro: { estado: 'Liquidado', unspsc: [], cantidades: [], enRup: 'si' } })]);
+  assert(/2 con algún código de la lista \(1 sin dato\)/.test(sinCod.detalle), 'sin dato en el embudo: ' + sinCod.detalle.slice(0, 260));
+  const esp = (n) => cruceExp('Experiencia específica: contratos', Array.from({ length: 3 }, (_, i) => ctoFM({ numeroContrato: 'S' + i, objeto: 'Suministro de materiales de construcción', valor: 300000000 })).concat(ctoFM({ numeroContrato: 'S9', objeto: 'Suministro de materiales de construcción', valor: 300000000, formatoMaestro: { estado: 'Terminado', unspsc: IMRD_CODIGOS.slice(0, n), cantidades: [], enRup: 'si' } })));
+  assert(/3 con al menos 8 de los 15 códigos/.test(esp(7).detalle) && /4 con al menos 8 de los 15 códigos/.test(esp(8).detalle), 'el contrato con 7 códigos sale del embudo: ' + esp(7).detalle.slice(0, 200));
+  const sinObj = cruceExp('Experiencia general: contratos', [ctoFM({ objeto: 'Construcción de vía' })]);
+  assert(/«estudios»/.test(sinObj.detalle) && /«diseños»/.test(sinObj.detalle) && !/disenos/.test(sinObj.detalle), 'palabras originales: ' + sinObj.detalle);
+});
 await check('Cruce experiencia (IMRD): una sección sin presupuesto conocido no inventa el valor mínimo → NO DETERMINABLE; las filas que no son la primera no llevan cruce', () => {
   const filas = expEngine.fichaHabilitante(IMRD_TEXTO.replace(/\$ ?60 ?0\. ?\.?000\.000,00/g, 'X'), { anio: 2026 }).filas;
   const g = filas.find(x => x.requisito === 'Experiencia general: contratos');

@@ -8067,24 +8067,29 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const clave = w => String(w).slice(0, 5);
     const palabrasObj = palabrasClaveDe(d.objeto || '').filter(w => !PALABRAS_GENERICAS_OBRA.has(w) && GEN.indexOf(w) === -1);
     const palabrasItem = palabrasClaveDe(d.item || '').filter(w => !PALABRAS_GENERICAS_OBRA.has(w));
+    const originales = (texto, claves) => String(texto || '').split(/\s+/).map(w => w.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '')).filter(w => w && claves.indexOf(palabrasClaveDe(w)[0]) !== -1).map(w => w.toLowerCase());
+    const verObj = Array.from(new Set(originales(d.objeto, palabrasObj))), verItem = Array.from(new Set(originales(d.item, palabrasItem)));
     const notas = [];
     const evaluar = c => {
-      const fm = c.formatoMaestro || null, falla = [], duda = [];
+      const fm = c.formatoMaestro || null, falla = [], duda = [], f = { terminado: !c.enEjecucion };
       if (c.enEjecucion) falla.push(c.estadoDesconocido ? 'su estado no se reconoce como terminado' : 'no ha terminado');
       if (d.enRup){
-        if (fm && fm.enRup === 'no') falla.push('no está en el RUP');
-        else if (!fm || fm.enRup !== 'si') duda.push('sin confirmar que esté en el RUP');
+        if (fm && fm.enRup === 'no'){ falla.push('no está en el RUP'); f.rup = false; }
+        else if (!fm || fm.enRup !== 'si'){ duda.push('sin confirmar que esté en el RUP'); f.rup = null; }
+        else f.rup = true;
       }
       if (d.valorModo === 'cada'){
         const v = valorAcreditable(c);
+        f.valor = v == null ? null : v >= d.valorMin;
         if (v == null) duda.push('sin valor o participación legible');
         else if (v < d.valorMin) falla.push('su valor acreditable (' + money(v) + ') no alcanza ' + money(d.valorMin));
       }
       if (d.codigos && d.codigos.length){
         const mios = fm && fm.unspsc ? fm.unspsc : [];
-        if (!mios.length) duda.push('sin códigos UNSPSC cargados');
+        if (!mios.length){ duda.push('sin códigos UNSPSC cargados'); f.codigos = null; }
         else {
           const n = mios.filter(x => d.codigos.indexOf(x) !== -1).length;
+          f.codigos = d.minCodigos != null ? n >= d.minCodigos : n > 0;
           if (d.minCodigos != null){ if (n < d.minCodigos) falla.push('solo ' + n + ' de los ' + d.minCodigos + ' códigos exigidos'); }
           else if (n === 0) falla.push('ninguno de sus códigos está en la lista del pliego');
           else notas.push(nombre(c) + ' tiene ' + n + ' de los ' + d.codigos.length + ' códigos: el pliego no dice cuántos debe tener');
@@ -8092,25 +8097,46 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       }
       if (d.liquidado){
         const est = fm ? String(fm.estado || '') : '';
-        if (!/liquidad/i.test(est)) duda.push('sin confirmar el acta de liquidación (estado: ' + (est || 'sin dato') + ')');
+        const liq = /liquidad/i.test(est) || !!(fm && fm.fechaLiquidacion);
+        f.liquidado = liq ? true : null;
+        if (!liq) duda.push('sin confirmar el acta de liquidación (estado: ' + (est || 'sin dato') + ', sin fecha de liquidación)');
       }
       if (palabrasObj.length){
         const raices = new Set(palabrasClaveDe((c.objeto || '') + ' ' + (c.actividades || '')).map(clave));
-        if (!palabrasObj.every(w => raices.has(clave(w)))) duda.push('su objeto no menciona «' + palabrasObj.join('», «') + '»');
+        f.objeto = palabrasObj.every(w => raices.has(clave(w)));
+        if (!f.objeto) duda.push('su objeto no menciona «' + verObj.join('», «') + '»');
       }
       if (palabrasItem.length){
         const cants = fm && fm.cantidades ? fm.cantidades : [];
-        if (!cants.length) duda.push('sin cantidades cargadas para ver el ítem «' + d.item + '»');
-        else if (!cants.some(q => { const r = new Set(palabrasClaveDe(q.item || '').map(clave)); return palabrasItem.every(w => r.has(clave(w))); })) duda.push('ningún ítem de sus cantidades es «' + d.item + '»');
+        if (!cants.length){ duda.push('sin cantidades cargadas para ver el ítem «' + d.item + '»'); f.item = null; }
+        else {
+          f.item = cants.some(q => { const r = new Set(palabrasClaveDe(q.item || '').map(clave)); return palabrasItem.every(w => r.has(clave(w))); });
+          if (!f.item) duda.push('ningún ítem de sus cantidades es «' + d.item + '»');
+        }
       }
-      return { c: c, falla: falla, duda: duda };
+      return { c: c, falla: falla, duda: duda, f: f };
     };
     const evs = lista.map(evaluar);
     const posibles = evs.filter(e => !e.falla.length), seguros = posibles.filter(e => !e.duda.length);
     const nMin = d.nMin != null ? d.nMin : 1;
     const suma = es => es.reduce((a, e) => a + (valorAcreditable(e.c) || 0), 0);
     const sumaConocida = posibles.every(e => valorAcreditable(e.c) != null);
-    const lineas = ['Con tus ' + lista.length + ' contrato(s):'];
+    // Embudo: cuántos contratos siguen en pie tras cada criterio (los que no tienen el dato cuentan y se anotan «sin dato»).
+    const pasos = []; let vivos = evs;
+    const paso = (clave, texto) => {
+      const ok = vivos.filter(e => e.f[clave] === true).length, sd = vivos.filter(e => e.f[clave] === null || e.f[clave] === undefined).length;
+      pasos.push((ok + sd) + ' ' + texto + (sd ? ' (' + sd + ' sin dato)' : ''));
+      vivos = vivos.filter(e => e.f[clave] !== false);
+    };
+    paso('terminado', 'terminados');
+    if (d.valorModo === 'cada') paso('valor', 'con valor acreditable ≥ ' + money(d.valorMin));
+    if (d.enRup) paso('rup', 'en el RUP');
+    if (d.codigos && d.codigos.length) paso('codigos', d.minCodigos != null ? 'con al menos ' + d.minCodigos + ' de los ' + d.codigos.length + ' códigos' : 'con algún código de la lista');
+    if (palabrasObj.length) paso('objeto', 'con el objeto «' + verObj.join('», «') + '»');
+    if (d.liquidado) paso('liquidado', 'liquidados');
+    if (palabrasItem.length) paso('item', 'con el ítem «' + verItem.join(' ') + '»');
+    const lineas = ['Con tus ' + lista.length + ' contratos: ' + pasos.join(' → ') + '.'];
+    if (palabrasObj.length && !evs.some(e => e.f.objeto === true)) lineas.push('Ningún contrato menciona «' + verObj.join('», «') + '» en su objeto: es la señal más fuerte de que no tienes un contrato que sirva; revisa si alguno corresponde con otro nombre.');
     if (seguros.length) lineas.push('pasan todo lo verificable: ' + seguros.slice(0, 5).map(e => nombre(e.c)).join(', ') + (seguros.length > 5 ? ' y ' + (seguros.length - 5) + ' más' : '') + '.');
     const dudosos = posibles.filter(e => e.duda.length);
     if (dudosos.length) lineas.push('por confirmar: ' + dudosos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.duda.join('; ') + ')').join(' · ') + (dudosos.length > 3 ? ' · y ' + (dudosos.length - 3) + ' más' : '') + '.');
