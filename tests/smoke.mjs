@@ -4234,6 +4234,95 @@ await check('Cruce de valor en consorcio: con baseValor «prorrata» (el pliego 
   assert(expEngine.cruceExperienciaCriterios(dCal({ baseValor: 'prorrata' }), cs).estado === 'NO CUMPLE', 'prorrata: 365 M + 686 M < 1.245 M');
   assert(expEngine.cruceExperienciaCriterios(dCal({ baseValor: 'total' }), cs).estado === 'REVISAR', 'total: 730 M + 2.286 M ≥ 1.245 M');
 });
+// Proyecto de pliego SIM-SAMC-008-2026 (Alcaldía de Cúcuta, selección abreviada de menor cuantía, plantilla propia): texto REAL de pdf.js.
+const SIM_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'sim-cucuta-pdfjs.json'), 'utf8'));
+const SIM_TEXTO = (function(){ const l = []; for (let n = 1; n <= SIM_FIX.total; n++) l.push(SIM_FIX.paginas[String(n)] || ''); return l.join('\n'); })();
+const simFicha = () => expEngine.fichaHabilitante(SIM_TEXTO, { anio: 2026 });
+await check('fichaHabilitante (pliego real SIM Cúcuta, pdf.js): presupuesto, plazo «HASTA EL TREINTA Y UNO ( 3 1 ) DICIEMBRE DE 2026» y capacidad residual del proceso = presupuesto completo (plazo ≤ 12 meses, sin anticipo)', () => {
+  const f = simFicha();
+  const po = f.filas.find(x => x.requisito === 'Presupuesto oficial');
+  assert(po && po.exige === '$1.244.985.525' && po.pagina === 2, 'presupuesto: ' + JSON.stringify(po));
+  const pl = f.filas.find(x => x.requisito === 'Plazo de ejecución');
+  assert(pl && /Hasta el 31 de diciembre de 2026/.test(pl.exige) && pl.pagina === 2, 'plazo: ' + JSON.stringify(pl));
+  const k = f.filas.find(x => x.requisito === 'Capacidad residual del proceso (K)');
+  assert(k && k.dato && k.dato.min === 1244985525 && k.dato.clave === 'kResidual', 'K: ' + JSON.stringify(k));
+});
+await check('fichaHabilitante (pliego real SIM Cúcuta, pdf.js): indicadores de la tabla «REQUISITO | JUSTIFICACIÓN» (liquidez ≥ 3,58, endeudamiento ≤ 45 %, cobertura ≥ 4,27, rentabilidades ≥ 0,09 y ≥ 0,04) con el operador que dice la justificación; ya NO avisa de una «Matriz 2» inexistente', () => {
+  const f = simFicha();
+  const ind = n => f.filas.find(x => x.dato && x.dato.tipo === 'indice' && x.dato.clave === n);
+  const chk = (n, op, v, pag) => { const r = ind(n); assert(r && r.dato.demas.op === op && Math.abs(r.dato.demas.v - v) < 1e-9 && r.pagina === pag, n + ': ' + JSON.stringify(r && [r.dato, r.pagina])); };
+  chk('Índice de liquidez', '≥', 3.58, 33); chk('Índice de endeudamiento', '≤', 0.45, 33); chk('Razón de cobertura de intereses', '≥', 4.27, 33);
+  chk('Rentabilidad del patrimonio', '≥', 0.09, 36); chk('Rentabilidad del activo', '≥', 0.04, 36);
+  assert(!f.avisos.some(a => /Matriz\s*2/.test(a)) && !f.observaciones.some(o => /Matriz 2/.test(o.tema)), 'no debe inventar la Matriz 2');
+  const corte = f.filas.find(x => x.requisito === 'Corte de los indicadores (RUP)');
+  assert(corte && corte.exige === '31 de diciembre de 2025' && corte.pagina === 39, 'corte (pdf.js parte «3 1»): ' + JSON.stringify(corte));
+  const o = f.observaciones.find(x => x.tema === 'Indicadores financieros: ">" o "≥"');
+  assert(o && /liquidez/i.test(o.texto) && /cobertura/i.test(o.texto) && o.pagina === 33, 'operador contradictorio: ' + JSON.stringify(o));
+});
+await check('fichaHabilitante (pliego real SIM Cúcuta, pdf.js): experiencia por numerales 3.5.1 / 3.5.2 — hasta 2 contratos con suma ≥ 100 % del presupuesto, 1 contrato individual ≥ 100 % con dragado ≥ 5.000 m³ y material de taludes ≥ 3.500 m³, clases UNSPSC 701718 / 721415 / 811015', () => {
+  const f = simFicha();
+  const g = f.filas.find(x => x.requisito === 'Experiencia general: contratos'), e = f.filas.find(x => x.requisito === 'Experiencia específica: contratos');
+  assert(g && g.dato && g.dato.seccion === 'general' && g.dato.nMax === 2 && g.dato.valorModo === 'suma' && g.dato.valorMin === 1244985525 && g.dato.enRup === true && g.dato.terminado === true && /DRENAJE Y\/O CANALES NATURALES/i.test(g.dato.objeto) && g.dato.codigos.join(',') === '701718,721415,811015' && g.dato.baseValor === null, 'general: ' + JSON.stringify(g && g.dato));
+  assert(e && e.dato && e.dato.seccion === 'específica' && e.dato.nMin === 1 && e.dato.nMax === 1 && e.dato.valorModo === 'cada' && e.dato.valorMin === 1244985525 && e.dato.cantidades.length === 2, 'específica: ' + JSON.stringify(e && e.dato));
+  assert(e.dato.cantidades[0].min === 5000 && e.dato.cantidades[0].unidad === 'm3' && /dragado/i.test(e.dato.cantidades[0].texto) && e.dato.cantidades[1].min === 3500 && /taludes/i.test(e.dato.cantidades[1].texto), 'cantidades: ' + JSON.stringify(e.dato.cantidades));
+  const nombres = f.filas.filter(x => /^Experiencia (general|específica): /.test(x.requisito)).map(x => x.requisito);
+  assert(nombres.join('|') === 'Experiencia general: contratos|Experiencia general: valor|Experiencia específica: contratos|Experiencia específica: valor|Experiencia específica: cantidades' && new Set(f.filas.map(x => x.requisito)).size === f.filas.length, 'nombres: ' + nombres.join('|'));
+  assert(!f.filas.some(x => /^Experiencia /.test(x.requisito) && /Rep[úu]blica de Colombia|SISTEMA DE GESTI/.test(x.exige)), 'el encabezado de la página siguiente no se pega al texto: ' + f.filas.filter(x => /^Experiencia /.test(x.requisito)).map(x => x.exige.slice(-80)).join(' | '));
+  const v = f.filas.find(x => x.requisito === 'Experiencia general: valor');
+  assert(/\$1\.244\.985\.525/.test(v.cifras) && v.pagina === 26, 'valor general: ' + JSON.stringify(v));
+});
+await check('Observaciones al pliego (SIM Cúcuta real): unidad del valor mínimo sin completar «[SMMLV / pesos colombianos]» (p. 26) y base del valor en consorcio que el pliego no define', () => {
+  const ob = simFicha().observaciones;
+  const u = ob.find(o => o.tema === 'Valor mínimo de la experiencia sin unidad'), b = ob.find(o => o.tema === 'Valor de la experiencia en consorcio o unión temporal');
+  assert(u && u.pagina === 26 && /SMMLV/.test(u.texto), 'unidad: ' + JSON.stringify(u));
+  assert(b && b.pagina === 26 && /porcentaje de participaci/i.test(b.texto), 'base: ' + JSON.stringify(b));
+});
+await check('fichaHabilitante: el formato SIM no cambia lo ya leído del IMRD (y al revés): cada pliego conserva sus propias filas', () => {
+  const im = imrdFicha(), si = simFicha();
+  assert(!im.filas.some(x => x.requisito === 'Experiencia específica: cantidades') && !im.observaciones.some(o => /Valor mínimo de la experiencia sin unidad/.test(o.tema)), 'IMRD sin filas del SIM');
+  assert(!si.filas.some(x => /^Experiencia (general|específica): (ítem|liquidación|terminación)$/.test(x.requisito)) && !si.observaciones.some(o => /Corte de los indicadores/.test(o.tema)), 'SIM sin filas del IMRD');
+});
+const SIM_OBJ = 'Mantenimiento de canales de drenaje natural en Cúcuta';
+const simCto = (extra) => Object.assign({ numeroContrato: 'D-1', objeto: SIM_OBJ, valor: 1300000000, participacion: { valor: 100, unidad: '%' }, enEjecucion: false,
+  formatoMaestro: { estado: 'Terminado', unspsc: ['72141500', '81101500'], enRup: 'si', cantidades: [{ item: 'Limpieza y dragado mecánico del canal', cantidad: 6000, unidad: 'm3' }, { item: 'Adecuación de material sobrante de corte en taludes', cantidad: 4000, unidad: 'm3' }] } }, extra || {});
+const cruceSim = (nombre, contratos) => expEngine.cruceFichaEmpresa(simFicha().filas, { contratos: contratos })[nombre];
+await check('Cruce SIM Cúcuta: un contrato de drenaje ≥ presupuesto con dragado 6.000 m³ y taludes 4.000 m³, en el RUP y con clase 721415 → específica REVISAR (nunca CUMPLE); la clase se compara por prefijo (los códigos del pliego son de clase, los del contrato de 8 dígitos)', () => {
+  const r = cruceSim('Experiencia específica: contratos', [simCto()]);
+  assert(r && r.estado === 'REVISAR' && /D-1/.test(r.detalle) && /cantidades m[ií]nimas/i.test(r.detalle), JSON.stringify(r));
+});
+await check('Cruce SIM Cúcuta: dragado insuficiente (4.000 m³ de 5.000) → NO CUMPLE; sin cantidades cargadas → NO DETERMINABLE; cantidad ambigua «1.000» (texto) → NO DETERMINABLE', () => {
+  const con = (q) => simCto({ formatoMaestro: { estado: 'Terminado', unspsc: ['72141500'], enRup: 'si', cantidades: q } });
+  assert(cruceSim('Experiencia específica: contratos', [con([{ item: 'Limpieza y dragado mecánico del canal', cantidad: 4000, unidad: 'm3' }, { item: 'Adecuación de material sobrante de corte en taludes', cantidad: 4000, unidad: 'm3' }])]).estado === 'NO CUMPLE', 'dragado insuficiente');
+  assert(cruceSim('Experiencia específica: contratos', [con([])]).estado === 'NO DETERMINABLE', 'sin cantidades');
+  assert(cruceSim('Experiencia específica: contratos', [con([{ item: 'Limpieza y dragado mecánico del canal', cantidad: '5.000', unidad: 'm3' }, { item: 'Adecuación de material sobrante de corte en taludes', cantidad: 4000, unidad: 'm3' }])]).estado === 'NO DETERMINABLE', 'cantidad ambigua');
+  assert(cruceSim('Experiencia específica: contratos', [con([{ item: 'Pavimento asfáltico', cantidad: 9000, unidad: 'm3' }])]).estado === 'NO DETERMINABLE', 'ítems que no son los exigidos: la lista puede estar incompleta');
+});
+await check('Cruce SIM Cúcuta: con un objeto largo («drenaje y/o canales naturales») basta UNA palabra clave y se anota que la coincidencia es parcial; si no comparte ninguna, el contrato queda por confirmar y se dice que ningún objeto se parece', () => {
+  const parcial = cruceSim('Experiencia específica: contratos', [simCto({ numeroContrato: 'CB', objeto: 'Prolongación del canal Bogotá, Cúcuta' })]);
+  assert(parcial.estado === 'REVISAR' && /CB: su objeto coincide solo con 1 de las 3 palabras clave/.test(parcial.detalle), 'parcial: ' + JSON.stringify(parcial));
+  const ninguna = cruceSim('Experiencia específica: contratos', [simCto({ objeto: 'Construcción de vía urbana' })]);
+  assert(ninguna.estado === 'NO DETERMINABLE' && /Ning[uú]n contrato comparte ninguna de las palabras «drenaje», «canales», «naturales»/.test(ninguna.detalle), 'ninguna: ' + JSON.stringify(ninguna));
+});
+await check('Cruce SIM Cúcuta: dragado repartido en varios ítems que solo SUMADOS llegan a 5.000 m³ → NO DETERMINABLE (pueden ser capas o suministro + instalación); el ítem mayor que llega solo → REVISAR; unidad distinta (ml) no cuenta', () => {
+  const con = (q) => simCto({ formatoMaestro: { estado: 'Terminado', unspsc: ['72141500'], enRup: 'si', cantidades: q } });
+  const tal = { item: 'Adecuación de material sobrante de corte en taludes', cantidad: 4000, unidad: 'm3' };
+  const capas = cruceSim('Experiencia específica: contratos', [con([{ item: 'Limpieza y dragado mecánico del canal', cantidad: 3000, unidad: 'm3' }, { item: 'Dragado mecánico del canal, capa 2', cantidad: 2500, unidad: 'm3' }, tal])]);
+  assert(capas.estado === 'NO DETERMINABLE' && /solo la suma/i.test(capas.detalle), 'capas: ' + JSON.stringify(capas));
+  assert(cruceSim('Experiencia específica: contratos', [con([{ item: 'Limpieza y dragado mecánico del canal', cantidad: 5000, unidad: 'm³' }, tal])]).estado === 'REVISAR', 'm³ con símbolo y justo el mínimo');
+  const ml = cruceSim('Experiencia específica: contratos', [con([{ item: 'Limpieza y dragado mecánico del canal', cantidad: 9000, unidad: 'ml' }, tal])]);
+  assert(ml.estado === 'NO DETERMINABLE' && /no están en m3/.test(ml.detalle), 'ml no es m3: ' + JSON.stringify(ml));
+});
+await check('fichaHabilitante: una mención suelta de «Índice de liquidez > 3,58» (sin la tabla REQUISITO | JUSTIFICACIÓN completa) no se toma como tabla de indicadores', () => {
+  const f = expEngine.fichaHabilitante('INDICADORES CAPACIDAD FINANCIERA REQUISITO JUSTIFICACIÓN Índice de liquidez > 3,58 El Índice de liquidez de la empresa, debe ser positiva y mayor o igual a 3,58', { anio: 2026 });
+  assert(!f.filas.some(x => x.dato && x.dato.tipo === 'indice'), JSON.stringify(f.filas.map(x => x.requisito)));
+});
+await check('Cruce SIM Cúcuta: sin ninguna clase del pliego en los códigos del contrato → NO CUMPLE; contrato en consorcio al 30 % con el pliego callando la base → NO DETERMINABLE cuando cambia el resultado', () => {
+  assert(cruceSim('Experiencia específica: contratos', [simCto({ formatoMaestro: { estado: 'Terminado', unspsc: ['11111111'], enRup: 'si', cantidades: [] } })]).estado === 'NO CUMPLE', 'otra clase');
+  const gen = cruceSim('Experiencia general: contratos', [simCto({ numeroContrato: 'A', valor: 730000000, participacion: { valor: 50, unidad: '%' } }), simCto({ numeroContrato: 'B', valor: 2286000000, participacion: { valor: 30, unidad: '%' } })]);
+  assert(gen.estado === 'NO DETERMINABLE' && /no dice si el valor de un contrato/i.test(gen.detalle), 'base callada: ' + JSON.stringify(gen));
+  const ok = cruceSim('Experiencia general: contratos', [simCto({ numeroContrato: 'A', valor: 700000000 }), simCto({ numeroContrato: 'B', valor: 600000000 })]);
+  assert(ok.estado === 'REVISAR' && /A/.test(ok.detalle), 'dos contratos al 100 % suman $1.300 M: ' + JSON.stringify(ok));
+});
 await check('Cruce experiencia (IMRD): una sección sin presupuesto conocido no inventa el valor mínimo → NO DETERMINABLE; las filas que no son la primera no llevan cruce', () => {
   const filas = expEngine.fichaHabilitante(IMRD_TEXTO.replace(/\$ ?60 ?0\. ?\.?000\.000,00/g, 'X'), { anio: 2026 }).filas;
   const g = filas.find(x => x.requisito === 'Experiencia general: contratos');

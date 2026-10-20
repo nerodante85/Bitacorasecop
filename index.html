@@ -8076,13 +8076,33 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (d.valorModo && d.valorMin == null) return { estado: 'NO DETERMINABLE', detalle: 'No se pudo leer el presupuesto oficial del documento: sin él no se puede comparar el valor de tus contratos.' };
     const money = n => '$' + Math.round(n).toLocaleString('es-CO');
     const nombre = c => c.numeroContrato || ('fila ' + (c.fila != null ? c.fila : '?'));
-    const GEN = ['publica', 'publico', 'publicas', 'publicos'];
+    const GEN = ['publica', 'publico', 'publicas', 'publicos', 'actividades', 'actividad', 'intervencion', 'intervenciones', 'estructura', 'estructuras'];
     const clave = w => String(w).slice(0, 5);
     const palabrasObj = palabrasClaveDe(d.objeto || '').filter(w => !PALABRAS_GENERICAS_OBRA.has(w) && GEN.indexOf(w) === -1);
     const palabrasItem = palabrasClaveDe(d.item || '').filter(w => !PALABRAS_GENERICAS_OBRA.has(w));
     const originales = (texto, claves) => String(texto || '').split(/\s+/).map(w => w.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '')).filter(w => w && claves.indexOf(palabrasClaveDe(w)[0]) !== -1).map(w => w.toLowerCase());
     const verObj = Array.from(new Set(originales(d.objeto, palabrasObj))), verItem = Array.from(new Set(originales(d.item, palabrasItem)));
     const notas = [];
+    // Una actividad con cantidad mínima («Limpieza y dragado mecánico del canal ≥ 5.000 m³») contra los ítems de la hoja CANTIDADES del contrato:
+    // se buscan ítems con al menos 2 palabras clave de la actividad y la misma unidad; si el mayor ítem alcanza, cumple; si solo la suma alcanzaría
+    // (pueden ser capas o suministro + instalación) queda por confirmar; si ni la suma alcanza y el ítem existe, no cumple. Sin ítems o con
+    // cantidades ambiguas («1.000» como texto), no se afirma nada.
+    const normU = u => String(u || '').toLowerCase().replace(/³/g, '3').replace(/²/g, '2').replace(/[^a-z0-9]/g, '');
+    const cantidadMinima = (c, q) => {
+      const fmq = c.formatoMaestro || null, items = fmq && fmq.cantidades ? fmq.cantidades : [];
+      const etq = q.texto + ' ≥ ' + q.min.toLocaleString('es-CO') + ' ' + (normU(q.unidad) === 'm3' ? 'm³' : q.unidad);
+      if (!items.length) return { ok: null, motivo: 'sin cantidades cargadas para «' + etq + '»' };
+      const claves = palabrasClaveDe(q.texto).filter(w => !PALABRAS_GENERICAS_OBRA.has(w));
+      const cand = items.filter(it => { const r = new Set(palabrasClaveDe(it.item || '').map(clave)); return claves.filter(w => r.has(clave(w))).length >= Math.min(2, claves.length); });
+      if (!cand.length) return { ok: null, motivo: 'ningún ítem de sus cantidades corresponde a «' + etq + '»' };
+      const mism = cand.filter(it => normU(it.unidad) === normU(q.unidad));
+      if (!mism.length) return { ok: null, motivo: 'los ítems de «' + q.texto + '» no están en ' + q.unidad };
+      if (mism.some(it => typeof it.cantidad !== 'number' || !isFinite(it.cantidad))) return { ok: null, motivo: 'cantidad ambigua en «' + q.texto + '»' };
+      const vals = mism.map(it => it.cantidad), mayor = Math.max.apply(null, vals), suma = vals.reduce((a, b) => a + b, 0);
+      if (mayor >= q.min) return { ok: true, motivo: '' };
+      if (suma >= q.min) return { ok: null, motivo: 'solo la suma de varios ítems alcanzaría «' + etq + '»' };
+      return { ok: false, motivo: 'solo ' + mayor.toLocaleString('es-CO') + ' ' + q.unidad + ' en «' + q.texto + '» frente a ' + q.min.toLocaleString('es-CO') };
+    };
     const evaluar = c => {
       const fm = c.formatoMaestro || null, falla = [], duda = [], f = { terminado: !c.enEjecucion };
       if (c.enEjecucion) falla.push(c.estadoDesconocido ? 'su estado no se reconoce como terminado' : 'no ha terminado');
@@ -8101,11 +8121,11 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         const mios = fm && fm.unspsc ? fm.unspsc : [];
         if (!mios.length){ duda.push('sin códigos UNSPSC cargados'); f.codigos = null; }
         else {
-          const n = mios.filter(x => d.codigos.indexOf(x) !== -1).length;
+          const n = d.codigos.filter(cd => mios.some(x => String(x).indexOf(cd) === 0)).length;
           f.codigos = d.minCodigos != null ? n >= d.minCodigos : n > 0;
           if (d.minCodigos != null){ if (n < d.minCodigos) falla.push('solo ' + n + ' de los ' + d.minCodigos + ' códigos exigidos'); }
           else if (n === 0) falla.push('ninguno de sus códigos está en la lista del pliego');
-          else notas.push(nombre(c) + ' tiene ' + n + ' de los ' + d.codigos.length + ' códigos: el pliego no dice cuántos debe tener');
+          else if (d.codigos.length > 1) notas.push(nombre(c) + ' cubre ' + n + ' de los ' + d.codigos.length + ' códigos o clases: el pliego no dice cuántos debe tener');
         }
       }
       if (d.liquidado){
@@ -8116,8 +8136,11 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       }
       if (palabrasObj.length){
         const raices = new Set(palabrasClaveDe((c.objeto || '') + ' ' + (c.actividades || '')).map(clave));
-        f.objeto = palabrasObj.every(w => raices.has(clave(w)));
-        if (!f.objeto) duda.push('su objeto no menciona «' + verObj.join('», «') + '»');
+        const aciertos = palabrasObj.filter(w => raices.has(clave(w))).length;
+        // Con 1 o 2 palabras clave se exigen todas; con más (un objeto largo con «y/o») basta una, y se anota que la coincidencia es parcial.
+        f.objeto = palabrasObj.length <= 2 ? aciertos === palabrasObj.length : aciertos >= 1;
+        if (!f.objeto) duda.push(palabrasObj.length <= 2 ? 'su objeto no menciona «' + verObj.join('», «') + '»' : 'su objeto no comparte ninguna de las palabras clave del pliego («' + verObj.join('», «') + '»)');
+        else if (palabrasObj.length > 2 && aciertos < palabrasObj.length) notas.push(nombre(c) + ': su objeto coincide solo con ' + aciertos + ' de las ' + palabrasObj.length + ' palabras clave («' + verObj.join('», «') + '»): confirma que corresponde');
       }
       if (palabrasItem.length){
         const cants = fm && fm.cantidades ? fm.cantidades : [];
@@ -8126,6 +8149,13 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
           f.item = cants.some(q => { const r = new Set(palabrasClaveDe(q.item || '').map(clave)); return palabrasItem.every(w => r.has(clave(w))); });
           if (!f.item) duda.push('ningún ítem de sus cantidades es «' + d.item + '»');
         }
+      }
+      if (d.cantidades && d.cantidades.length){
+        const res = d.cantidades.map(q => cantidadMinima(c, q));
+        const mal = res.findIndex(r => r.ok === false);
+        f.cantidades = mal >= 0 ? false : (res.every(r => r.ok === true) ? true : null);
+        if (mal >= 0) falla.push(res[mal].motivo);
+        else if (f.cantidades === null) duda.push(res.filter(r => r.ok !== true).map(r => r.motivo).join('; '));
       }
       return { c: c, falla: falla, duda: duda, f: f };
     };
@@ -8145,11 +8175,12 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (d.valorModo === 'cada') paso('valor', 'con valor acreditable ≥ ' + money(d.valorMin));
     if (d.enRup) paso('rup', 'en el RUP');
     if (d.codigos && d.codigos.length) paso('codigos', d.minCodigos != null ? 'con al menos ' + d.minCodigos + ' de los ' + d.codigos.length + ' códigos' : 'con algún código de la lista');
-    if (palabrasObj.length) paso('objeto', 'con el objeto «' + verObj.join('», «') + '»');
+    if (palabrasObj.length) paso('objeto', (palabrasObj.length > 2 ? 'con alguna palabra clave del objeto «' : 'con el objeto «') + verObj.join('», «') + '»');
     if (d.liquidado) paso('liquidado', 'liquidados');
     if (palabrasItem.length) paso('item', 'con el ítem «' + verItem.join(' ') + '»');
+    if (d.cantidades && d.cantidades.length) paso('cantidades', 'con las cantidades mínimas');
     const lineas = ['Con tus ' + lista.length + ' contratos: ' + pasos.join(' → ') + '.'];
-    if (palabrasObj.length && !evs.some(e => e.f.objeto === true)) lineas.push('Ningún contrato menciona «' + verObj.join('», «') + '» en su objeto: es la señal más fuerte de que no tienes un contrato que sirva; revisa si alguno corresponde con otro nombre.');
+    if (palabrasObj.length && !evs.some(e => e.f.objeto === true)) lineas.push('Ningún contrato ' + (palabrasObj.length > 2 ? 'comparte ninguna de las palabras' : 'menciona') + ' «' + verObj.join('», «') + '» en su objeto: es la señal más fuerte de que no tienes un contrato que sirva; revisa si alguno corresponde con otro nombre.');
     if (seguros.length) lineas.push('pasan todo lo verificable: ' + seguros.slice(0, 5).map(e => nombre(e.c)).join(', ') + (seguros.length > 5 ? ' y ' + (seguros.length - 5) + ' más' : '') + '.');
     const dudosos = posibles.filter(e => e.duda.length);
     if (dudosos.length) lineas.push('por confirmar: ' + dudosos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.duda.join('; ') + ')').join(' · ') + (dudosos.length > 3 ? ' · y ' + (dudosos.length - 3) + ' más' : '') + '.');
@@ -8370,12 +8401,24 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         if (PAL[palabra] === n){ plazo = n; idxPlazo = mZ.index; }
       }
     }
+    let plazoFechaCorta = false;
     if (plazo) add('Datos del proceso', 'Plazo de ejecución', plazoDias ? plazoDias + ' días' : plazo + ' meses', '', { pagina: pagina(idxPlazo) });
     else {
       // Contratos a monto agotable: «La duración del Contrato será hasta el 31 de diciembre de 2026 o hasta agotar el presupuesto». No hay
       // un plazo en meses, así que no se calculan capital de trabajo ni K; solo se muestra lo que dice el documento.
       const mFP = t.match(/duraci[óo]n\s+del\s+contrato\s+ser[áa]\s+hasta\s+el\s+(\d{1,2}\s+de\s+[a-záéíóúñ]+\s+de\s+20\d{2})(\s+o\s+hasta\s+agotar\s+el\s+presupuesto)?/i);
-      if (mFP) add('Datos del proceso', 'Plazo de ejecución', 'Hasta el ' + mFP[1] + (mFP[2] ? ' o hasta agotar el presupuesto' : ''), '', { pagina: pagina(mFP.index) });
+      if (mFP){
+        add('Datos del proceso', 'Plazo de ejecución', 'Hasta el ' + mFP[1] + (mFP[2] ? ' o hasta agotar el presupuesto' : ''), '', { pagina: pagina(mFP.index) });
+        plazoFechaCorta = parseInt((mFP[1].match(/20\d{2}/) || ['9999'])[0], 10) <= anio;
+      } else {
+        // Tabla 1.1: «HASTA EL TREINTA Y UNO ( 3 1 ) DICIEMBRE DE 2026» (pdf.js separa los dígitos del paréntesis).
+        const mTb = t.match(/\bHASTA\s+EL\s+[A-ZÁÉÍÓÚÑ ]{3,40}?\(\s*(\d)\s*(\d)?\s*\)\s*(?:DE\s+)?(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|SEPTIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE)\s+DE\s+(20\d{2})/);
+        const dia = mTb ? parseInt(mTb[1] + (mTb[2] || ''), 10) : 0;
+        if (mTb && dia >= 1 && dia <= 31){
+          add('Datos del proceso', 'Plazo de ejecución', 'Hasta el ' + dia + ' de ' + mTb[3].toLowerCase() + ' de ' + mTb[4], '', { pagina: pagina(mTb.index) });
+          plazoFechaCorta = parseInt(mTb[4], 10) <= anio;
+        }
+      }
     }
     const sinAnticipo = /no\s+se\s+(?:pactan?|pactar[áa]n?|entregar[áa]n?|otorgar[áa]n?)\s+(?:ning[úu]n\s+)?(?:anticipos?|pagos?\s+anticipados?)|no\s+(?:se\s+)?entregar[áa]\s+(?:al\s+contratista\s+)?(?:ning[úu]n\s+)?anticipo|anticipo\s+y\/o\s+pago\s+anticipado\s+no\s+aplica/i.test(t);
     const conAnticipo = !sinAnticipo && /anticipo\s+del\s+\d/i.test(t);
@@ -8443,6 +8486,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // «B. EXPERIENCIA ESPECÍFICA». Cada viñeta es una fila con el texto del documento (no se interpreta lo que no es una cifra); el valor
     // «igual o superior al PRESUPUESTO OFICIAL» se muestra en pesos y la lista de códigos UNSPSC va completa, hasta la «Nota 1».
     {
+      const baseValorDoc = /experiencia\s+en\s+valor\s+ser[áa]\s+tomada\s+de\s+acuerdo\s+con\s+el\s+porcentaje\s+de\s+participaci[óo]n/i.test(t) ? 'prorrata' : null;
       const iG = t.search(/A\.\s*EXPERIENCIA\s+GENERAL\s+DEL\s+PROPONENTE/i);
       const iEr = iG >= 0 ? t.slice(iG).search(/B\.\s*EXPERIENCIA\s+ESPEC[ÍI]FICA/i) : -1;
       const iE = iEr >= 0 ? iG + iEr : -1;
@@ -8509,9 +8553,53 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
             liquidado: trozos.some(x => /acta\s+de\s+liquidaci/i.test(x)), terminado: trozos.some(x => /terminados?\b/i.test(x)),
             item: trItem ? trItem.replace(/^[\s\S]*?se\s+encuentre\s+/i, '').trim() : null,
             enRup: trozos.some(x => /acreditados?\s+en\s+el\s+RUP/i.test(x)), codigos: codigosSec, minCodigos: minCodSec,
-            baseValor: /experiencia\s+en\s+valor\s+ser[áa]\s+tomada\s+de\s+acuerdo\s+con\s+el\s+porcentaje\s+de\s+participaci[óo]n/i.test(t) ? 'prorrata' : null };
+            baseValor: baseValorDoc };
         }
       });
+      // Numerales «3.5.1 … EXPERIENCIA GENERAL» y «3.5.2 … EXPERIENCIA ESPECÍFICA» (selección abreviada de la Alcaldía de Cúcuta): viñetas con rótulo
+      // («Número máximo de contratos:», «Valor mínimo acumulado:», «Actividades y cantidades mínimas: a) … ≥ 5.000 m³»). Códigos por CLASE (6 dígitos).
+      if (!agregoExp){
+        const iA = t.search(/3\.5\.1\.?\s+DETERMINACI[ÓO]N\s+DE\s+LOS\s+REQUISITOS\s+M[ÍI]NIMOS\s+DE\s+EXPERIENCIA\s+GENERAL/i);
+        const relB = iA >= 0 ? t.slice(iA).search(/3\.5\.2\.?\s+DETERMINACI[ÓO]N\s+DE\s+LOS\s+REQUISITOS\s+M[ÍI]NIMOS\s+DE\s+EXPERIENCIA\s+ESPEC/i) : -1;
+        const iB = relB >= 0 ? iA + relB : -1;
+        const relC = iB >= 0 ? t.slice(iB).search(/3\.5\.\s?3\s+CARACTER[ÍI]STICAS/i) : -1;
+        const iCx = relC >= 0 ? iB + relC : (iB >= 0 ? Math.min(t.length, iB + 3500) : -1);
+        if (iA >= 0 && iB > iA){
+          const limpiar = x => x.replace(/\s*Rep[úu]blica\s+de\s+Colombia[\s\S]*?Subproceso\s*\d*\s*/g, ' ').replace(/\s+/g, ' ').trim();
+          const iUn = t.search(/Clasificaci[óo]n\s+UNSPSC\s+Descripci[óo]n/i);
+          const clases = iUn >= 0 ? Array.from(new Set(Array.from(t.slice(iUn, iUn + 500).matchAll(/\b(\d{2})\s(\d{2})\s(\d{2})\s00\b/g)).map(x => x[1] + x[2] + x[3]))) : [];
+          const secsS = [{ nombre: 'general', desde: iA, hasta: iB }, { nombre: 'específica', desde: iB, hasta: iCx }];
+          const dinero = n => money(n) + (poSmmlv ? ' · ' + fmt1(poSmmlv) + ' SMMLV' : '');
+          secsS.forEach(sec => {
+            const cuerpo = t.slice(sec.desde, sec.hasta);
+            const partes = cuerpo.split(/\s*•\s*/), cabeza = limpiar(partes[0]), viñetas = partes.slice(1);
+            const buscar = rx => viñetas.map(limpiar).find(v => rx.test(v));
+            const vCont = buscar(/^N[úu]mero\s+m[áa]ximo\s+de\s+contratos/i), vVal = buscar(/^Valor\s+m[íi]nimo/i), vObj = buscar(/^Relaci[óo]n\s+con\s+el\s+objeto/i), vCant = buscar(/^Actividades\s+y\s+cantidades\s+m[íi]nimas/i);
+            const mObj = cabeza.match(/[“"]\s*(ACTIVIDADES\s+DE\s+INTERVENCI[ÓO]N[^”"]{5,220}?)\s*[”"]/i) || (vObj || '').match(/[“"]\s*(ACTIVIDADES\s+DE\s+INTERVENCI[ÓO]N[^”"]{5,220}?)\s*[”"]/i);
+            const mMaxS = (vCont || '').match(/hasta\s+[a-záéíóúñ]+\s*\(\s*(\d{1,2})\s*\)\s+contratos/i), mUno = cabeza.match(/presentar\s+un\s*\(\s*1\s*\)\s+[úu]nico\s+contrato/i);
+            const pct = vVal ? ((vVal.match(/(\d{1,3})\s*%/) || [])[1]) : null;
+            const vMin = vVal && presupuesto ? presupuesto * (pct ? parseInt(pct, 10) : 100) / 100 : null;
+            const cants = [];
+            if (vCant){ const reQ = /\b([a-z])\)\s*([^:]{5,160}?)\s*:\s*Cantidad\s+(?:mayor\s+o\s+igual|igual\s+o\s+superior)\s+a\s+(\d{1,3}(?:\.\d{3})*(?:,\d+)?)\s*(m³|m3|m²|m2|ml|und|unidades?)/gi; let mq; while ((mq = reQ.exec(vCant))) cants.push({ texto: mq[2].trim(), min: parseFloat(mq[3].replace(/\./g, '').replace(',', '.')), unidad: mq[4].toLowerCase().replace('³', '3').replace('²', '2') }); }
+            const nom = 'Experiencia ' + sec.nombre + ': ';
+            const pagDe = txt => pagina(txt ? t.indexOf(txt.slice(0, 30), sec.desde) : sec.desde);
+            let nMaxS = mMaxS ? parseInt(mMaxS[1], 10) : (mUno ? 1 : null);
+            if (!vCont && !mUno && !vVal) return;
+            const exigeContratos = sec.nombre === 'general' ? (vCont || '') : ((cabeza.match(/Para\s+acreditar[^.]*\./i) || [''])[0] + (vObj ? ' ' + vObj : '')).trim();
+            add('Experiencia', nom + 'contratos', exigeContratos.length > 420 ? exigeContratos.slice(0, 420) + '…' : exigeContratos, nMaxS ? (mUno ? '1 contrato' : 'Hasta ' + nMaxS + ' contratos') : '',
+              { pagina: pagDe(vCont || cabeza), aviso: sec.nombre === 'específica' ? 'Debe ser un contrato distinto de los de la experiencia general. Mipyme o emprendimiento/empresa de mujeres pueden aportar 1 o 2 contratos adicionales (numeral 3.5.3).' : 'Mipyme o emprendimiento/empresa de mujeres pueden aportar 1 o 2 contratos adicionales (numeral 3.5.3).' });
+            const filaCt = filas[filas.length - 1];
+            if (vVal) add('Experiencia', nom + 'valor', vVal.length > 420 ? vVal.slice(0, 420) + '…' : vVal, vMin ? dinero(vMin) : '', { pagina: pagDe(vVal) });
+            if (cants.length) add('Experiencia', nom + 'cantidades', cants.map(c => c.texto + ' ≥ ' + c.min.toLocaleString('es-CO') + ' ' + (c.unidad === 'm3' ? 'm³' : c.unidad)).join('; '), cants.length + ' actividades con cantidad mínima', { pagina: pagDe(vCant) });
+            filaCt.dato = { tipo: 'expCriterios', seccion: sec.nombre, objeto: mObj ? mObj[1].trim() : null, nMin: nMaxS ? 1 : null, nMax: nMaxS,
+              valorModo: vVal ? (/sumatoria|acumulado/i.test(vVal) ? 'suma' : (/individual/i.test(vVal) ? 'cada' : null)) : null, valorMin: vMin,
+              liquidado: false, terminado: /terminados?\b/i.test(cuerpo), item: null, enRup: /\bRUP\b/.test(cuerpo), codigos: clases, minCodigos: null, cantidades: cants, baseValor: baseValorDoc };
+            agregoExp = true;
+          });
+          const mPh = t.match(/\[\s*SMMLV\s*\/\s*pesos\s+colombianos\s*\]/i);
+          if (mPh) obs('Valor mínimo de la experiencia sin unidad', 'El valor mínimo de la experiencia dice «expresado en [SMMLV / pesos colombianos]» sin haber definido la unidad. Solicitamos indicar si se mide en SMMLV (y con qué año) o en pesos colombianos.', mPh.index);
+        }
+      }
       if (agregoExp){
         // Esta lectura reemplaza la lista de «Clasificación UNSPSC del proceso», que con este formato quedaba cortada a 8 códigos.
         const kV = filas.findIndex(f => f.requisito === 'Clasificación UNSPSC del proceso');
@@ -8523,6 +8611,10 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         }
       }
     }
+    // Base del valor en consorcio: si el pliego fija un valor mínimo y no dice si se toma completo o por participación, se pregunta.
+    filas.filter(f => f.dato && f.dato.tipo === 'expCriterios' && f.dato.valorModo && !f.dato.baseValor && /consorcio|uni[óo]n\s+temporal/i.test(t)).slice(0, 1).forEach(f => {
+      obs('Valor de la experiencia en consorcio o unión temporal', 'El numeral de experiencia fija un valor mínimo pero no dice si, en consorcios o uniones temporales, el valor del contrato se toma completo o según el porcentaje de participación del integrante. Solicitamos precisarlo.', t.indexOf((f.exige || '').slice(0, 30)));
+    });
     // Criterio de calificación que se contradice: «no se puede calificar precio por estar reguladas las tarifas» y, a la vez, puntos por la oferta económica.
     {
       const mNp = t.match(/no\s+se\s+puede\s+calificar\s+precio[^.]{0,200}?tarifas/i);
@@ -8566,6 +8658,10 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (mCr && sinAnticipo && presupuesto && plazo){
       const crpc = plazo <= 12 ? presupuesto - anticipo : (presupuesto - anticipo) / plazo * 12;
       add('Capacidad financiera', 'Capacidad residual del proceso (K)', plazo <= 12 ? 'Presupuesto oficial completo (plazo de 12 meses o menos)' : 'Presupuesto ÷ plazo × 12', money(crpc) + (smmlvAnio ? ' · ' + fmt1(crpc / smmlvAnio) + ' SMMLV' : ''), { pagina: pagina(t.search(/CRPC\s*=/)), dato: { tipo: 'monto', clave: 'kResidual', min: crpc } });
+    }
+    else if (mCr && sinAnticipo && presupuesto && plazoFechaCorta){
+      // Plazo hasta una fecha del mismo año (menor de 12 meses): CRPC = presupuesto oficial − anticipo (no hay anticipo).
+      add('Capacidad financiera', 'Capacidad residual del proceso (K)', 'Presupuesto oficial completo (plazo hasta una fecha de ' + anio + ', menor de 12 meses)', money(presupuesto) + (smmlvAnio ? ' · ' + fmt1(presupuesto / smmlvAnio) + ' SMMLV' : ''), { pagina: pagina(t.search(/CRPC\s*=/)), dato: { tipo: 'monto', clave: 'kResidual', min: presupuesto } });
     }
     // K que el documento FIJA con una cifra («una capacidad residual o K de contratación igual o superior a $X»): si la fórmula ya la
     // calculó solo se contrasta; si no hay fórmula, es la fuente. Con cifras distintas en el documento (conflicto) no se elige ninguna.
@@ -8666,6 +8762,48 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
           add('Capacidad financiera', 'Corte de los indicadores (RUP)', mCorte[1], '', { pagina: pagina(iZ + mCorte.index), aviso: desfasado ? 'Un RUP vigente en ' + anio + ' trae estados financieros de ' + (anio - 1) + ' (se renuevan cada año): un corte a ' + mCorte[1] + ' puede ser un error del documento.' : '' });
           if (desfasado) obs('Corte de los indicadores financieros', 'El documento verifica los indicadores con el RUP «con corte ' + mCorte[1] + '», pero un RUP renovado en ' + anio + ' trae la información financiera con corte a 31 de diciembre de ' + (anio - 1) + '. Solicitamos aclarar con qué corte se verificarán los indicadores.', iZ + mCorte.index);
         }
+      }
+    }
+    // Indicadores en tablas «REQUISITO | JUSTIFICACIÓN» (pliegos de selección abreviada de la Alcaldía de Cúcuta): «Índice de liquidez > 3,58 … debe ser
+    // positiva y mayor o igual a 3,58», «Índice Endeudamiento < =45%», «Rent sobre patrimonio ≥0,09». Manda la justificación (dice «mayor o igual»);
+    // si la tabla y la justificación no coinciden en el operador se avisa y se observa. El endeudamiento en % se guarda como razón (0,45).
+    if (!filas.some(f => f.dato && f.dato.tipo === 'indice')){
+      const iFin = t.search(/INDICADORES\s+CAPACIDAD\s+FINANCIERA\s+REQUISITO\s+JUSTIFICACI[ÓO]N/i), iOrg = t.search(/INDICADORES\s+DE\s+CAPACIDAD\s+ORGANIZACIONAL\s+REQUISITO\s+JUSTIFICACI[ÓO]N/i);
+      const OPS = { '>': '>', '<': '<', '>=': '≥', '≥': '≥', '<=': '≤', '≤': '≤' };
+      const opN = x => OPS[String(x).replace(/\s/g, '')] || null;
+      const dec = x => parseFloat(String(x).replace(/\s/g, '').replace(',', '.'));
+      const leerTabla = (zona, re, pct) => {
+        const m = zona.match(re); if (!m) return null;
+        const opT = opN(m[1]); if (!opT) return null;
+        const resto = zona.slice(m.index + m[0].length, m.index + m[0].length + 260);
+        const mj = resto.match(/\b(mayor|menor)\s+o\s+igual\s+(?:a|que|al)\s+(?:el\s+)?\d/i);
+        const opJ = mj ? (/mayor/i.test(mj[1]) ? '≥' : '≤') : null;
+        let v = dec(m[2]); if (pct) v = v / 100;
+        return { op: opJ || opT, opTabla: opT, opJust: opJ, v: v, crudo: m[2].replace(/\s/g, '') + (pct ? '%' : '') };
+      };
+      const zF = iFin >= 0 ? t.slice(iFin, iFin + 1800) : '', zO = iOrg >= 0 ? t.slice(iOrg, iOrg + 1100) : '';
+      const OPRE = '(>\\s*=|<\\s*=|[≥≤<>])', NUM = '(\\d+(?:[.,]\\s?\\d+)?)';
+      const defs = [
+        ['Índice de liquidez', zF, new RegExp('[ÍI]ndice\\s+de\\s+liquidez\\s*' + OPRE + '\\s*' + NUM, 'i'), false, iFin],
+        ['Índice de endeudamiento', zF, new RegExp('[ÍI]ndice\\s+Endeudamiento\\s*' + OPRE + '\\s*' + NUM + '\\s*%', 'i'), true, iFin],
+        ['Razón de cobertura de intereses', zF, new RegExp('Cobertura\\s+de\\s+intereses\\s*' + OPRE + '\\s*' + NUM, 'i'), false, iFin],
+        ['Rentabilidad del patrimonio', zO, new RegExp('Rent(?:abilidad)?\\s+sobre\\s+patrimonio\\s*' + OPRE + '\\s*' + NUM, 'i'), false, iOrg],
+        ['Rentabilidad del activo', zO, new RegExp('Rent(?:abilidad)?\\s+sobre\\s+activos?\\s*' + OPRE + '\\s*' + NUM, 'i'), false, iOrg]
+      ];
+      const leidosT = defs.map(D => { const r = leerTabla(D[1], D[2], D[3]); return r ? Object.assign({ nombre: D[0], idx: D[4] }, r) : null; }).filter(Boolean);
+      if (leidosT.length >= 3){
+        const contradichos = [];
+        leidosT.forEach(r => {
+          let aviso = '';
+          if (r.opJust && r.opTabla !== r.opJust){
+            aviso = 'La tabla dice «' + r.opTabla + '» pero la justificación dice «' + (r.opJust === '≥' ? 'mayor o igual' : 'menor o igual') + '»: se tomó ' + r.opJust + '; confírmalo.';
+            contradichos.push(r.nombre);
+          }
+          add('Capacidad financiera', r.nombre, r.op + ' ' + r.crudo, '', { pagina: pagina(r.idx), aviso: aviso, dato: { tipo: 'indice', clave: r.nombre, demas: { op: r.op, v: r.v }, mipyme: null } });
+        });
+        if (contradichos.length) obs('Indicadores financieros: ">" o "≥"', 'En la tabla de indicadores, ' + contradichos.map(x => x.toLowerCase()).join(' y ') + ' llevan el signo «>» (o «<»), pero la justificación de cada uno dice «mayor o igual» (o «menor o igual»). Solicitamos aclarar si el umbral incluye el valor indicado.', iFin);
+        const mCorteT = t.match(/fecha\s*s?\s+de\s+corte[^.]{0,200}?((?:\d\s?){1,2})\s*de\s+([a-záéíóúñ]+)\s+de\s+(20\d{2})/i);
+        if (mCorteT) add('Capacidad financiera', 'Corte de los indicadores (RUP)', mCorteT[1].replace(/\s/g, '') + ' de ' + mCorteT[2] + ' de ' + mCorteT[3], '', { pagina: pagina(mCorteT.index) });
       }
     }
     if (!filas.some(f => f.dato && f.dato.tipo === 'indice') && /Matriz\s*2/i.test(t) && /[ÍI]ndice\s+de\s+liquidez|capacidad\s+organizacional/i.test(t)) {
