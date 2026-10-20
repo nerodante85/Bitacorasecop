@@ -8199,9 +8199,58 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     return { estado: estado, detalle: lineas.join(' ') };
   }
 
+  // Cruce de un cargo del pliego con los profesionales registrados en «Personal». Nunca da CUMPLE: la tarjeta profesional, las certificaciones y la
+  // dedicación las verifica la entidad. Un profesional es candidato si su formación/cargo contiene el título (todas las palabras distintivas de
+  // alguna de las alternativas «ingeniero civil y/o arquitecto») y todas las de la especialización; los años declarados se comparan con los años
+  // desde la tarjeta que pide el pliego. NO CUMPLE solo si todos los candidatos declaran menos años; sin candidatos o sin años, NO DETERMINABLE.
+  function cruceDePersonal(d, personal, usados, nombreFila){
+    const lista = (personal || []).filter(Boolean);
+    if (!lista.length) return { estado: 'NO DETERMINABLE', detalle: 'No tienes profesionales registrados en «Personal»: regístralos (formación, especialización y años) para compararlos con este cargo.' };
+    const DEGREE = new Set(['ingeniero', 'ingeniera', 'tecnologo', 'tecnologa', 'tecnico', 'tecnica', 'profesional', 'titulo', 'con', 'un', 'una', 'de', 'en', 'y', 'e', 'o', 'la', 'el', 'del', 'los', 'las', 'del', 'para']);
+    const partes = String(d.cargo || '').split(/,?\s+(?:especialista|con\s+especializaci[óo]n)\s+en\s+/i);
+    const alternativas = partes[0].split(/\s+y\/o\s+|\s+o\s+/i).map(x => normHeader(x).split(' ').filter(w => w && !DEGREE.has(w))).filter(a => a.length);
+    const espec = partes[1] ? normHeader(partes[1]).split(' ').filter(w => w && !DEGREE.has(w) && w !== 'ingenieria') : [];
+    const r5 = w => w.slice(0, 5);
+    const cumple = (palabras, raices) => palabras.every(w => raices.has(r5(w)));
+    const nombreDe = p => p.nombre || 'Sin nombre';
+    const candidatos = [], sinEspec = [];
+    lista.forEach(p => {
+      const raices = new Set(normHeader([p.cargo, p.formacion, p.especializaciones, p.experiencia, p.competencias].filter(Boolean).join(' ')).split(' ').filter(Boolean).map(r5));
+      if (!alternativas.length || !alternativas.some(a => cumple(a, raices))) return;
+      if (espec.length && !cumple(espec, raices)){ sinEspec.push(nombreDe(p)); return; }
+      const m = String(p.anos || '').match(/\d{1,2}/);
+      candidatos.push({ p: p, nombre: nombreDe(p), anos: m ? parseInt(m[0], 10) : null });
+    });
+    const req = d.anosTarjeta;
+    const ok = candidatos.filter(c => c.anos != null && c.anos >= req), cortos = candidatos.filter(c => c.anos != null && c.anos < req), sinAnos = candidatos.filter(c => c.anos == null);
+    const lineas = [];
+    const acredita = (d.certificaciones ? 'Debes acreditar ' + d.certificaciones + ' certificaciones' + (d.certTexto ? ' (' + d.certTexto + ')' : '') + ': no se verifican aquí.' : '');
+    let estado;
+    if (ok.length){
+      estado = 'REVISAR';
+      lineas.push('Candidato(s): ' + ok.map(c => c.nombre + ' (' + c.anos + ' años declarados frente a ' + req + ' desde la tarjeta profesional)').join('; ') + '.');
+      lineas.push('Los años que pide el pliego cuentan desde la expedición de la tarjeta profesional: verifica esa fecha.');
+      if (acredita) lineas.push(acredita);
+      const dup = ok.filter(c => usados && usados[c.nombre] && usados[c.nombre].length);
+      dup.forEach(c => lineas.push(c.nombre + ' también es la candidata de otro cargo (' + usados[c.nombre].join(', ') + '): no puede ofrecerse a la misma persona en dos cargos sin revisarlo.'));
+      ok.forEach(c => { if (usados){ usados[c.nombre] = (usados[c.nombre] || []).concat(nombreFila); } });
+    } else if (sinAnos.length){
+      estado = 'NO DETERMINABLE';
+      lineas.push(sinAnos.map(c => c.nombre).join(', ') + ' tiene el perfil pero no hay años de experiencia legibles en «Personal» (el pliego pide ' + req + ' desde la tarjeta profesional).');
+    } else if (cortos.length){
+      estado = 'NO CUMPLE';
+      lineas.push(cortos.map(c => c.nombre + ' declara ' + c.anos + ' años').join('; ') + ' frente a los ' + req + ' que pide el pliego desde la tarjeta profesional.');
+    } else {
+      estado = 'NO DETERMINABLE';
+      lineas.push('Ningún profesional registrado coincide con «' + d.cargo + '»' + (sinEspec.length ? ' (' + sinEspec.join(', ') + ' tiene el título pero no consta la especialización)' : '') + '. Si lo vas a contratar, regístralo en «Personal».');
+    }
+    return { estado: estado, detalle: lineas.join(' ') };
+  }
+
   function cruceFichaEmpresa(filas, emp){
     emp = emp || {};
     const out = {};
+    const usadosPersonal = {};
     const money = n => '$' + Math.round(n).toLocaleString('es-CO');
     const razon = n => (Math.round(n * 100) / 100).toLocaleString('es-CO');
     const pasa = (v, op, u) => op === '≥' ? v >= u : op === '≤' ? v <= u : op === '>' ? v > u : op === '<' ? v < u : null;
@@ -8239,6 +8288,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       }
       else if (d.tipo === 'expCriterios'){
         r = cruceExperienciaCriterios(d, emp.contratos || []);
+      }
+      else if (d.tipo === 'personal'){
+        r = cruceDePersonal(d, emp.personal || [], usadosPersonal, f.requisito);
       }
       else if (d.tipo === 'magnitud'){
         // Cantidades por ítem de los contratos de la empresa (hoja CANTIDADES del Formato Maestro): ver magnitudes.js.
@@ -8818,8 +8870,57 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       .replace(/ANEXO\s+1\s*[–—-]\s*ANEXO\s+T[ÉE]CNICO\s+[A-ZÁÉÍÓÚÑ\s()0-9-]*?P[áa]gina\s+\d+\s+de\s+\d+\s+C[óo]digo\s+Versi[óo]n\s+No\.\s*\d+/g, ' ');
     // Personal y maquinaria
     const CARGOS = ['DIRECTOR DE OBRA', 'DIRECTOR DE PROYECTO', 'RESIDENTE DE OBRA', 'RESIDENTE', 'ESPECIALISTA ESTRUCTURAL', 'ESPECIALISTA GEOT[ÉE]CNICO', 'ESPECIALISTA HIDR[ÁA]ULICO', 'INSPECTOR DE OBRA', 'RESPONSABLE SG-SST', 'PROFESIONAL SST', 'PROFESIONAL AMBIENTAL', 'PROFESIONAL SOCIAL', 'TOP[ÓO]GRAFO'];
+    // Tabla «Profesional Ofrecido para el Cargo | Requisitos de Experiencia General | Requisitos de Experiencia Específica» (IMRD de Cúcuta): cada
+    // cargo trae «N años a partir de la expedición de la tarjeta profesional» (a veces «y M años como especialista») y «Aportar K certificaciones…».
+    // Los cargos se separan por las anclas de años; el cargo siguiente empieza en la primera profesión después del último «Aportar».
+    let personalTabla = false;
+    {
+      const mH = t.match(/Profesional\s+Ofrecido\s+para\s+el\s+Cargo\s+Requisitos\s+de\s+Experiencia\s+General\s+Requisitos\s+de\s+Experiencia\s+Espec[íi]fica\s+/i);
+      if (mH){
+        const ini = mH.index + mH[0].length;
+        const finRel = t.slice(ini).search(/La\s+disponibilidad\s+del\s+personal|\b5\.2\.6\b|INCENTIVOS\s+EN\s+FAVOR/i);
+        const cuerpo = t.slice(ini, ini + (finRel > 0 ? finRel : 2200));
+        const reA = /(\d{1,2})\s+a[ñn]os\s+a\s+partir\s+de\s+la\s+expedici[óo]n\s+de\s+(?:la\s+)?tarjeta\s+profesional(?:\s+y\s+(\d{1,2})\s+a[ñn]os\s+como\s+especialista)?/gi;
+        const anclas = Array.from(cuerpo.matchAll(reA));
+        const reCargo = /\b(?:Ingeniero|Arquitecto|Un\s*\(1\)\s+profesional|Tecn[óo]logo|T[ée]cnico|Abogado|Especialista|Profesional|Director|Residente|Top[óo]grafo)\b/i;
+        const filasP = [];
+        anclas.forEach((m, k) => {
+          const prevEnd = k === 0 ? 0 : anclas[k - 1].index + anclas[k - 1][0].length;
+          const seg = cuerpo.slice(prevEnd, m.index);
+          const desdeAp = k === 0 ? 0 : (seg.lastIndexOf('Aportar') >= 0 ? seg.lastIndexOf('Aportar') + 1 : 0);
+          // El cargo empieza en la primera profesión que NO continúa una frase («…certificaciones como director en contratos…» no es un cargo).
+          const resto = seg.slice(desdeAp), CONT = new Set(['como', 'de', 'del', 'en', 'el', 'la', 'un', 'una', 'por', 'al', 'y', 'o', 'a', 'para', 'con']);
+          const rc = new RegExp(reCargo.source, 'gi'); let rel = -1, mm;
+          while ((mm = rc.exec(resto))){
+            const previa = resto.slice(0, mm.index).trim().split(/\s+/).pop().toLowerCase();
+            if (mm.index === 0 || !CONT.has(previa)){ rel = mm.index; break; }
+          }
+          if (rel < 0) return;
+          filasP.push({ ini: prevEnd + desdeAp + rel, m: m });
+        });
+        const ok = filasP.length === anclas.length && filasP.length >= 2;
+        if (ok){
+          const ded = (t.match(/dedicaci[óo]n\s+ser[áa]\s+por\s+de\s+([^.]{3,40}?(?:al\s+mes|mensual(?:es)?|a\s+la\s+semana))/i) || [])[1];
+          const sentencia = x => { const l = x.toLowerCase().replace(/\bingenieria\b/g, 'ingeniería'); return l.charAt(0).toUpperCase() + l.slice(1); };
+          filasP.forEach((fp, k) => {
+            const cargoCrudo = cuerpo.slice(fp.ini, fp.m.index).replace(/^\s*Un\s*\(1\)\s+profesional\s+con\s+t[íi]tulo\s+de\s+/i, '').replace(/[\s.,;]+$/, '').trim();
+            const esp = cuerpo.slice(fp.m.index + fp.m[0].length, k + 1 < filasP.length ? filasP[k + 1].ini : cuerpo.length).trim();
+            const mc = esp.match(/Aportar\s+(\d{1,2})\s+certificaciones?\s*(?:de\s+experiencia\s+)?(.*)$/i);
+            const cargo = sentencia(cargoCrudo), certs = mc ? parseInt(mc[1], 10) : null, certTexto = mc ? mc[2].trim().replace(/\s+/g, ' ').replace(/[\s.]+$/, '') : '';
+            const anosT = parseInt(fp.m[1], 10), anosE = fp.m[2] ? parseInt(fp.m[2], 10) : null;
+            const cifras = [anosT + ' años desde la tarjeta profesional', anosE ? anosE + ' años como especialista' : '', certs ? certs + ' certificaciones' : '', ded ? 'dedicación ' + ded : ''].filter(Boolean).join(' · ');
+            add('Personal', cargo, certTexto ? 'Experiencia específica: ' + (certTexto.length > 200 ? certTexto.slice(0, 200) + '…' : certTexto) : 'Ver la tabla del documento', cifras,
+              { pagina: pagina(ini + fp.ini), dato: { tipo: 'personal', cargo: cargo, anosTarjeta: anosT, anosEspecialista: anosE, certificaciones: certs, certTexto: certTexto } });
+          });
+          personalTabla = true;
+          const iHab = t.search(/no\s+cumplir\s+alguno\s+de\s+estos\s+requisitos\s+habilitantes\s+m[íi]nimos[^.]{0,200}?rechazo\s+de\s+la\s+oferta/i);
+          const mPt = t.match(/IDONEIDAD\s+DEL\s+PERSONAL\s+OFRECIDO\s*\(?\s*(\d{1,2})\s*\)?\s*(?:PUNTOS)?|otorgar[áa]\s+[A-ZÁÉÍÓÚ]+\s*\(\s*(\d{1,2})\s*\)\s*puntos\s+de\s+la\s+siguiente\s+manera/i);
+          if (iHab >= 0 && mPt) obs('Personal: habilitante o puntaje', 'El documento dice que no cumplir alguno de los requisitos mínimos del personal genera el rechazo de la oferta y, a la vez, otorga ' + (mPt[1] || mPt[2] || '8') + ' puntos por la idoneidad del personal ofrecido. Solicitamos aclarar si el personal es requisito habilitante (cumple / no cumple) o criterio de puntaje.', iHab);
+        }
+      }
+    }
     const iPers = t.search(/Requisitos\s+del\s+personal/i);
-    if (iPers >= 0){
+    if (iPers >= 0 && !personalTabla){
       const ventana = t.slice(iPers, iPers + 2600).split(/Maquinaria\s+m[íi]nima|equipo\s+m[íi]nimo/i)[0];
       // Lista "El personal requerido es: ● Un (1) <formación> – <cargo>" (una línea por cargo: se lee sin ambigüedad).
       const iLista = t.search(/El\s+personal\s+requerido\s+es\s+el\s+siguiente/i);
@@ -12239,7 +12340,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       }
       const expP = expevalPorPerfil[res.mejor.perfilId];
       const contratosExp = (expP && expP.contratos && expP.contratos.contratos) || [];
-      return { nombre: mat.nombre, contratos: contratosExp, baseCantidades: (entry.baseCantidades === 'total' || entry.baseCantidades === 'prorrata') ? entry.baseCantidades : null, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
+      return { nombre: mat.nombre, personal: Object.keys(perfilesProfesionales || {}).map(id => perfilesProfesionales[id]), contratos: contratosExp, baseCantidades: (entry.baseCantidades === 'total' || entry.baseCantidades === 'prorrata') ? entry.baseCantidades : null, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
         kIncompleto: !!(mat.capacidadEstimada && mat.capacidadEstimada.incompletos > 0) };
     } catch (e) { return null; }
   }

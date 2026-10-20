@@ -4234,6 +4234,55 @@ await check('Cruce de valor en consorcio: con baseValor «prorrata» (el pliego 
   assert(expEngine.cruceExperienciaCriterios(dCal({ baseValor: 'prorrata' }), cs).estado === 'NO CUMPLE', 'prorrata: 365 M + 686 M < 1.245 M');
   assert(expEngine.cruceExperienciaCriterios(dCal({ baseValor: 'total' }), cs).estado === 'REVISAR', 'total: 730 M + 2.286 M ≥ 1.245 M');
 });
+// Personal del pliego IMRD: tabla «Requisitos del personal» (Profesional Ofrecido para el Cargo | Experiencia General | Experiencia Específica), pp. 89-90.
+const IMRD_CARGOS = ['Ingeniero civil y/o arquitecto, especialista en gerencia de proyectos', 'Ingeniero civil, especialista en ingeniería de sistemas hídricos urbanos', 'Constructor en arquitectura e ingeniería', 'Tecnólogo en topografía'];
+await check('fichaHabilitante (pliego real IMRD, pdf.js): el personal sale como 4 cargos con años desde la tarjeta profesional, años de especialista, certificaciones exigidas y dedicación — antes salía una sola fila rota («Especialista en»)', () => {
+  const f = imrdFicha();
+  const per = f.filas.filter(x => x.grupo === 'Personal');
+  assert(per.map(x => x.requisito).join('|') === IMRD_CARGOS.join('|'), 'cargos: ' + per.map(x => x.requisito).join(' | '));
+  assert(per.every(x => x.pagina === 90 && x.dato && x.dato.tipo === 'personal' && /tres \(3\) d[ií]as al mes/i.test(x.cifras)), 'página, dato y dedicación: ' + JSON.stringify(per.map(x => [x.pagina, x.cifras])));
+  const d = per.map(x => x.dato);
+  assert(d.map(x => x.anosTarjeta).join(',') === '20,10,10,5' && d.map(x => x.certificaciones).join(',') === '4,2,10,3' && d[1].anosEspecialista === 5 && d[0].anosEspecialista === null, 'años y certificaciones: ' + JSON.stringify(d));
+  assert(/gerencia de proyectos/i.test(d[0].cargo) && /h[ií]dricos urbanos/i.test(d[1].cargo) && /estudios y dise/i.test(d[0].certTexto) && /recreo/i.test(d[1].certTexto), 'textos: ' + JSON.stringify(d.map(x => [x.cargo, x.certTexto])));
+});
+await check('Observaciones al pliego (IMRD real): el personal se pide como requisito mínimo con rechazo de la oferta Y se puntúa (8 puntos) — se pregunta si es habilitante o puntaje (p. 89)', () => {
+  const o = imrdFicha().observaciones.find(x => x.tema === 'Personal: habilitante o puntaje');
+  assert(o && o.pagina === 89 && /8/.test(o.texto) && /rechazo/i.test(o.texto), JSON.stringify(o));
+});
+await check('fichaHabilitante: una tabla de personal con un solo cargo no se toma como la tabla del IMRD (queda para la lectura general)', () => {
+  const f = expEngine.fichaHabilitante('Profesional Ofrecido para el Cargo Requisitos de Experiencia General Requisitos de Experiencia Específica Ingeniero civil 10 años a partir de la expedición de la tarjeta profesional Aportar 2 certificaciones como director La disponibilidad del personal', { anio: 2026 });
+  assert(!f.filas.some(x => x.dato && x.dato.tipo === 'personal'), JSON.stringify(f.filas.map(x => x.requisito)));
+});
+await check('empresaParaFicha entrega los profesionales de «Personal» al cruce (si se quita, el cruce de personal queda siempre sin datos en pantalla)', () => {
+  const i0 = html.indexOf('function empresaParaFicha(entry){'), i1 = html.indexOf('function fichaHabilitanteHtml(entry){', i0);
+  assert(i0 > 0 && i1 > i0 && /personal:\s*Object\.keys\(perfilesProfesionales/.test(html.slice(i0, i1)), 'empresaParaFicha no trae personal');
+});
+const PERS = (extra) => Object.assign({ nombre: 'Marta Ruiz', cargo: 'Director de proyectos', formacion: 'Ingeniera civil', especializaciones: 'Especialización en gerencia de proyectos', anos: '22', experiencia: '', competencias: '' }, extra || {});
+const crucePers = (nombre, personal) => expEngine.cruceFichaEmpresa(imrdFicha().filas, { personal: personal })[nombre];
+await check('Cruce de personal (IMRD): un ingeniero civil con especialización en gerencia de proyectos y 22 años declarados → REVISAR (nunca CUMPLE: la tarjeta y las certificaciones las verifica la entidad), citando a la persona y las certificaciones que debe acreditar', () => {
+  const r = crucePers(IMRD_CARGOS[0], [PERS()]);
+  assert(r && r.estado === 'REVISAR' && /Marta Ruiz/.test(r.detalle) && /4 certificaciones/.test(r.detalle), JSON.stringify(r));
+});
+await check('Cruce de personal (IMRD): años declarados menores (15 de 20) → NO CUMPLE; años sin dato → NO DETERMINABLE; sin la especialización pedida o con otra profesión → NO DETERMINABLE; sin personal registrado → NO DETERMINABLE', () => {
+  assert(crucePers(IMRD_CARGOS[0], [PERS({ anos: '15' })]).estado === 'NO CUMPLE', '15 años');
+  const sa = crucePers(IMRD_CARGOS[0], [PERS({ anos: '' })]);
+  assert(sa.estado === 'NO DETERMINABLE' && /no hay años de experiencia legibles/.test(sa.detalle), 'sin años: ' + JSON.stringify(sa));
+  assert(crucePers(IMRD_CARGOS[0], [PERS({ especializaciones: '' })]).estado === 'NO DETERMINABLE', 'sin especialización');
+  assert(crucePers(IMRD_CARGOS[0], [PERS({ formacion: 'Abogada', cargo: 'Asesora jurídica', especializaciones: '' })]).estado === 'NO DETERMINABLE', 'otra profesión');
+  const sp = crucePers(IMRD_CARGOS[0], []);
+  assert(sp.estado === 'NO DETERMINABLE' && /No tienes profesionales registrados/.test(sp.detalle), 'sin personal: ' + JSON.stringify(sp));
+});
+await check('Cruce de personal (IMRD): arquitecto también sirve para «ingeniero civil y/o arquitecto»; el constructor en arquitectura e ingeniería exige las tres palabras; el topógrafo se reconoce por la raíz', () => {
+  assert(crucePers(IMRD_CARGOS[0], [PERS({ formacion: 'Arquitecto', anos: '25' })]).estado === 'REVISAR', 'arquitecto');
+  assert(crucePers(IMRD_CARGOS[2], [PERS({ nombre: 'Luis', formacion: 'Constructor en Arquitectura e Ingeniería', especializaciones: '', anos: '12' })]).estado === 'REVISAR', 'constructor');
+  assert(crucePers(IMRD_CARGOS[2], [PERS({ nombre: 'Luis', formacion: 'Ingeniero civil', especializaciones: '', anos: '12' })]).estado === 'NO DETERMINABLE', 'ingeniero civil no es constructor en arquitectura e ingeniería');
+  assert(crucePers(IMRD_CARGOS[3], [PERS({ nombre: 'Ana', cargo: 'Topógrafa', formacion: 'Topografía', especializaciones: '', anos: '6' })]).estado === 'REVISAR', 'topógrafa (el título «tecnólogo» no se exige palabra por palabra)');
+});
+await check('Cruce de personal (IMRD): el mismo profesional no se da por válido para dos cargos a la vez sin avisarlo', () => {
+  const p = PERS({ nombre: 'Marta Ruiz', formacion: 'Ingeniera civil', especializaciones: 'Especialización en gerencia de proyectos; especialista en ingeniería de sistemas hídricos urbanos', anos: '22' });
+  const out = expEngine.cruceFichaEmpresa(imrdFicha().filas, { personal: [p] });
+  assert(out[IMRD_CARGOS[0]].estado === 'REVISAR' && out[IMRD_CARGOS[1]].estado === 'REVISAR' && /tambi[eé]n .*otro cargo|mismo profesional/i.test(out[IMRD_CARGOS[1]].detalle), 'aviso de duplicidad: ' + out[IMRD_CARGOS[1]].detalle);
+});
 // Proyecto de pliego SIM-SAMC-008-2026 (Alcaldía de Cúcuta, selección abreviada de menor cuantía, plantilla propia): texto REAL de pdf.js.
 const SIM_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'sim-cucuta-pdfjs.json'), 'utf8'));
 const SIM_TEXTO = (function(){ const l = []; for (let n = 1; n <= SIM_FIX.total; n++) l.push(SIM_FIX.paginas[String(n)] || ''); return l.join('\n'); })();
