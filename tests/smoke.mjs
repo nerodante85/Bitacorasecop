@@ -4335,6 +4335,14 @@ const SIM_OBJ = 'Mantenimiento de canales de drenaje natural en Cúcuta';
 const simCto = (extra) => Object.assign({ numeroContrato: 'D-1', objeto: SIM_OBJ, valor: 1300000000, participacion: { valor: 100, unidad: '%' }, enEjecucion: false,
   formatoMaestro: { estado: 'Terminado', unspsc: ['72141500', '81101500'], enRup: 'si', cantidades: [{ item: 'Limpieza y dragado mecánico del canal', cantidad: 6000, unidad: 'm3' }, { item: 'Adecuación de material sobrante de corte en taludes', cantidad: 4000, unidad: 'm3' }] } }, extra || {});
 const cruceSim = (nombre, contratos) => expEngine.cruceFichaEmpresa(simFicha().filas, { contratos: contratos })[nombre];
+await check('Cruce de experiencia: el resumen (embudo, conclusión, los que pasan) va aparte de la lista de contratos por confirmar y descartados, para plegarla en pantalla; el detalle completo empieza por el resumen', () => {
+  const cs = Array.from({ length: 12 }, (_, i) => simCto({ numeroContrato: 'X' + i, objeto: 'Construcción de vía ' + i, formatoMaestro: { estado: 'Terminado', unspsc: [], enRup: 'si', cantidades: [] } }));
+  const r = cruceSim('Experiencia específica: contratos', cs);
+  assert(r.resumen && r.detalle.indexOf(r.resumen) === 0 && r.detalle.length > r.resumen.length, 'el detalle empieza por el resumen');
+  assert(!/Por confirmar:|No cuentan:/.test(r.resumen) && /Por confirmar:/.test(r.detalle) && /^Con tus 12 contratos/.test(r.resumen), 'resumen: ' + r.resumen.slice(0, 200));
+  const base = expEngine.cruceExperienciaCriterios(dCal(), [cDren('A', 730000000, 50), cDren('B', 2286000000, 30)]);
+  assert(/no dice si el valor de un contrato/i.test(base.resumen) && base.detalle.indexOf(base.resumen) === 0, 'la pregunta de la base va en el resumen: ' + base.resumen);
+});
 await check('Cruce SIM Cúcuta: un contrato de drenaje ≥ presupuesto con dragado 6.000 m³ y taludes 4.000 m³, en el RUP y con clase 721415 → específica REVISAR (nunca CUMPLE); la clase se compara por prefijo (los códigos del pliego son de clase, los del contrato de 8 dígitos)', () => {
   const r = cruceSim('Experiencia específica: contratos', [simCto()]);
   assert(r && r.estado === 'REVISAR' && /D-1/.test(r.detalle) && /cantidades m[ií]nimas/i.test(r.detalle), JSON.stringify(r));

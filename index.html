@@ -822,6 +822,9 @@
   #bitacora-root .ficha dd.ficha-valor { font-weight: 600; }
   #bitacora-root .matriz-tabla tr.ficha-grupo th { text-align: left; background: var(--surface-2, rgba(127,127,127,.12)); font-size: 13px; padding: 6px 10px; }
   #bitacora-root .ficha-aviso { margin-top: 4px; font-size: 12.5px; color: var(--text-muted); }
+  #bitacora-root .ficha-det { margin-top: 6px; }
+  #bitacora-root .ficha-det summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--accent); }
+  @media (max-width: 560px) { #bitacora-root .ficha-det summary { min-height: 44px; display: flex; align-items: center; } }
   #bitacora-root .row-link a {
     font-size: 12.5px;
     font-weight: 600;
@@ -8065,7 +8068,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (d.valorModo && !d.baseValor && parcial){
       const a = cruceExperienciaCriteriosBase(d, contratos, 'prorrata'), b = cruceExperienciaCriteriosBase(d, contratos, 'total');
       if (a.estado === b.estado) return a;
-      return { estado: 'NO DETERMINABLE', detalle: a.detalle + ' El pliego no dice si el valor de un contrato en consorcio o unión temporal se toma completo o por tu porcentaje de participación: prorrateado daría ' + a.estado + ' y completo ' + b.estado + '. Pregúntalo a la entidad.' };
+      const aviso = ' El pliego no dice si el valor de un contrato en consorcio o unión temporal se toma completo o por tu porcentaje de participación: prorrateado daría ' + a.estado + ' y completo ' + b.estado + '. Pregúntalo a la entidad.';
+      return { estado: 'NO DETERMINABLE', detalle: a.detalle + aviso, resumen: (a.resumen || a.detalle) + aviso };
     }
     return cruceExperienciaCriteriosBase(d, contratos, d.baseValor === 'total' ? 'total' : 'prorrata');
   }
@@ -8179,16 +8183,17 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (d.liquidado) paso('liquidado', 'liquidados');
     if (palabrasItem.length) paso('item', 'con el ítem «' + verItem.join(' ') + '»');
     if (d.cantidades && d.cantidades.length) paso('cantidades', 'con las cantidades mínimas');
-    const lineas = ['Con tus ' + lista.length + ' contratos: ' + pasos.join(' → ') + '.'];
+    // «lineas» es lo que se ve de entrada (embudo, conclusión, los que pasan); «cola» es la lista de contratos por confirmar y descartados (se pliega).
+    const lineas = ['Con tus ' + lista.length + ' contratos: ' + pasos.join(' → ') + '.'], cola = [];
     if (palabrasObj.length && !evs.some(e => e.f.objeto === true)) lineas.push('Ningún contrato ' + (palabrasObj.length > 2 ? 'comparte ninguna de las palabras' : 'menciona') + ' «' + verObj.join('», «') + '» en su objeto: es la señal más fuerte de que no tienes un contrato que sirva; revisa si alguno corresponde con otro nombre.');
     if (seguros.length) lineas.push('pasan todo lo verificable: ' + seguros.slice(0, 5).map(e => nombre(e.c)).join(', ') + (seguros.length > 5 ? ' y ' + (seguros.length - 5) + ' más' : '') + '.');
     const dudosos = posibles.filter(e => e.duda.length);
-    if (dudosos.length) lineas.push('por confirmar: ' + dudosos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.duda.join('; ') + ')').join(' · ') + (dudosos.length > 3 ? ' · y ' + (dudosos.length - 3) + ' más' : '') + '.');
+    if (dudosos.length) cola.push('Por confirmar: ' + dudosos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.duda.join('; ') + ')').join(' · ') + (dudosos.length > 3 ? ' · y ' + (dudosos.length - 3) + ' más' : '') + '.');
     const caidos = evs.filter(e => e.falla.length);
-    if (caidos.length) lineas.push('no cuentan: ' + caidos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.falla.join('; ') + ')').join(' · ') + (caidos.length > 3 ? ' · y ' + (caidos.length - 3) + ' más' : '') + '.');
+    if (caidos.length) cola.push('No cuentan: ' + caidos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.falla.join('; ') + ')').join(' · ') + (caidos.length > 3 ? ' · y ' + (caidos.length - 3) + ' más' : '') + '.');
     if (d.valorModo === 'suma') lineas.push('suma acreditable de los que pasan: ' + money(suma(seguros)) + ' frente a ' + money(d.valorMin) + (seguros.length < nMin ? '' : '.'));
     if (d.nMax && seguros.length > d.nMax) lineas.push('el pliego admite hasta ' + d.nMax + ' contrato(s).');
-    notas.slice(0, 2).forEach(n => lineas.push(n + '.'));
+    notas.slice(0, 2).forEach(n => cola.push(n + '.'));
     if (d.seccion === 'específica') lineas.push('Deben ser distintos de los de la experiencia general.');
     let estado;
     if (posibles.length < nMin) estado = 'NO CUMPLE';
@@ -8196,7 +8201,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     else if (seguros.length >= nMin && (d.valorModo !== 'suma' || suma(seguros) >= d.valorMin)) estado = 'REVISAR';
     else estado = 'NO DETERMINABLE';
     if (estado === 'REVISAR') lineas.push('Falta que confirmes que el objeto' + (d.objeto ? ' («' + d.objeto + '»)' : '') + (d.item ? ' y el ítem «' + d.item + '»' : '') + ' corresponden: no se da por cumplido.');
-    return { estado: estado, detalle: lineas.join(' ') };
+    return { estado: estado, detalle: lineas.concat(cola).join(' '), resumen: lineas.join(' ') };
   }
 
   // Cruce de un cargo del pliego con los profesionales registrados en «Personal». Nunca da CUMPLE: la tarjeta profesional, las certificaciones y la
@@ -12344,6 +12349,12 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         kIncompleto: !!(mat.capacidadEstimada && mat.capacidadEstimada.incompletos > 0) };
     } catch (e) { return null; }
   }
+  // Celda «Tu empresa» de la ficha: el resumen a la vista y, si el cruce trae una lista larga de contratos, el resto plegado en «Ver los contratos».
+  function celdaCruceDetalle(c){
+    const corto = c.resumen && c.detalle.indexOf(c.resumen) === 0 && c.detalle.length > c.resumen.length ? c.resumen : null;
+    if (!corto) return '<div class="saved-note">' + escapeHtml(c.detalle) + '</div>';
+    return '<div class="saved-note">' + escapeHtml(corto) + '</div><details class="ficha-det"><summary>Ver los contratos</summary><div class="saved-note">' + escapeHtml(c.detalle.slice(corto.length).trim()) + '</div></details>';
+  }
   function fichaHabilitanteHtml(entry){
     const f = fichaHabilitanteDe(entry);
     if (!f.filas.length) return '';
@@ -12359,7 +12370,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       return cab + '<tr><td>' + escapeHtml(x.requisito) + '</td><td>' + escapeHtml(x.exige) +
         (x.aviso ? '<div class="ficha-aviso"><b>Ojo:</b> ' + escapeHtml(x.aviso) + '</div>' : '') + '</td><td>' + escapeHtml(x.cifras) + '</td><td>' +
         escapeHtml((x.documento || '') + (x.pagina ? ', p. ' + x.pagina : '')) + '</td>' +
-        (hayCruce ? '<td>' + (cruce[x.requisito] ? badgeEstado4(cruce[x.requisito].estado) + '<div class="saved-note">' + escapeHtml(cruce[x.requisito].detalle) + '</div>' : '—') + '</td>' : '') + '</tr>';
+        (hayCruce ? '<td>' + (cruce[x.requisito] ? badgeEstado4(cruce[x.requisito].estado) + celdaCruceDetalle(cruce[x.requisito]) : '—') + '</td>' : '') + '</tr>';
     }).join('');
     const selLote = f.lotes ? '<div class="ficha-lotes" role="group" aria-label="Lote al que te presentas"><span>Lote:</span> ' +
       f.lotes.map(function(l){ return '<button type="button" class="matriz-filtro" data-ficha-lote="' + escapeHtml(String(l.id)) + '" aria-pressed="' + (String(entry.loteFicha) === String(l.id) ? 'true' : 'false') + '">Lote ' + escapeHtml(String(l.id)) + '</button>'; }).join(' ') + '</div>' : '';

@@ -1032,6 +1032,47 @@ await check('Formato Maestro: se detecta al cargar el libro, sugiere el sujeto p
   await ctx.close();
 });
 
+await check('Ficha del pliego con el Formato Maestro y el personal de la empresa: el cruce de experiencia muestra un resumen corto con la lista de contratos plegada («Ver los contratos»), los cargos de personal se cruzan con «Personal», y en celular el control mide 44 px y la página no se ensancha', async () => {
+  const fix = JSON.parse(await readFile(join(RAIZ, 'tests', 'fixtures', 'imrd-lp-pdfjs.json'), 'utf8'));
+  const texto = Array.from({ length: fix.total }, (_, i) => fix.paginas[String(i + 1)] || '').join('\n');
+  const cods = ['30191500', '22101500', '40141700', '30111600', '30131500', '30131600', '30102400', '40171600'];
+  const contratos = Array.from({ length: 14 }, (_, i) => ({ fila: i + 1, numeroContrato: 'FM-' + (i + 1), objeto: 'CONSTRUCCION DE OBRA CIVIL NUMERO ' + (i + 1), contratante: 'ALCALDIA X', valor: 800000000 + i * 1000000, participacion: { valor: 100, unidad: '%' }, enEjecucion: false,
+    formatoMaestro: { estado: 'Terminado', unspsc: i % 2 ? cods : [], cantidades: [], enRup: i % 3 ? 'si' : '' } }));
+  const entrada = { 'E2E-IMRD': { id: 'E2E-IMRD', ts: Date.now(), fileName: 'imrd.pdf', pagesRead: fix.total, numPages: fix.total, text: texto,
+    proceso: { entidad: 'IMRD Cúcuta', objeto: 'Mantenimiento de parques', modalidad: 'Licitación pública', valor: 600000000, closingRaw: new Date(Date.now() + 14 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
+    comps: [{ perfilNombre: 'Dora Garay', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };
+  const sem = {
+    bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Dora Garay', nit: '900', k: '', kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']),
+    bitacora_experiencia_evaluacion: JSON.stringify({ porPerfil: { p1: { contratos: { headers: [], cols: {}, contratos, fuente: 'formato-maestro' }, meta: { fileName: 'fm.xlsx' } } } }),
+    bitacora_perfiles_profesionales: JSON.stringify({ q1: { nombre: 'Marta Ruiz', cargo: 'Directora de proyectos', formacion: 'Ingeniera civil', anos: '22', especializaciones: 'Especialización en gerencia de proyectos', experiencia: '', competencias: '' } }), bitacora_personal_activo_id: 'q1',
+    bitacora_analisis_pliegos: JSON.stringify(entrada)
+  };
+  for (const vp of [{ width: 1280, height: 900 }, { width: 375, height: 812 }]) {
+    const { ctx, pg } = await abrir({ viewport: vp, sembrar: sem });
+    if (vp.width < 600) await pg.click('#bt-nav-toggle');
+    await pg.click('#bt-nav-documentos');
+    await pg.locator('#bt-docs-out [data-abrir-proceso="E2E-IMRD"]').click();
+    await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .ficha-tabla'));
+    const f = await pg.evaluate(() => {
+      const fila = n => [...document.querySelectorAll('#bt-analisis-out .ficha-tabla tbody tr')].find(tr => tr.children[0] && tr.children[0].textContent.trim() === n);
+      const celda = n => { const tr = fila(n); return tr ? tr.children[tr.children.length - 1] : null; };
+      const exp = celda('Experiencia general: contratos'), per = celda('Ingeniero civil y/o arquitecto, especialista en gerencia de proyectos'), det = exp && exp.querySelector('details.ficha-det');
+      const sum = det && det.querySelector('summary');
+      return { badgeExp: exp && exp.querySelector('.tag, .badge, [class*="estado"]') ? exp.querySelector('.tag, .badge, [class*="estado"]').textContent.trim() : (exp ? exp.textContent.trim().slice(0, 40) : null),
+        visible: exp ? (exp.querySelector(':scope > .saved-note') || {}).textContent : null, det: !!det, abierto: det ? det.open : null, resumenDet: sum ? sum.textContent.trim() : null, alto: sum ? Math.round(sum.getBoundingClientRect().height) : null,
+        dentro: det ? det.textContent : '', personal: per ? per.textContent.replace(/\s+/g, ' ').trim().slice(0, 260) : null, desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    });
+    assert(f.det && f.abierto === false && f.resumenDet === 'Ver los contratos', 'lista plegada: ' + JSON.stringify(f).slice(0, 300));
+    assert(f.visible && f.visible.length < 900 && /^Con tus 14 contratos: 14 terminados/.test(f.visible) && !/Por confirmar:/.test(f.visible), 'resumen visible corto: ' + (f.visible || '').slice(0, 200));
+    assert(/Por confirmar:/.test(f.dentro), 'dentro del plegable va la lista: ' + f.dentro.slice(0, 120));
+    assert(/REVISAR/.test(f.personal) && /Marta Ruiz/.test(f.personal) && /22 años declarados frente a 20/.test(f.personal), 'personal cruzado: ' + f.personal);
+    if (vp.width < 600) assert(f.alto >= 44, 'el control mide ' + f.alto + ' px (se piden 44)');
+    assert(f.desborde <= 0, 'la página no debe ensancharse: ' + f.desborde + ' px en ' + vp.width);
+    assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+    await ctx.close();
+  }
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');
