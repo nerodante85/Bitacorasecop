@@ -1135,6 +1135,31 @@ await check('Matrices y anexos: la Matriz 2 cargada (PDF escaneado, texto real) 
   assert(con.slot, 'el espacio para cargar matrices y anexos existe');
 });
 
+await check('Experiencia por tramos (documento base CCE de infraestructura social): la ficha cruza el Formato Maestro y propone la mejor combinación de contratos (polideportivo + aula educativa), REVISAR y nunca CUMPLE', async () => {
+  const fix = JSON.parse(await readFile(join(RAIZ, 'tests', 'fixtures', 'cementerio-cucuta-pdfjs.json'), 'utf8'));
+  const texto = Array.from({ length: fix.total }, (_, i) => fix.paginas[String(i + 1)] || '').join('\n');
+  const mk = (num, objeto, esp, ini, fin, valor, part) => ({ numeroContrato: num, objeto: objeto, contratante: 'X', valor: valor, participacion: { valor: part, unidad: '%', raw: part + ' %' }, fechaInicio: ini, fechaFin: fin, enEjecucion: false,
+    formatoMaestro: { estado: 'Terminado', unspsc: ['72101500'], cantidades: [], enRup: 'si', especialidad: esp } });
+  const contratos = [mk('LPNS-015-02', 'CONSTRUCCION POLIDEPORTIVO Y PARQUE INFANTIL', 'Edificaciones deportivas y recreativas', '2002-10-28', '2003-03-01', 379318000, 100),
+    mk('214/2014', 'CONSTRUCCION BATERIA SANITARIA Y AULA DE CLASE EN LA INSTITUCION EDUCATIVA', 'Edificaciones educativas', '2015-01-05', '2015-03-03', 163147838, 10),
+    mk('ALC-1', 'RECUPERACION DE LA RED DE ALCANTARILLADO', 'Alcantarillado', '2011-02-01', '2012-02-01', 1968000000, 60)];
+  const entrada = { 'E2E-CEM': { id: 'E2E-CEM', ts: Date.now(), fileName: 'docbase.pdf', pagesRead: fix.total, numPages: fix.total, text: texto,
+    proceso: { entidad: 'Alcaldía de Cúcuta', objeto: 'Obras del Cementerio Central', modalidad: 'Selección abreviada de menor cuantía', valor: 250000000, closingRaw: new Date(Date.now() + 10 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
+    comps: [{ perfilNombre: 'Dora Garay', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100 } };
+  const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: {
+    bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Dora Garay', nit: '900', k: '', kResidual: '', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']),
+    bitacora_experiencia_evaluacion: JSON.stringify({ porPerfil: { p1: { contratos: { headers: [], cols: {}, contratos, fuente: 'formato-maestro' }, meta: { fileName: 'fm.xlsx' } } } }),
+    bitacora_analisis_pliegos: JSON.stringify(entrada) } });
+  await pg.click('#bt-nav-documentos');
+  await pg.locator('#bt-docs-out [data-abrir-proceso="E2E-CEM"]').click();
+  await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .ficha-tabla'));
+  const t = await pg.evaluate(() => { const tr = [...document.querySelectorAll('#bt-analisis-out .ficha-tabla tbody tr')].find(x => x.children[0] && x.children[0].textContent.trim() === 'Experiencia general: contratos'); return tr ? tr.children[tr.children.length - 1].textContent.replace(/\s+/g, ' ').trim() : null; });
+  assert(t && /REVISAR/.test(t) && !/CUMPLE\s*Con tus/.test(t), 'estado de la experiencia: ' + (t || '').slice(0, 200));
+  assert(/LPNS-015-02/.test(t) && /214\/2014/.test(t) && !/ALC-1 \(/.test(t.split('Mejor combinación')[1] || ''), 'la combinación usa el polideportivo y el aula, no el alcantarillado: ' + (t || '').slice(0, 700));
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');

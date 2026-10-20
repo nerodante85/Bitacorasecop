@@ -369,7 +369,7 @@ function extractExperienceEngine() {
 
   const source = blockA + '\n' + blockB + '\n' + blockC + '\n' + blockD + '\n' + blockF + '\n' + blockG +
     '\n' + blockH + '\n' + blockI + '\n' + blockJ + '\n' + blockK + '\n' + blockL + '\n' + blockM + '\n' + blockN + '\n' + blockO + '\n' + blockP +
-    '\nreturn { fichaHabilitante, cruceFichaEmpresa, cruceExperienciaCriterios, componentesFinancierosDePerfil, indicadoresDeComponentes, tramosDeSumatoria, unoPctPresupuestoDeTexto, unirItemsDePdf, parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, observacionesTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, coleccionComoMapa, diferenciasColeccion, armarColeccion, leerColeccionRemota, guardarColeccionRemota, reemplazarColeccionRemota, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
+    '\nreturn { fichaHabilitante, cruceFichaEmpresa, cruceExperienciaCriterios, cruceExperienciaTramos, componentesFinancierosDePerfil, indicadoresDeComponentes, tramosDeSumatoria, unoPctPresupuestoDeTexto, unirItemsDePdf, parsearExcelExperiencia, paginasRelevantesParaIA, paginasCitadasSinVerificar, agruparEnTandas, verificarFilaConTextos, reverificarRequisitosIA, validarAnosExperiencia, avisoRangoValor, cumpleRangoValor, coincideEntidad, cierraEnDias, resumenEjecutivo, siguienteEtapa, etapaAnterior, resumenPipeline, ETAPAS_PIPELINE, migrarEtapa, migrarHistorialEtapas, descripcionVeredicto, claseVeredicto, evaluarExperienciaCompleta, segmentarTextoEnRequisitos, segmentarConOffsets, leerHojaComoFilas, leerHojaPorNombre, leerTodasLasHojasComoFilas, preferirColumnaValorActualizado, leerPrimeraTablaHtml, parsearExperienciaDeFilas, parsearRequisitosDeFilas, valorConfiableDeTexto, construirContratoDesdeTexto, parsearExperienciaDesdeFilasTexto, construirRequisitoDesdeTexto, condicionCuantitativaSinModelar, extraerCantidadConUnidadContable, condicionTemporalDelRequisito, evaluarCondicionTemporal, agruparAlternativos, detectarRedFlags, detectarInconsistenciasInternas, alertasDelPliego, extraerExigencias, calcularViabilidad, rangoViabilidad, paginaDeOffset, REGLAS_RED_FLAG, textoPliegoDe, parsearExperienciasRUP, encabezadoRUP, proponerCruceRup, aplicarCruceRup, claveContratoCruce, reglaConversionSmmlvDePliego, limpiarRepetidosDePagina, localizarSeccionesExperiencia, extraerRequisitosDePliego, detectarInconsistenciasPliegoEP, pareceRequisitoDeExperienciaReal, esRequisitoDePersonal, verificarFilaIA, verificarFilasIA, filaIAaRequisito, requisitosDeExperienciaDesdeIA, exigenciasDesdeIA, hallazgosPersonalDesdeIA, codigosUnspscDesdeIA, textoDePaginaPliego, valorContratoEnSmmlv, evaluarRequisito, consultasSecopII, esEstadoNoVigente, parseValorUnidad, minContratosDeTexto, minValorPesosDeTexto, compararIndiceConUmbral, buscarUmbralCerca, leerIndiceDePerfil, depurarContratos, estadoTemporalDeContrato, detectarConflictosFilasIA, motivoBloqueoFilaIA, filaIAHabilitante, filaIAConfiable, extraerKResidualUmbral, textoKResidualDetectado, leerMontoDePerfil, cifrasCandidatas, generarCartaTexto, generarAnticorrupcionTexto, observacionesTexto, generarParafiscalesTexto, generarFormatoExperienciaTexto, generarPaqueteTexto, hashTexto, registroConfirmacion, heredarConfirmaciones, requiereSegundaConfirmacion, detectarInyeccionEnTexto, gatesCompletitudIA, descuentoComparable, sugerenciaOfertaEconomica, deduplicarAdjudicaciones, armarRespaldo, validarRespaldo, evaluarVersionEsquema, coleccionComoMapa, diferenciasColeccion, armarColeccion, leerColeccionRemota, guardarColeccionRemota, reemplazarColeccionRemota, liberarTextoMasAntiguo, safeHref, extraerCodigosUNSPSC, extraerIndicadoresRUP, parsearRUP, crearCacheTtl, pieFuenteDatos, avisoFuenteDatos, snapshotDeProceso, procesosAnalizadosFueraDeLista, etiquetaVeredicto, lineaMotivoVeredicto, textoCoberturaLectura, prepararBusquedaPorNombre, calcularSCE, saldoDeContrato, participacionDeContrato, capacidadContractualEstimada, experienciaGateDetalle, matrizCapacidad, normHeader, palabrasClaveDe, esTokenNumerico, PALABRAS_GENERICAS_OBRA, gatesCompletitudIA, lecturaParcial, pareceEtiquetaRUT, limitesColumnaRUT, itemsDeCampoRUT, campoTextoRUT, campoNumericoRUT, parsearRUT, aplicarRequisitosIAaEntry, recalcularExpevalActivo, perfilesParaComparar, setExpevalContratos: v => { globalThis.expevalContratos = v; }, setPerfiles: v => { globalThis.perfiles = v; }, setPerfilesActivos: v => { globalThis.perfilesActivos = v; }, setPerfilActivoId: v => { globalThis.perfilActivoId = v; }, setExpevalPorPerfil: v => { globalThis.expevalPorPerfil = v; }, getExpevalContratos: () => globalThis.expevalContratos, getExpevalMeta: () => globalThis.expevalMeta };';
   const fakeWindow = { XLSX: { utils: { sheet_to_json: (sheet) => sheet } } };
   // leerPrimeraTablaHtml usa `new DOMParser()` (API de navegador, no existe
   // en Node) -- un shim mínimo que solo entiende <table><tr><td>/<th> es
@@ -4300,6 +4300,18 @@ await check('fichaHabilitante (documento base CCE menor cuantía, Puerto Santand
   assert(ct && ct.dato && Math.abs(ct.dato.min - 451999714 * 0.33) < 2, 'capital de trabajo (plazo < 12 meses: 33 % del presupuesto): ' + JSON.stringify(ct));
   assert(!f.avisos.some(a => /No se pudo confirmar si hay anticipo/.test(a)), 'con anticipo confirmado no debe avisar');
 });
+await check('Documento base CCE de transporte (Puerto Santander): la fila de experiencia lleva `dato` expTramos con el objeto «infraestructura vial» y el cruce prefiere contratos de vías sobre uno de agua potable por grande que sea', () => {
+  const f = psFicha();
+  const r = f.filas.find(x => x.requisito === 'Experiencia general: contratos');
+  assert(r && r.dato && r.dato.tipo === 'expTramos' && /INFRAESTRUCTURA VIAL/.test(r.dato.objeto) && !/^GENERAL/.test(r.dato.objeto), 'dato: ' + JSON.stringify(r && r.dato));
+  assert(JSON.stringify(r.dato.codigos) === JSON.stringify(['72']) && r.dato.nsrAlguno === undefined && r.dato.inicioMin === undefined, 'sin reglas de NSR en transporte: ' + JSON.stringify(r.dato));
+  const mk = (num, obj, esp, smmlv) => ({ numeroContrato: num, objeto: obj, valor: smmlv * 566700, participacion: { valor: 100, unidad: '%', raw: '100 %' }, fechaInicio: '2012-01-01', fechaFin: '2012-06-01', enEjecucion: false, formatoMaestro: { enRup: 'si', unspsc: ['72141000'], estado: 'Terminado', especialidad: esp } });
+  const agua = mk('AGUA', 'CONSTRUCCION DE ACUEDUCTO Y AGUA POTABLE', 'Acueducto', 5000), via = mk('VIA', 'MEJORAMIENTO DE LA VIA CARRETERA URBANA', 'Vías y carreteras', 300);
+  const solo = expEngine.cruceExperienciaTramos(r.dato, [agua]);
+  assert(solo.estado === 'NO DETERMINABLE' && /no menciona nada/.test(solo.detalle), 'solo agua potable: ' + JSON.stringify(solo));
+  const con = expEngine.cruceExperienciaTramos(r.dato, [agua, via]);
+  assert(con.estado === 'REVISAR' && /VIA/.test(con.resumen) && !/AGUA \(/.test(con.resumen), 'con un contrato de vías: ' + JSON.stringify(con));
+});
 await check('fichaHabilitante (documento base CCE menor cuantía, pdf.js): el amparo «1 0% del valor del contrato» que pdf.js parte es 10 %, no 0 %', () => {
   const f = psFicha();
   const est = f.filas.find(x => x.requisito === 'Garantía de estabilidad y calidad de la obra');
@@ -4322,7 +4334,82 @@ await check('fichaHabilitante (documento base CCE infraestructura social, pdf.js
   const ct = f.filas.find(x => x.requisito === 'Capital de trabajo demandado');
   assert(ct && ct.dato && Math.abs(ct.dato.min - 82500000) < 2, 'capital de trabajo = 33 % de $250 M (plazo hasta una fecha de 2026, menor de 12 meses, sin anticipo): ' + JSON.stringify(ct));
 });
-// Matriz 2 de la CCE (indicadores de la selección abreviada de menor cuantía de obra de transporte): PDF ESCANEADO, texto REAL de pdf.js con ruido
+const CEM_EXP = () => expEngine.fichaHabilitante(CEM_TEXTO, { anio: 2026 }).filas.find(x => x.requisito === 'Experiencia general: contratos');
+await check('fichaHabilitante (documento base CCE social, pdf.js): la experiencia lleva `dato` expTramos — tabla 1-2 → 75 %, 3-4 → 120 %, 5 → 150 % del presupuesto en SMMLV, clases UNSPSC 721015/721029, en RUP, NSR-98 (solo uno antes del 9-ene-1998) y NSR-10 (alguno desde el 15-jul-2010; un contrato único también)', () => {
+  const r = CEM_EXP();
+  assert(r && r.dato && r.dato.tipo === 'expTramos', 'fila de experiencia: ' + JSON.stringify(r));
+  const d = r.dato;
+  assert(JSON.stringify(d.tramos) === JSON.stringify([{ desde: 1, hasta: 2, pct: 75 }, { desde: 3, hasta: 4, pct: 120 }, { desde: 5, hasta: 5, pct: 150 }]), 'tramos: ' + JSON.stringify(d.tramos));
+  assert(Math.abs(d.poSmmlv - 250000000 / 1750905) < 0.01, 'presupuesto en SMMLV: ' + d.poSmmlv);
+  assert(JSON.stringify(d.codigos) === JSON.stringify(['721015', '721029']) && d.enRup === true, 'códigos y RUP: ' + JSON.stringify([d.codigos, d.enRup]));
+  assert(d.inicioMin === '1998-01-09' && d.maxAntes === 1 && d.nsrAlguno === '2010-07-15' && d.unicoDesde === '2010-07-15', 'fechas NSR: ' + JSON.stringify(d));
+  assert(r.pagina === 44, 'página de la tabla 3.5.8: ' + r.pagina);
+});
+// Contratos de prueba (valores reales del caso Dora, con participación): el polideportivo de 2003 (100 %), el CIC de Gramalote de 2015 (5 %) y el aula de 2014 (10 %).
+const mkT = (num, ini, fin, valor, part, extra) => Object.assign({ numeroContrato: num, objeto: 'CONSTRUCCION DE AULAS EN INSTITUCION EDUCATIVA ' + num, valor: valor, participacion: { valor: part, unidad: '%', raw: part + ' %' }, fechaInicio: ini, fechaFin: fin, enEjecucion: false, formatoMaestro: { enRup: 'si', unspsc: ['72101500'], estado: 'Terminado' } }, extra || {});
+const T_POLI = mkT('LPNS-015-02', '2002-10-28', '2003-03-01', 379318000, 100, { objeto: 'CONSTRUCCION POLIDEPORTIVO Y PARQUE INFANTIL' });
+T_POLI.formatoMaestro.especialidad = 'Edificaciones deportivas y recreativas';
+const T_CIC = mkT('112/2015', '2015-06-26', '2015-09-26', 1016314793, 5, { objeto: 'CONSTRUCCION DEL CENTRO DE INTEGRACION CIUDADANA' });
+T_CIC.formatoMaestro.especialidad = 'Centros de integración ciudadana';
+const T_AULA = mkT('214/2014', '2015-01-05', '2015-03-03', 163147838, 10, { objeto: 'CONSTRUCCION BATERIA SANITARIA Y AULA DE CLASE EN LA INSTITUCION EDUCATIVA' });
+T_AULA.formatoMaestro.especialidad = 'Edificaciones educativas';
+await check('cruceExperienciaTramos: polideportivo (≈1.143 SMMLV, antes de la NSR-10) + aula de 2014/15 (≈25 SMMLV, posterior; objeto educativo) ≥ 107,1 SMMLV → REVISAR (nunca CUMPLE: el objeto lo confirma una persona)', () => {
+  const r = expEngine.cruceExperienciaTramos(CEM_EXP().dato, [T_POLI, T_CIC, T_AULA]);
+  assert(r.estado === 'REVISAR', 'estado: ' + JSON.stringify(r));
+  assert(/LPNS-015-02/.test(r.resumen) && /214\/2014/.test(r.resumen) && /107,1/.test(r.resumen), 'resumen con la combinación y el mínimo: ' + r.resumen);
+  assert(/objeto/i.test(r.resumen), 'debe pedir confirmar el objeto');
+});
+await check('cruceExperienciaTramos: un contrato de otro objeto (alcantarillado) NO da REVISAR aunque sea enorme: sin contratos cuyo objeto coincida con lo que pide el documento queda NO DETERMINABLE y lo dice; el polideportivo + el CIC (objeto sin palabras del documento) tampoco', () => {
+  const d = CEM_EXP().dato;
+  const alc = mkT('ALC', '2011-02-01', '2012-02-01', 1968e6, 100, { objeto: 'RECUPERACION DE LA RED EXISTENTE DE ALCANTARILLADO' });
+  alc.formatoMaestro.especialidad = 'Alcantarillado';
+  const r = expEngine.cruceExperienciaTramos(d, [alc]);
+  assert(r.estado === 'NO DETERMINABLE' && /no menciona nada de lo que pide el documento/.test(r.detalle), 'alcantarillado: ' + JSON.stringify(r));
+  const poliCic = expEngine.cruceExperienciaTramos(d, [T_POLI, T_CIC]);
+  assert(poliCic.estado === 'NO DETERMINABLE' && /112\/2015/.test(poliCic.detalle) && /no menciona nada/.test(poliCic.detalle), 'polideportivo + CIC: ' + JSON.stringify(poliCic));
+});
+await check('cruceExperienciaTramos: solo contratos posteriores a la NSR-10 pero chicos (CIC 79 + aula 25 = 104 < 107,1 SMMLV) → NO CUMPLE; un único contrato antiguo grande tampoco sirve (el único debe ser posterior al 15-jul-2010)', () => {
+  const chico = expEngine.cruceExperienciaTramos(CEM_EXP().dato, [T_CIC, T_AULA]);
+  assert(chico.estado === 'NO CUMPLE' && /103,9|104/.test(chico.detalle), 'chicos: ' + JSON.stringify(chico));
+  const solo = expEngine.cruceExperienciaTramos(CEM_EXP().dato, [T_POLI]);
+  assert(solo.estado === 'NO CUMPLE', 'un único contrato anterior a la NSR-10: ' + JSON.stringify(solo));
+});
+await check('cruceExperienciaTramos: sin estar en el RUP, sin código UNSPSC o en ejecución, el contrato no cuenta; sin datos de RUP/códigos queda NO DETERMINABLE, no NO CUMPLE', () => {
+  const d = CEM_EXP().dato;
+  const noRup = Object.assign({}, T_POLI, { formatoMaestro: { enRup: 'no', unspsc: ['72101500'], estado: 'Terminado' } });
+  assert(expEngine.cruceExperienciaTramos(d, [noRup, T_CIC]).estado === 'NO CUMPLE', 'no está en el RUP');
+  const otroCodigo = Object.assign({}, T_POLI, { formatoMaestro: { enRup: 'si', unspsc: ['30101500'], estado: 'Terminado' } });
+  assert(expEngine.cruceExperienciaTramos(d, [otroCodigo, T_CIC]).estado === 'NO CUMPLE', 'código de otra clase');
+  const enEj = Object.assign({}, T_POLI, { enEjecucion: true });
+  assert(expEngine.cruceExperienciaTramos(d, [enEj, T_CIC]).estado === 'NO CUMPLE', 'en ejecución no acredita');
+  const sinDatos = Object.assign({}, T_POLI, { formatoMaestro: { enRup: '', unspsc: [], estado: 'Terminado' } });
+  const r = expEngine.cruceExperienciaTramos(d, [sinDatos, T_CIC]);
+  assert(r.estado === 'NO DETERMINABLE' && /RUP|c[óo]digos/i.test(r.detalle), 'sin RUP ni códigos cargados: ' + JSON.stringify(r));
+});
+await check('cruceExperienciaTramos: reglas de fecha del documento — dos contratos grandes pero ambos anteriores a la NSR-10 no sirven; con solo la regla del contrato único, uno antiguo tampoco; solo UN contrato puede ser anterior al 9-ene-1998', () => {
+  const d = CEM_EXP().dato;
+  const viejo2 = mkT('V2', '2007-12-31', '2008-08-21', 121000000, 100);
+  const dosViejos = expEngine.cruceExperienciaTramos(d, [T_POLI, viejo2]);
+  assert(dosViejos.estado === 'NO CUMPLE', 'ninguno es posterior al 15-jul-2010: ' + JSON.stringify(dosViejos));
+  const soloUnico = Object.assign({}, d, { nsrAlguno: undefined });
+  assert(expEngine.cruceExperienciaTramos(soloUnico, [T_POLI]).estado === 'NO CUMPLE', 'un contrato único anterior a la NSR-10');
+  assert(expEngine.cruceExperienciaTramos(soloUnico, [T_POLI, viejo2]).estado === 'REVISAR', 'con dos contratos la regla del único no aplica (control positivo)');
+  const solo98 = Object.assign({}, d, { nsrAlguno: undefined, unicoDesde: undefined });
+  const a96 = mkT('A96', '1996-01-01', '2002-01-01', 60 * 309000, 100), b97 = mkT('B97', '1997-06-01', '2003-01-01', 60 * 332000, 100), p05 = mkT('P05', '2005-01-01', '2005-06-01', 60 * 381500, 100);
+  assert(expEngine.cruceExperienciaTramos(solo98, [a96, b97]).estado === 'NO CUMPLE', 'dos contratos iniciados antes del 9-ene-1998: solo uno puede serlo');
+  assert(expEngine.cruceExperienciaTramos(solo98, [a96, p05]).estado === 'REVISAR', 'uno antiguo (60) + uno posterior a 1998 (60) = 120 ≥ 107,1 sí (control positivo)');
+});
+await check('cruceExperienciaTramos: contratos chicos que no llegan ni sumando 2, 3 o 4 → NO CUMPLE; un contrato sin valor podría cambiar el resultado → NO DETERMINABLE; un contrato sin fecha de inicio (regla de la NSR) también', () => {
+  const d = CEM_EXP().dato;
+  const med = (n, v) => mkT('M' + n, '2012-01-01', '2012-06-01', v * 566700, 100);
+  const pocos = expEngine.cruceExperienciaTramos(d, [med(1, 20), med(2, 20), med(3, 20), T_CIC]);
+  assert(pocos.estado === 'NO CUMPLE', '20+20+20+79 → ningún subconjunto llega al mínimo de su tramo (107,1 con 2, 171,3 con 3-4): ' + JSON.stringify(pocos));
+  const sinValor = Object.assign({}, med(4, 500), { valor: null });
+  assert(expEngine.cruceExperienciaTramos(d, [sinValor, T_AULA]).estado === 'NO DETERMINABLE', 'un contrato sin valor podría cambiar el resultado');
+  const sinInicio = Object.assign({}, T_CIC, { fechaInicio: null });
+  const r = expEngine.cruceExperienciaTramos(d, [T_POLI, sinInicio]);
+  assert(r.estado === 'NO DETERMINABLE' && /fecha de inicio/.test(r.detalle), 'sin fecha de inicio no se puede confirmar la regla de la NSR-10: ' + JSON.stringify(r));
+});// Matriz 2 de la CCE (indicadores de la selección abreviada de menor cuantía de obra de transporte): PDF ESCANEADO, texto REAL de pdf.js con ruido
 // de OCR («之1,2», «三 0,70», «Raz6nde cobertura») y los valores separados de sus nombres.
 const M2_FIX = JSON.parse(readFileSync(path.join(ROOT, 'tests', 'fixtures', 'matriz2-cce-pdfjs.json'), 'utf8'));
 const M2_TEXTO = (function(){ const l = []; for (let n = 1; n <= M2_FIX.total; n++) l.push(M2_FIX.paginas[String(n)] || ''); return l.join('\n'); })();

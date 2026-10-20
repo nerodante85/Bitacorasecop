@@ -8213,6 +8213,102 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     return { estado: estado, detalle: lineas.concat(cola).join(' '), resumen: lineas.join(' ') };
   }
 
+  // Cruce de la experiencia de los documentos tipo de la CCE (tabla por número de contratos): busca la mejor combinación de 1 a 5 contratos de la
+  // empresa cuyo valor en SMMLV (valor × participación ÷ SMMLV del año de terminación) alcance el % del presupuesto que exige su tramo, con las
+  // reglas de fecha del documento. Nunca da CUMPLE (el objeto del contrato lo confirma una persona): REVISAR si hay combinación con todo verificado,
+  // NO DETERMINABLE si solo la hay con datos sin confirmar, NO CUMPLE solo si con todos los datos conocidos ninguna combinación alcanza.
+  function cruceExperienciaTramos(d, contratos){
+    const lista = (contratos || []).filter(Boolean);
+    if (!lista.length) return { estado: 'NO DETERMINABLE', detalle: 'Tu perfil no tiene contratos cargados: cárgalos con el Formato Maestro de Experiencia.' };
+    if (!(d.poSmmlv > 0) || !d.tramos || !d.tramos.length) return { estado: 'NO DETERMINABLE', detalle: 'No se pudo leer el presupuesto oficial o la tabla de tramos del documento: sin ellos no se puede comparar el valor de tus contratos.' };
+    const fmt = n => (Math.round(n * 10) / 10).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+    const nombre = c => c.numeroContrato || ('fila ' + (c.fila != null ? c.fila : '?'));
+    const maxK = d.tramos[d.tramos.length - 1].hasta;
+    const stems = s => Array.from(new Set(String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4).map(w => w.slice(0, 5))));
+    const GENERICOS = new Set(['obras', 'obra', 'const', 'adecu', 'manten', 'conse', 'mejor', 'remod', 'refor', 'repar', 'rehab', 'recon', 'areas', 'perte', 'secto', 'servi', 'equip', 'civil', 'ejecu', 'infra', 'como', 'para', 'cuyo', 'sobre', 'entre', 'tipo', 'todo', 'otros', 'otras', 'espec', 'gener', 'exper', 'contr', 'cual', 'bien']);
+    const claves = stems(d.objeto).filter(k => !GENERICOS.has(k));
+    const tramoDe = k => d.tramos.find(x => k >= x.desde && k <= x.hasta) || null;
+    const minDe = k => { const x = tramoDe(k); return x ? d.poSmmlv * x.pct / 100 : null; };
+    const evs = lista.map(c => {
+      const fm = c.formatoMaestro || null, falla = [], duda = [];
+      if (c.enEjecucion) falla.push(c.estadoDesconocido ? 'su estado no se reconoce como terminado' : 'no ha terminado');
+      if (d.enRup){
+        if (fm && fm.enRup === 'no') falla.push('no está en el RUP');
+        else if (!fm || fm.enRup !== 'si') duda.push('sin confirmar que esté en el RUP');
+      }
+      if (d.codigos && d.codigos.length){
+        const mios = fm && fm.unspsc ? fm.unspsc : [];
+        if (!mios.length) duda.push('sin códigos UNSPSC cargados');
+        else if (!d.codigos.some(cd => mios.some(x => String(x).indexOf(cd) === 0))) falla.push('ninguno de sus códigos UNSPSC está entre los exigidos (' + d.codigos.join(', ') + ')');
+      }
+      let smmlv = null;
+      const v = valorAcreditable(c), anio = c.fechaFin ? parseInt(String(c.fechaFin).slice(0, 4), 10) : null;
+      if (v == null) duda.push('sin valor o participación legible');
+      else if (!anio) duda.push('sin fecha de terminación para convertir a SMMLV');
+      else if (!SMMLV_POR_ANIO[anio]) duda.push('el SMMLV de ' + anio + ' no está en la tabla');
+      else smmlv = v / SMMLV_POR_ANIO[anio];
+      const reglasFecha = !!(d.inicioMin || d.nsrAlguno || d.unicoDesde);
+      if (reglasFecha && !c.fechaInicio) duda.push('sin fecha de inicio (el documento fija reglas por fecha de inicio)');
+      // Objeto: ¿el contrato menciona algo distintivo de lo que pide el documento? (por raíz de 5 letras, con su especialidad y actividad del Formato Maestro).
+      // Es una pista para ordenar, no una verificación: un contrato que no coincide nunca produce REVISAR por sí solo.
+      let objOk = null;
+      if (claves.length){
+        const mios = stems([c.objeto, c.actividades, fm && fm.especialidad, fm && fm.actividad].filter(Boolean).join(' '));
+        objOk = claves.some(k => mios.indexOf(k) !== -1);
+      }
+      return { c: c, falla: falla, duda: duda, smmlv: smmlv, ini: c.fechaInicio || null, objOk: objOk };
+    });
+    const posibles = evs.filter(e => !e.falla.length), conValor = posibles.filter(e => e.smmlv != null), seguros = conValor.filter(e => !e.duda.length);
+    // Mejor combinación (menor número de contratos; a igualdad, mayor suma) que cumple el tramo y las reglas de fecha. `optimista`: una fecha que falta no descarta.
+    const mejor = (pool, optimista) => {
+      const antes = e => !!(d.inicioMin && e.ini && e.ini < d.inicioMin);
+      const post = e => !!(d.nsrAlguno && e.ini && e.ini >= d.nsrAlguno);
+      const ord = pool.slice().sort((a, b) => b.smmlv - a.smmlv);
+      const cand = Array.from(new Set(ord.filter(e => !antes(e)).slice(0, 8).concat(ord.filter(post).slice(0, 3), ord.filter(antes).slice(0, 1))));
+      const validar = S => {
+        const k = S.length, minK = minDe(k);
+        if (minK == null || S.reduce((a, e) => a + e.smmlv, 0) < minK) return false;
+        if (d.maxAntes != null && S.filter(antes).length > d.maxAntes) return false;
+        const desde = x => d.nsrAlguno ? x.ini && x.ini >= d.nsrAlguno : (d.unicoDesde ? x.ini && x.ini >= d.unicoDesde : true);
+        if (d.nsrAlguno && !S.some(e => post(e) || (optimista && !e.ini))) return false;
+        if (k === 1 && d.unicoDesde && !(S[0].ini ? S[0].ini >= d.unicoDesde : optimista)) return false;
+        return true;
+      };
+      let mejorK = null;
+      for (let k = 1; k <= Math.min(maxK, cand.length) && !mejorK; k++){
+        const idx = []; let hallado = null;
+        const rec = (desde) => {
+          if (idx.length === k){ const S = idx.map(i => cand[i]); if (validar(S) && (!hallado || S.reduce((a, e) => a + e.smmlv, 0) > hallado.reduce((a, e) => a + e.smmlv, 0))) hallado = S; return; }
+          for (let i = desde; i < cand.length; i++){ idx.push(i); rec(i + 1); idx.pop(); }
+        };
+        rec(0);
+        if (hallado) mejorK = hallado;
+      }
+      return mejorK;
+    };
+    const segurosObj = seguros.filter(e => e.objOk !== false);
+    const comboSeguro = mejor(segurosObj, false), comboObjDudoso = comboSeguro ? null : mejor(seguros, false);
+    const comboPosible = comboSeguro || comboObjDudoso || mejor(conValor, true);
+    const sinValor = posibles.filter(e => e.smmlv == null);
+    const descr = S => S.map(e => nombre(e.c) + ' (' + String(e.c.objeto || '').slice(0, 60) + '…, ' + fmt(e.smmlv) + ' SMMLV' + (e.objOk === false ? '; su objeto no menciona nada de lo que pide el documento' : '') + ')').join(' + ') + ' = ' + fmt(S.reduce((a, e) => a + e.smmlv, 0)) + ' SMMLV frente a ≥ ' + fmt(minDe(S.length)) + ' SMMLV (' + tramoDe(S.length).pct + ' % del presupuesto con ' + S.length + ' contrato(s))';
+    const lineas = ['Con tus ' + lista.length + ' contratos: ' + lista.filter(c => !c.enEjecucion).length + ' terminados → ' + posibles.length + ' sin causa para descartarlos (RUP, códigos) → ' + conValor.length + ' con valor en SMMLV conocido' + (sinValor.length ? ' (' + sinValor.length + ' sin dato)' : '') + '. Presupuesto oficial: ' + fmt(d.poSmmlv) + ' SMMLV; el valor de cada contrato se toma por tu participación y con el SMMLV del año de terminación.'];
+    const cola = [];
+    if (comboPosible) lineas.push('Mejor combinación: ' + descr(comboPosible) + '.');
+    else if (conValor.length) lineas.push('Ninguna combinación de 1 a ' + maxK + ' contratos alcanza el mínimo de su tramo (' + d.tramos.map(x => (x.desde === x.hasta ? x.desde : x.desde + '-' + x.hasta) + ' → ' + fmt(d.poSmmlv * x.pct / 100) + ' SMMLV').join(' · ') + ') respetando las reglas del documento. Tu mejor suma de ' + Math.min(2, conValor.length) + ' contrato(s): ' + fmt(conValor.map(e => e.smmlv).sort((x, y) => y - x).slice(0, 2).reduce((s, x) => s + x, 0)) + ' SMMLV.');
+    if (d.inicioMin || d.nsrAlguno || d.unicoDesde) lineas.push('Reglas de fecha del documento:' + (d.maxAntes != null ? ' solo ' + d.maxAntes + ' contrato anterior al 9-ene-1998;' : '') + (d.nsrAlguno ? ' al menos uno iniciado desde el 15-jul-2010 (NSR-10);' : '') + (d.unicoDesde ? ' un contrato único debe ser posterior a esa fecha.' : ''));
+    const dudosos = posibles.filter(e => e.duda.length);
+    if (dudosos.length) cola.push('Por confirmar: ' + dudosos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.duda.join('; ') + ')').join(' · ') + (dudosos.length > 3 ? ' · y ' + (dudosos.length - 3) + ' más' : '') + '.');
+    const caidos = evs.filter(e => e.falla.length);
+    if (caidos.length) cola.push('No cuentan: ' + caidos.slice(0, 3).map(e => nombre(e.c) + ' (' + e.falla.join('; ') + ')').join(' · ') + (caidos.length > 3 ? ' · y ' + (caidos.length - 3) + ' más' : '') + '.');
+    let estado;
+    if (!posibles.length) estado = 'NO CUMPLE';
+    else if (comboSeguro) estado = 'REVISAR';
+    else if (comboPosible || sinValor.length) estado = 'NO DETERMINABLE';  // solo con contratos de objeto dudoso o con datos sin confirmar
+    else estado = 'NO CUMPLE';
+    if (estado === 'REVISAR') lineas.push('Falta que confirmes que el objeto de cada contrato' + (d.objeto ? ' («' + String(d.objeto).slice(0, 160) + '…»)' : '') + ' corresponde a lo que exige el documento: no se da por cumplido.');
+    return { estado: estado, detalle: lineas.concat(cola).join(' '), resumen: lineas.join(' ') };
+  }
+
   // Cruce de un cargo del pliego con los profesionales registrados en «Personal». Nunca da CUMPLE: la tarjeta profesional, las certificaciones y la
   // dedicación las verifica la entidad. Un profesional es candidato si su formación/cargo contiene el título (todas las palabras distintivas de
   // alguna de las alternativas «ingeniero civil y/o arquitecto») y todas las de la especialización; los años declarados se comparan con los años
@@ -8309,6 +8405,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       }
       else if (d.tipo === 'expCriterios'){
         r = cruceExperienciaCriterios(d, emp.contratos || []);
+      }
+      else if (d.tipo === 'expTramos'){
+        r = cruceExperienciaTramos(d, emp.contratos || []);
       }
       else if (d.tipo === 'personal'){
         r = cruceDePersonal(d, emp.personal || [], usadosPersonal, f.requisito);
@@ -8528,7 +8627,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     // Experiencia
     const tr = tramosDeSumatoria(t);
     if (tr){
-      const iT = t.search(/valor\s+m[íi]nimo\s+a\s+certificar/i);
+      const iTt = t.search(/\bDe\s+\d+\s+hasta\s+\d+\s+\d+(?:[.,]\d+)?\s*%/i);
+      const iT = iTt >= 0 ? iTt : t.search(/valor\s+m[íi]nimo\s+a\s+certificar/i);
       tr.tramos.forEach(x => {
         const smmlv = poSmmlv ? poSmmlv * x.pct / 100 : null;
         add('Experiencia', 'Sumatoria de contratos: ' + (x.desde === x.hasta ? x.desde : x.desde + ' a ' + x.hasta) + ' contrato(s)',
@@ -8573,6 +8673,24 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     while ((mCl = reCl.exec(t))){
       const cl = Array.from(new Set(((t.slice(mCl.index, mCl.index + 1100).split(/Las\s+personas\s+naturales\s+o\s+jur[íi]dicas\s+extranjeras/i)[0]).match(/\b(?:[78]\d|9[0-5])\s+\d{2}\s+\d{2}\b/g) || []).map(x => x.replace(/\s+/g, ''))));
       if (cl.length){ add('Experiencia', 'Clases UNSPSC exigidas a los contratos', cl.join(', '), '', { pagina: pagina(mCl.index) }); break; }
+    }
+    // Documentos tipo de la CCE de menor cuantía (transporte e infraestructura social): la experiencia se acredita con 1 a 5 contratos cuyo valor
+    // en SMMLV debe sumar un % del presupuesto oficial que SUBE con el número de contratos (tabla 3.5.8). La fila «Experiencia general: contratos»
+    // lleva el `dato` expTramos que cruzan `cruceFichaEmpresa` y `cruceExperienciaTramos`, con las reglas de fecha del documento si las trae
+    // (solo un contrato anterior a la NSR-98; al menos uno —y si es único, ese— posterior a la NSR-10).
+    if (tr && poSmmlv && !filas.some(x => x.requisito === 'Experiencia general: contratos')){
+      const filaCl = filas.find(x => x.requisito === 'Clases UNSPSC exigidas a los contratos');
+      let codigos = filaCl ? filaCl.exige.split(/,\s*/).filter(x => /^\d{6}$/.test(x)) : [];
+      if (!codigos.length && /segmento\s+72\b/i.test(t)) codigos = ['72'];
+      const mObjT = t.match(/Que\s+hayan\s+contenido\s+la\s+ejecuci[óo]n\s+de\s*:\s*(.{20,420}?)(?=\s+(?:-\s+)?Experiencia\s+General|\s+ESPEC[ÍI]FICA\b|\s+B\.\s+Estar\s+relacionados|\s+De\s+conformidad\s+con\s+la\s+Nota|\s+Nota\s+\d)/i);
+      const dT = { tipo: 'expTramos', seccion: 'general', tramos: tr.tramos.map(x => ({ desde: x.desde, hasta: x.hasta, pct: x.pct })), poSmmlv: poSmmlv, codigos: codigos,
+        enRup: /n[úu]mero\s+consecutivo\s+del\s+contrato\s+en\s+el\s+RUP|clasificad[oa]s?\s+en\s+el\s+RUP/i.test(t), terminado: true, objeto: mObjT ? mObjT[1].trim().replace(/^GENERAL\s+/i, '') : '' };
+      if (/(?:[ÚúUu]nicamente|solo)\s+uno\s*\(1\)\s+de\s+los\s+Contratos[^.]{0,200}?antes\s+del\s+9\s+de\s+enero\s+de\s+1998/i.test(t)){ dT.inicioMin = '1998-01-09'; dT.maxAntes = 1; }
+      if (/Si\s+el\s+Proponente\s+relaciona\s+un\s*\(1\)\s+[úu]nico\s+Contrato[^.]{0,260}?(?:despu[ée]s|luego)\s+del\s+15\s+de\s+julio\s+de\s+2010/i.test(t)) dT.unicoDesde = '2010-07-15';
+      if (/Por\s+lo\s+menos\s+uno\s*\(1\)\s+de\s+los\s+Contratos\s+v[áa]lidos\s+aportados\s+como\s+experiencia\s+debe\s+haber\s+iniciado\s+ejecuci[óo]n\s+con\s+posterioridad\s+a\s+la\s+expedici[óo]n\s+de\s+la\s+NSR\s*-?\s*10/i.test(t)) dT.nsrAlguno = '2010-07-15';
+      const iTabT = t.search(/\bDe\s+\d+\s+hasta\s+\d+\s+\d+(?:[.,]\d+)?\s*%/i);
+      add('Experiencia', 'Experiencia general: contratos', 'De ' + tr.tramos.map(x => (x.desde === x.hasta ? x.desde : x.desde + ' a ' + x.hasta) + ' contrato(s): ≥ ' + x.pct + '% del presupuesto en SMMLV').join('; '),
+        tr.tramos.map(x => fmt1(poSmmlv * x.pct / 100)).join(' / ') + ' SMMLV', { pagina: pagina(iTabT), dato: dT });
     }
     const iUn = t.search(/CLASIFICACI[ÓO]N\s+UNSPSC/i);
     if (iUn >= 0){
