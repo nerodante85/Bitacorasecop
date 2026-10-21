@@ -5174,8 +5174,8 @@ await check('Interfaz: el botón secundario y el pie de la barra lateral cumplen
   assert(sec[1] !== 'accent-button', 'el texto del botón secundario no puede ser el ámbar vivo (solo es relleno)');
   assert(contraste(T[sec[1]], T.surface) >= 4.5 && contraste(T[sec[1]], T['accent-soft']) >= 4.5, 'texto del botón secundario en reposo y hover');
   const pie = /\.sidebar-foot \{[^}]*\bcolor:\s*(?:var\(--([a-z-]+)\)|(#[0-9A-Fa-f]{6}))/.exec(html);
-  const colorPie = pie && (pie[2] || T[pie[1]]);
-  assert(colorPie && contraste(colorPie, T['brand-800']) >= 4.5, 'texto del pie de la barra superior sobre el azul noche: ' + (pie && (pie[1] || pie[2])));
+  const colorPie = pie && (pie[2] || T[pie[1]] || T[({ 'text-muted': 'ink-mute' })[pie[1]]]);
+  assert(colorPie && contraste(colorPie, T.surface) >= 4.5, 'texto del pie de la barra superior (clara) sobre el papel: ' + (pie && (pie[1] || pie[2])));
 });
 await check('Interfaz: el lienzo de la página (html) también es claro, no solo #bitacora-root (si no, las páginas cortas muestran otro color debajo)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
@@ -5186,24 +5186,28 @@ await check('Interfaz: el lienzo de la página (html) también es claro, no solo
   assert(/color-scheme:\s*light/.test(m[1]), 'html debe declarar color-scheme: light');
   assert(luminancia(canvas) > 0.6, 'el lienzo debe ser claro: ' + canvas);
 });
-// ---- Rediseño fase 1 (dirección «Inntegrate», elegida por el usuario): tema claro, acento lila, Mulish ----
-await check('Rediseño fase 1: la paleta es clara (lienzo, papel, texto) y el acento es lila; el ámbar queda solo para avisos', () => {
+// ---- Rediseño fase 1 (dirección «Inntegrate», elegida por el usuario): tema claro, acento lila, Mulish; reemplazado por la dirección «Wise» (lima + verde bosque, Inter + Archivo, píldoras) ----
+await check('Rediseño fase 1: la paleta es clara (lienzo, papel, texto) y el acento es verde (lima de relleno, verde bosque de texto); el ámbar queda solo para avisos', () => {
   const html = readFileSync(HTML_PATH, 'utf8'); const T = tokenesCss(html);
   assert(luminancia(T.bg) > 0.6 && luminancia(T.surface) > 0.9, 'lienzo y papel claros: ' + T.bg + ' ' + T.surface);
   assert(luminancia(T.text) < 0.05, 'el texto es oscuro: ' + T.text);
   const [r, g, b] = [1, 3, 5].map(k => parseInt(T.accent.slice(k, k + 2), 16));
-  assert(b > r && b > g && r > g, 'el acento (texto) es lila (azul > rojo > verde): ' + T.accent);
+  assert(g > r && g > b, 'el acento (texto) es verde (verde > rojo y azul): ' + T.accent);
+  const [fr, fg, fb] = [1, 3, 5].map(k => parseInt(T['accent-button'].slice(k, k + 2), 16));
+  assert(fg > fr && fg > fb, 'el relleno de acento (lima) es verde: ' + T['accent-button']);
   assert(contraste(T.accent, T.surface) >= 4.5 && contraste(T['accent-ink'], T['accent-button']) >= 4.5, 'el acento como texto y la tinta sobre su relleno cumplen AA');
   assert(contraste(T['btn-ink'], T.btn) >= 7 && contraste(T['on-navy-mute'], T['navy-800']) >= 4.5 && contraste(T['on-navy-mute'], T['navy-900']) >= 4.5, 'botón principal y texto atenuado sobre azul noche');
   assert(contraste(T['on-status'], T.danger) >= 4.5 && contraste(T['on-status'], T.success) >= 4.5, 'texto sobre relleno de estado');
   assert(!/--accent:\s*var\(--amber\)/.test(html), 'el acento ya no apunta al ámbar');
 });
-await check('Rediseño fase 1: la tipografía es Mulish (sin Outfit en el CSS ni en el enlace de Google Fonts)', () => {
+await check('Rediseño Wise: la tipografía es Inter (interfaz) + Archivo (titulares); sin Mulish, Outfit ni Space Grotesk', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
-  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Mulish/.test(html), 'falta Mulish en el enlace de Google Fonts');
+  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Inter/.test(html), 'falta Inter en el enlace de Google Fonts');
+  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Archivo/.test(html), 'falta Archivo en el enlace de Google Fonts');
+  assert(!/family=Mulish|family=Space\+Grotesk/.test(html) && !/font-family:[^;}]*(Mulish|Space Grotesk)/.test(html), 'Mulish o Space Grotesk siguen en el archivo');
   assert(!/family=Outfit/.test(html), 'Outfit sigue en el enlace de Google Fonts');
   assert(!/font-family:[^;}]*Outfit/.test(html), 'Outfit sigue en alguna declaración font-family');
-  assert(/#bitacora-root\s*\{[^}]*font-family:\s*'Mulish'/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), '#bitacora-root debe usar Mulish');
+  assert(/#bitacora-root\s*\{[^}]*font-family:\s*'Inter'/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), '#bitacora-root debe usar Inter');
 });
 await check('Rediseño fase 1: la navegación es una barra superior horizontal y la cabecera de cada vista es un degradado azul noche con texto blanco', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
@@ -5997,7 +6001,7 @@ await check('Interfaz: reducir movimiento conserva el cambio de estado (colores)
   assert(/animation:\s*none/.test(rm[1]) && /transition-property:/.test(rm[1]), 'animaciones fuera y solo transiciones de color/borde/sombra/opacidad');
   const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
   assert(!/font-size:\s*(9|9\.5|10|10\.5|11|11\.5)px/.test(css), 'ningún texto por debajo de 12px');
-  assert(!/border-radius:\s*(999px|20px)/.test(css), 'sin radios de píldora (DESIGN.md: radios 5/9/14)');
+  assert(!/border-radius:\s*(999px|20px)/.test(css), 'los radios se declaran con tokens (--radius-*), sin 999px/20px sueltos (la píldora es var(--radius-pill))');
 });
 await check('Interfaz: los márgenes en línea más repetidos pasaron a clases utilitarias con nombre', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
