@@ -22,7 +22,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://mfqdeqxuwnczexonhlxu.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
 <title>Bitácora — Consultoría en contratación pública</title>
 <meta name="description" content="Encuentra procesos de SECOP II, analiza el pliego de condiciones y compara los requisitos habilitantes (experiencia, capacidad financiera, K residual, personal) contra los datos de tu empresa. Herramienta para constructoras en Colombia.">
-<meta name="theme-color" content="#0A0C0F">
+<meta name="theme-color" content="#F3F6EE">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://nerodante85.github.io/Bitacorasecop/">
 <meta property="og:type" content="website">
@@ -42,7 +42,7 @@
 <style>
   /* Lienzo de la página: el tema vive en #bitacora-root, pero en páginas cortas (celular) el
      área bajo el contenido es de html. Mismo valor que --canvas. */
-  html { background: #F1F3F8; color-scheme: light; }
+  html { background: #F3F6EE; color-scheme: light; }
   body { margin: 0; } /* la barra superior ocupa todo el ancho */
   /* ============================================================
      SISTEMA DE DISEÑO — tokens. Un solo lugar para paleta, tipografía,
@@ -56,43 +56,43 @@
        Los nombres de los tokens se conservan (--accent, --surface, --border…): solo cambian los valores, así que el
        resto del CSS y las pruebas de contraste siguen leyendo los mismos nombres. Los colores de estado (verde, ámbar,
        rojo) son semánticos y NO cambian con la marca; el ámbar ya no es el acento, queda para avisos y plazos. */
-    --navy-950: #0A0E26;
-    --navy-900: #0E1330;    /* barra superior / barra lateral */
-    --navy-800: #1A2352;    /* fin del degradado de la cabecera */
-    --ink-900: #151A33;     /* texto de cuerpo y de encabezado */
-    --ink-mute: #555C79;
-    --ink-faint: #5F6684;
+    --navy-950: #0B1F00;
+    --navy-900: #163300;    /* verde bosque: cabecera de vista (nombre heredado «navy») */
+    --navy-800: #2A5410;    /* fin del degradado de la cabecera */
+    --ink-900: #0E0F0C;     /* texto de cuerpo y de encabezado */
+    --ink-mute: #454745;
+    --ink-faint: #5A5E56;
 
     --paper: #FFFFFF;       /* tarjetas / paneles */
-    --canvas: #F1F3F8;      /* lienzo de la aplicación */
-    --surface-2: #F5F6FB;   /* fondo tenue dentro de una tarjeta */
-    --line: #E3E6F0;
-    --line-strong: #CBD0E0;
+    --canvas: #F3F6EE;      /* lienzo de la aplicación */
+    --surface-2: #F7F9F3;   /* fondo tenue dentro de una tarjeta */
+    --line: #E2E7D9;
+    --line-strong: #C5CDB8;
 
-    --lilac: #5B2FC9;        /* acento como TEXTO sobre fondo claro */
-    --lilac-hover: #4A22AD;
-    --lilac-soft: #EFE8FF;   /* fondo tintado (foco, hover, resaltados) */
-    --lilac-fill: #C9B0FF;   /* relleno de pestaña activa, filtro marcado, chip */
-    --lilac-fill-hover: #BBA0F5;
-    --lilac-ink: #1E0F4D;    /* texto oscuro sobre --lilac-fill */
+    --lime-text: #2A5410;     /* acento como TEXTO sobre fondo claro (enlaces, énfasis) */
+    --lime-text-hover: #163300;
+    --lime-soft: #E7F5D8;     /* fondo tintado (foco, hover, resaltados) */
+    --lime: #9FE870;          /* relleno de acción: botón principal, pestaña activa, filtro marcado */
+    --lime-hover: #8BD95C;
+    --lime-ink: #163300;    /* texto bosque sobre --lime */
 
-    --btn: var(--navy-900);          /* botón principal: azul noche con texto blanco */
-    --btn-hover: var(--navy-800);
-    --btn-ink: #FFFFFF;
+    --btn: var(--lime);              /* botón principal: lima Wise con texto bosque */
+    --btn-hover: var(--lime-hover);
+    --btn-ink: #163300;
     --on-navy: #FFFFFF;              /* texto sobre la cabecera y la barra */
-    --on-navy-mute: #B4BCE0;
-    --scrim: rgba(14, 19, 48, .5);   /* velo de modales y paneles */
+    --on-navy-mute: #C9E3B2;
+    --scrim: rgba(14, 25, 6, .5);   /* velo de modales y paneles */
 
     --brand-900: var(--navy-950);
     --brand-800: var(--navy-900);   /* barra */
     --brand-700: var(--navy-800);
     --brand-600: var(--navy-800);
-    --accent: var(--lilac);
-    --accent-hover: var(--lilac-hover);
-    --accent-soft: var(--lilac-soft);
-    --accent-button: var(--lilac-fill);
-    --accent-button-hover: var(--lilac-fill-hover);
-    --accent-ink: var(--lilac-ink);
+    --accent: var(--lime-text);
+    --accent-hover: var(--lime-text-hover);
+    --accent-soft: var(--lime-soft);
+    --accent-button: var(--lime);
+    --accent-button-hover: var(--lime-hover);
+    --accent-ink: var(--lime-ink);
     --bg: var(--canvas);
     --surface: var(--paper);
     --border: var(--line);
@@ -106,12 +106,13 @@
     --warning: #7A4E08; --warning-bg: #FBEFD6; --warning-border: #E3C88F;
     --on-status: #FFFFFF;   /* texto sobre relleno de color de estado */
     --neutral: var(--ink-mute); --neutral-bg: var(--surface-2); --neutral-border: var(--line-strong);
-    --radius-sm: 10px; --radius-md: 14px; --radius-lg: 20px;
-    --shadow-sm: 0 1px 2px rgba(20, 26, 60, .06), 0 14px 34px -22px rgba(20, 26, 60, .35);
+    --radius-sm: 12px; --radius-md: 16px; --radius-lg: 24px; --radius-pill: 999px;
+    --shadow-sm: 0 1px 2px rgba(14, 25, 6, .05), 0 12px 30px -22px rgba(14, 25, 6, .30);
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-    --shadow-md: 0 1px 2px rgba(20, 26, 60, .08), 0 22px 44px -18px rgba(20, 26, 60, .45);
+    --shadow-md: 0 1px 2px rgba(14, 25, 6, .07), 0 22px 44px -18px rgba(14, 25, 6, .40);
     color-scheme: light;
-    font-family: 'Mulish', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-display: 'Archivo', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--text);
     background: var(--bg);
     min-height: 100%;
@@ -132,7 +133,7 @@
      encabezados de página reales (nunca en texto de cuerpo ni en títulos de
      tarjeta, que se quedan en IBM Plex Sans -- ver --text-heading arriba),
      para que un título de página se lea distinto a un botón sin gritar. */
-  #bitacora-root .display-font { font-family: 'Mulish', sans-serif; font-weight: 500; letter-spacing: -0.02em; line-height: 1.1; }
+  #bitacora-root .display-font { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
   /* Utilidades de espaciado (antes eran style="" repetidos en el HTML y en las cadenas de JS). */
   #bitacora-root .mt-8 { margin-top: 8px; }
   #bitacora-root .mb-8 { margin-bottom: 8px; }
@@ -159,10 +160,11 @@
      filas y en celular vuelve a ser el botón desplegable. */
   #bitacora-root .sidebar {
     width: 100%; flex-shrink: 0;
-    background: var(--brand-800);
-    color: var(--on-navy-mute);
+    background: var(--surface);
+    color: var(--text-muted);
+    box-shadow: 0 1px 0 var(--border);
     display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 14px;
-    padding: 0 28px;
+    padding: 0 24px;
     position: sticky; top: 0; z-index: 20;
   }
   #bitacora-root .sidebar-brand {
@@ -185,8 +187,8 @@
   #bitacora-root button.sidebar-brand:hover .brand-title { text-decoration: underline; }
   #bitacora-root .sidebar-brand-text { display: block; min-width: 0; }
   #bitacora-root .sidebar-brand-text .brand-title {
-    display: block; margin: 0; font-size: 16px; font-weight: 500; color: #fff; line-height: 1.2;
-    font-family: 'Space Grotesk', 'Mulish', sans-serif; letter-spacing: 0.06em;
+    display: block; margin: 0; font-size: 18px; white-space: nowrap; color: var(--navy-900); line-height: 1.2;
+    font-family: var(--font-display); font-weight: 900; letter-spacing: -0.02em;
   }
   #bitacora-root .sidebar-brand-text .brand-sub {
     display: none;
@@ -199,26 +201,26 @@
      (--radius-sm), como la pestaña de una carpeta de archivo, no un botón
      de SaaS. */
   #bitacora-root .nav-item {
-    display: flex; align-items: center; gap: 11px;
-    padding: 10px 14px; border-radius: var(--radius-sm);
-    font-size: 13.5px; font-weight: 600; color: var(--on-navy-mute);
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px; border-radius: var(--radius-pill);
+    font-size: 13.5px; font-weight: 600; color: var(--text-muted);
     background: transparent; border: none; cursor: pointer; text-align: left; width: auto;
     transition: background .12s ease, color .12s ease;
   }
   #bitacora-root .nav-item svg { flex-shrink: 0; opacity: .85; }
-  #bitacora-root .nav-item:hover { background: rgba(255,255,255,.1); color: var(--on-navy); }
+  #bitacora-root .nav-item:hover { background: var(--accent-soft); color: var(--text-heading); }
   /* Ítem activo en ámbar vivo (el acento de energía) -- texto oscuro encima
      porque el ámbar es demasiado claro para blanco. */
   #bitacora-root .nav-item.active { background: var(--accent-button); color: var(--accent-ink); }
   #bitacora-root .nav-item.active svg { opacity: 1; }
   /* Zona secundaria del menú (Configuración y ayuda): separada y más discreta. */
-  #bitacora-root .nav-secondary { margin-left: auto; padding-left: 10px; border-left: 1px solid rgba(255,255,255,.14); }
+  #bitacora-root .nav-secondary { margin-left: auto; padding-left: 8px; border-left: 1px solid var(--border); }
   #bitacora-root .nav-item-secondary { font-size: 13px; font-weight: 400; }
   #bitacora-root .sidebar-foot {
-    max-width: 230px; padding: 8px 0; font-size: 12px; color: var(--on-navy-mute); line-height: 1.4;
+    max-width: 190px; padding: 8px 0; font-size: 12px; color: var(--text-muted); line-height: 1.4;
   }
-  #bitacora-root .sidebar-foot .link-btn { color: var(--on-navy); text-decoration: underline; font-size: 12px; padding: 0; }
-  #bitacora-root .sidebar-foot .link-btn:hover { color: var(--accent-button); }
+  #bitacora-root .sidebar-foot .link-btn { color: var(--text-heading); text-decoration: underline; font-size: 12px; padding: 0; }
+  #bitacora-root .sidebar-foot .link-btn:hover { color: var(--accent); }
 
   /* Modal de cuenta (Supabase, opcional) -- solo se usa/muestra cuando
      SUPABASE_URL/SUPABASE_ANON_KEY están configurados; ver renderAccountUI().
@@ -243,8 +245,8 @@
     width: 100%; max-width: 360px; padding: 26px; position: relative;
   }
   #bitacora-root .account-modal h2 {
-    margin: 0 0 4px; font-family: 'Mulish', sans-serif; font-weight: 500; letter-spacing: -0.02em;
-    font-size: 22px; line-height: 1.1; color: var(--text-heading);
+    margin: 0 0 4px; font-family: var(--font-display); font-weight: 800; letter-spacing: -0.03em;
+    font-size: 24px; line-height: 1; color: var(--text-heading);
   }
   #bitacora-root .account-modal p.sub { margin: 0 0 18px; font-size: 12.5px; color: var(--text-muted); }
   #bitacora-root .account-modal .close-btn {
@@ -274,7 +276,7 @@
   #bitacora-root .wrap { padding: 28px 36px 56px; max-width: 1120px; margin: 0 auto; }
   #bitacora-root .view[hidden] { display: none; }
   #bitacora-root .view-header {
-    margin-bottom: 22px; padding: 26px 28px; border-radius: var(--radius-lg);
+    margin-bottom: 22px; padding: 32px 32px 30px; border-radius: var(--radius-lg);
     background: linear-gradient(120deg, var(--navy-900) 0%, var(--navy-800) 100%);
     box-shadow: var(--shadow-sm);
   }
@@ -285,18 +287,18 @@
      en IBM Plex Sans -- son de UI, no "display". */
   #bitacora-root .view h1:focus, #bitacora-root .view:focus { outline: none; } /* destino de foco por código (F-05), no es un control */
   #bitacora-root .view-header h1 {
-    margin: 0 0 5px; font-size: 28px; letter-spacing: 0;
-    font-family: 'Mulish', sans-serif; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;
+    margin: 0 0 8px; font-size: clamp(30px, 4.4vw, 44px);
+    font-family: var(--font-display); font-weight: 900; letter-spacing: -0.035em; line-height: .98;
     color: var(--on-navy);
   }
-  #bitacora-root .view-header p { margin: 0; font-size: 14px; color: var(--on-navy-mute); max-width: 640px; line-height: 1.5; }
+  #bitacora-root .view-header p { margin: 0; font-size: 15px; color: var(--on-navy-mute); max-width: 640px; line-height: 1.5; }
   /* Análisis: resultado global, resumen de viabilidad, alertas, matriz y panel de evidencia. */
   #bitacora-root .resultado-global { border: 1px solid currentColor; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 20px 22px; margin: 0 0 14px; }
   #bitacora-root .resultado-global.eval-go { background: var(--success-bg); }
   #bitacora-root .resultado-global.eval-nogo { background: var(--danger-bg); }
   #bitacora-root .resultado-global.eval-revisar { background: var(--warning-bg); }
   #bitacora-root .resultado-global.eval-nd { background: var(--neutral-bg); }
-  #bitacora-root .resultado-nombre { font-family: 'Mulish', sans-serif; font-weight: 800; font-size: 34px; line-height: 1.1; letter-spacing: -0.02em; }
+  #bitacora-root .resultado-nombre { font-family: var(--font-display); font-weight: 900; font-size: 36px; line-height: 1; letter-spacing: -0.03em; }
   #bitacora-root .resultado-expl { color: var(--text); font-size: 15px; margin-top: 6px; overflow-wrap: anywhere; }
   #bitacora-root .resultado-meta { color: var(--text-muted); font-size: 12.5px; margin-top: 8px; }
   /* Rediseño fase 4: cada sección del análisis es una tarjeta blanca sobre el fondo gris del bloque. */
@@ -371,7 +373,7 @@
   #bitacora-root .evidencia-backdrop { animation: bt-ev-velo .2s var(--ease-out); }
   #bitacora-root .evidencia-panel { animation: bt-ev-in .22s var(--ease-out); }
   #bitacora-root .evidencia-panel { width: min(520px, 100vw); height: 100%; overflow-y: auto; background: var(--surface); border-left: 1px solid var(--border-strong); padding: 20px 22px 28px; box-shadow: var(--shadow-md); }
-  #bitacora-root .evidencia-panel h2 { margin: 0 34px 14px 0; font-family: 'Mulish', sans-serif; font-weight: 500; font-size: 20px; }
+  #bitacora-root .evidencia-panel h2 { margin: 0 34px 14px 0; font-family: var(--font-display); font-weight: 800; letter-spacing: -0.02em; font-size: 22px; }
   #bitacora-root .evidencia-cerrar { position: absolute; top: 12px; right: 14px; }
   #bitacora-root .evidencia-dl { margin: 0; display: grid; gap: 12px; }
   #bitacora-root .evidencia-dl dt { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 3px; }
@@ -381,7 +383,7 @@
   #bitacora-root .evidencia-pagina mark { background: var(--accent-soft); color: var(--accent); }
   /* Buscar: el cuadro de búsqueda natural es la acción principal; "Más filtros" y las herramientas van plegados. */
   #bitacora-root .buscador-fila { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
-  #bitacora-root .buscador-fila input[type="search"] { flex: 1 1 280px; min-width: 0; font-size: 15px; padding: 11px 14px; }
+  #bitacora-root .buscador-fila input[type="search"] { flex: 1 1 280px; min-width: 0; font-size: 15px; padding: 12px 20px; font-family: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); }
   #bitacora-root .buscador-fila .btn-primary { flex: 0 0 auto; }
   #bitacora-root #bt-nl-entendi { margin-top: 8px; }
   #bitacora-root #bt-inicio-primeros { margin: 14px 0; }
@@ -391,14 +393,14 @@
   #bitacora-root .herramienta { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
   #bitacora-root .herramienta .titleblock-head h2 { font-size: 15px; }
   #bitacora-root .inicio-busqueda { display: flex; gap: 10px; flex-wrap: wrap; }
-  #bitacora-root .inicio-busqueda input { flex: 1 1 280px; min-width: 0; font-size: 15px; padding: 11px 14px; }
+  #bitacora-root .inicio-busqueda input { flex: 1 1 280px; min-width: 0; font-size: 15px; padding: 12px 20px; font-family: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-pill); }
   #bitacora-root .inicio-grupos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
   #bitacora-root .inicio-grupo h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--text-muted); }
   /* Empresa: tres paneles (datos, experiencia, personal) dentro de una sola vista, con pestañas internas. */
   #bitacora-root .empresa-panel[hidden] { display: none; }
   #bitacora-root .panel-header { margin-bottom: 16px; }
   #bitacora-root .view-header.panel-header p { color: var(--text-muted); }
-  #bitacora-root .view-header.panel-header h2 { margin: 0 0 4px; font-family: 'Mulish', sans-serif; font-weight: 500; font-size: 20px; letter-spacing: -0.01em; color: var(--text-heading); }
+  #bitacora-root .view-header.panel-header h2 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 800; font-size: 24px; letter-spacing: -0.03em; color: var(--text-heading); }
   #bitacora-root .subtabs { display: flex; gap: 4px; margin: 0 0 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   #bitacora-root .subtab {
     background: transparent; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
@@ -536,8 +538,8 @@
     font-weight: 600;
     font-size: 13.5px;
     border: none;
-    border-radius: var(--radius-sm);
-    padding: 10px 16px;
+    border-radius: var(--radius-pill);
+    padding: 10px 20px;
     cursor: pointer;
     transition: background .12s ease, border-color .12s ease, color .12s ease, box-shadow .12s ease;
   }
@@ -556,7 +558,7 @@
   #bitacora-root .btn-secondary { background: var(--surface); color: var(--text-heading); border: 1px solid var(--border-strong); }
   #bitacora-root .btn-secondary:hover { background: var(--accent-soft); }
   /* Un enlace con aspecto de botón (p. ej. "Ver en SECOP") se vestía como enlace subrayado: mismo molde que el <button>. */
-  #bitacora-root a.btn-secondary, #bitacora-root a.btn-primary { display: inline-flex; align-items: center; font-weight: 600; font-size: 13.5px; padding: 10px 16px; border-radius: var(--radius-sm); text-decoration: none; }
+  #bitacora-root a.btn-secondary, #bitacora-root a.btn-primary { display: inline-flex; align-items: center; font-weight: 600; font-size: 13.5px; padding: 10px 20px; border-radius: var(--radius-pill); text-decoration: none; }
   #bitacora-root button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
   #bitacora-root .saved-note { font-size: 12.5px; color: var(--text-muted); }
 
@@ -578,7 +580,7 @@
   #bitacora-root .toggle { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text); white-space: nowrap; }
   /* Rediseño fase 2: los filtros de casilla se ven como chips; marcados, se pintan de lila. */
   #bitacora-root .toggle, #bitacora-root .pipeline-filtro label {
-    padding: 7px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer;
+    padding: 7px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); background: var(--surface); cursor: pointer;
     transition: background-color .15s ease, border-color .15s ease;
   }
   #bitacora-root .toggle:has(input:checked), #bitacora-root .pipeline-filtro label:has(input:checked) {
@@ -586,7 +588,7 @@
   }
   #bitacora-root .pipeline-filtro label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
   @media (max-width: 560px), (pointer: coarse) { #bitacora-root .toggle, #bitacora-root .pipeline-filtro label { min-height: 44px; } }
-  #bitacora-root .pipeline-filtro label input { accent-color: var(--lilac-ink); }
+  #bitacora-root .pipeline-filtro label input { accent-color: var(--lime-ink); }
   #bitacora-root .toggle input[type="checkbox"]:focus-visible, #bitacora-root .pipeline-filtro input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   #bitacora-root .toggle input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; }
   #bitacora-root .toggle-label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); align-self: center; }
@@ -677,7 +679,7 @@
     font-size: 12px;
     font-weight: 600;
     letter-spacing: .1px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-pill);
     border: 1px solid var(--neutral-border);
     background: var(--neutral-bg);
     color: var(--neutral);
@@ -841,11 +843,11 @@
   #bitacora-root .btn-mini {
     font-size: 12px;
     font-weight: 600;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-pill);
     border: 1px solid var(--border-strong);
     background: var(--surface);
     color: var(--text);
-    padding: 6px 12px;
+    padding: 6px 14px;
     cursor: pointer;
   }
   #bitacora-root .btn-mini:hover { background: var(--bg); }
@@ -1324,7 +1326,7 @@
       overflow: visible;
     }
     #bitacora-root .sidebar-brand {
-      border-right: 1px solid rgba(255,255,255,.08); flex-shrink: 0;
+      border-right: 1px solid var(--border); flex-shrink: 0;
       padding: 12px 12px; gap: 8px;
     }
     #bitacora-root button.sidebar-brand { width: auto; }
@@ -1336,8 +1338,8 @@
     #bitacora-root .nav-toggle {
       display: flex; align-items: center; gap: 8px;
       margin: 0 10px 0 auto; padding: 8px 10px 8px 12px;
-      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14);
-      border-radius: var(--radius-sm); color: #fff; font-size: 13.5px; font-weight: 500;
+      background: var(--surface); border: 1px solid var(--border-strong);
+      border-radius: var(--radius-pill); color: var(--text-heading); font-size: 13.5px; font-weight: 600;
       cursor: pointer; max-width: 68%; flex-shrink: 1; min-width: 0;
     }
     #bitacora-root .nav-toggle svg { flex-shrink: 0; opacity: .9; }
@@ -1354,14 +1356,14 @@
       display: none;
       position: absolute; top: 100%; left: 0; right: 0;
       flex-direction: column; flex-wrap: nowrap; align-items: stretch; flex: none; order: 0; gap: 2px; padding: 8px;
-      background: var(--brand-800); border-top: 1px solid rgba(255,255,255,.1);
+      background: var(--surface); border-top: 1px solid var(--border);
       box-shadow: 0 14px 28px rgba(0,0,0,.35);
       max-height: calc(100vh - 56px); overflow-y: auto;
     }
     #bitacora-root .sidebar.nav-open .sidebar-nav { display: flex; }
     #bitacora-root .nav-item { padding: 11px 12px; font-size: 14px; width: 100%; }
     #bitacora-root .nav-item .nav-label { display: inline; }
-    #bitacora-root .nav-secondary { margin-left: 0; padding-left: 0; padding-top: 6px; border-left: 0; border-top: 1px solid rgba(255,255,255,.14); }
+    #bitacora-root .nav-secondary { margin-left: 0; padding-left: 0; padding-top: 6px; border-left: 0; border-top: 1px solid var(--border); }
     #bitacora-root .view-header { padding: 18px 16px; }
 
     #bitacora-root .sidebar-foot { display: none; }
@@ -1372,7 +1374,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <div id="bitacora-root">
   <div class="app-shell">
@@ -12673,7 +12675,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         ? '<div class="embudo" style="margin:10px 0;text-align:left;"><div><b>Se consultaron ' + records.length + ' procesos.</b>' + (embudo.length ? ' Esto es lo que ocultó cada filtro:' : '') + '</div>' +
             (embudo.length ? '<ul class="analysis-list">' + embudo.map(e => '<li>' + escapeHtml(e.nombre) + ': quitó ' + e.quita + ' <button type="button" class="link-btn" data-quitar-filtro="' + escapeHtml(e.clave) + '">quitar este filtro</button></li>').join('') + '</ul>' : '') + '</div>'
         : '';
-      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:\'Mulish\',sans-serif;font-weight:500;font-size:20px;margin-bottom:6px;">SIN RESULTADOS</strong>' + embudoHtml + sugerencia +
+      resultsEl.innerHTML = '<div class="empty"><strong style="display:block;font-family:var(--font-display);font-weight:800;font-size:22px;margin-bottom:6px;">SIN RESULTADOS</strong>' + embudoHtml + sugerencia +
         ' Puede que ahora mismo no haya ninguna licitación abierta con esos criterios -- no es un error.' +
         '<div class="mt-10"><button type="button" class="link-btn" id="bt-empty-demo">Ver datos de ejemplo</button> para ver cómo luce la plataforma mientras tanto.</div></div>';
       return;
