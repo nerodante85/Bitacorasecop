@@ -4,37 +4,48 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Página no encontrada — Bitácora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@800;900&display=swap" rel="stylesheet">
 <style>
+  :root{ --forest:#163300; --lime:#9FE870; --lime-hover:#8BD95C; --canvas:#F3F6EE; --ink:#0E0F0C; --muted:#454745; --line:#E2E7D9; }
   html,body{height:100%;margin:0;}
   body{
     display:flex; align-items:center; justify-content:center;
-    font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-    background:#0E1013; color:#E9ECF1; text-align:center; padding:24px;
+    font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background:var(--canvas); color:var(--ink); padding:24px;
   }
-  .card{ max-width:420px; }
+  .card{
+    max-width:460px; background:#fff; border:1px solid var(--line); border-radius:24px;
+    padding:36px 32px; box-shadow:0 1px 2px rgba(14,25,6,.05), 0 12px 30px -22px rgba(14,25,6,.30);
+  }
   .mark{
-    width:44px; height:44px; border-radius:10px; margin:0 auto 18px;
-    background:#14181C;
-    color:#51825B; font-weight:800; font-size:20px;
+    width:44px; height:44px; border-radius:12px; margin:0 0 22px;
+    background:var(--forest); color:var(--lime);
+    font-family:'Archivo', 'Inter', sans-serif; font-weight:900; font-size:22px;
     display:flex; align-items:center; justify-content:center;
   }
-  h1{ font-size:20px; margin:0 0 8px; color:#E9ECF1; }
-  p{ font-size:14px; line-height:1.6; color:#98A1B1; margin:0 0 22px; }
-  a{
-    display:inline-block; background:#E8A33D; color:#1B1100; text-decoration:none;
-    font-weight:600; font-size:13.5px; padding:10px 18px; border-radius:8px;
+  h1{
+    font-family:'Archivo', 'Inter', sans-serif; font-weight:900; letter-spacing:-.035em;
+    font-size:clamp(30px, 8vw, 40px); line-height:.98; margin:0 0 12px; color:var(--forest);
   }
-  a:hover{ background:#F0B25A; }
+  p{ font-size:15px; line-height:1.6; color:var(--muted); margin:0 0 24px; }
+  a{
+    display:inline-block; background:var(--lime); color:var(--forest); text-decoration:none;
+    font-weight:600; font-size:14px; padding:11px 22px; border-radius:999px;
+  }
+  a:hover{ background:var(--lime-hover); }
+  a:focus-visible{ outline:2px solid var(--forest); outline-offset:3px; }
 </style>
 </head>
 <body>
-  <div class="card">
-    <div class="mark">B</div>
+  <main class="card">
+    <div class="mark" aria-hidden="true">B</div>
     <h1>Esta página no existe</h1>
     <p>El enlace puede estar mal escrito o ya no aplica. Bitácora vive en una
-       sola página — desde ahí se llega a Buscar procesos, Perfil de la
-       empresa, Experiencia, Personal y Evaluación.</p>
+       sola página: desde ahí llegas a Buscar procesos, Mis procesos, Empresa
+       y Documentos.</p>
     <a href="/Bitacorasecop/">Ir a Bitácora</a>
-  </div>
+  </main>
 </body>
 </html>

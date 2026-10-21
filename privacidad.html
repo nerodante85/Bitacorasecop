@@ -5,19 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Política de tratamiento de datos — Bitácora SECOP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@800;900&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#EEF1F6; --paper:#FFFFFF; --ink:#171B26; --muted:#55607A; --line:#D3D9E4; --warn-bg:#FFF3D6; --warn-ink:#6B4300; --accent:#A6660A; }
+  :root { --bg:#F3F6EE; --paper:#FFFFFF; --ink:#0E0F0C; --muted:#454745; --line:#E2E7D9; --warn-bg:#FFF3D6; --warn-ink:#6B4300; --warn-line:#A6660A; --accent:#2A5410; --head:#163300; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#12182A; --paper:#1B2338; --ink:#E9EDF6; --muted:#A9B3C9; --line:#33405C; --warn-bg:#3A2C08; --warn-ink:#F6D58B; --accent:#F2A93C; }
+    :root { --bg:#0E1A06; --paper:#16240C; --ink:#EEF3E8; --muted:#B5C2A6; --line:#2F4420; --warn-bg:#3A2C08; --warn-ink:#F6D58B; --warn-line:#F2A93C; --accent:#9FE870; --head:#C9E3B2; }
   }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 "IBM Plex Sans", system-ui, sans-serif; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 "Inter", system-ui, sans-serif; }
   main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
-  article { background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:24px 20px; }
-  h1 { font-size:26px; margin:0 0 4px; }
-  h2 { font-size:18px; margin:28px 0 6px; }
+  article { background:var(--paper); border:1px solid var(--line); border-radius:24px; padding:28px 24px; }
+  h1 { font-family:"Archivo", "Inter", sans-serif; font-weight:900; letter-spacing:-.03em; line-height:1; font-size:clamp(28px, 6vw, 36px); margin:0 0 8px; color:var(--head); }
+  h2 { font-family:"Archivo", "Inter", sans-serif; font-weight:800; letter-spacing:-.02em; font-size:19px; margin:28px 0 6px; color:var(--head); }
   p, li { max-width:65ch; }
   .sub { color:var(--muted); margin-top:0; }
-  .borrador { background:var(--warn-bg); color:var(--warn-ink); border:1px solid var(--accent); border-radius:8px; padding:12px 14px; margin:16px 0; }
+  .borrador { background:var(--warn-bg); color:var(--warn-ink); border:1px solid var(--warn-line); border-radius:12px; padding:12px 14px; margin:16px 0; }
   a { color:var(--accent); }
   .pend { background:var(--warn-bg); color:var(--warn-ink); padding:0 4px; border-radius:3px; }
 </style>
