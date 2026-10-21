@@ -1029,7 +1029,7 @@
   }
 
   /* Mis procesos: una sección por estado, tarjetas en una cuadrícula que se acomoda al ancho (sin scroll horizontal). */
-  #bitacora-root .pipeline-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+  #bitacora-root .pipeline-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 460px)); gap: 12px; }
   #bitacora-root .pipeline-col-count { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 8px; font-size: 13px; color: var(--text-muted); font-weight: 600; }
   #bitacora-root .pipeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
   #bitacora-root .pipeline-card-urgente { border-color: var(--danger); }
@@ -1760,7 +1760,7 @@
               </div>
             </div>
             <div class="actions">
-              <button class="btn-secondary" id="bt-perfil-save">Guardar perfil</button>
+              <button class="btn-primary" id="bt-perfil-save">Guardar perfil</button>
               <span class="saved-note" id="bt-perfil-saved"></span>
             </div>
             <div class="mt-8 saved-note">Este perfil ya NO incluye experiencia general/específica — eso se carga en "Experiencia" y se compara automáticamente contra cada pliego que analices. El RUP tampoco se usa aquí para inferir experiencia. Los datos de NIT/representante/contacto se usan solo para generar la carta de presentación (ver "Evaluación") — ningún dato sale de tu navegador salvo que actives cuenta/sincronización.</div>
