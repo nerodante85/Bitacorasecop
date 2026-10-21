@@ -1029,7 +1029,7 @@
   }
 
   /* Mis procesos: una sección por estado, tarjetas en una cuadrícula que se acomoda al ancho (sin scroll horizontal). */
-  #bitacora-root .pipeline-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 460px)); gap: 12px; }
+  #bitacora-root .pipeline-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 12px; }
   #bitacora-root .pipeline-col-count { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 8px; font-size: 13px; color: var(--text-muted); font-weight: 600; }
   #bitacora-root .pipeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; display: flex; flex-direction: column; gap: 6px; }
   #bitacora-root .pipeline-card-urgente { border-color: var(--danger); }
