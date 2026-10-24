@@ -6683,5 +6683,4 @@ de la IA, también la experiencia evaluada que de ahí salió (`experienciaResul
 siga decidiendo sin que se vea. El texto leído se conserva: «Evaluar cumplimiento de experiencia» recalcula con el lector por reglas.
 
 **Verificación:** 3 mutaciones detectadas (no limpiar al cargar, no borrar lo derivado, el gate vuelve a leer `exigenciasIA`); smoke 482 ok (el único fallo es el SRI de los CDN, sin internet); e2e 39/39
-(nueva: un análisis hecho con IA se abre sin usar su cifra imposible, avisa y no ofrece extraer). **Pendiente del usuario:** dar de baja la función `extraer-requisitos` en Supabase si quiere; los PDF que queden
-en el bucket `pliegos` los barre `daily-digest`.
+(nueva: un análisis hecho con IA se abre sin usar su cifra imposible, avisa y no ofrece extraer). **Servidor (2026-10-24):** la función `extraer-requisitos` del proyecto real (`mfqdeqxuwnczexonhlxu`) se reemplazó por un aviso mínimo que responde HTTP 410 (versión 30, `verify_jwt` true): ya no lee PDF, no llama a Claude ni toca Storage/`ai_usage`. No se pudo borrar con las herramientas de la sesión; **pendiente del usuario:** borrarla del panel (Edge Functions › extraer-requisitos › Delete) o con `supabase functions delete extraer-requisitos --project-ref mfqdeqxuwnczexonhlxu`. Los PDF que queden en el bucket `pliegos` los barre `daily-digest`.
