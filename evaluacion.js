@@ -285,11 +285,16 @@
     // Clasificación UNSPSC (solo si hay pliego analizado y menciona códigos)
     const exigidos = entry ? codigosExigidosEnPliego(entry) : [];
     if (exigidos.length){
-      const tengo = exigidos.filter(c => matriz.codigos.some(mc => mc.replace(/\D/g, '').slice(0, 6) === c.slice(0, 6)));
-      const faltan = exigidos.filter(c => tengo.indexOf(c) === -1);
-      if (!faltan.length) g('Clasificación UNSPSC', 'ok', 'Tu RUP cubre los ' + exigidos.length + ' códigos que menciona el pliego.');
-      else if (tengo.length) g('Clasificación UNSPSC', 'revisar', 'Cubres ' + tengo.length + '/' + exigidos.length + '. Falta(n): ' + faltan.join(', ') + '.');
-      else g('Clasificación UNSPSC', 'fail', 'Tu RUP no cubre ninguno de los códigos del pliego (' + exigidos.join(', ') + ').');
+      // Sin ningún código cargado no se sabe nada de la clasificación de la empresa: es «falta cargar el RUP», no «no cumple».
+      if (!matriz.codigos.some(mc => mc.replace(/\D/g, '').length >= 6)){
+        g('Clasificación UNSPSC', 'nd', 'Tu perfil no tiene códigos UNSPSC cargados: cárgalos desde el RUP para compararlos con los ' + exigidos.length + ' que menciona el pliego (' + exigidos.join(', ') + ').');
+      } else {
+        const tengo = exigidos.filter(c => matriz.codigos.some(mc => mc.replace(/\D/g, '').slice(0, 6) === c.slice(0, 6)));
+        const faltan = exigidos.filter(c => tengo.indexOf(c) === -1);
+        if (!faltan.length) g('Clasificación UNSPSC', 'ok', 'Tu RUP cubre los ' + exigidos.length + ' códigos que menciona el pliego.');
+        else if (tengo.length) g('Clasificación UNSPSC', 'revisar', 'Cubres ' + tengo.length + '/' + exigidos.length + '. Falta(n): ' + faltan.join(', ') + '.');
+        else g('Clasificación UNSPSC', 'fail', 'Tu RUP no cubre ninguno de los códigos del pliego (' + exigidos.join(', ') + ').');
+      }
     }
 
     // Indicadores financieros + experiencia exigidos (necesitan pliego analizado)

@@ -205,6 +205,7 @@ sincronización, Edge Functions de IA y correo).
   CHROME_PATH=/opt/pw-browsers/chromium node tests/e2e.mjs`. smoke.mjs mira el código; e2e comprueba que el flujo FUNCIONA (con averías
   de comportamiento a propósito, smoke no las vio y e2e sí). Corre en PR (`smoke.yml`) y en main (`pages.yml`: `deploy` necesita `smoke` Y `e2e`;
   si e2e falla, no se publica). Al cambiar un flujo de pantalla, actualiza también e2e.
+- **Empresas y pliegos ficticios** (`ejemplos/pruebas-pliegos/`, guía en `GUIA-PRUEBAS.md`): 9 empresas, 3 pliegos PDF y un respaldo cargable que fuerzan GO / NO-GO / REVISAR / NO DETERMINABLE. La fuente única es `escenarios.mjs` (`node ejemplos/pruebas-pliegos/generar.mjs [AAAA-MM-DD]` regenera los archivos); `tests/smoke.mjs` («Empresas ficticias · …») ejecuta el motor real con el reloj congelado y falla si la guía deja de decir la verdad. Si cambias el motor y una de esas pruebas falla, decide si el motor o la guía tiene razón antes de tocar la expectativa. Restaurar el respaldo en la app REEMPLAZA todos los datos (y los de la cuenta, si hay sesión): pruébalo en incógnito.
 - Navegador real: `python3 -m http.server 8123` en la raíz y Chromium/Playwright (en el sandbox: `/opt/pw-browsers`,
   `/opt/node-tools/node_modules/playwright`). Archivos se inyectan por `DataTransfer` (skill `probar-con-archivos-reales`).
   Los datos de ejemplo ("Ver datos de ejemplo") requieren desmarcar los filtros restrictivos. Pestaña nueva para mirar la consola
