@@ -22,7 +22,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: https://www.datos.gov.co https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://mfqdeqxuwnczexonhlxu.supabase.co; worker-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; child-src 'self' blob: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; frame-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'">
 <title>Bitácora — Consultoría en contratación pública</title>
 <meta name="description" content="Encuentra procesos de SECOP II, analiza el pliego de condiciones y compara los requisitos habilitantes (experiencia, capacidad financiera, K residual, personal) contra los datos de tu empresa. Herramienta para constructoras en Colombia.">
-<meta name="theme-color" content="#F3F6EE">
+<meta name="theme-color" content="#F3F5F7">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://nerodante85.github.io/Bitacorasecop/">
 <meta property="og:type" content="website">
@@ -42,7 +42,7 @@
 <style>
   /* Lienzo de la página: el tema vive en #bitacora-root, pero en páginas cortas (celular) el
      área bajo el contenido es de html. Mismo valor que --canvas. */
-  html { background: #F3F6EE; color-scheme: light; }
+  html { background: #F3F5F7; color-scheme: light; }
   body { margin: 0; } /* la barra superior ocupa todo el ancho */
   /* ============================================================
      SISTEMA DE DISEÑO — tokens. Un solo lugar para paleta, tipografía,
@@ -56,32 +56,32 @@
        Los nombres de los tokens se conservan (--accent, --surface, --border…): solo cambian los valores, así que el
        resto del CSS y las pruebas de contraste siguen leyendo los mismos nombres. Los colores de estado (verde, ámbar,
        rojo) son semánticos y NO cambian con la marca; el ámbar ya no es el acento, queda para avisos y plazos. */
-    --navy-950: #0B1F00;
-    --navy-900: #163300;    /* verde bosque: cabecera de vista (nombre heredado «navy») */
-    --navy-800: #2A5410;    /* fin del degradado de la cabecera */
-    --ink-900: #0E0F0C;     /* texto de cuerpo y de encabezado */
-    --ink-mute: #454745;
-    --ink-faint: #5A5E56;
+    --navy-950: #0F1822;
+    --navy-900: #16212E;    /* azul pizarra: cabecera de vista (nombre heredado «navy») */
+    --navy-800: #223246;    /* fin del degradado de la cabecera */
+    --ink-900: #16212E;     /* texto de cuerpo y de encabezado */
+    --ink-mute: #465264;
+    --ink-faint: #586478;
 
     --paper: #FFFFFF;       /* tarjetas / paneles */
-    --canvas: #F3F6EE;      /* lienzo de la aplicación */
-    --surface-2: #F7F9F3;   /* fondo tenue dentro de una tarjeta */
-    --line: #E2E7D9;
-    --line-strong: #C5CDB8;
+    --canvas: #F3F5F7;      /* lienzo de la aplicación */
+    --surface-2: #EEF1F4;   /* fondo tenue dentro de una tarjeta */
+    --line: #D9DEE5;
+    --line-strong: #B3BDC9;
 
-    --lime-text: #2A5410;     /* acento como TEXTO sobre fondo claro (enlaces, énfasis) */
-    --lime-text-hover: #163300;
-    --lime-soft: #E7F5D8;     /* fondo tintado (foco, hover, resaltados) */
-    --lime: #9FE870;          /* relleno de acción: botón principal, pestaña activa, filtro marcado */
-    --lime-hover: #8BD95C;
-    --lime-ink: #163300;    /* texto bosque sobre --lime */
+    --lime-text: #223246;     /* acento como TEXTO sobre fondo claro (enlaces, énfasis) */
+    --lime-text-hover: #16212E;
+    --lime-soft: #FDF1C7;     /* fondo tintado (foco, hover, resaltados) */
+    --lime: #F2B705;          /* relleno de acción: botón principal, pestaña activa, filtro marcado */
+    --lime-hover: #DDA504;
+    --lime-ink: #16212E;    /* texto pizarra sobre --lime (amarillo señal) */
 
-    --btn: var(--lime);              /* botón principal: lima Wise con texto bosque */
+    --btn: var(--lime);              /* botón principal: amarillo señal con texto pizarra */
     --btn-hover: var(--lime-hover);
-    --btn-ink: #163300;
+    --btn-ink: #16212E;
     --on-navy: #FFFFFF;              /* texto sobre la cabecera y la barra */
-    --on-navy-mute: #C9E3B2;
-    --scrim: rgba(14, 25, 6, .5);   /* velo de modales y paneles */
+    --on-navy-mute: #C5D0DD;
+    --scrim: rgba(15, 24, 34, .55);   /* velo de modales y paneles */
 
     --brand-900: var(--navy-950);
     --brand-800: var(--navy-900);   /* barra */
@@ -107,9 +107,9 @@
     --on-status: #FFFFFF;   /* texto sobre relleno de color de estado */
     --neutral: var(--ink-mute); --neutral-bg: var(--surface-2); --neutral-border: var(--line-strong);
     --radius-sm: 12px; --radius-md: 16px; --radius-lg: 24px; --radius-pill: 999px;
-    --shadow-sm: 0 1px 2px rgba(14, 25, 6, .05), 0 12px 30px -22px rgba(14, 25, 6, .30);
+    --shadow-sm: 0 1px 2px rgba(15, 24, 34, .05), 0 12px 30px -22px rgba(15, 24, 34, .30);
     --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-    --shadow-md: 0 1px 2px rgba(14, 25, 6, .07), 0 22px 44px -18px rgba(14, 25, 6, .40);
+    --shadow-md: 0 1px 2px rgba(15, 24, 34, .07), 0 22px 44px -18px rgba(15, 24, 34, .40);
     color-scheme: light;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-display: 'Archivo', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

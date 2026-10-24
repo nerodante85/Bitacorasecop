@@ -461,7 +461,7 @@ await check('Rediseño fase 2: tarjeta sin franja gruesa, botones que se hunden 
   await pg.check('#bt-pipeline-solo-pronto');
   await pg.waitForTimeout(350); // termina la transición de color
   const despues = await lab.evaluate(el => getComputedStyle(el).backgroundColor);
-  assert(antes !== despues && despues === 'rgb(159, 232, 112)', 'marcado, el filtro se pinta de lima: ' + antes + ' → ' + despues);
+  assert(antes !== despues && despues === 'rgb(242, 183, 5)', 'marcado, el filtro se pinta de amarillo señal: ' + antes + ' → ' + despues);
   assert(await sinDesborde(pg) <= 0, 'sin desborde');
   await ctx.close();
 });
@@ -742,7 +742,7 @@ await check('Rediseño fase 4: el análisis tiene tarjeta de resultado con relie
   });
   assert(r.radio >= 14 && r.sombra !== 'none' && r.tam >= 32, 'tarjeta de resultado con radio, sombra y nombre grande: ' + JSON.stringify({ radio: r.radio, sombra: r.sombra, tam: r.tam }));
   assert(r.secs.length >= 3, 'hay secciones: ' + r.secs.length);
-  assert(r.secs.every(x => x.fondo === 'rgb(255, 255, 255)' && x.borde === '1px' && x.radio >= 14 && x.h3 === 'rgb(14, 15, 12)'), 'cada sección es una tarjeta blanca con título en tinta: ' + JSON.stringify(r.secs[0]));
+  assert(r.secs.every(x => x.fondo === 'rgb(255, 255, 255)' && x.borde === '1px' && x.radio >= 14 && x.h3 === 'rgb(22, 33, 46)'), 'cada sección es una tarjeta blanca con título en tinta: ' + JSON.stringify(r.secs[0]));
   assert(r.antes === 'none' && r.abierto !== 'none', 'la flecha del plegable gira al abrirlo: ' + r.antes + ' → ' + r.abierto);
   const anim = async () => pg.evaluate(() => getComputedStyle(document.querySelector('#bt-evidencia-backdrop .evidencia-panel')).animationName);
   await pg.locator('[data-ev-fila]').first().click();

@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bitácora SECOP · Prototipo A «Obra»</title>
+<meta name="description" content="Prototipo A: azul pizarra y amarillo señal, inspirado en la referencia de constructora.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Prototipo A «Obra». Tokens con los nombres de la app para poder portarlos. */
+:root{
+  --navy-900:#16212E; --navy-800:#223246; --on-navy:#FFFFFF; --on-navy-mute:#C5D0DD;
+  --yellow:#F2B705; --yellow-hover:#DDA504; --yellow-ink:#16212E;
+  --surface:#FFFFFF; --bg:#F3F5F7; --border:#D9DEE5; --border-strong:#B3BDC9;
+  --text:#16212E; --text-muted:#465264; --text-faint:#586478; --accent:#16212E;
+  --success:#14633A; --success-bg:#E1F3E8; --success-line:#B9DDC5;
+  --danger:#A1261B; --danger-bg:#FBE4E0;
+  --warning:#7A4E08; --warning-bg:#FBEFD6; --warning-line:#E3C88F;
+  --neutral:#465264; --neutral-bg:#EEF1F4;
+  --radius-sm:4px; --radius-md:6px; --radius-lg:8px; --radius-pill:6px;
+  --font:'Barlow','Helvetica Neue',Arial,sans-serif; --display:'Barlow Condensed','Arial Narrow',Arial,sans-serif;
+  --shadow-card:none;
+}
+*{box-sizing:border-box}
+html{background:var(--bg);color-scheme:light}
+body{margin:0;font-family:var(--font);font-size:17px;line-height:1.5;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+h1,h2,h3,p,ul,dl,dd,figure{margin:0}
+ul{padding:0;list-style:none}
+a{color:inherit}
+button,input{font:inherit}
+.wrap{max-width:1160px;margin:0 auto;padding:0 32px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--yellow);color:var(--yellow-ink);padding:10px 16px;border-radius:var(--radius-pill);font-weight:700;z-index:50}
+.skip:focus{left:12px}
+:focus-visible{outline:3px solid var(--navy-900);outline-offset:2px;box-shadow:0 0 0 6px var(--yellow)}
+.on-dark :focus-visible{outline-color:#fff;box-shadow:0 0 0 6px var(--yellow)}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:0 24px;border:2px solid transparent;border-radius:var(--radius-pill);font-weight:700;font-size:15px;text-decoration:none;cursor:pointer;transition:background-color .16s,border-color .16s,transform .16s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--yellow);color:var(--yellow-ink)}
+.btn-primary:hover{background:var(--yellow-hover)}
+.btn-outline{background:transparent;border-color:var(--yellow);color:var(--yellow)}
+.btn-outline:hover{background:rgba(242,183,5,.14)}
+.btn-ghost{background:var(--surface);border-color:var(--border-strong);color:var(--text)}
+.btn-ghost:hover{border-color:var(--navy-900)}
+.btn-sm{min-height:44px;padding:0 20px;font-size:14px}
+
+/* Barra superior */
+.top{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+.top .wrap{display:flex;align-items:center;gap:28px;min-height:72px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px;min-height:44px;text-decoration:none;font-family:var(--display);font-weight:800;font-size:25px;letter-spacing:.01em}
+.mark{width:36px;height:36px;border-radius:4px;background:var(--navy-900);display:grid;place-items:center}
+.mark svg{width:17px;height:auto}
+.menu{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.menu a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:var(--radius-pill);font-size:15px;font-weight:600;text-decoration:none;color:var(--text-muted)}
+.menu a:hover{background:var(--bg);color:var(--text)}
+.menu a[aria-current="page"]{background:var(--navy-900);color:#fff}
+.top .btn{margin-left:8px}
+
+/* Portada */
+.hero{background:var(--navy-900);color:var(--on-navy);overflow:hidden}
+.hero .wrap{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:24px;align-items:end;padding-top:64px}
+.hero-text{padding-bottom:72px}
+.hero h1{font-family:var(--display);font-size:clamp(42px,6vw,78px);line-height:.96;font-weight:800;letter-spacing:0;text-transform:uppercase;color:var(--yellow);text-wrap:balance;max-width:17ch}
+.hero p{margin-top:22px;max-width:46ch;color:var(--on-navy-mute);font-size:18px}
+.buscador{margin-top:32px;display:flex;gap:10px;background:var(--surface);padding:8px;border-radius:var(--radius-pill);max-width:560px}
+.buscador input{flex:1;min-width:0;border:0;background:transparent;padding:0 16px;color:var(--text);font-size:16px;min-height:46px}
+.buscador input::placeholder{color:var(--text-faint)}
+.buscador input:focus-visible{outline:none;box-shadow:none}
+.buscador:focus-within{box-shadow:0 0 0 4px var(--yellow)}
+.hero-art{align-self:end;justify-self:end;width:100%;max-width:440px}
+.hero-art svg{display:block;width:100%;height:auto}
+
+/* Secciones */
+section{padding:72px 0}
+.sec-head{display:flex;justify-content:space-between;align-items:end;gap:24px;flex-wrap:wrap;margin-bottom:32px}
+h2{font-family:var(--display);font-size:clamp(34px,4.4vw,54px);line-height:1;font-weight:700;letter-spacing:0;text-wrap:balance}
+.sec-head p{margin-top:10px;max-width:56ch;color:var(--text-muted)}
+
+/* Tarjeta de proceso con placa de cierre */
+.proceso{display:grid;grid-template-columns:minmax(0,1fr) 220px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);overflow:hidden}
+.proceso-main{padding:28px 32px}
+.entidad{font-weight:800;font-size:15px;letter-spacing:.01em}
+.proceso h3{margin-top:8px;font-family:var(--display);font-size:32px;line-height:1.1;font-weight:700;max-width:30ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.chip{display:inline-flex;align-items:center;min-height:30px;padding:0 12px;border-radius:var(--radius-pill);background:var(--neutral-bg);color:var(--neutral);font-size:13px;font-weight:600}
+.chip-nuevo{background:var(--yellow);color:var(--yellow-ink)}
+.ficha{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px 28px;margin-top:24px;padding-top:22px;border-top:1px solid var(--border)}
+.ficha dt{font-size:13px;color:var(--text-faint);font-weight:600}
+.ficha dd{margin-top:2px;font-weight:700}
+.ficha .valor{font-size:22px;letter-spacing:-.01em}
+.acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.placa{background:var(--yellow);color:var(--yellow-ink);display:grid;place-content:center;text-align:center;padding:24px 18px;position:relative}
+.placa::before{content:"";position:absolute;inset:12px;border:3px solid var(--yellow-ink);border-radius:4px;pointer-events:none}
+.placa b{display:block;font-family:var(--display);font-size:150px;line-height:.82;font-weight:800;letter-spacing:-.01em}
+.placa span{display:block;margin-top:12px;font-family:var(--display);font-size:24px;font-weight:700;line-height:1.05}
+.placa small{display:block;margin-top:8px;font-size:13px;font-weight:600}
+
+/* Mis procesos */
+.banda{background:var(--surface);border-block:1px solid var(--border)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.stat{background:var(--bg);border-radius:var(--radius-md);padding:20px 22px}
+.stat b{display:block;font-family:var(--display);font-size:64px;line-height:.9;font-weight:700}
+.stat span{display:block;margin-top:8px;font-weight:700;font-size:15px}
+.stat small{display:block;margin-top:4px;color:var(--text-muted);font-size:13px}
+.cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:24px;margin-top:28px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:26px 28px}
+.panel h3{font-family:var(--display);font-size:26px;font-weight:700}
+.cal{margin-top:16px;display:grid}
+.cal li{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:16px;align-items:center;padding:14px 0;border-top:1px solid var(--border)}
+.cal li:first-child{border-top:0}
+.fecha{background:var(--navy-900);color:#fff;border-radius:var(--radius-sm);text-align:center;padding:8px 0;line-height:1.05}
+.fecha b{display:block;font-family:var(--display);font-size:30px;font-weight:700}
+.fecha span{font-size:12px;font-weight:600;color:var(--on-navy-mute)}
+.cal .ent{font-weight:700;font-size:15px}
+.cal .obj{color:var(--text-muted);font-size:14px}
+.cuando{font-size:13px;font-weight:700;color:var(--warning);background:var(--warning-bg);border-radius:var(--radius-pill);padding:4px 12px;white-space:nowrap}
+.guardado .entidad{margin-top:14px}
+.guardado p{margin-top:8px;color:var(--text-muted);font-size:15px}
+.nota{margin-top:16px;border-left:4px solid var(--yellow);background:var(--bg);padding:12px 16px;border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:14px}
+.nota b{display:block;font-size:13px;color:var(--text-faint)}
+.etapas{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+.etapas span{font-size:13px;font-weight:600;padding:5px 12px;border-radius:var(--radius-pill);border:1px solid var(--border-strong);color:var(--text-muted)}
+.etapas span.on{background:var(--navy-900);border-color:var(--navy-900);color:#fff}
+
+/* Análisis */
+.resultado{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:24px}
+.go{background:var(--success-bg);border:2px solid var(--success);border-radius:var(--radius-lg);padding:30px 32px}
+.go .quien{font-size:15px;font-weight:700;color:var(--success)}
+.go .nombre{display:flex;align-items:center;gap:16px;margin-top:10px;font-family:var(--display);font-size:130px;line-height:.8;font-weight:800;letter-spacing:0;color:var(--success)}
+.go .nombre svg{width:64px;height:64px;flex:none}
+.go p{margin-top:16px;max-width:44ch;font-size:17px;color:var(--text)}
+.go small{display:block;margin-top:14px;color:var(--text-muted);font-size:13px}
+.go .cuenta{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.go .cuenta span{background:var(--surface);border:1px solid var(--success-line);border-radius:var(--radius-pill);padding:5px 14px;font-size:14px;font-weight:700;color:var(--text)}
+table{border-collapse:collapse;width:100%}
+th{text-align:left;font-size:13px;font-weight:700;color:var(--text-faint);padding:0 12px 10px 0}
+td{padding:12px 12px 12px 0;border-top:1px solid var(--border);font-size:14.5px;vertical-align:top}
+td:last-child,th:last-child{padding-right:0}
+.est{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 12px;border-radius:var(--radius-pill);font-size:13px;font-weight:800;white-space:nowrap}
+.est i{font-style:normal;font-size:14px}
+.e-cumple{background:var(--success-bg);color:var(--success);box-shadow:inset 0 0 0 1px var(--success-line)}
+.e-no{background:var(--danger-bg);color:var(--danger);box-shadow:inset 0 0 0 1px #E0B8AC}
+.e-rev{background:var(--warning-bg);color:var(--warning);box-shadow:inset 0 0 0 1px var(--warning-line)}
+.e-nd{background:var(--neutral-bg);color:var(--neutral);box-shadow:inset 0 0 0 1px var(--border-strong)}
+.leyenda{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 6px}
+.matriz{margin-top:24px}
+.matriz .panel{padding:26px 28px 12px}
+.alerta{margin-top:20px;display:flex;gap:12px;align-items:flex-start;background:var(--warning-bg);border:1px solid var(--warning-line);color:var(--text);border-radius:var(--radius-md);padding:14px 16px;font-size:14.5px}
+.alerta b{color:var(--warning);white-space:nowrap}
+
+/* Accesos y pie */
+.accesos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.acceso{border-top:4px solid var(--navy-900);padding:18px 4px 0;display:flex;flex-direction:column;gap:10px}
+.acceso h3{font-family:var(--display);font-size:30px;font-weight:700;line-height:1}
+.acceso p{color:var(--text-muted);font-size:15px;flex:1}
+.acceso .btn{align-self:flex-start;margin-top:8px}
+footer{background:var(--surface);border-top:1px solid var(--border);padding:44px 0 36px;text-align:center}
+footer nav{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;margin-top:20px}
+footer nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;text-decoration:none;font-weight:600;color:var(--text-muted)}
+footer nav a:hover{color:var(--text)}
+footer .brand{justify-content:center}
+.fuente{margin:14px auto 0;max-width:62ch;font-size:13px;color:var(--text-faint)}
+
+@media (max-width:900px){
+  .wrap{padding:0 22px}
+  .top .wrap{min-height:64px;gap:12px}
+  .menu{order:3;width:100%;margin-left:0;overflow-x:auto;flex-wrap:nowrap;padding-bottom:10px}
+  .menu a{white-space:nowrap}
+  .top .btn{margin-left:auto}
+  .hero .wrap{grid-template-columns:1fr;padding-top:44px}
+  .hero-text{padding-bottom:12px}
+  .hero-art{max-width:360px;justify-self:center}
+  section{padding:52px 0}
+  .proceso{grid-template-columns:1fr}
+  .placa{grid-row:1;padding:20px;grid-auto-flow:column;gap:18px;place-content:center}
+  .placa::before{inset:10px}
+  .placa b{font-size:64px}
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cols,.resultado{grid-template-columns:1fr}
+  .accesos{grid-template-columns:1fr}
+}
+@media (max-width:620px){
+  .proceso-main{padding:22px 20px}
+  .panel,.go{padding:22px 20px}
+  .go .nombre{font-size:64px}
+  .go .nombre svg{width:44px;height:44px}
+  .buscador{flex-direction:column;border-radius:var(--radius-lg)}
+  .buscador .btn{width:100%}
+  .cal li{grid-template-columns:56px minmax(0,1fr)}
+  .cal .cuando{grid-column:2;justify-self:start}
+  .tabla-res thead{display:none}
+  .tabla-res,.tabla-res tbody,.tabla-res tr,.tabla-res td{display:block;width:100%}
+  .tabla-res tr{padding:12px 0;border-top:1px solid var(--border)}
+  .tabla-res td{border:0;padding:3px 0}
+  .tabla-res td[data-l]::before{content:attr(data-l) ": ";font-weight:700;color:var(--text-faint);font-size:13px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}.btn:active{transform:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenido">Saltar al contenido</a>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-lupa" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-edificio" viewBox="0 0 24 24"><path d="M4 21V8l8-5 8 5v13M9 21v-6h6v6M8 11h2M14 11h2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-carpeta" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#" aria-label="Bitácora SECOP, inicio">
+      <span class="mark"><svg viewBox="0 0 44.5 62" aria-hidden="true"><path d="M13 3h10c9 0 15 4.500 15 12 0 7-5 11.500-13 11.500H13z" fill="#F7F7F4"/><path d="M13 31h12c10 0 16 4.500 16 13 0 8.500-6 15-16 15H13z" fill="#F2B705"/></svg></span>
+      Bitácora SECOP
+    </a>
+    <nav class="menu" aria-label="Principal">
+      <a href="#buscar" aria-current="page">Buscar procesos</a>
+      <a href="#mis-procesos">Mis procesos</a>
+      <a href="#empresa">Empresa</a>
+      <a href="#empresa">Documentos</a>
+      <a href="#pie">Configuración y ayuda</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="#">Iniciar sesión</a>
+  </div>
+</header>
+
+<main id="contenido">
+  <div class="hero on-dark" id="buscar">
+    <div class="wrap">
+      <div class="hero-text">
+        <h1>Las licitaciones de obra de Norte de Santander, listas para decidir.</h1>
+        <p>Busca en SECOP II, guarda los procesos que te interesan y compara cada pliego con los datos de tu empresa.</p>
+        <form class="buscador" role="search" onsubmit="return false">
+          <label class="sr" for="q" style="position:absolute;left:-999px">Palabra clave</label>
+          <input id="q" type="search" placeholder="Pavimento, acueducto, placa huella…" autocomplete="off">
+          <button class="btn btn-primary" type="submit">Buscar procesos</button>
+        </form>
+        <div class="acciones" style="margin-top:18px"><a class="btn btn-outline btn-sm" href="#mis-procesos">Ver mis procesos</a></div>
+      </div>
+      <figure class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 440 400" fill="none">
+          <rect x="0" y="372" width="440" height="28" fill="#223246"/>
+          <rect x="248" y="96" width="132" height="276" fill="#223246"/>
+          <g stroke="#16212E" stroke-width="3"><path d="M248 140h132M248 184h132M248 228h132M248 272h132M248 316h132"/><path d="M292 96v276M336 96v276"/></g>
+          <rect x="258" y="52" width="112" height="44" fill="#2D415A"/>
+          <g stroke="#F2B705" stroke-width="5" stroke-linecap="square"><path d="M96 372V44M96 44h250M96 44l-70 40M96 44l124-34M220 10l126 34"/><path d="M286 44v92"/></g>
+          <path d="M96 372V44" stroke="#F2B705" stroke-width="9"/>
+          <rect x="268" y="136" width="36" height="22" fill="#F2B705"/>
+          <path d="M26 84v22" stroke="#F2B705" stroke-width="5"/><rect x="14" y="106" width="24" height="18" fill="#C5D0DD"/>
+          <rect x="120" y="296" width="96" height="76" fill="#2D415A"/><rect x="132" y="308" width="30" height="64" fill="#16212E"/>
+        </svg>
+      </figure>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <div class="sec-head">
+        <div><h2>Cada proceso, con lo que importa a la vista</h2><p>Cuantía, plazo y estado en una sola ficha. Sin semáforos que adivinen por ti: el análisis se abre solo cuando guardas el proceso.</p></div>
+      </div>
+      <article class="proceso">
+        <div class="proceso-main">
+          <div class="chips"><span class="chip chip-nuevo">Publicado hace 2 días</span><span class="chip">Licitación pública</span><span class="chip">SECOP II</span></div>
+          <p class="entidad" style="margin-top:16px">MUNICIPIO FICTICIO DE VILLA PRUEBA</p>
+          <h3>Pavimentación de vías urbanas del municipio de Villa Prueba, con andenes y obras de drenaje</h3>
+          <dl class="ficha">
+            <div><dt>Cuantía</dt><dd class="valor">$5.000.000.000</dd></div>
+            <div><dt>Ubicación</dt><dd>Cúcuta, Norte de Santander</dd></div>
+            <div><dt>Cierre de ofertas</dt><dd>30 de octubre de 2026</dd></div>
+            <div><dt>Código SECOP II</dt><dd>LP-FICT-001</dd></div>
+          </dl>
+          <div class="acciones">
+            <a class="btn btn-primary btn-sm" href="#">Guardar</a>
+            <a class="btn btn-ghost btn-sm" href="#">Ver en SECOP</a>
+            <a class="btn btn-ghost btn-sm" href="#">Compartir</a>
+            <a class="btn btn-ghost btn-sm" href="#">Copiar código</a>
+          </div>
+        </div>
+        <div class="placa" role="img" aria-label="Cierra en 6 días">
+          <b>6</b><div><span>días para el cierre</span><small>Cierra el 30 oct, 5:00 p. m.</small></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="banda" id="mis-procesos">
+    <div class="wrap">
+      <div class="sec-head"><div><h2>Mis procesos</h2><p>Lo que guardaste, ordenado por cómo va: desde «Por revisar» hasta «Presentada».</p></div><a class="btn btn-ghost btn-sm" href="#">Solo los que cierran en 7 días</a></div>
+      <div class="stats">
+        <div class="stat"><b>12</b><span>Guardados</span><small>7 por revisar · 3 en análisis · 2 viables</small></div>
+        <div class="stat"><b>3</b><span>Cierran esta semana</span><small>En los próximos 7 días</small></div>
+        <div class="stat"><b>1</b><span>Vencidos sin presentar</span><small>Revísalos o márcalos no viables</small></div>
+        <div class="stat"><b>—</b><span>Novedades en SECOP</span><small>Sin consultar todavía</small></div>
+      </div>
+      <div class="cols">
+        <div class="panel">
+          <h3>Próximos cierres</h3>
+          <ul class="cal">
+            <li><div class="fecha"><b>25</b><span>oct</span></div><div><div class="ent">Municipio ficticio de Roca Seca</div><div class="obj">Obra civil · $3.000 M</div></div><span class="cuando">Mañana</span></li>
+            <li><div class="fecha"><b>30</b><span>oct</span></div><div><div class="ent">Municipio ficticio de Villa Prueba</div><div class="obj">Pavimentación de vías urbanas · $5.000 M</div></div><span class="cuando">En 6 días</span></li>
+            <li><div class="fecha"><b>12</b><span>nov</span></div><div><div class="ent">Departamento ficticio de Tierra Alta</div><div class="obj">Puente vehicular · $4.000 M</div></div><span class="cuando">En 19 días</span></li>
+          </ul>
+        </div>
+        <div class="panel guardado">
+          <h3>Guardado</h3>
+          <p class="entidad">DEPARTAMENTO FICTICIO DE TIERRA ALTA</p>
+          <p>Construcción de puente vehicular en el municipio de Tierra Alta · $4.000.000.000</p>
+          <div class="etapas" aria-label="Etapa"><span>Por revisar</span><span class="on">En análisis</span><span>Viable</span><span>No viable</span><span>Presentada</span></div>
+          <div class="nota"><b>Mi nota</b>Preguntar a la entidad por la matriz 2 de indicadores financieros.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="analisis">
+    <div class="wrap">
+      <div class="sec-head"><div><h2>El resultado, con la evidencia al lado</h2><p>Pliego 1 · Pavimentación de vías urbanas, comparado con tu empresa. Un motor de reglas decide; cada punto muestra de dónde sale.</p></div></div>
+      <div class="resultado">
+        <div class="go" role="status">
+          <p class="quien">Constructora Andina S.A.S. (ficticia)</p>
+          <p class="nombre"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-check"/></svg>GO</p>
+          <p>No se identificaron incumplimientos determinantes con la información disponible. Confirma con el pliego oficial antes de preparar la oferta.</p>
+          <div class="cuenta"><span>7 cumplen</span><span>0 no cumplen</span><span>1 por determinar</span></div>
+          <small>Leídas 5 de 5 páginas · Orientativo</small>
+        </div>
+        <div class="panel">
+          <h3>Resumen de viabilidad</h3>
+          <table style="margin-top:14px"><thead><tr><th>Área</th><th>Resultado</th></tr></thead><tbody>
+            <tr><td>Experiencia</td><td><span class="est e-cumple"><i aria-hidden="true">✓</i>Cumple</span></td></tr>
+            <tr><td>Capacidad financiera</td><td><span class="est e-cumple"><i aria-hidden="true">✓</i>Cumple</span></td></tr>
+            <tr><td>Capacidad residual</td><td><span class="est e-cumple"><i aria-hidden="true">✓</i>Cumple</span></td></tr>
+            <tr><td>Personal</td><td><span class="est e-cumple"><i aria-hidden="true">✓</i>Cumple</span></td></tr>
+            <tr><td>Garantías</td><td><span class="est e-nd"><i aria-hidden="true">?</i>No determinable</span></td></tr>
+          </tbody></table>
+        </div>
+      </div>
+      <div class="matriz"><div class="panel">
+        <h3>Matriz de requisitos</h3>
+        <div class="leyenda" aria-label="Cómo leer un resultado">
+          <span class="est e-cumple"><i aria-hidden="true">✓</i>Cumple</span><span class="est e-no"><i aria-hidden="true">✕</i>No cumple</span><span class="est e-rev"><i aria-hidden="true">!</i>Revisar</span><span class="est e-nd"><i aria-hidden="true">?</i>No determinable</span>
+        </div>
+        <table class="tabla-res"><thead><tr><th>Requisito</th><th>El pliego pide</th><th>Tu empresa</th><th>Resultado</th></tr></thead><tbody>
+          <tr><td data-l="Requisito">Experiencia específica</td><td data-l="El pliego pide">Mínimo 2 contratos de construcción de vías urbanas, últimos 10 años</td><td data-l="Tu empresa">2 contratos acreditan: Villa Norte ($2.400 M) y Monte Sur ($3.100 M)</td><td><span class="est e-cumple"><i aria-hidden="true">✓</i>Cumple</span></td></tr>
+          <tr><td data-l="Requisito">Índice de liquidez</td><td data-l="El pliego pide">Mayor o igual a 1,5</td><td data-l="Tu empresa">2,0</td><td><span class="est e-cumple"><i aria-hidden="true">✓</i>Cumple</span></td></tr>
+          <tr><td data-l="Requisito">Capacidad K residual</td><td data-l="El pliego pide">Mínimo $5.000.000.000</td><td data-l="Tu empresa">$8.000.000.000 (margen de $3.000 M)</td><td><span class="est e-cumple"><i aria-hidden="true">✓</i>Cumple</span></td></tr>
+          <tr><td data-l="Requisito">Rentabilidad del patrimonio</td><td data-l="El pliego pide">Mayor o igual a 0,06</td><td data-l="Tu empresa">Tu perfil no guarda este dato</td><td><span class="est e-nd"><i aria-hidden="true">?</i>No determinable</span></td></tr>
+        </tbody></table>
+        <div class="alerta"><b>Revisar</b><span>Garantías: Bitácora no las compara con tu empresa. Confirma montos y pólizas en el pliego.</span></div>
+        <div style="height:14px"></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="banda" id="empresa">
+    <div class="wrap">
+      <div class="sec-head"><div><h2>Tu empresa, lista una sola vez</h2><p>Con estos datos cada pliego se compara solo.</p></div></div>
+      <div class="accesos">
+        <article class="acceso"><h3>Empresa</h3><p>RUP, capacidad residual, indicadores financieros y contratos en ejecución.</p><a class="btn btn-ghost btn-sm" href="#">Abrir empresa</a></article>
+        <article class="acceso"><h3>Experiencia</h3><p>Sube tu Excel o el Formato Maestro; los contratos se comparan con cada pliego.</p><a class="btn btn-ghost btn-sm" href="#">Cargar experiencia</a></article>
+        <article class="acceso"><h3>Documentos</h3><p>Qué cargaste, qué falta y qué pliegos analizaste, en un solo lugar.</p><a class="btn btn-ghost btn-sm" href="#">Ver documentos</a></article>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer id="pie">
+  <div class="wrap">
+    <a class="brand" href="#"><span class="mark"><svg viewBox="0 0 44.5 62" aria-hidden="true"><path d="M13 3h10c9 0 15 4.500 15 12 0 7-5 11.500-13 11.500H13z" fill="#F7F7F4"/><path d="M13 31h12c10 0 16 4.500 16 13 0 8.500-6 15-16 15H13z" fill="#F2B705"/></svg></span>Bitácora SECOP</a>
+    <nav aria-label="Pie"><a href="#buscar">Buscar procesos</a><a href="#mis-procesos">Mis procesos</a><a href="#empresa">Empresa</a><a href="#empresa">Documentos</a><a href="#">Privacidad</a></nav>
+    <p class="fuente">Datos de SECOP II (datos.gov.co), actualizados una vez al día. Verifica siempre el proceso en SECOP antes de decidir: esto es una guía, no asesoría.</p>
+  </div>
+</footer>
+</body>
+</html>
