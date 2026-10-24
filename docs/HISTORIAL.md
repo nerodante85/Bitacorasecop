@@ -6665,3 +6665,23 @@ al requisito y sus palabras se exigen como distintivas del objeto del contrato (
 reemplaza todo, también en la cuenta si hay sesión: la guía manda probar en incógnito. (4) Las sedes de la evaluación leen `Date.now()`: las pruebas lo congelan.
 
 **Ajuste posterior (a pedido del usuario):** el gate «Clasificación UNSPSC» (`evaluacion.js`) da NO DETERMINABLE, no NO CUMPLE, cuando la empresa no tiene ningún código cargado (`matriz.codigos` sin códigos de 6+ dígitos). Con códigos de otra actividad sigue siendo NO CUMPLE. Prueba nueva «Empresas ficticias · … SIN ningún código UNSPSC».
+
+## Se retira «Extraer requisitos con IA» (2026-10-24)
+
+**Decisión del usuario:** quitar la extracción de requisitos con IA. Alcance elegido: solo esa función; «Leer con IA» (`transcribir-pdf`, pasa escaneados a texto) se queda. La función
+del servidor (`extraer-requisitos`) se borra del repositorio pero **no** se da de baja en Supabase (queda desplegada sin uso; el usuario decide cuándo quitarla del panel).
+
+**Qué salió:** el botón y la tabla «Requisitos habilitantes (IA)», «Cronograma y riesgos (IA)», la verificación de citas contra el PDF y «verificar leyendo las páginas citadas», la confirmación a mano
+de filas, la detección de texto dirigido a una IA, `gatesCompletitudIA` («Requisitos por verificar a mano», «Completitud de la lectura»), `exigenciasIA`/`codigosUnspscIA`/`hallazgosPersonalIA` en el
+motor (`evaluacion.js`), el contrato `CONTRATO_EXTRACCION`, el CSS `.ia-*`, la carpeta `supabase/functions/extraer-requisitos` y su entrada en `config.toml`. Unas 1.250 líneas de `index.html` y ~60 pruebas.
+
+**Qué se conservó (y cambió):** el panel de evidencia ahora también muestra la página de las exigencias leídas por reglas (`paginaDeCitaEnEntry`); la prueba EU/RR de UNSPSC y EN_RUP pasó a escribir el
+requisito como texto de pliego (`evaluarTexto`), que es la misma ruta que usa la app; las pruebas de CORS y de contrato de versión ya cubren solo `eliminar-cuenta` y `transcribir-pdf`.
+
+**Análisis guardados antes:** `quitarCamposDeIA` (al cargar) borra `requisitosIA`, `cronogramaIA`, `riesgosIA`, `paginasCitadas`, `exigenciasIA`, `hallazgosPersonalIA`, `codigosUnspscIA` y, si el análisis venía
+de la IA, también la experiencia evaluada que de ahí salió (`experienciaResultado`, `requisitosExperiencia`, `inconsistenciasPliegoEP`); deja `iaRetirada` y la pantalla lo avisa. Razón: que ninguna cifra de la IA
+siga decidiendo sin que se vea. El texto leído se conserva: «Evaluar cumplimiento de experiencia» recalcula con el lector por reglas.
+
+**Verificación:** 3 mutaciones detectadas (no limpiar al cargar, no borrar lo derivado, el gate vuelve a leer `exigenciasIA`); smoke 482 ok (el único fallo es el SRI de los CDN, sin internet); e2e 39/39
+(nueva: un análisis hecho con IA se abre sin usar su cifra imposible, avisa y no ofrece extraer). **Pendiente del usuario:** dar de baja la función `extraer-requisitos` en Supabase si quiere; los PDF que queden
+en el bucket `pliegos` los barre `daily-digest`.

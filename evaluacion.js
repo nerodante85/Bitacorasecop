@@ -8,7 +8,7 @@
 
   function crear(deps) {
     const { fmtMoney, truncate, palabrasClaveDe, esTokenNumerico, normHeader, compararIndiceConUmbral,
-            gatesCompletitudIA, lecturaParcial, experienciaGateDetalle, matrizCapacidad, parseNumCO, saldoDeContrato, participacionDeContrato } = deps;
+            lecturaParcial, experienciaGateDetalle, matrizCapacidad, parseNumCO, saldoDeContrato, participacionDeContrato } = deps;
     const PALABRAS_GENERICAS_OBRA = deps.PALABRAS_GENERICAS_OBRA;
 
   // ---- Auditoría de pre-lanzamiento: cuándo puede aparecer un GO -------------------
@@ -83,7 +83,7 @@
 
 
   // ── Pantalla de análisis: resumen de viabilidad, alertas y explicación ──────────────────────
-  // Todo se deriva de los gates del motor (nunca de la IA). Regla de oro: lo que no se pudo comprobar es
+  // Todo se deriva de los gates del motor. Regla de oro: lo que no se pudo comprobar es
   // NO DETERMINABLE, jamás "cumple".
   const AREAS_VIABILIDAD = [
     { clave: 'experiencia', nombre: 'Experiencia', gates: ['Experiencia'], que: 'la experiencia que exige el pliego' },
@@ -93,7 +93,7 @@
     { clave: 'garantias', nombre: 'Garantías', gates: [], que: 'las garantías' }
   ];
   // Gates que describen el estado de la lectura o del proceso, no un requisito: tienen su propia alerta.
-  const GATES_META = ['Lectura del pliego', 'Requisitos por verificar a mano', 'Completitud de la lectura', 'Requisitos habilitantes'];
+  const GATES_META = ['Lectura del pliego', 'Requisitos habilitantes'];
 
   // Una parte en verde y otra sin dato es evidencia parcial (REVISAR); solo "sin dato" es NO DETERMINABLE.
   function estadoDeArea(estados){
@@ -133,17 +133,14 @@
   }
 
   // Solo lo importante: críticas (algo aparentemente no se cumple) y "a revisar". Tope de 8 visibles.
-  // opciones: { hayPliego, lecturaParcial:{pagesRead,numPages}, nSinVerificar, tablasNoLeidas, conflictos, inyeccion, redFlags, faltanDatosEmpresa:[] }
+  // opciones: { hayPliego, lecturaParcial:{pagesRead,numPages}, tablasNoLeidas, redFlags, faltanDatosEmpresa:[] }
   function alertasAnalisis(gates, opciones){
     const op = opciones || {};
     const criticas = [], revisar = [];
     const corto = t => { t = String(t || ''); return t.length > 220 ? t.slice(0, 220) + '…' : t; };
     (gates || []).filter(g => g.estado === 'fail').forEach(g => criticas.push({ nivel: 'critica', texto: g.nombre + ': ' + corto(g.detalle) }));
     if (op.lecturaParcial) revisar.push({ nivel: 'revisar', texto: 'El análisis es parcial: se leyeron ' + op.lecturaParcial.pagesRead + ' de ' + op.lecturaParcial.numPages + ' páginas del documento; los requisitos de las páginas sin leer no se evaluaron.' });
-    if (op.inyeccion) revisar.push({ nivel: 'revisar', texto: 'El PDF contiene texto dirigido a una IA (instrucciones ocultas): ninguna fila cuenta para decidir hasta que la confirmes a mano.' });
     if (op.tablasNoLeidas) revisar.push({ nivel: 'revisar', texto: 'Posible tabla no leída en ' + op.tablasNoLeidas + ' página(s): su contenido no se pudo interpretar como texto.' });
-    if (op.nSinVerificar) revisar.push({ nivel: 'revisar', texto: op.nSinVerificar + ' requisito(s) con cita sin verificar contra el PDF: no cuentan para decidir hasta que los confirmes.' });
-    if (op.conflictos) revisar.push({ nivel: 'revisar', texto: op.conflictos + ' requisito(s) con valores distintos entre el pliego y una adenda (conflicto): confirma cuál está vigente.' });
     if (op.faltanDatosEmpresa && op.faltanDatosEmpresa.length) revisar.push({ nivel: 'revisar', texto: 'Faltan datos de la empresa: ' + op.faltanDatosEmpresa.join(', ') + '. Esos requisitos no se pueden comparar.' });
     (gates || []).filter(g => g.estado === 'revisar' && GATES_META.indexOf(g.nombre) === -1).forEach(g => revisar.push({ nivel: 'revisar', texto: g.nombre + ': ' + corto(g.detalle) }));
     const nd = (gates || []).filter(g => g.estado === 'nd' && GATES_META.indexOf(g.nombre) === -1 && GATES_ADMINISTRATIVOS.indexOf(g.nombre) === -1).map(g => g.nombre);
@@ -198,7 +195,6 @@
     while ((m = reDot.exec(txt)) !== null){ if (+m[1] >= 10 && +m[1] <= 95) push(m[1]+m[2]+m[3]+m[4]); }
     const reBare = /(?<!\d)(\d{2})(\d{2})(\d{2})(\d{2})(?!\d)/g;
     while ((m = reBare.exec(txt)) !== null){ if (+m[1] >= 10 && +m[1] <= 95) push(m[1]+m[2]+m[3]+m[4]); }
-    (entry && entry.codigosUnspscIA || []).forEach(push);
     return set;
   }
 
@@ -298,8 +294,7 @@
     }
 
     // Indicadores financieros + experiencia exigidos (necesitan pliego analizado)
-    // exigenciasIA: umbrales extraídos por IA con cita verificada (o confirmada a mano); pisan al regex.
-    const ex = Object.assign({}, (entry && entry.exigencias) || {}, (entry && entry.exigenciasIA) || {});
+    const ex = (entry && entry.exigencias) || {};
     const cmp = (nombre, exig, mio, sentido) => {
       // Patrimonio y capital de trabajo (montos, no índices) van por la misma
       // vía: sin "%" ni ambigüedad de unidad, el resultado es el de siempre.
@@ -309,7 +304,6 @@
     if (entry){
       const gParcial = gateLecturaParcial(lecturaParcial(entry));
       if (gParcial) g('Lectura del pliego', gParcial.estado, gParcial.detalle);
-      if (entry.requisitosIA) gatesCompletitudIA(entry.requisitosIA.filas).forEach(x => g(x.nombre, x.estado, x.detalle));
       cmp('Índice de liquidez', ex.liquidez, matriz.liquidez, '>=');
       cmp('Índice de endeudamiento', ex.endeudamiento, matriz.endeudamiento, '<=');
       if (ex.cobertura) cmp('Razón de cobertura', ex.cobertura, matriz.cobertura, '>=');
@@ -364,7 +358,7 @@
       g('Experiencia', gExp.estado, gExp.detalle);
 
       // Personal / equipo de trabajo (solo si el pliego menciona algo de esto).
-      const hallazgosPersonal = ((compsDe(entry)[0] || {}).hallazgosAnotados || []).filter(h => h.categoria === 'Personal / Equipo de trabajo').concat(entry.hallazgosPersonalIA || []);
+      const hallazgosPersonal = ((compsDe(entry)[0] || {}).hallazgosAnotados || []).filter(h => h.categoria === 'Personal / Equipo de trabajo');
       if (hallazgosPersonal.length){
         const gPersonal = gatePersonalRequerido(hallazgosPersonal, ctx.perfilesProfesionales);
         g('Personal / equipo de trabajo', gPersonal.estado, gPersonal.detalle);
@@ -497,7 +491,7 @@
       motivo: preliminar ? 'Hay información pendiente: ' + motivos.join(' y ') + '.' : 'Toda la información que la app puede verificar está registrada.' };
   }
 
-  // K exigida por el proceso vs K de la empresa. exigida: salida de extraerKResidualUmbral (o de la IA) o null.
+  // K exigida por el proceso vs K de la empresa. exigida: salida de extraerKResidualUmbral o null.
   // kEmpresa: { valor, unidad } (la disponible estimada si hay contratos). Nunca inventa una K: sin dato claro es 'sin_dato'/'nd'.
   function comparacionCapacidadResidual(exigida, kEmpresa, opciones){
     opciones = opciones || {};

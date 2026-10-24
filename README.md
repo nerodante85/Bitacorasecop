@@ -87,17 +87,14 @@ del usuario y se publica tal cual con **GitHub Pages**.
 - **Análisis**: reglas determinísticas (coincidencia de palabras clave y
   comparación numérica contra tu perfil) — se muestra siempre como orientativo,
   no reemplaza revisión humana del pliego completo. **Opcional, con cuenta:**
-  "Extraer requisitos con IA" envía el PDF del pliego (y sus adendas) a una
-  Edge Function de Supabase (`supabase/functions/extraer-requisitos`) que usa
-  Claude para leerlo y devolver una tabla de requisitos con página y cita
-  textual. La IA solo extrae: cada cita se verifica contra el texto real del
-  PDF en el navegador y el cumplimiento (CUMPLE / NO CUMPLE / NO DETERMINABLE)
-  lo decide el motor de reglas; una fila sin verificar no se usa hasta que la
-  confirmes. El PDF se sube a un bucket privado, se envía a Anthropic para
-  leerlo y se borra al terminar. Requiere: las migraciones de `supabase/`
-  (`ai_usage` y bucket `pliegos`), desplegar la función
-  (`supabase functions deploy extraer-requisitos`) y el secret
-  `ANTHROPIC_API_KEY` (`supabase secrets set`, nunca en el repo).
+  "Leer con IA" transcribe los PDF escaneados (sin capa de texto) con una Edge
+  Function de Supabase (`supabase/functions/transcribir-pdf`) que usa Claude
+  solo para pasar las páginas a texto; el cumplimiento lo decide siempre el
+  motor de reglas. El PDF se sube a un bucket privado, se envía a Anthropic y
+  se borra al terminar. Requiere: las migraciones de `supabase/` (`ai_usage` y
+  bucket `pliegos`), desplegar la función (`supabase functions deploy
+  transcribir-pdf`) y el secret `ANTHROPIC_API_KEY` (`supabase secrets set`,
+  nunca en el repo). La extracción de requisitos con IA se retiró (2026-10).
 - **Librerías de terceros** (cargadas solo cuando se usan, desde CDN con
   verificación de integridad — ver más abajo): [pdf.js](https://mozilla.github.io/pdf.js/)
   (lectura de PDF), [Tesseract.js](https://tesseract.projectnaptha.com/) (OCR

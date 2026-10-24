@@ -700,23 +700,24 @@ await check('Mis procesos: 5 estados; un pipeline guardado con etapas viejas se 
   await ctx.close();
 });
 
-// Análisis sembrado (sin llamar a la IA real): un pliego de 3 páginas con requisitos ya extraídos y verificados.
+// Análisis sembrado: un pliego de 3 páginas ya leído por el lector de reglas (sin IA), con sus exigencias y una evaluación de experiencia.
 const paginasAn = ['Pagina uno: introduccion general del proceso de contratacion.', 'El indice de liquidez debe ser mayor o igual a 1,5 para los proponentes.', 'La capacidad residual minima exigida es de $5.000.000.000 para este proceso.'];
 const textoAn = paginasAn.join('');
 const offsetsAn = (() => { let n = 0; return paginasAn.map((t, i) => ({ pagina: i + 1, hasta: (n += t.length) })); })();
-const fila = (o) => Object.assign({ naturaleza: 'habilitante', documento: 'Pliego de Condiciones', verificada: true, confianza: 'alta' }, o);
+const experienciaAn = () => ({
+  resultadoGlobal: 'REQUIERE REVISIÓN', totalObligatorios: 1, conteo: { 'CUMPLE': 0, 'NO CUMPLE': 0, 'NO DETERMINABLE': 1 },
+  resultados: [{
+    requisito: { criterio: 'Experiencia específica del proponente: mínimo 2 contratos de construcción de vías urbanas.', fuente: 'Pliego de Condiciones', pagina: 3, obligatoriedad: 'obligatorio' },
+    resultado: 'NO DETERMINABLE', evidencia: ['Contratos relevantes encontrados: 0 (exige mínimo 2).'], contratosEvaluados: [], faltantes: [], justificacion: 'Ningún contrato comparte palabras clave con el requisito.'
+  }]
+});
 const analisisSembrado = (extra = {}) => ({
   'E2E-AN': Object.assign({
     id: 'E2E-AN', ts: Date.now(), fileName: 'pliego-e2e.pdf', pagesRead: 3, numPages: 3, text: textoAn, paginaOffsets: offsetsAn,
     proceso: { entidad: 'Alcaldía E2E', objeto: 'Obra de prueba del análisis', modalidad: 'Licitación pública Obra Publica', valor: 4000000000, closingRaw: new Date(Date.now() + 20 * 864e5).toISOString(), fuente: 'II', modo: 'vivo', ts: Date.now() },
     comps: [{ perfilNombre: 'Empresa A', hallazgosAnotados: [] }], redFlags: [], viabilidad: 100,
-    exigenciasIA: { liquidez: { valor: 1.5, raw: 'El indice de liquidez debe ser mayor o igual a 1,5', porcentaje: false, estricto: false }, kResidual: { valor: 5000000000, unidad: 'COP', raw: 'La capacidad residual minima exigida es de $5.000.000.000' } },
-    requisitosIA: { avisos: [], filas: [
-      fila({ categoria: 'capacidad_financiera', indicador: 'liquidez', operador: '>=', valor_indicador: 1.5, descripcion: 'Índice de liquidez', pagina: 2, cita_textual: 'El indice de liquidez debe ser mayor o igual a 1,5' }),
-      fila({ categoria: 'k_residual', descripcion: 'Capacidad residual', valor_minimo_numero: 5000000000, valor_minimo_unidad: 'COP', pagina: 3, cita_textual: 'La capacidad residual minima exigida es de $5.000.000.000' }),
-      fila({ categoria: 'garantias', descripcion: 'Garantía de cumplimiento', pagina: 3, cita_textual: 'garantia de cumplimiento del 10%' }),
-      fila({ categoria: 'personal', descripcion: 'Director de obra', pagina: 3, verificada: false, motivoVerificacion: 'la cita no aparece en el PDF', cita_textual: 'Director de obra con 10 anos' })
-    ] }
+    exigencias: { liquidez: { valor: 1.5, raw: 'El indice de liquidez debe ser mayor o igual a 1,5', porcentaje: false }, kResidual: { valor: 5000000000, unidad: 'COP', raw: 'La capacidad residual minima exigida es de $5.000.000.000' } },
+    experienciaResultado: experienciaAn()
   }, extra)
 });
 const empresaAn = () => ({ bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa A', nit: '900', k: 'Liquidez = 2,0\nEndeudamiento = 0,4', kResidual: 'K residual = 3.000.000.000', rup: '' } }), bitacora_perfiles_activos: JSON.stringify(['p1']) });
@@ -774,12 +775,12 @@ await check('Análisis: arranca con el resultado y su explicación, resume la vi
   assert(est['Capacidad residual'] === 'NO CUMPLE' && est['Garantías'] === 'NO DETERMINABLE' && est['Experiencia'] === 'NO DETERMINABLE', 'estados de las áreas: ' + JSON.stringify(est));
   const al = await pg.evaluate(() => [...document.querySelectorAll('.alertas-analisis .alerta-item')].map(a => a.className.replace('alerta-item ', '') + ':' + a.textContent));
   assert(al[0].startsWith('critica:') && /Capacidad K residual/.test(al[0]), 'la primera alerta es crítica: ' + al[0]);
-  assert(al.some(a => a.startsWith('revisar:') && /cita sin verificar|sin verificar/i.test(a)), 'avisa la cita sin verificar: ' + al.join(' | '));
+  assert(al.some(a => a.startsWith('revisar:') && /Faltan datos de la empresa/.test(a)), 'avisa lo que falta cargar de la empresa: ' + al.join(' | '));
   // matriz: columnas, los 4 resultados y el filtro
   const cols = await pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) thead th')].map(t => t.textContent));
   assert(cols.join('|') === 'Requisito|Exigencia|Empresa|Resultado|Evidencia', 'columnas de la matriz: ' + cols.join('|'));
   const res = await pg.evaluate(() => Object.fromEntries([...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) tbody tr')].map(tr => [tr.children[0].textContent.split(':')[0], tr.dataset.resultado])));
-  assert(res['Capacidad financiera'] === 'CUMPLE' && res['K residual'] === 'NO CUMPLE' && res['Garantías'] === 'REVISAR' && res['Personal'] === 'NO DETERMINABLE', 'resultados por fila (la cita sin verificar jamás da CUMPLE): ' + JSON.stringify(res));
+  assert(res['Índice de liquidez'] === 'CUMPLE' && res['Capacidad K residual'] === 'NO CUMPLE' && res['Capacidad vs valor'] === 'REVISAR' && res['Experiencia'] === 'NO DETERMINABLE', 'resultados por fila (lo que no se puede comparar jamás da CUMPLE): ' + JSON.stringify(res));
   const visibles = () => pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) tbody tr')].filter(t => !t.hidden).length);
   const total = await visibles();
   await pg.locator('[data-matriz-filtro="NO CUMPLE"]').click();
@@ -788,7 +789,6 @@ await check('Análisis: arranca con el resultado y su explicación, resume la vi
   assert(await visibles() === 1, 'filtro CUMPLE');
   await pg.locator('[data-matriz-filtro=""]').click();
   assert(await visibles() === total, 'Todos');
-  // la cita sin verificar jamás se rotula CUMPLE aunque su exigencia "cuadre"
   assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
   await ctx.close();
 });
@@ -849,7 +849,7 @@ await check('Análisis en celular (375 px): los puntos de «Decisión» apilan e
     const celdaTexto = txt => [...t.querySelectorAll('td')].find(c => c.textContent.includes(txt));
     const ev = t.querySelector('[data-ev-fila]').getBoundingClientRect();
     const hint = w.previousElementSibling;
-    return { palabra: lineas(celdaTexto('financiera:'), 'financiera:'), cifra: lineas(celdaTexto('5.000.000.000'), '5.000.000.000'), evAncho: Math.round(ev.width), evAlto: Math.round(ev.height),
+    return { palabra: lineas(celdaTexto('liquidez'), 'liquidez'), cifra: lineas(celdaTexto('5.000.000.000'), '5.000.000.000'), evAncho: Math.round(ev.width), evAlto: Math.round(ev.height),
       scroll: w.scrollWidth - w.clientWidth, sombra: /gradient/.test(getComputedStyle(w).backgroundImage), aviso: hint && hint.classList.contains('ficha-desliza') ? getComputedStyle(hint).display : 'sin aviso' };
   });
   assert(mx.palabra === 1 && mx.cifra === 1, 'palabras y cifras de la matriz sin partir: ' + JSON.stringify(mx));
@@ -889,7 +889,7 @@ await check('Evidencia: el panel lateral muestra requisito, exigencia, fuente, p
   const t = await pg.evaluate(() => ({ rol: document.getElementById('bt-evidencia-panel').getAttribute('role'), texto: document.getElementById('bt-evidencia-panel').innerText, foco: document.activeElement.id, vista: !document.getElementById('view-analisis').hidden }));
   assert(t.rol === 'dialog' && t.vista, 'es un panel (diálogo) y no se sale de la pantalla de análisis');
   for (const campo of ['Requisito', 'Exigencia', 'Fuente', 'Página', 'Cita textual', 'Información de la empresa', 'Resultado']) assert(t.texto.includes(campo), 'falta el campo "' + campo + '"');
-  assert(/Pliego de Condiciones/.test(t.texto) && /2/.test(t.texto) && /índice de liquidez debe ser mayor o igual a 1,5|indice de liquidez debe ser mayor o igual a 1,5/i.test(t.texto) && /se encontró en el texto del PDF/.test(t.texto), 'contenido de la evidencia: ' + t.texto.slice(0, 500));
+  assert(/Pliego de Condiciones/.test(t.texto) && /2/.test(t.texto) && /índice de liquidez debe ser mayor o igual a 1,5|indice de liquidez debe ser mayor o igual a 1,5/i.test(t.texto) && /Texto tomado directamente del documento leído/.test(t.texto), 'contenido de la evidencia: ' + t.texto.slice(0, 500));
   assert(/CUMPLE/.test(t.texto), 'resultado con texto');
   assert(t.foco === 'bt-evidencia-cerrar', 'el foco pasa al panel: ' + t.foco);
   await pg.click('[data-ev-pagina]');
@@ -898,11 +898,11 @@ await check('Evidencia: el panel lateral muestra requisito, exigencia, fuente, p
   await pg.keyboard.press('Escape');
   assert(await pg.evaluate(() => document.getElementById('bt-evidencia-backdrop').hidden), 'Escape cierra el panel');
   assert(await pg.evaluate(() => document.activeElement.hasAttribute('data-ev-fila')), 'el foco vuelve al botón "Ver evidencia"');
-  // fila sin verificar: lo dice
-  const sinVer = pg.locator('.matriz-tabla:not(.ficha-tabla) tbody tr', { hasText: 'Director de obra' }).locator('[data-ev-fila]');
-  await sinVer.click();
+  // fila sin cita (conclusión que sale de comparar datos): lo dice
+  const sinCita = pg.locator('.matriz-tabla:not(.ficha-tabla) tbody tr', { hasText: 'Capacidad vs valor' }).locator('[data-ev-fila]');
+  await sinCita.click();
   const t2 = await pg.evaluate(() => document.getElementById('bt-evidencia-panel').innerText);
-  assert(/Cita sin verificar/.test(t2) && /NO DETERMINABLE/.test(t2) && /no cuenta para decidir/i.test(t2) && /No se compara con los datos de tu empresa/.test(t2), 'una cita sin verificar se declara: ' + t2.slice(0, 600));
+  assert(/No hay cita textual/.test(t2) && /Sin cita textual: esta conclusión sale de comparar datos de tu empresa con datos del proceso/.test(t2), 'una conclusión sin cita se declara: ' + t2.slice(0, 600));
   assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
   await ctx.close();
 });
@@ -930,6 +930,26 @@ await check('Sin pliego: el proceso se abre con NO DETERMINABLE (no hay evidenci
   await ctx.close();
 });
 
+await check('Análisis hecho antes con la IA: se abre sin usar nada de la IA (ni una exigencia imposible), avisa que se descartó y no ofrece «Extraer requisitos con IA»', async () => {
+  const viejo = analisisSembrado({
+    exigenciasIA: { liquidez: { valor: 9.9, raw: 'liquidez imposible', porcentaje: false, estricto: false } },
+    requisitosIA: { avisos: [], filas: [{ categoria: 'capacidad_financiera', indicador: 'liquidez', operador: '>=', valor_indicador: 9.9, descripcion: 'Índice de liquidez', pagina: 2, naturaleza: 'habilitante', documento: 'Pliego de Condiciones', verificada: true, confianza: 'alta', cita_textual: 'liquidez imposible' }] },
+    cronogramaIA: [{ evento: 'Cierre', fecha: '1 de enero', documento: 'Pliego de Condiciones', pagina: 1 }],
+    experienciaResultado: { resultadoGlobal: 'CUMPLE', totalObligatorios: 1, conteo: { 'CUMPLE': 1, 'NO CUMPLE': 0, 'NO DETERMINABLE': 0 }, resultados: [{ requisito: { criterio: 'Experiencia de la IA' }, resultado: 'CUMPLE', evidencia: [], contratosEvaluados: [], faltantes: [], justificacion: 'x' }] }
+  });
+  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(viejo) }) });
+  await abrirAnalisisSembrado(pg);
+  const t = await pg.evaluate(() => document.getElementById('bt-analisis-out').innerText);
+  assert(/ya no existe/.test(t) && /Evaluar cumplimiento de experiencia/.test(t), 'avisa que el análisis venía de la IA y qué hacer: ' + t.slice(0, 400));
+  assert(!/liquidez imposible|9\.9|Experiencia de la IA/.test(t), 'nada de lo que dijo la IA sigue influyendo');
+  assert(!/Extraer requisitos con IA|Requisitos habilitantes \(IA\)|Cronograma y riesgos/.test(t), 'no se ofrece la extracción con IA');
+  assert(!await pg.evaluate(() => !!document.querySelector('.analysis-ia-btn, [data-ia-confirmar]')), 'no hay controles de la extracción con IA');
+  const liq = await pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) tbody tr')].find(tr => /Índice de liquidez/.test(tr.children[0].textContent)).dataset.resultado);
+  assert(liq === 'CUMPLE', 'la liquidez se compara con lo que dice el pliego por reglas (1,5), no con la cifra de la IA: ' + liq);
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
 await check('Capacidad Residual (análisis): muestra lo que exige el proceso, lo que tiene la empresa, el resultado y la fuente con su página; nunca los mezcla', async () => {
   const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
   await abrirAnalisisSembrado(pg);
@@ -951,7 +971,7 @@ await check('Capacidad Residual (análisis): si la empresa supera la exigida, ap
   const t = await pg.evaluate(() => document.querySelector('#bt-analisis-out .cr-comparacion').parentElement.textContent.replace(/\s+/g, ' '));
   assert(/APARENTEMENTE CUMPLE/.test(t) && /supera la exigida por el proceso en \$3\.000\.000\.000/.test(t), 'cumple con margen: ' + t);
   await ctx.close();
-  const sinK = analisisSembrado({ exigenciasIA: {}, requisitosIA: { avisos: [], filas: [] } });
+  const sinK = analisisSembrado({ exigencias: {} });
   ({ ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(sinK) }) }));
   await abrirAnalisisSembrado(pg);
   const t2 = await pg.evaluate(() => document.querySelector('#bt-analisis-out .cr-comparacion').parentElement.textContent.replace(/\s+/g, ' '));

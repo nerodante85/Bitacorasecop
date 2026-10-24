@@ -81,7 +81,6 @@ El respaldo ya trae la experiencia cargada. Para probar los **importadores reale
 - **Rentabilidad del patrimonio / del activo**: el perfil no las guarda; cuando un pliego las pide, siempre salen NO DETERMINABLE.
 - **Mipyme** (umbral distinto): el perfil no tiene ese dato.
 - **Patrimonio, capital de trabajo y garantías como puntos de decisión**: sin IA solo aparecen en la tabla «Requisitos habilitantes»; no cambian el GO / NO-GO.
-- **«Extraer requisitos con IA»**: necesita sesión y crédito. Con esa ruta el GO es muy difícil de alcanzar (siempre quedan filas por verificar).
 - **Lectura de PDF escaneados (OCR / IA)**: estos PDF son de texto digital.
 
 ## Notas sobre el comportamiento del motor (para que decidas)
