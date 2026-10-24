@@ -4626,7 +4626,7 @@ await check('Interfaz: el lienzo de la página (html) también es claro, no solo
   assert(luminancia(canvas) > 0.6, 'el lienzo debe ser claro: ' + canvas);
 });
 // ---- Rediseño fase 1 (dirección «Inntegrate», elegida por el usuario): tema claro, acento lila, Mulish; reemplazado por la dirección «Wise» (lima + verde bosque, Inter + Archivo, píldoras) ----
-await check('Rediseño «Plano»: la paleta es clara (lienzo, papel, texto), el acento como texto es azul pizarra y el relleno de acción es amarillo señal; el ámbar queda solo para avisos', () => {
+await check('Rediseño fase 1: la paleta es clara (lienzo, papel, texto) y el acento como texto es azul pizarra y el relleno de acción es amarillo señal; el ámbar queda solo para avisos', () => {
   const html = readFileSync(HTML_PATH, 'utf8'); const T = tokenesCss(html);
   assert(luminancia(T.bg) > 0.6 && luminancia(T.surface) > 0.9, 'lienzo y papel claros: ' + T.bg + ' ' + T.surface);
   assert(luminancia(T.text) < 0.05, 'el texto es oscuro: ' + T.text);
@@ -4639,15 +4639,14 @@ await check('Rediseño «Plano»: la paleta es clara (lienzo, papel, texto), el 
   assert(contraste(T['on-status'], T.danger) >= 4.5 && contraste(T['on-status'], T.success) >= 4.5, 'texto sobre relleno de estado');
   assert(!/--accent:\s*var\(--amber\)/.test(html), 'el acento ya no apunta al ámbar');
 });
-await check('Rediseño «Plano»: la tipografía es IBM Plex Sans (interfaz) + IBM Plex Sans Condensed (titulares); sin Inter, Archivo, Barlow, Mulish, Outfit ni Space Grotesk', () => {
+await check('Rediseño Wise: la tipografía es Inter (interfaz) + Archivo (titulares); sin Mulish, Outfit ni Space Grotesk', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
-  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=IBM\+Plex\+Sans:/.test(html), 'falta IBM Plex Sans en el enlace de Google Fonts');
-  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=IBM\+Plex\+Sans\+Condensed/.test(html), 'falta IBM Plex Sans Condensed en el enlace de Google Fonts');
-  assert(!/family=Inter|family=Archivo|family=Barlow/.test(html) && !/font-family:[^;}]*(Inter|Archivo|Barlow)/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), 'Inter o Archivo siguen en el archivo');
+  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Inter/.test(html), 'falta Inter en el enlace de Google Fonts');
+  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Archivo/.test(html), 'falta Archivo en el enlace de Google Fonts');
   assert(!/family=Mulish|family=Space\+Grotesk/.test(html) && !/font-family:[^;}]*(Mulish|Space Grotesk)/.test(html), 'Mulish o Space Grotesk siguen en el archivo');
   assert(!/family=Outfit/.test(html), 'Outfit sigue en el enlace de Google Fonts');
   assert(!/font-family:[^;}]*Outfit/.test(html), 'Outfit sigue en alguna declaración font-family');
-  assert(/#bitacora-root\s*\{[^}]*font-family:\s*'IBM Plex Sans'/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), '#bitacora-root debe usar IBM Plex Sans');
+  assert(/#bitacora-root\s*\{[^}]*font-family:\s*'Inter'/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), '#bitacora-root debe usar Inter');
 });
 await check('Rediseño fase 1: la navegación es una barra superior horizontal y la cabecera de cada vista es un degradado azul noche con texto blanco', () => {
   const html = readFileSync(HTML_PATH, 'utf8');

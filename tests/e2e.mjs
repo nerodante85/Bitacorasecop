@@ -727,7 +727,7 @@ const abrirAnalisisSembrado = async (pg) => {
   await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .resultado-nombre'));
 };
 
-await check('Rediseño fase 4: el análisis tiene tarjeta de resultado destacada, secciones como tarjetas con título en tinta, plegables con flecha que gira y panel de evidencia que entra con animación (sin ella al reducir movimiento)', async () => {
+await check('Rediseño fase 4: el análisis tiene tarjeta de resultado con relieve, secciones como tarjetas con título en tinta, plegables con flecha que gira y panel de evidencia que entra con animación (sin ella al reducir movimiento)', async () => {
   const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
   await abrirAnalisisSembrado(pg);
   const r = await pg.evaluate(() => {
@@ -740,9 +740,9 @@ await check('Rediseño fase 4: el análisis tiene tarjeta de resultado destacada
     const abierto = getComputedStyle(fold.querySelector('summary'), '::before').transform;
     return { radio: parseFloat(hs.borderTopLeftRadius), sombra: hs.boxShadow, tam: parseFloat(getComputedStyle(n).fontSize), secs, antes, abierto };
   });
-  assert(r.radio >= 6 && r.tam >= 44, 'tarjeta de resultado con radio y nombre grande (el estilo «Plano» no usa sombra): ' + JSON.stringify({ radio: r.radio, sombra: r.sombra, tam: r.tam }));
+  assert(r.radio >= 14 && r.sombra !== 'none' && r.tam >= 32, 'tarjeta de resultado con radio, sombra y nombre grande: ' + JSON.stringify({ radio: r.radio, sombra: r.sombra, tam: r.tam }));
   assert(r.secs.length >= 3, 'hay secciones: ' + r.secs.length);
-  assert(r.secs.every(x => x.fondo === 'rgb(255, 255, 255)' && x.borde === '1px' && x.radio >= 6 && x.h3 === 'rgb(23, 35, 45)'), 'cada sección es una tarjeta blanca con título en tinta: ' + JSON.stringify(r.secs[0]));
+  assert(r.secs.every(x => x.fondo === 'rgb(255, 255, 255)' && x.borde === '1px' && x.radio >= 14 && x.h3 === 'rgb(22, 33, 46)'), 'cada sección es una tarjeta blanca con título en tinta: ' + JSON.stringify(r.secs[0]));
   assert(r.antes === 'none' && r.abierto !== 'none', 'la flecha del plegable gira al abrirlo: ' + r.antes + ' → ' + r.abierto);
   const anim = async () => pg.evaluate(() => getComputedStyle(document.querySelector('#bt-evidencia-backdrop .evidencia-panel')).animationName);
   await pg.locator('[data-ev-fila]').first().click();
