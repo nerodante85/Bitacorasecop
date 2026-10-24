@@ -15914,7 +15914,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // Bitácora no guarda copias de los PDF/Excel que subes (solo lo que leyó de ellos): este inventario dice qué
   // datos hay, de qué archivo salieron cuando se sabe, y qué está incompleto. Puro (recibe el estado) para poder
   // probarse sin DOM.
-  function inventarioDocumentos(perfilesMap, expPorPerfil, profesionalesMap, analisisMap){
+  function inventarioDocumentos(perfilesMap, expPorPerfil, analisisMap){
     const lleno = v => !!String(v == null ? '' : v).trim();
     const empresa = Object.keys(perfilesMap || {}).map(id => {
       const p = perfilesMap[id] || {};
@@ -15927,11 +15927,6 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       const p = (perfilesMap || {})[id];
       return { perfilId: id, empresa: p && lleno(p.nombre) ? p.nombre : 'Empresa sin nombre', archivo: meta.expFile || null, contratos: n, omitidos: meta.omitidos || null };
     });
-    const personal = Object.keys(profesionalesMap || {}).map(id => {
-      const x = profesionalesMap[id] || {};
-      return { id: id, nombre: lleno(x.nombre) ? x.nombre : 'Profesional sin nombre', cargo: lleno(x.cargo) ? x.cargo : null,
-        completo: lleno(x.formacion) && lleno(x.anos) };
-    });
     const procesos = Object.keys(analisisMap || {}).map(id => {
       const e = analisisMap[id] || {};
       const parcial = lecturaParcial(e);
@@ -15939,13 +15934,13 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         paginas: e.numPages != null ? e.numPages : null, parcial: !!parcial, textoLiberado: !!e.textoLiberado, ts: e.ts || 0,
         titulo: (e.proceso && (e.proceso.objeto || e.proceso.entidad)) || null };
     }).sort((a, b) => b.ts - a.ts);
-    return { empresa: empresa, experiencia: experiencia, personal: personal, procesos: procesos };
+    return { empresa: empresa, experiencia: experiencia, procesos: procesos };
   }
 
   function renderDocumentosView(){
     const out = document.getElementById('bt-docs-out');
     if (!out) return;
-    const inv = inventarioDocumentos(perfiles, expevalPorPerfil, perfilesProfesionales, analisis);
+    const inv = inventarioDocumentos(perfiles, expevalPorPerfil, analisis);
     const fila = (titulo, detalle, estado, ir) => '<div class="recent-item"><div class="recent-item-body"><div class="recent-item-title">' + escapeHtml(titulo) + '</div>' +
       '<div class="recent-item-sub">' + escapeHtml(detalle) + '</div></div>' +
       (estado ? '<span class="tag ' + (estado.ok ? 'eval-go' : 'eval-revisar') + '">' + escapeHtml(estado.texto) + '</span>' : '') +
@@ -15960,9 +15955,6 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const htmlExp = inv.experiencia.map(x =>
       fila(x.empresa, (x.archivo ? x.archivo + ' · ' : '') + x.contratos + ' contrato(s) leído(s)' + (x.omitidos ? ' · se omitieron filas repetidas o de totales' : ''),
         x.contratos ? ok('Cargada') : pend('Sin contratos'), 'data-ir-a="experiencia"'));
-    const htmlPers = inv.personal.map(x =>
-      fila(x.nombre, (x.cargo || 'Sin cargo') + ' · hoja de vida, matrícula y certificados: no se guardan como archivo (solo estos datos)',
-        x.completo ? ok('Datos completos') : pend('Faltan datos'), 'data-ir-a="personal"'));
     const htmlProc = inv.procesos.map(x =>
       fila(x.titulo ? truncate(x.titulo, 90) : (x.archivo || x.id),
         (x.archivo ? 'Pliego: ' + x.archivo : '') + (x.estudioPrevio ? (x.archivo ? ' · ' : '') + 'Estudio previo: ' + x.estudioPrevio : '') +
@@ -15971,7 +15963,6 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     out.innerHTML =
       bloque('Empresa', 'RUP y RUT se leen para autocompletar la ficha; el archivo original no se conserva.', htmlEmpresa, 'Todavía no hay ninguna empresa. Créala en "Empresa".') +
       bloque('Experiencia', 'Excel, PDF o Word con los contratos de cada empresa.', htmlExp, 'Todavía no cargaste experiencia. Se compara contra lo que pide cada proceso.') +
-      bloque('Personal', 'Profesionales del equipo de trabajo.', htmlPers, 'Todavía no registraste profesionales.') +
       bloque('Procesos', 'Pliegos y estudios previos que analizaste.', htmlProc, 'Todavía no has analizado ningún pliego. Elige un proceso en "Buscar procesos".');
   }
   const docsOutEl = document.getElementById('bt-docs-out');

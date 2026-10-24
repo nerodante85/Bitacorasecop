@@ -557,7 +557,8 @@ await check('Documentos: lista lo cargado por categoría y "Abrir análisis" abr
   await pg.click('#bt-nav-documentos');
   assert(await vistaActiva(pg) === 'view-documentos', 'Documentos');
   const t = await pg.evaluate(() => document.getElementById('bt-docs-out').innerText);
-  for (const sec of ['Empresa', 'Experiencia', 'Personal', 'Procesos']) assert(t.includes(sec), 'falta la categoría ' + sec);
+  for (const sec of ['Empresa', 'Experiencia', 'Procesos']) assert(t.includes(sec), 'falta la categoría ' + sec);
+  assert(!t.includes('Todavía no registraste profesionales') && !/Profesionales del equipo/.test(t), 'Documentos ya no muestra la tarjeta de Personal');
   assert(t.includes('pliego-doc.pdf') && /leídas 15 de 76/.test(t) && /Lectura parcial/.test(t), 'el pliego con lectura parcial debe decirlo: ' + t.slice(-300));
   await pg.locator('#bt-docs-out [data-abrir-proceso]').first().click();
   assert(await vistaActiva(pg) === 'view-analisis', 'Abrir análisis');
