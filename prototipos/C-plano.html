@@ -7,7 +7,7 @@
 <meta name="description" content="Prototipo C: estructura por bandas de la referencia de coaching con la pizarra y el amarillo de la referencia de obra. Usa las mismas tipografías que la app.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Inter:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* Prototipo C «Plano». Mismos nombres de token que la app; tipografías que la app ya carga. */
 :root{
@@ -20,7 +20,7 @@
   --warning:#7A4E08; --warning-bg:#FBEFD6; --warning-line:#E3C88F;
   --neutral:#3F4A53; --neutral-bg:#E8ECEE;
   --radius-sm:4px; --radius-md:6px; --radius-lg:8px; --radius-pill:999px;
-  --display:'Archivo','Inter',system-ui,sans-serif; --sans:'Inter',system-ui,sans-serif;
+  --display:'IBM Plex Sans Condensed','Arial Narrow',Arial,sans-serif; --sans:'IBM Plex Sans','Helvetica Neue',Arial,sans-serif;
 }
 *{box-sizing:border-box}
 html{background:var(--bg);color-scheme:light}
@@ -34,7 +34,7 @@ button,input{font:inherit}
 .skip:focus{left:12px}
 :focus-visible{outline:3px solid var(--ink-800);outline-offset:3px}
 .oscuro :focus-visible{outline-color:var(--yellow)}
-.d{font-family:var(--display);font-stretch:112%;font-weight:700;letter-spacing:-.01em;line-height:1.05}
+.d{font-family:var(--display);font-weight:700;letter-spacing:-.01em;line-height:1.05}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 24px;border:2px solid transparent;border-radius:var(--radius-sm);font-weight:600;font-size:15px;text-decoration:none;cursor:pointer;transition:background-color .15s,color .15s,border-color .15s}
 .btn:active{transform:translateY(1px)}
@@ -49,7 +49,7 @@ button,input{font:inherit}
 /* Cabecera clara con filete amarillo */
 .top{background:var(--surface);border-bottom:1px solid var(--border)}
 .top .wrap{display:flex;align-items:center;gap:28px;min-height:76px;flex-wrap:wrap}
-.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-family:var(--display);font-stretch:115%;font-weight:800;font-size:19px;color:var(--ink-800)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-family:var(--display);font-weight:700;font-size:19px;color:var(--ink-800)}
 .brand svg{width:22px;height:auto}
 .menu{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}
 .menu a{position:relative;display:inline-flex;align-items:center;min-height:44px;padding:0 12px;font-size:15px;font-weight:500;text-decoration:none;color:var(--text-muted)}
@@ -58,10 +58,9 @@ button,input{font:inherit}
 .menu a[aria-current="page"]::after{content:"";position:absolute;left:12px;right:12px;bottom:4px;height:3px;background:var(--yellow)}
 
 /* Banda oscura con cuadrícula de plano */
-.oscuro{background-color:var(--ink-800);color:var(--on-ink);
-  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:40px 40px}
+.oscuro{background-color:var(--ink-800);color:var(--on-ink)}
 .hero .wrap{padding-top:72px;padding-bottom:84px}
-.hero h1{font-family:var(--display);font-stretch:118%;font-weight:800;font-size:clamp(34px,5vw,62px);line-height:1.04;letter-spacing:-.015em;max-width:19ch;text-wrap:balance}
+.hero h1{font-family:var(--display);font-weight:700;font-size:clamp(40px,6vw,76px);line-height:1;letter-spacing:-.01em;max-width:18ch;text-wrap:balance}
 .hero p.lead{margin-top:22px;max-width:50ch;font-size:18px;color:var(--on-ink-mute)}
 .buscador{margin-top:34px;display:flex;gap:0;max-width:640px;flex-wrap:wrap}
 .buscador label{flex:1 1 280px}
@@ -77,7 +76,7 @@ button,input{font:inherit}
 .franja a:first-child{border-left:0;padding-left:0}
 .franja a:hover b{text-decoration:underline;text-decoration-color:var(--yellow);text-decoration-thickness:3px;text-underline-offset:4px}
 .franja svg{width:34px;height:34px;color:var(--ink-800);grid-row:1/3}
-.franja b{font-family:var(--display);font-stretch:108%;font-weight:700;font-size:17px;color:var(--ink-800)}
+.franja b{font-family:var(--display);font-weight:700;font-size:17px;color:var(--ink-800)}
 .franja span{font-size:14.5px;color:var(--text-muted)}
 
 /* Proceso: cuantía acotada */
@@ -86,14 +85,16 @@ button,input{font:inherit}
 .cota-panel .rotulo{font-size:14.5px;color:var(--on-ink-mute)}
 .cota{margin-top:20px}
 .cota .linea{display:flex;align-items:center;gap:0;color:var(--yellow)}
-.cota .linea::before,.cota .linea::after{content:"";height:26px;width:2px;background:currentColor}
+.cota .linea::before,.cota .linea::after{content:"";width:14px;height:20px;background:currentColor}
+.cota .linea::before{clip-path:polygon(0 50%,100% 0,100% 100%)}
+.cota .linea::after{clip-path:polygon(100% 50%,0 0,0 100%)}
 .cota .linea i{flex:1;height:2px;background:currentColor}
-.cota .valor{margin-top:14px;font-family:var(--display);font-stretch:118%;font-weight:800;font-size:clamp(46px,6.4vw,84px);line-height:1;letter-spacing:-.02em;color:var(--on-ink)}
+.cota .valor{margin-top:14px;font-family:var(--display);font-weight:700;font-size:clamp(46px,6.4vw,84px);line-height:1;letter-spacing:-.02em;color:var(--on-ink)}
 .cota .valor small{font-size:.42em;font-weight:700;margin-left:.12em;color:var(--yellow)}
 .cota .pie{margin-top:12px;font-size:15px;color:var(--on-ink-mute)}
 .proceso{background:var(--surface);padding:48px 48px 44px;border-top:1px solid var(--border)}
 .proceso .entidad{font-size:14.5px;font-weight:600;color:var(--text-muted)}
-.proceso h2{margin-top:10px;font-family:var(--display);font-stretch:108%;font-weight:700;font-size:clamp(24px,2.7vw,32px);line-height:1.15;color:var(--ink-800);max-width:24ch}
+.proceso h2{margin-top:10px;font-family:var(--display);font-weight:700;font-size:clamp(24px,2.7vw,32px);line-height:1.15;color:var(--ink-800);max-width:24ch}
 .proceso dl{margin-top:24px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 28px;border-top:1px solid var(--border);padding-top:20px}
 .proceso dt{font-size:13.5px;color:var(--text-faint)}
 .proceso dd{margin-top:2px;font-weight:600}
@@ -102,21 +103,21 @@ button,input{font:inherit}
 
 section.bloque{padding:84px 0}
 .encab{display:flex;align-items:end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:36px;padding-bottom:16px;border-bottom:3px solid var(--ink-800)}
-.encab h2{font-family:var(--display);font-stretch:114%;font-weight:800;font-size:clamp(26px,3.2vw,38px);line-height:1.08;color:var(--ink-800)}
+.encab h2{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.2vw,38px);line-height:1.08;color:var(--ink-800)}
 .encab p{max-width:46ch;color:var(--text-muted);font-size:15.5px}
 
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--surface);border:1px solid var(--border)}
 .stat{padding:26px 22px;border-left:1px solid var(--border)}
 .stat:first-child{border-left:0}
-.stat b{display:block;font-family:var(--display);font-stretch:116%;font-weight:800;font-size:54px;line-height:1;color:var(--ink-800)}
+.stat b{display:block;font-family:var(--display);font-weight:700;font-size:54px;line-height:1;color:var(--ink-800)}
 .stat span{display:block;margin-top:10px;font-weight:600}
 .stat small{display:block;margin-top:4px;font-size:14px;color:var(--text-muted)}
 .cols{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:48px;margin-top:48px}
-.cols h3,.matriz h3{font-family:var(--display);font-stretch:110%;font-weight:700;font-size:21px;color:var(--ink-800)}
+.cols h3,.matriz h3{font-family:var(--display);font-weight:700;font-size:21px;color:var(--ink-800)}
 .cal{margin-top:14px;border-top:1px solid var(--border)}
 .cal li{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:18px;align-items:center;padding:16px 0;border-bottom:1px solid var(--border)}
 .fecha{width:64px;text-align:center;background:var(--ink-800);color:var(--on-ink);border-radius:var(--radius-sm);padding:6px 0 7px;line-height:1}
-.fecha b{display:block;font-family:var(--display);font-stretch:110%;font-weight:800;font-size:28px}
+.fecha b{display:block;font-family:var(--display);font-weight:700;font-size:28px}
 .fecha span{font-size:13px;color:var(--on-ink-mute)}
 .cal .ent{font-weight:600}
 .cal .obj{font-size:14.5px;color:var(--text-muted)}
@@ -135,8 +136,8 @@ section.bloque{padding:84px 0}
 .resultado{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);border:2px solid var(--ink-800)}
 .go{padding:40px;background:var(--success-bg);border-right:2px solid var(--ink-800)}
 .go .quien{font-weight:600;color:var(--success)}
-.go .nombre{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:8px;font-family:var(--display);font-stretch:125%;font-weight:800;font-size:clamp(64px,9vw,104px);line-height:1;letter-spacing:-.02em;color:var(--success)}
-.go .nombre span{font-family:var(--sans);font-stretch:100%;font-size:15px;font-weight:700;letter-spacing:0;display:inline-flex;align-items:center;gap:6px;border:2px solid var(--success);padding:3px 12px;border-radius:var(--radius-pill)}
+.go .nombre{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:8px;font-family:var(--display);font-weight:700;font-size:clamp(64px,9vw,104px);line-height:1;letter-spacing:-.02em;color:var(--success)}
+.go .nombre span{font-family:var(--sans);font-size:15px;font-weight:700;letter-spacing:0;display:inline-flex;align-items:center;gap:6px;border:2px solid var(--success);padding:3px 12px;border-radius:var(--radius-pill)}
 .go p.exp{margin-top:16px;font-size:18px;max-width:38ch}
 .go small{display:block;margin-top:16px;color:var(--text-muted);font-size:14px}
 .viab{padding:36px 40px}
@@ -157,14 +158,14 @@ td:last-child,th:last-child{padding-right:0}
 
 /* Banda de empresa y cierre */
 .empresa .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:56px;padding-top:72px;padding-bottom:72px;align-items:center}
-.empresa h2{font-family:var(--display);font-stretch:114%;font-weight:800;font-size:clamp(26px,3.2vw,38px);line-height:1.1}
+.empresa h2{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.2vw,38px);line-height:1.1}
 .empresa p{margin-top:14px;color:var(--on-ink-mute);max-width:40ch}
 .empresa ul li a{display:flex;justify-content:space-between;align-items:center;gap:16px;min-height:60px;border-top:1px solid rgba(242,245,246,.25);text-decoration:none;font-weight:600;font-size:17px}
 .empresa ul li:last-child a{border-bottom:1px solid rgba(242,245,246,.25)}
 .empresa ul li a:hover{color:var(--yellow)}
 .empresa li span{font-weight:400;font-size:14px;color:var(--on-ink-mute)}
 .cierre{background:var(--yellow);color:var(--on-yellow);text-align:center;padding:72px 0}
-.cierre h2{font-family:var(--display);font-stretch:116%;font-weight:800;font-size:clamp(26px,3.4vw,42px);line-height:1.1;text-wrap:balance}
+.cierre h2{font-family:var(--display);font-weight:700;font-size:clamp(26px,3.4vw,42px);line-height:1.1;text-wrap:balance}
 .cierre p{margin:12px auto 0;max-width:46ch}
 .cierre .btn{margin-top:26px;background:var(--ink-800);color:var(--on-ink)}
 .cierre .btn:hover{background:var(--ink-900)}
@@ -172,7 +173,7 @@ td:last-child,th:last-child{padding-right:0}
 footer{background:var(--ink-900);color:var(--on-ink);padding:52px 0 26px}
 footer .wrap{display:grid;grid-template-columns:1.3fr 1fr 1fr 1.2fr;gap:36px}
 footer .brand{color:var(--on-ink)}
-footer h3{font-family:var(--display);font-stretch:108%;font-weight:700;font-size:16px;margin-bottom:8px}
+footer h3{font-family:var(--display);font-weight:700;font-size:16px;margin-bottom:8px}
 footer li a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none;color:var(--on-ink-mute)}
 footer li a:hover{color:var(--yellow)}
 footer p{color:var(--on-ink-mute);font-size:14.5px;margin-top:12px;max-width:34ch}
@@ -378,7 +379,7 @@ footer p{color:var(--on-ink-mute);font-size:14.5px;margin-top:12px;max-width:34c
   </div>
 </main>
 
-<footer id="pie" class="oscuro" style="background-image:none">
+<footer id="pie" class="oscuro">
   <div class="wrap">
     <div><a class="brand" href="#"><svg viewBox="0 0 44.5 62" aria-hidden="true"><use href="#marca"/></svg>Bitácora SECOP</a><p>Tus licitaciones de obra en un solo lugar, con un análisis que explica de dónde sale cada resultado.</p></div>
     <div><h3>Navegar</h3><ul><li><a href="#buscar">Buscar procesos</a></li><li><a href="#mis-procesos">Mis procesos</a></li><li><a href="#empresa">Empresa</a></li><li><a href="#empresa">Documentos</a></li></ul></div>
