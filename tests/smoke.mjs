@@ -4626,27 +4626,28 @@ await check('Interfaz: el lienzo de la página (html) también es claro, no solo
   assert(luminancia(canvas) > 0.6, 'el lienzo debe ser claro: ' + canvas);
 });
 // ---- Rediseño fase 1 (dirección «Inntegrate», elegida por el usuario): tema claro, acento lila, Mulish; reemplazado por la dirección «Wise» (lima + verde bosque, Inter + Archivo, píldoras) ----
-await check('Rediseño fase 1: la paleta es clara (lienzo, papel, texto) y el acento es verde (lima de relleno, verde bosque de texto); el ámbar queda solo para avisos', () => {
+await check('Rediseño «Obra»: la paleta es clara (lienzo, papel, texto), el acento como texto es azul pizarra y el relleno de acción es amarillo señal; el ámbar queda solo para avisos', () => {
   const html = readFileSync(HTML_PATH, 'utf8'); const T = tokenesCss(html);
   assert(luminancia(T.bg) > 0.6 && luminancia(T.surface) > 0.9, 'lienzo y papel claros: ' + T.bg + ' ' + T.surface);
   assert(luminancia(T.text) < 0.05, 'el texto es oscuro: ' + T.text);
   const [r, g, b] = [1, 3, 5].map(k => parseInt(T.accent.slice(k, k + 2), 16));
-  assert(g > r && g > b, 'el acento (texto) es verde (verde > rojo y azul): ' + T.accent);
+  assert(b > r && luminancia(T.accent) < 0.1, 'el acento (texto) es un azul pizarra oscuro: ' + T.accent);
   const [fr, fg, fb] = [1, 3, 5].map(k => parseInt(T['accent-button'].slice(k, k + 2), 16));
-  assert(fg > fr && fg > fb, 'el relleno de acento (lima) es verde: ' + T['accent-button']);
+  assert(fr > fb && fg > fb && fr >= fg, 'el relleno de acento es amarillo (rojo y verde > azul): ' + T['accent-button']);
   assert(contraste(T.accent, T.surface) >= 4.5 && contraste(T['accent-ink'], T['accent-button']) >= 4.5, 'el acento como texto y la tinta sobre su relleno cumplen AA');
   assert(contraste(T['btn-ink'], T.btn) >= 7 && contraste(T['on-navy-mute'], T['navy-800']) >= 4.5 && contraste(T['on-navy-mute'], T['navy-900']) >= 4.5, 'botón principal y texto atenuado sobre azul noche');
   assert(contraste(T['on-status'], T.danger) >= 4.5 && contraste(T['on-status'], T.success) >= 4.5, 'texto sobre relleno de estado');
   assert(!/--accent:\s*var\(--amber\)/.test(html), 'el acento ya no apunta al ámbar');
 });
-await check('Rediseño Wise: la tipografía es Inter (interfaz) + Archivo (titulares); sin Mulish, Outfit ni Space Grotesk', () => {
+await check('Rediseño «Obra»: la tipografía es Barlow (interfaz) + Barlow Condensed (titulares); sin Inter, Archivo, Mulish, Outfit ni Space Grotesk', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
-  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Inter/.test(html), 'falta Inter en el enlace de Google Fonts');
-  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Archivo/.test(html), 'falta Archivo en el enlace de Google Fonts');
+  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Barlow:/.test(html), 'falta Barlow en el enlace de Google Fonts');
+  assert(/fonts\.googleapis\.com\/css2\?[^"]*family=Barlow\+Condensed/.test(html), 'falta Barlow Condensed en el enlace de Google Fonts');
+  assert(!/family=Inter|family=Archivo/.test(html) && !/font-family:[^;}]*(Inter|Archivo)/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), 'Inter o Archivo siguen en el archivo');
   assert(!/family=Mulish|family=Space\+Grotesk/.test(html) && !/font-family:[^;}]*(Mulish|Space Grotesk)/.test(html), 'Mulish o Space Grotesk siguen en el archivo');
   assert(!/family=Outfit/.test(html), 'Outfit sigue en el enlace de Google Fonts');
   assert(!/font-family:[^;}]*Outfit/.test(html), 'Outfit sigue en alguna declaración font-family');
-  assert(/#bitacora-root\s*\{[^}]*font-family:\s*'Inter'/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), '#bitacora-root debe usar Inter');
+  assert(/#bitacora-root\s*\{[^}]*font-family:\s*'Barlow'/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')), '#bitacora-root debe usar Barlow');
 });
 await check('Rediseño fase 1: la navegación es una barra superior horizontal y la cabecera de cada vista es un degradado azul noche con texto blanco', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
