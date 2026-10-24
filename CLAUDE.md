@@ -55,8 +55,8 @@ sincronización, Edge Functions de IA y correo).
   NO DETERMINABLE cuando no hay evidencia de ningún requisito (sin pliego, o solo gates administrativos en verde). Nunca mostrar `veredicto` crudo: usar
   `etiquetaVeredicto(res.mejor.veredictoGlobal)`.
 - **Pantalla de análisis** (`resultadoAnalisisHtml`): resultado + explicación → `resumenViabilidad` (5 áreas) → `alertasAnalisis` → matriz
-  (`matrizRequisitos`: filas IA o gates del motor) con filtro y panel lateral de evidencia (`abrirEvidencia`). Las 3 funciones puras viven en `evaluacion.js`.
-  Una fila IA con cita sin verificar es NO DETERMINABLE; "Analizar pliego" ya no se bloquea por datos de empresa incompletos (sale NO DETERMINABLE y se avisa).
+  (`matrizRequisitos`: filas de experiencia leídas del pliego + gates del motor) con filtro y panel lateral de evidencia (`abrirEvidencia`; la página de una cita se halla con `paginaDeCitaEnEntry`). Las 3 funciones puras viven en `evaluacion.js`.
+  **«Extraer requisitos con IA» se retiró (2026-10, decisión del usuario)**: todo sale del lector por reglas (`extraerExigencias`, `extraerRequisitosDePliego`, `fichaHabilitante`). No lo reintroduzcas sin releer `docs/HISTORIAL.md`. Un análisis guardado antes lo puede traer (`requisitosIA`, `exigenciasIA`...): `quitarCamposDeIA` (al cargar) descarta esos campos y lo derivado (experiencia evaluada), marca `iaRetirada` y la pantalla avisa que hay que pulsar «Evaluar cumplimiento de experiencia». "Analizar pliego" ya no se bloquea por datos de empresa incompletos (sale NO DETERMINABLE y se avisa).
 - **Búsqueda natural sin IA**: `interpretarBusqueda` llena los filtros y `#bt-nl-entendi` dice qué entendió; lo que no entiende va a `avisos`. Valor, entidad
   y fecha de cierre **sí filtran** (`cumpleRangoValor`, `coincideEntidad`, `cierraEnDias`); un proceso sin valor no se oculta por el rango.
 - **Capacidad Residual (Fase 1, 2026-10)**: en `empresa › Datos`, sección "Capacidad Residual" (`#bt-capacidad-estimada-out` + lista de contratos en ejecución). La K sigue siendo la que la empresa
@@ -93,15 +93,15 @@ sincronización, Edge Functions de IA y correo).
     no en el blob; es local al navegador.
   - `experiencia_evaluacion` guarda `{porPerfil: {perfilId: {contratos, meta}}}`; `expevalContratos` es el **combinado derivado**
     (`recalcularExpevalActivo()`) de las empresas marcadas para comparar (consorcio/unión temporal = suma de contratos).
-- **Supabase** (`supabase/`): `schema.sql`, `migrations/`, `cron.sql`, `config.toml` y 4 Edge Functions:
-  `extraer-requisitos` (IA lee el PDF y extrae requisitos con cita), `transcribir-pdf` (IA transcribe páginas escaneadas, tandas de
+- **Supabase** (`supabase/`): `schema.sql`, `migrations/`, `cron.sql`, `config.toml` y 3 Edge Functions:
+  `transcribir-pdf` (IA transcribe páginas escaneadas, tandas de
   8), `daily-digest` (correo diario vía Resend + cron), `eliminar-cuenta`. Reglas comunes: `verify_jwt`, empresa resuelta en el
   servidor, cupo diario reservado en `ai_usage` antes de llamar a Claude, PDFs de Storage borrados al terminar, respuesta en
   streaming con latidos (el gateway corta a ~150 s). `CONTRATO_VERSION` cliente/servidor debe coincidir (hay prueba).
-- **CORS (F-09)**: las 3 funciones que llama el navegador (`eliminar-cuenta`, `extraer-requisitos`, `transcribir-pdf`) solo dan permiso
+- **CORS (F-09)**: las 2 funciones que llama el navegador (`eliminar-cuenta`, `transcribir-pdf`) solo dan permiso
   a `https://nerodante85.github.io` (comparación exacta, nunca `*`); el origen se decide por petición en el envoltorio `Deno.serve`
   → `manejar(req)`. Otro dominio o un servidor local contra el backend real: secret opcional `ALLOWED_ORIGINS` (coma). El auxiliar
-  `corsOrigenHeaders` es idéntico en las tres (una prueba lo verifica). Si publicas en un dominio propio y no pones su origen ahí,
+  `corsOrigenHeaders` es idéntico en las dos (una prueba lo verifica). Si publicas en un dominio propio y no pones su origen ahí,
   **el navegador bloqueará las llamadas a las funciones** (síntoma: la IA "no responde" y la consola dice CORS).
 - **RLS es la única barrera** entre empresas (la app es 100 % cliente). Los secretos (`ANTHROPIC_API_KEY`, `RESEND_API_KEY`,
   `CRON_SECRET`, `DEBUG_SECRET`) viven solo como secrets de Supabase, nunca en el repo ni en el chat.
@@ -117,7 +117,7 @@ sincronización, Edge Functions de IA y correo).
 4. **Buscar procesos** → por tarjeta: "Analizar pliego (PDF)" o "Analizar Estudio Previo" (cuando no hay pliego). Dos pasos:
    cargar y luego analizar. Lectura de texto, OCR o IA (por tandas, con "seguir leyendo").
 5. **Tarjeta de análisis**: resumen arriba (veredicto, contadores, razones, botones de carta/paquete) y secciones plegables
-   (`seccionPlegable`): alertas, experiencia requerida, requisitos habilitantes (IA), cronograma y riesgos (IA), detalle del
+   (`seccionPlegable`): alertas, experiencia requerida, detalle del
    veredicto, coincidencia con perfiles, lectura y avisos. Se abren solas solo si piden acción.
 6. **Veredicto** (`evaluarProceso`): gates → GO solo si todo está en verde y hay pliego leído; cualquier gate `nd`/`revisar`
    da REVISAR; un `fail` da NO-GO. Lectura parcial siempre se avisa.
@@ -125,10 +125,10 @@ sincronización, Edge Functions de IA y correo).
    adjudicaciones de la entidad (SECOP II), documentos de propuesta (carta, hojas de vida, paquete) como **plantillas
    orientativas**.
 
-### IA: la IA extrae, el motor decide
-- "Extraer requisitos con IA" devuelve filas con cita y página; el navegador **verifica la cita contra el texto real** del PDF.
-  Una fila sin verificar o de confianza baja **jamás** produce CUMPLE/NO CUMPLE (queda NO DETERMINABLE hasta que el usuario
-  la confirme). Para pliegos largos se recortan las páginas relevantes y se mandan **todas las no leídas**; tope de 100 páginas.
+### IA: solo para pasar escaneados a texto; el motor decide
+- La única IA que queda es **«Leer con IA»** (`transcribir-pdf`): transcribe PDF escaneados a texto. No extrae ni decide nada; el cumplimiento
+  (CUMPLE / NO CUMPLE / NO DETERMINABLE) lo decide siempre el motor de reglas con el texto leído. La extracción de requisitos con IA (filas con
+  cita verificada, confirmación a mano, cronograma y riesgos) se retiró; su historia está en `docs/HISTORIAL.md`.
 - Comparación SMMLV ↔ pesos solo con regla explícita del pliego y año conocido; si no, NO DETERMINABLE.
 - Experiencia: coincidencia **total** de palabras distintivas (la parcial nunca decide CUMPLE); condiciones cuantitativas o
   temporales no modeladas bloquean el CUMPLE automático; un contrato en ejecución no acredita; alternativos (OR) se agrupan.
@@ -237,11 +237,8 @@ sincronización, Edge Functions de IA y correo).
 ## Limitaciones y decisiones abiertas
 
 - El correo diario solo llega al dueño de la cuenta de Resend hasta verificar un dominio y fijar `DIGEST_FROM_EMAIL`.
-- Pliegos muy largos (~70+ páginas con matriz extensa) pueden exceder los ~150 s del plan gratuito de Supabase en la extracción con
+- Pliegos muy largos (~70+ páginas con matriz extensa) pueden exceder los ~150 s del plan gratuito de Supabase al transcribir con
   IA; no se paga el plan para esto. pdf.js se queda en 3.x (migrar a 4.x implicaría módulos ES).
 - La matriz de experiencia del pliego (tablas) puede no leerse como texto: se avisa "posible tabla no leída" por página.
 - Política de privacidad: `privacidad.html` ya tiene los datos del responsable, contacto, transferencia a EE. UU. y plazos (2026-10-15), pero sigue marcada BORRADOR hasta que la revise un abogado; entonces se publica la versión definitiva y se sube `POLITICA_VERSION`.
 - Los PDFs huérfanos del bucket `pliegos` se barren a diario (más de 24 h) dentro de `daily-digest` (`pliegosVencidos`).
-- **No** recortar la verificación de citas a las páginas citadas (evaluado y descartado): leer 300 páginas con pdf.js tarda ~1,4 s y
-  bloquea el hilo menos de 70 ms (medido), y esa misma lectura completa alimenta la detección de texto dirigido a la IA (IA-007),
-  que necesita ver todas las páginas.

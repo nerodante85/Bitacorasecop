@@ -52,7 +52,7 @@ const TIMEOUT_ANTHROPIC_MS = 140_000;
 const CONTRATO_VERSION = 2; // 2: acepta además una lista de páginas sueltas (`paginas`)
 const FUNCTION_NAME = 'transcribir-pdf';
 
-// ==== CORS-F09 inicio (copia idéntica en eliminar-cuenta, extraer-requisitos y transcribir-pdf; una prueba lo verifica) ====
+// ==== CORS-F09 inicio (copia idéntica en eliminar-cuenta y transcribir-pdf; una prueba lo verifica) ====
 // Solo el sitio publicado puede leer la respuesta desde un navegador (antes: "*"). Más orígenes -- otro dominio o un
 // servidor local de pruebas -- van en el secret ALLOWED_ORIGINS, separados por coma. Comparación EXACTA (esquema + host +
 // puerto), sin comodines. Una petición sin Origin (curl, servidor a servidor) no necesita CORS y no recibe permiso.

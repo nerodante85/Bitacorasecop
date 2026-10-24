@@ -121,7 +121,7 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Registro de uso de IA (Edge Function extraer-requisitos). RLS habilitado SIN
+-- Registro de uso de IA (Edge Function transcribir-pdf). RLS habilitado SIN
 -- ninguna policy: ni el dueño autenticado puede leer/escribir directamente, solo
 -- la Edge Function con service_role -- así el contador no puede manipularse desde
 -- el cliente. (Misma definición que supabase/migrations/20260922_ai_usage.sql;
