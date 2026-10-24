@@ -6646,3 +6646,22 @@ agrega a `motivos` SOLO si hay errores. Así el 500, `digest_runs`, el log y el 
 arrastra el texto, no pasar los códigos) y el TypeScript compila sin errores nuevos. **No verificado:** contra la función desplegada (requiere un PR y su despliegue).
 Un error propio, corregido en el camino: una prueba mía tenía un `\n` mal escapado y habría revisado de más.
 
+
+## Empresas y pliegos ficticios para probar CUMPLE / NO CUMPLE / NO DETERMINABLE (2026-10-24)
+
+**Problema:** el usuario no tenía datos propios que forzaran cada resultado del análisis de pliegos y dudaba de la comparación con la empresa.
+
+**Decisión:** paquete de archivos para cargar (sin botón nuevo en la app) en `ejemplos/pruebas-pliegos/`: respaldo con 9 empresas ficticias + experiencia + 4 profesionales + 3 procesos
+(cargable en *Configuración › Restaurar un respaldo*), 3 pliegos PDF de texto digital, un Excel por empresa, un Formato Maestro ficticio y `GUIA-PRUEBAS.md` con el resultado esperado de cada
+empresa × pliego. `escenarios.mjs` es la fuente única; `generar.mjs` produce los archivos (SheetJS de `vendor/`, PDF escrito a mano, fechas relativas a la fecha dada).
+
+**Cómo se verificó:** 12 pruebas nuevas en `tests/smoke.mjs` que ejecutan el motor real (analizarTexto → extraerRequisitosDePliego → evaluarExperienciaCompleta → evaluarContraPerfiles) con el
+reloj congelado, más una guarda contra desfase (los contratos del respaldo deben ser idénticos a los del importador de Excel, y el respaldo debe pasar `validarRespaldo`). 5 mutaciones
+detectadas (índice que no pasa marcado ok, contratos en ejecución sin descontar K, UNSPSC sin cubrir marcado ok, SMMLV del año equivocado, endeudamiento «45» leído como razón). Además, en un
+navegador real (Chromium + pdf.js 3.11.174 local), restaurando el respaldo y subiendo cada PDF, las 20 combinaciones dieron el mismo veredicto que la prueba automática.
+
+**Aprendido:** (1) el texto del requisito se parte por marcadores de lista: una frase de personal pegada tras el requisito de experiencia, o una regla de conversión SMMLV en el mismo párrafo, entran
+al requisito y sus palabras se exigen como distintivas del objeto del contrato (resultado: NO DETERMINABLE). (2) La regla SMMLV se lee de TODO el texto, no solo del requisito. (3) Restaurar un respaldo
+reemplaza todo, también en la cuenta si hay sesión: la guía manda probar en incógnito. (4) Las sedes de la evaluación leen `Date.now()`: las pruebas lo congelan.
+
+**Hallazgo sin arreglar (decisión del usuario):** una empresa sin ningún código UNSPSC cargado frente a un pliego que los pide sale NO CUMPLE (NO-GO), no NO DETERMINABLE. Ver la nota 1 de la guía.

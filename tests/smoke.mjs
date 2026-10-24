@@ -19,6 +19,7 @@
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
@@ -6715,6 +6716,206 @@ await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabez
   const x = et('MATRIZ 1 – EXPERIENCIA La experiencia a solicitar en el mencionado proyecto se establece de la siguiente manera:');
   assert(x === 'Experiencia (Matriz 1): La experiencia a solicitar en el mencionado proyecto se establece de la siguiente manera:', x);
   assert(et('Haber ejecutado obras de alcantarillado') === 'Experiencia: Haber ejecutado obras de alcantarillado', 'sin encabezado queda igual');
+});
+
+
+// ============================================================================
+// Empresas ficticias para probar el análisis de pliegos (ejemplos/pruebas-pliegos/)
+// ============================================================================
+// Una sola fuente de verdad (escenarios.mjs) alimenta los archivos que carga el usuario y esta prueba, que
+// ejecuta el MOTOR REAL (mismas funciones de index.html + evaluacion.js) y afirma qué resultado sale con cada
+// empresa. Si el motor cambia y la guía deja de decir la verdad, esto falla.
+const Escenarios = await import(pathToFileURL(path.join(ROOT, 'ejemplos', 'pruebas-pliegos', 'escenarios.mjs')).href);
+const HOY_FICT = '2026-10-24';
+const FICT = Escenarios.construir(HOY_FICT);
+
+function motorDePliegos() {
+  const body = extractMainScript();
+  const a = body.indexOf('const REQUISITO_CATEGORIAS = ['), b = body.indexOf('function parseValorUnidad(s){', a);
+  const c = body.indexOf('function analizarTexto(text){'), d = body.indexOf('// Perfiles que entran en la comparación de un pliego', c);
+  assert(a !== -1 && b > a && c !== -1 && d > c, 'anclas de analizarTexto/compararConPerfil');
+  const fn = new Function('extraerExigencias', 'truncate', 'migrarPerfil', body.slice(a, b) + '\n' + body.slice(c, d) + '\nreturn { analizarTexto, compararConPerfil };');
+  return fn(expEngine.extraerExigencias, globalThis.truncate, p => p);
+}
+
+// Contratos tal como los guarda la app al importar el Excel de experiencia de una empresa.
+function contratosDeEmpresa(emp) {
+  if (!emp.contratos.length) return [];
+  const wb = fakeWorkbook(Escenarios.ENCABEZADOS_EXPERIENCIA, Escenarios.filasExperiencia(emp).slice(1));
+  return expEngine.parsearExcelExperiencia(wb).contratos;
+}
+
+// Analiza el pliego como lo hace la app y evalúa a las empresas marcadas. `marcadas`: ids (consorcio = varias).
+function analizarFicticio(numPliego, marcadas, opciones) {
+  // El motor lee el reloj (contratos en ejecución que vencen, ventanas de años): se congela en la fecha de los escenarios
+  // para que la prueba dé lo mismo hoy que dentro de dos años.
+  const relojReal = Date.now;
+  Date.now = () => Date.parse(HOY_FICT + 'T12:00:00Z');
+  try { return analizarFicticioCongelado(numPliego, marcadas, opciones); } finally { Date.now = relojReal; }
+}
+function analizarFicticioCongelado(numPliego, marcadas, opciones) {
+  opciones = opciones || {};
+  const motor = motorDePliegos();
+  const pliego = FICT.pliegos.find(x => x.id === numPliego);
+  const proceso = FICT.procesos.find(x => x.pliego === numPliego);
+  const offsets = []; let texto = '';
+  pliego.paginas.forEach((pg, i) => { texto += (i ? '\n' : '') + pg; offsets.push({ pagina: i + 1, hasta: texto.length }); });
+  const { hallazgos, kResidual, exigencias } = motor.analizarTexto(texto);
+  const perfiles = marcadas.map(id => Object.assign({ _id: id }, FICT.empresas.find(e => e.id === id).perfil));
+  const comps = perfiles.map(p => Object.assign({ perfilId: p._id, perfilNombre: p.nombre }, motor.compararConPerfil(texto, p, hallazgos)));
+  const contratos = [];
+  marcadas.forEach(id => { const e = FICT.empresas.find(x => x.id === id); contratosDeEmpresa(e).forEach(c => contratos.push(Object.assign({}, c, { _perfilId: id, _perfilNombre: e.perfil.nombre }))); });
+  const reqs = expEngine.extraerRequisitosDePliego(texto, offsets, 'Pliego de Condiciones').requisitos;
+  const hoy = new Date(HOY_FICT + 'T12:00:00');
+  const experienciaResultado = contratos.length
+    ? expEngine.evaluarExperienciaCompleta(contratos, reqs, hoy, { presupuesto: proceso.valor, anio: Number(HOY_FICT.slice(0, 4)) })
+    : null;
+  const entry = { id: proceso.id, text: texto, paginaOffsets: offsets, pagesRead: pliego.paginas.length, numPages: pliego.paginas.length,
+    kResidual, exigencias, comps, experienciaResultado, valorProceso: proceso.valor };
+  const item = { id: proceso.id, entidad: proceso.entidad, objeto: proceso.objeto, valor: proceso.valor, estado: 'Abierta' };
+  const profesionales = opciones.sinPersonal ? {} : FICT.profesionales;
+  const res = expEngine.evaluarContraPerfiles(item, { daysLeft: 180 }, entry, { minV: 0, maxV: 0, perfilesProfesionales: profesionales, perfiles: perfiles });
+  return { res, entry, reqs, experienciaResultado };
+}
+
+
+const gateDe = (r, re) => r.res.mejor.gates.find(g => re.test(g.nombre));
+const estados = (r, pares) => pares.forEach(([re, esperado]) => {
+  const g = gateDe(r, re);
+  assert(g && g.estado === esperado, String(re) + ': se esperaba ' + esperado + ' y salió ' + (g ? g.estado + ' (' + g.detalle + ')' : 'sin gate'));
+});
+const ID = n => FICT.empresas.find(e => e.etiqueta === n).id;
+
+await check('Empresas ficticias · Pliego 1: la empresa que cumple todo da GO', () => {
+  const r = analizarFicticio(1, [ID('Andina')]);
+  assert(r.res.mejor.veredicto === 'GO' && r.res.mejor.veredictoGlobal === 'GO', 'veredicto ' + r.res.mejor.veredicto);
+  assert(!r.res.mejor.gates.some(g => g.estado !== 'ok'), 'todos los puntos en verde: ' + r.res.mejor.gates.filter(g => g.estado !== 'ok').map(g => g.nombre + ':' + g.estado));
+});
+
+await check('Empresas ficticias · Pliego 1: cada empresa que falla un punto da NO-GO por ESE punto y solo por ese', () => {
+  const caso = (nombre, fallan) => {
+    const r = analizarFicticio(1, [ID(nombre)]);
+    assert(r.res.mejor.veredicto === 'NO-GO', nombre + ': veredicto ' + r.res.mejor.veredicto);
+    const rojos = r.res.mejor.gates.filter(g => g.estado === 'fail').map(g => g.nombre).sort().join(' | ');
+    assert(rojos === fallan.slice().sort().join(' | '), nombre + ': en rojo ' + rojos);
+  };
+  caso('Frontera', ['Índice de liquidez', 'Índice de endeudamiento', 'Razón de cobertura']);
+  caso('Catatumbo', ['Experiencia']);
+  caso('Pamplona', ['Capacidad K residual']);
+  caso('Sardinata', ['Clasificación UNSPSC']);
+});
+
+await check('Empresas ficticias · Pliego 1: los contratos en ejecución descuentan la K declarada (declara 6.000M, exige 5.000M y aun así NO CUMPLE)', () => {
+  const r = analizarFicticio(1, [ID('Pamplona')]);
+  const k = gateDe(r, /Capacidad K residual/);
+  assert(k.estado === 'fail' && /1\.500\.000\.000/.test(k.detalle), 'debe usar la K disponible de $1.500M (6.000M − 4.500M): ' + k.detalle);
+  estados(r, [[/Capacidad vs valor/, 'revisar'], [/Experiencia/, 'ok']]);
+});
+
+await check('Empresas ficticias · Pliego 1: datos ambiguos o dudosos quedan NO DETERMINABLE y NUNCA producen un CUMPLE inventado (Tibú)', () => {
+  const r = analizarFicticio(1, [ID('Tibú')]);
+  estados(r, [[/endeudamiento/, 'nd'], [/cobertura/, 'nd'], [/Capacidad K residual/, 'nd'], [/Capacidad vs valor/, 'nd'], [/Experiencia/, 'nd'], [/liquidez/, 'ok']]);
+  assert(r.res.mejor.veredicto === 'REVISAR' && r.res.mejor.veredictoGlobal !== 'GO', 'con datos dudosos nunca GO: ' + r.res.mejor.veredicto);
+  assert(/45/.test(gateDe(r, /endeudamiento/).detalle) || /porcentaje|razón/i.test(gateDe(r, /endeudamiento/).detalle), 'explica por qué el endeudamiento «45» no se compara: ' + gateDe(r, /endeudamiento/).detalle);
+});
+
+await check('Empresas ficticias · Pliego 1: Ocaña y Ábrego solas no alcanzan 2 contratos (NO-GO); marcadas juntas como consorcio suman y dan GO', () => {
+  ['Ocaña', 'Ábrego'].forEach(n => {
+    const r = analizarFicticio(1, [ID(n)]);
+    estados(r, [[/Experiencia/, 'fail']]);
+    assert(r.res.mejor.veredicto === 'NO-GO', n + ' sola: ' + r.res.mejor.veredicto);
+  });
+  const juntas = analizarFicticio(1, [ID('Ocaña'), ID('Ábrego')]);
+  assert(juntas.res.porPerfil.length === 2 && juntas.res.porPerfil.every(x => x.veredicto === 'GO'), 'consorcio: ' + juntas.res.porPerfil.map(x => x.veredicto));
+  const ev = juntas.experienciaResultado.resultados[0];
+  assert(ev.resultado === 'CUMPLE' && new Set(ev.contratosQueAcreditan.map(c => c.empresa)).size === 2, 'los 2 contratos que acreditan vienen de empresas distintas');
+});
+
+await check('Empresas ficticias · Pliego 1: sin profesionales registrados el punto de Personal es NO DETERMINABLE y no hay GO', () => {
+  const r = analizarFicticio(1, [ID('Andina')], { sinPersonal: true });
+  estados(r, [[/Personal/, 'nd']]);
+  assert(r.res.mejor.veredicto === 'REVISAR', 'sin personal: ' + r.res.mejor.veredicto);
+});
+
+await check('Empresas ficticias · Pliego 2 (experiencia en SMMLV): convierte con el SMMLV del año de terminación; CUMPLE, NO CUMPLE por valor, por ventana de años y por participación', () => {
+  const exp = n => analizarFicticio(2, [ID(n)]).experienciaResultado.resultados[0];
+  const andina = exp('Andina');
+  assert(andina.resultado === 'CUMPLE' && /1293(\.\d)? SMMLV/.test(andina.justificacion), 'Andina: ' + andina.resultado + ' ' + andina.justificacion);
+  const frontera = exp('Frontera');
+  assert(frontera.resultado === 'NO CUMPLE' && /517(\.\d)? SMMLV/.test(frontera.justificacion), 'Frontera (600M ≈ 517 SMMLV < 900): ' + frontera.resultado + ' ' + frontera.justificacion);
+  const catatumbo = exp('Catatumbo');
+  assert(catatumbo.resultado === 'NO CUMPLE' && /ventana/.test(catatumbo.justificacion), 'Catatumbo (puente de hace 15 años): ' + catatumbo.resultado + ' ' + catatumbo.justificacion);
+  assert(exp('Ocaña').resultado === 'NO CUMPLE', 'Ocaña participó con el 30 %: aporta 900M ≈ 776 SMMLV < 900');
+  assert(exp('Tibú').resultado === 'NO DETERMINABLE', 'Tibú: puente sin fecha de terminación no se puede confirmar');
+  assert(exp('Ábrego').resultado === 'NO DETERMINABLE', 'Ábrego no tiene ningún puente: sin coincidencia por objeto nunca es NO CUMPLE');
+  assert(analizarFicticio(2, [ID('Andina')]).res.mejor.veredicto === 'GO' && analizarFicticio(2, [ID('Frontera')]).res.mejor.veredicto === 'NO-GO', 'vistos en el veredicto');
+});
+
+await check('Empresas ficticias · Pliego 3 (requisitos sin cifras): con datos queda REVISAR; sin datos NO DETERMINABLE, nunca GO ni NO-GO', () => {
+  const con = analizarFicticio(3, [ID('Andina')]).res.mejor;
+  assert(con.veredicto === 'REVISAR' && con.veredictoGlobal === 'REVISAR', 'Andina: ' + con.veredicto + '/' + con.veredictoGlobal);
+  ['Nueva', 'Tibú'].forEach(n => {
+    const m = analizarFicticio(3, [ID(n)]).res.mejor;
+    assert(m.veredictoGlobal === 'NO DETERMINABLE' && !m.gates.some(g => g.estado === 'fail'), n + ': ' + m.veredictoGlobal);
+  });
+  assert(analizarFicticio(2, [ID('Nueva')]).res.mejor.veredictoGlobal === 'NO DETERMINABLE', 'la empresa sin datos frente al Pliego 2 también');
+});
+
+await check('Empresas ficticias: los contratos del respaldo son idénticos a los que produce el importador real de Excel (la guía no se desfasa)', () => {
+  FICT.empresas.filter(e => e.contratos.length).forEach(e => {
+    const real = contratosDeEmpresa(e), mio = Escenarios.contratosParaRespaldo(e);
+    assert(JSON.stringify(real) === JSON.stringify(mio), e.etiqueta + ': el importador devuelve ' + JSON.stringify(real[0]) + ' y el respaldo ' + JSON.stringify(mio[0]));
+  });
+});
+
+await check('Empresas ficticias: el respaldo pasa la validación de la app, todos sus valores son texto y trae procesos, empresas y experiencia', () => {
+  const claves = Escenarios.clavesRespaldo(FICT);
+  const resp = expEngine.armarRespaldo(claves, '2026-10-24T00:00:00Z');
+  const permitidas = ['historial', 'perfiles_empresa', 'perfil_activo_id', 'perfiles_activos', 'analisis_pliegos', 'experiencia_evaluacion', 'perfiles_profesionales', 'personal_activo_id', 'alertas_guardadas', 'correo_digest_activo', 'schema_version'];
+  const v = expEngine.validarRespaldo(JSON.stringify(resp), permitidas);
+  assert(v.ok && v.ignoradas.length === 0, 'validación: ' + JSON.stringify(v));
+  assert(Object.keys(JSON.parse(v.claves.perfiles_empresa)).length === 9 && Object.keys(JSON.parse(v.claves.historial)).length === 3, 'empresas y procesos');
+  const exp = JSON.parse(v.claves.experiencia_evaluacion).porPerfil;
+  assert(Object.keys(exp).length === 8 && Array.isArray(exp[ID('Andina')].contratos.contratos) && Array.isArray(exp[ID('Andina')].contratos.headers), 'experiencia por empresa con la forma que exige loadExpEval');
+  assert(Escenarios.clavesRespaldo(FICT, { sinPersonal: true }).perfiles_profesionales === '{}', 'la variante sin personal vacía los profesionales');
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const m = html.match(/SYNCED_KEYS\s*=\s*\[([^\]]+)\]/);
+  assert(m, 'no se encontró SYNCED_KEYS');
+  Object.keys(claves).forEach(k => assert(m[1].includes("'" + k + "'"), 'la clave «' + k + '» no es de las que la app restaura'));
+});
+
+await check('Empresas ficticias: los 3 pliegos PDF generados traen el mismo texto que usa la prueba (no hay desfase entre archivo y guía)', () => {
+  FICT.pliegos.forEach(p => {
+    const f = path.join(ROOT, 'ejemplos', 'pruebas-pliegos', p.archivo);
+    assert(existsSync(f), 'falta ' + p.archivo + ': corre node ejemplos/pruebas-pliegos/generar.mjs');
+    let txt;
+    try { txt = execFileSync('pdftotext', ['-layout', f, '-'], { encoding: 'utf8' }).replace(/\s+/g, ' '); }
+    catch (e) { if (e && e.code === 'ENOENT') return; throw e; } // sin poppler-utils no se puede leer el PDF: solo se comprueba que exista
+    const frases = p.paginas.map(pg => pg.split('.')[0].replace(/\s+/g, ' ').trim());
+    frases.forEach(fr => assert(txt.includes(fr.slice(0, 60)), p.archivo + ' no contiene «' + fr.slice(0, 60) + '»'));
+  });
+});
+
+await check('Empresas ficticias: el Formato Maestro ficticio se reconoce, se importa por empresa y manda los contratos en ejecución a Capacidad Residual', () => {
+  const f = path.join(ROOT, 'ejemplos', 'pruebas-pliegos', 'Formato_Maestro_ficticio.xlsx');
+  assert(existsSync(f), 'falta Formato_Maestro_ficticio.xlsx: corre node ejemplos/pruebas-pliegos/generar.mjs');
+  const XLSXreal = createRequire(import.meta.url)(path.join(ROOT, 'vendor', 'xlsx-0.20.3.full.min.js'));
+  const wb = XLSXreal.read(readFileSync(f), { type: 'buffer', cellDates: false });
+  assert(FormatoMaestro.esFormatoMaestro(wb.SheetNames), 'hojas: ' + wb.SheetNames);
+  const hojas = {};
+  wb.SheetNames.forEach(n => { hojas[n] = XLSXreal.utils.sheet_to_json(wb.Sheets[n], { defval: '' }); });
+  const datos = FormatoMaestro.leer(hojas);
+  assert(!datos.errores.length && datos.sujetos.length === 9, 'errores ' + datos.errores);
+  const sid = nombre => datos.sujetos.find(s => FICT.empresas.find(e => e.etiqueta === nombre).perfil.nombre.includes(s.nombre)).id;
+  const andina = FormatoMaestro.importar(datos, { sujetoId: sid('Andina') });
+  assert(andina.contratos.length === 3 && andina.enEjecucion.length === 0 && andina.contratos.every(c => !c.enEjecucion), 'Andina: 3 contratos terminados, ' + andina.contratos.length);
+  const pamplona = FormatoMaestro.importar(datos, { sujetoId: sid('Pamplona') });
+  assert(pamplona.contratos.filter(c => !c.enEjecucion).length === 2 && pamplona.enEjecucion.length === 2 && pamplona.enEjecucion.every(c => c.estado === 'en_ejecucion'), 'Pamplona: 2 terminados y 2 en ejecución → Capacidad Residual');
+  const tibu = FormatoMaestro.importar(datos, { sujetoId: sid('Tibú') });
+  const vigente = tibu.contratos.find(c => c.numeroContrato === 'T-003');
+  assert(vigente && vigente.estadoDesconocido === true && vigente.enEjecucion === true && !tibu.enEjecucion.length && tibu.avisos.some(a => /estado vacío o sin reconocer/.test(a)), 'el contrato en estado «Vigente» no acredita, no pasa a Capacidad Residual y se avisa: ' + JSON.stringify(tibu.avisos));
+  const ocana = FormatoMaestro.importar(datos, { sujetoId: sid('Ocaña') });
+  assert(ocana.contratos.some(c => c.numeroContrato === 'K-001' && (c.valor == null)), 'consorcio sin porcentaje entra sin valor');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
