@@ -70,3 +70,7 @@ solo cambios de color, borde, sombra y opacidad.
 `[hidden]` pierde contra un `display` de autor; un grid sin `minmax(0,1fr)` o un `nowrap` ensanchan la página; `overflow-wrap:anywhere`
 en textos de SECOP; sin `text-transform` en clases con texto dinámico; tras un cambio de tema buscar variables CSS huérfanas y fuentes
 viejas dentro de los strings de JS. Cada ítem nuevo de navegación obliga a volver a medir el menú en celular.
+
+## Landing (`landing.html`, 2026-10-24)
+
+Misma identidad que la app: pizarra `#16212E`, amarillo señal `#F2B705` solo en acción, Inter + Archivo 900, píldoras. Portada oscura con la tarjeta de resultado real y el panel de evidencia encima (el diferencial: cada resultado cita su página); bandas alternas (claro, oscuro, claro); los cuatro resultados con nombre y símbolo; teléfonos con capturas reales del celular. Sin degradados decorativos, sin animación (solo transiciones de botón; respeta «reducir movimiento»). Imágenes WebP con `width`/`height` y `alt` descriptivo, diferidas salvo la portada.

@@ -16,7 +16,7 @@
 // Uso: node tests/smoke.mjs
 // ============================================================================
 
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -6428,6 +6428,63 @@ await check('Análisis guardados antes: quitarCamposDeIA descarta los campos de 
   const porReglas = { id: 'b', text: 'x', exigencias: {}, experienciaResultado: { resultadoGlobal: 'CUMPLE' } };
   assert(quitar(porReglas) === false && porReglas.experienciaResultado.resultadoGlobal === 'CUMPLE' && !('iaRetirada' in porReglas), 'un análisis por reglas no se toca (incluida su evaluación de experiencia)');
   assert(quitar(null) === false && quitar('x') === false, 'entradas raras no rompen');
+});
+
+// ---- Landing (landing.html): página de presentación aparte de la app ----
+const LANDING_PATH = path.join(ROOT, 'landing.html');
+const textoVisibleLanding = () => readFileSync(LANDING_PATH, 'utf8')
+  .replace(/<!--[\s\S]*?-->/g, '').replace(/<(style|script)[\s\S]*?<\/\1>/g, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+await check('Landing: existe, pages.yml la publica con sus imágenes y el sitemap la lista', () => {
+  assert(existsSync(LANDING_PATH), 'falta landing.html');
+  const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
+  assert(/cp index\.html [^\n]*\blanding\.html\b/.test(yml), 'pages.yml debe copiar landing.html al sitio publicado');
+  assert(/landing\/(\.|\*)/.test(yml) || /cp -r landing/.test(yml), 'pages.yml debe copiar la carpeta landing/ (imágenes) al sitio publicado');
+  assert(/<loc>https:\/\/nerodante85\.github\.io\/Bitacorasecop\/landing\.html<\/loc>/.test(readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8')), 'sitemap.xml debe listar la landing');
+});
+await check('Landing: un solo h1, botón principal hacia la app, enlace a privacidad, CSP sin scripts y sin recursos externos salvo Google Fonts', () => {
+  const html = readFileSync(LANDING_PATH, 'utf8');
+  assert((html.match(/<h1[\s>]/g) || []).length === 1, 'debe haber un único h1');
+  assert(/<html lang="es">/.test(html) && /<title>[^<]{10,}<\/title>/.test(html) && /<meta name="description" content="[^"]{60,}"/.test(html), 'lang, title y description');
+  assert(/<a class="btn btn-primario"[^>]*href="index\.html"[^>]*>Abrir la app<\/a>/.test(html), 'el botón principal «Abrir la app» lleva a index.html');
+  assert(/href="privacidad\.html"/.test(html), 'enlace a la política de datos');
+  const csp = (html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/) || [])[1] || '';
+  assert(/default-src 'none'/.test(csp) && !/script-src/.test(csp) && /img-src 'self' data:/.test(csp) && !/connect-src/.test(csp), 'CSP cerrada: solo estilos de Google Fonts e imágenes propias: ' + csp);
+  assert(!/<script(?![^>]*application\/ld\+json)[^>]*>/.test(html), 'la landing no ejecuta scripts (solo JSON-LD)');
+  const externos = [...html.matchAll(/(?:src|href)="(https?:\/\/[^"]+)"/g)].map(m => m[1]).filter(u => !/^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|nerodante85\.github\.io)/.test(u));
+  assert(externos.length === 0, 'recursos externos no permitidos: ' + externos.join(', '));
+  assert(/Inter/.test(html) && /Archivo/.test(html) && !/family=Barlow|family=IBM/.test(html), 'tipografías de la app (Inter + Archivo)');
+});
+await check('Landing: cada imagen existe, tiene texto alternativo y tamaño declarado, y todas pesan menos de 1,2 MB en total', () => {
+  const html = readFileSync(LANDING_PATH, 'utf8');
+  const imgs = [...html.matchAll(/<img\b[^>]*>/g)].map(m => m[0]);
+  assert(imgs.length >= 10, 'esperaba las capturas de la app: ' + imgs.length);
+  let peso = 0;
+  imgs.forEach(tag => {
+    const src = (tag.match(/src="([^"]+)"/) || [])[1];
+    assert(src && !/^https?:/.test(src), 'imagen local: ' + tag.slice(0, 80));
+    assert(existsSync(path.join(ROOT, src)), 'no existe ' + src);
+    assert(/alt="[^"]{12,}"/.test(tag), 'alt descriptivo en ' + src);
+    assert(/width="\d+"/.test(tag) && /height="\d+"/.test(tag), 'width y height en ' + src);
+    peso += statSync(path.join(ROOT, src)).size;
+  });
+  assert(peso < 1.2e6, 'peso de las imágenes: ' + Math.round(peso / 1024) + ' KB');
+  assert(existsSync(path.join(ROOT, 'landing/img/og.png')) && /property="og:image" content="https:\/\/nerodante85\.github\.io\/Bitacorasecop\/landing\/img\/og\.png"/.test(html), 'imagen para compartir en redes');
+});
+await check('Landing: no inventa precios, clientes, testimonios ni cifras de adopción (PRODUCT.md)', () => {
+  const t = textoVisibleLanding();
+  [/gratis|gratuit/i, /precio|tarifa|suscripci/i, /testimoni/i, /\bclientes\b/i, /\d+\s?%/, /m[aá]s de \d+/i, /\$\s?\d/, /garantizad/i, /100 ?% /].forEach(re =>
+    assert(!re.test(t), 'la landing dice algo no respaldado: ' + re));
+  assert(/ficticios/.test(t), 'las capturas deben avisar que usan una empresa y un proceso de ejemplo');
+  assert(/No determinable/i.test(t) && /Garantías/.test(t) && /no se comparan con tu empresa/.test(t), 'dice lo que NO hace (garantías sin comparar) y la regla de «no determinable»');
+});
+await check('Landing: la paleta cumple AA (texto atenuado sobre pizarra, texto sobre amarillo, sellos de estado) y usa los mismos colores de la app', () => {
+  const css = readFileSync(LANDING_PATH, 'utf8').match(/:root\s*\{([^}]*)\}/)[1];
+  const T = {}; [...css.matchAll(/--([a-z0-9-]+):\s*(#[0-9A-Fa-f]{6})/g)].forEach(m => T[m[1]] = m[2]);
+  const app = tokenesCss(readFileSync(HTML_PATH, 'utf8'));
+  assert(T['navy-900'].toLowerCase() === app['navy-900'].toLowerCase() && T.yellow.toLowerCase() === app.lime.toLowerCase(), 'pizarra y amarillo iguales a los de la app');
+  [['on-navy-mute', 'navy-900'], ['on-navy-mute', 'navy-950'], ['on-navy', 'navy-900'], ['yellow-ink', 'yellow'], ['yellow', 'navy-900'], ['ink', 'canvas'], ['ink-mute', 'canvas'], ['ink-mute', 'paper'], ['ink-faint', 'canvas'], ['warning', 'canvas'],
+    ['success', 'success-bg'], ['warning', 'warning-bg'], ['danger', 'danger-bg'], ['neutral', 'neutral-bg']].forEach(([a, b]) =>
+    assert(contraste(T[a], T[b]) >= 4.5, a + ' sobre ' + b + ': ' + contraste(T[a], T[b]).toFixed(2)));
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

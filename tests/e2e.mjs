@@ -1053,6 +1053,42 @@ await check('Formato Maestro: se detecta al cargar el libro, sugiere el sujeto p
   await ctx.close();
 });
 
+// ---- Landing (landing.html) ----
+await check('Landing: abre sin desborde a 1280 y 375 px, carga todas sus imágenes, los botones miden 44 px, el índice por teclado funciona y «Abrir la app» lleva a la app', async () => {
+  for (const [ancho, tactil] of [[1280, false], [375, true]]) {
+    const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 }, hasTouch: tactil });
+    await ctx.route('**/*', ruta => ruta.request().url().startsWith(BASE) ? ruta.continue() : ruta.abort());
+    const pg = await ctx.newPage(); pg.errores = [];
+    pg.on('pageerror', e => pg.errores.push(e.message));
+    await pg.goto(BASE + '/landing.html');
+    await pg.evaluate(() => { document.querySelectorAll('img[loading=lazy]').forEach(i => { i.loading = 'eager'; }); }); // fuerza la carga de las diferidas: se comprueba que existen y se decodifican
+    await pg.waitForFunction(() => [...document.images].every(i => i.complete && i.naturalWidth > 0), null, { timeout: 8000 }).catch(() => {});
+    const r = await pg.evaluate(() => ({
+      h1: document.querySelectorAll('h1').length,
+      desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      sinCargar: [...document.images].filter(i => !i.complete || !i.naturalWidth).length, nombres: [...document.images].filter(i => !i.complete || !i.naturalWidth).map(i => i.src.split('/').pop() + ':' + i.loading).join(','),
+      imagenes: document.images.length,
+      botones: [...document.querySelectorAll('a.btn')].filter(b => b.getBoundingClientRect().width > 0).map(b => Math.round(b.getBoundingClientRect().height)),
+      preguntas: document.querySelectorAll('.faq details').length,
+    }));
+    assert(r.h1 === 1 && r.imagenes >= 10, 'h1 e imágenes a ' + ancho + ': ' + JSON.stringify(r));
+    assert(r.desborde <= 0, 'desborde horizontal a ' + ancho + ' px: ' + r.desborde);
+    assert(r.sinCargar === 0, 'imágenes sin cargar a ' + ancho + ' px: ' + r.sinCargar + ' ' + r.nombres);
+    assert(r.botones.length >= 2 && r.botones.every(h => h >= 44), 'botones de 44 px a ' + ancho + ': ' + r.botones.join(','));
+    assert(r.preguntas >= 5, 'preguntas frecuentes');
+    // una pregunta se abre con el teclado
+    await pg.focus('.faq summary'); await pg.keyboard.press('Enter');
+    assert(await pg.evaluate(() => document.querySelector('.faq details').open), 'la pregunta se abre con Enter');
+    assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+    if (ancho === 1280) {
+      await pg.click('.portada a.btn-primario');
+      await pg.waitForFunction(() => !!document.getElementById('bitacora-root'), null, { timeout: 15000 });
+      assert(/\/index\.html$/.test(new URL(pg.url()).pathname), 'el botón principal debe abrir la app: ' + pg.url());
+    }
+    await ctx.close();
+  }
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');
