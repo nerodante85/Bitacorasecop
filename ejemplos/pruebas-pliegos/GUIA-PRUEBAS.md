@@ -38,9 +38,9 @@ Exige: liquidez ≥ 1,5 · endeudamiento ≤ 0,60 · cobertura ≥ 2,0 · K resi
 | 07 Ocaña (sola) | 1 contrato de vías | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | **NO-GO** |
 | 08 Ábrego (sola) | 1 contrato de vías | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | **NO-GO** |
 | **07 + 08 marcadas juntas** | Consorcio: se suman sus contratos (2) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | **GO** |
-| 09 Nueva | Empresa sin ningún dato cargado | ? | ? | ? | ? | ? | ✗ (ver nota 1) | ? | ✓ | NO-GO por la nota 1 |
+| 09 Nueva | Empresa sin ningún dato cargado | ? | ? | ? | ? | ? | ? (sin RUP cargado) | ? | ✓ (ver nota) | **REVISAR** (nada falla; falta cargar sus datos) |
 
-**Personal.** Los profesionales se cargan aparte de las empresas (son del equipo, no de cada empresa). Para ver el punto de Personal en «?», restaura `respaldo-sin-personal.json`: Andina pasa de GO a **REVISAR**.
+**Personal.** El punto sale «cumple» aunque la empresa 09 no tenga datos, porque el equipo de trabajo es global (no pertenece a ninguna empresa). Los profesionales se cargan aparte de las empresas (son del equipo, no de cada empresa). Para ver el punto de Personal en «?», restaura `respaldo-sin-personal.json`: Andina pasa de GO a **REVISAR**.
 
 ## Pliego 2 · Puente vehicular, experiencia en SMMLV (valor $4.000 M)
 
@@ -86,7 +86,7 @@ El respaldo ya trae la experiencia cargada. Para probar los **importadores reale
 
 ## Notas sobre el comportamiento del motor (para que decidas)
 
-1. **Nota 1 · Empresa sin RUP cargado.** Si el pliego pide un código UNSPSC y la empresa no tiene **ningún** código cargado, hoy sale **NO CUMPLE** («tu RUP no cubre ninguno») y el veredicto es NO-GO. Con tu criterio de «ante la duda, NO DETERMINABLE», lo coherente sería «no determinable: falta cargar el RUP». No lo cambié: es una decisión tuya.
+1. **Empresa sin RUP cargado (ajustado).** Si el pliego pide un código UNSPSC y la empresa no tiene **ningún** código cargado, el punto sale **NO DETERMINABLE** («cárgalos desde el RUP»), no NO CUMPLE. Una empresa con códigos de OTRA actividad (Sardinata) sí sale NO CUMPLE.
 2. **El texto del requisito importa.** Un requisito escrito «contratos *ejecutados y terminados* de construcción de vías…» deja la experiencia en NO DETERMINABLE, porque «ejecutados» y «terminados» se exigen como palabras del objeto del contrato. Es conservador (no da CUMPLE de más), pero puede parecer rígido.
 3. **Personal nunca da NO CUMPLE**: solo «cumple» o «por verificar», y basta una palabra en común entre el requisito y el perfil del profesional.
 4. **La experiencia no se recalcula sola** al cambiar de empresa después de procesar el pliego: por eso hay que subir el PDF otra vez (paso 6).

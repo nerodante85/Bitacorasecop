@@ -6664,4 +6664,4 @@ navegador real (Chromium + pdf.js 3.11.174 local), restaurando el respaldo y sub
 al requisito y sus palabras se exigen como distintivas del objeto del contrato (resultado: NO DETERMINABLE). (2) La regla SMMLV se lee de TODO el texto, no solo del requisito. (3) Restaurar un respaldo
 reemplaza todo, también en la cuenta si hay sesión: la guía manda probar en incógnito. (4) Las sedes de la evaluación leen `Date.now()`: las pruebas lo congelan.
 
-**Hallazgo sin arreglar (decisión del usuario):** una empresa sin ningún código UNSPSC cargado frente a un pliego que los pide sale NO CUMPLE (NO-GO), no NO DETERMINABLE. Ver la nota 1 de la guía.
+**Ajuste posterior (a pedido del usuario):** el gate «Clasificación UNSPSC» (`evaluacion.js`) da NO DETERMINABLE, no NO CUMPLE, cuando la empresa no tiene ningún código cargado (`matriz.codigos` sin códigos de 6+ dígitos). Con códigos de otra actividad sigue siendo NO CUMPLE. Prueba nueva «Empresas ficticias · … SIN ningún código UNSPSC».

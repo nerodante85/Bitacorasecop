@@ -6831,6 +6831,14 @@ await check('Empresas ficticias · Pliego 1: Ocaña y Ábrego solas no alcanzan 
   assert(ev.resultado === 'CUMPLE' && new Set(ev.contratosQueAcreditan.map(c => c.empresa)).size === 2, 'los 2 contratos que acreditan vienen de empresas distintas');
 });
 
+await check('Empresas ficticias · Pliego 1: una empresa SIN ningún código UNSPSC cargado queda NO DETERMINABLE (falta cargar el RUP), no NO CUMPLE; con códigos de otra actividad sigue siendo NO CUMPLE', () => {
+  const nueva = analizarFicticio(1, [ID('Nueva')]);
+  const g = gateDe(nueva, /UNSPSC/);
+  assert(g && g.estado === 'nd' && /no tiene códigos/i.test(g.detalle), 'sin RUP cargado: ' + JSON.stringify(g));
+  assert(nueva.res.mejor.veredicto === 'REVISAR' && !nueva.res.mejor.gates.some(x => x.estado === 'fail'), 'sin datos nada falla (REVISAR, no NO-GO): ' + nueva.res.mejor.veredicto + '/' + nueva.res.mejor.veredictoGlobal);
+  estados(analizarFicticio(1, [ID('Sardinata')]), [[/UNSPSC/, 'fail']]);
+});
+
 await check('Empresas ficticias · Pliego 1: sin profesionales registrados el punto de Personal es NO DETERMINABLE y no hay GO', () => {
   const r = analizarFicticio(1, [ID('Andina')], { sinPersonal: true });
   estados(r, [[/Personal/, 'nd']]);
