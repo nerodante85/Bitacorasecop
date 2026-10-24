@@ -5831,12 +5831,11 @@ await check('Documentos: el inventario dice qué hay cargado sin inventar (RUP/R
   const inv = inventario(
     { a: { nombre: 'Constructora A', rup: '72101507', k: '', kResidual: '', nit: '' }, b: { nombre: '', rup: '', k: '', kResidual: '', nit: '900.1-2' } },
     { a: { contratos: { contratos: [{}, {}, {}] }, meta: { expFile: 'experiencia.xlsx', omitidos: { total: 1 } } } },
-    { p1: { nombre: 'Ana', cargo: 'Directora', formacion: 'Ing. civil', anos: '10 años' }, p2: { nombre: 'Luis', cargo: '', formacion: '', anos: '' } },
     { x1: { fileName: 'pliego.pdf', pagesRead: 15, numPages: 76, ts: 5, proceso: { objeto: 'Pavimentación', entidad: 'Alcaldía' } }, x2: { fileName: 'otro.pdf', pagesRead: 10, numPages: 10, ts: 9, textoLiberado: true } });
   assert(inv.empresa.length === 2 && inv.empresa[0].rup === true && inv.empresa[0].rut === false, 'empresa A: RUP sí, RUT no');
   assert(inv.empresa[1].nombre === 'Empresa sin nombre' && inv.empresa[1].rup === false && inv.empresa[1].rut === true, 'empresa B: sin nombre, RUT sí, RUP no (sin inventar)');
   assert(inv.experiencia.length === 1 && inv.experiencia[0].archivo === 'experiencia.xlsx' && inv.experiencia[0].contratos === 3, 'experiencia con archivo y número de contratos');
-  assert(inv.personal[0].completo === true && inv.personal[1].completo === false && inv.personal[1].cargo === null, 'personal completo / incompleto');
+  assert(!('personal' in inv), 'Documentos ya no lista la tarjeta de Personal');
   assert(inv.procesos[0].id === 'x2' && inv.procesos[0].parcial === false && inv.procesos[0].textoLiberado === true, 'más reciente primero; lectura completa; texto liberado se avisa');
   assert(inv.procesos[1].parcial === true && inv.procesos[1].paginasLeidas === 15 && inv.procesos[1].paginas === 76 && inv.procesos[1].titulo === 'Pavimentación', 'una lectura de 15 de 76 páginas se marca parcial');
 });
