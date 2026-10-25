@@ -1,12 +1,13 @@
 # Prototipos de rediseño
 
-Tres maquetas estáticas (HTML + CSS, datos ficticios) de la misma página con cuatro secciones: Inicio/Buscar con tarjeta de proceso, Mis procesos, Análisis (GO) y Empresa/pie. **No tocan `index.html` ni el sitio publicado**; la carpeta no está en `pages.yml`.
+Dos maquetas estáticas (A y C; la B «Páramo» se descartó y se retiró) (HTML + CSS, datos ficticios) de la misma página con cuatro secciones: Inicio/Buscar con tarjeta de proceso, Mis procesos, Análisis (GO) y Empresa/pie. **No tocan `index.html` ni el sitio publicado**; la carpeta no está en `pages.yml`.
 
 | | Referencia | Color | Tipografía | Rasgo memorable |
 |---|---|---|---|---|
 | A · Obra | Imagen 1 | Pizarra `#16212E`, amarillo `#F2B705` | Barlow Condensed (títulos) + Barlow (texto) | Placa amarilla «N días para el cierre»; botones y tarjetas casi rectos |
-| B · Páramo | Imagen 2 | Bosque `#22382A`, papel `#F4F1E8`, musgo `#4F6B49` | Newsreader + Instrument Sans | Curvas de nivel (SVG) |
 | C · Plano | Mezcla | Pizarra `#1D2B36`, amarillo `#F2B705` | IBM Plex Sans Condensed (títulos) + IBM Plex Sans (texto) | Cuantía acotada con línea de cota y flechas |
+
+**Qué se adoptó (2026-10-24):** de la maqueta A solo la **paleta** (pizarra y amarillo), sobre la forma de siempre de la app (Inter + Archivo, píldoras). Las tipografías y formas de A y C quedaron como referencia.
 
 Los estados (Cumple / No cumple / Revisar / No determinable) conservan los colores y glifos actuales de la app.
 
