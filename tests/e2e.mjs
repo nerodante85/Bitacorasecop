@@ -1089,6 +1089,18 @@ await check('Landing: abre sin desborde a 1280 y 375 px, carga todas sus imágen
   }
 });
 
+await check('Landing: «Configuración y ayuda» trae el enlace «Qué es Bitácora SECOP» y lleva a la landing', async () => {
+  const { ctx, pg } = await abrir();
+  await pg.click('#bt-nav-ajustes');
+  const enlace = pg.locator('#view-ajustes a[href="landing.html"]');
+  assert(await enlace.count() === 1 && await enlace.isVisible(), 'el enlace se ve en Configuración y ayuda');
+  assert(await sinDesborde(pg) <= 0, 'sin desborde');
+  await Promise.all([pg.waitForURL(/\/landing\.html$/), enlace.click()]);
+  assert(await pg.locator('h1').count() === 1 && /licitaciones de obra/.test(await pg.locator('h1').innerText()), 'abre la landing');
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
 await navegador.close();
 servidor.close();
 console.log('\n' + ok + ' ok, ' + fallos + ' fallo(s).');

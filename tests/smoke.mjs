@@ -6477,6 +6477,14 @@ await check('Landing: no inventa precios, clientes, testimonios ni cifras de ado
   assert(/ficticios/.test(t), 'las capturas deben avisar que usan una empresa y un proceso de ejemplo');
   assert(/No determinable/i.test(t) && /Garantías/.test(t) && /no se comparan con tu empresa/.test(t), 'dice lo que NO hace (garantías sin comparar) y la regla de «no determinable»');
 });
+await check('Landing: la app enlaza a ella desde «Configuración y ayuda» (mismo sitio, sin pestaña nueva) y la landing sigue apuntando a la app', () => {
+  const html = readFileSync(HTML_PATH, 'utf8');
+  const ajustes = html.slice(html.indexOf('id="view-ajustes"'), html.indexOf('</section>', html.indexOf('id="view-ajustes"')));
+  const m = ajustes.match(/<a href="landing\.html"([^>]*)>([^<]+)<\/a>/);
+  assert(m, 'falta el enlace a landing.html dentro de «Configuración y ayuda»');
+  assert(!/target=/.test(m[1]), 'el enlace a la landing se abre en la misma pestaña');
+  assert(/Qué es Bitácora SECOP/.test(m[2]), 'el texto del enlace dice qué es: ' + m[2]);
+});
 await check('Landing: la paleta cumple AA (texto atenuado sobre pizarra, texto sobre amarillo, sellos de estado) y usa los mismos colores de la app', () => {
   const css = readFileSync(LANDING_PATH, 'utf8').match(/:root\s*\{([^}]*)\}/)[1];
   const T = {}; [...css.matchAll(/--([a-z0-9-]+):\s*(#[0-9A-Fa-f]{6})/g)].forEach(m => T[m[1]] = m[2]);
