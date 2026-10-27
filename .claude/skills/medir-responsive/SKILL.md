@@ -10,7 +10,7 @@ Varios bugs reales de esta app (barra de navegación móvil, textos largos de SE
 
 ## Proceso
 
-1. **Servidor**: `python3 -m http.server 8123` desde la raíz del repo y abre `http://localhost:8123/index.html`. Si usas el navegador embebido, fija el tamaño exacto (ancho y alto): un preset puede no bajar de ~800 px reales.
+1. **Servidor**: `python3 -m http.server 8123` desde la raíz del repo y abre `http://localhost:8123/app.html`. Si usas el navegador embebido, fija el tamaño exacto (ancho y alto): un preset puede no bajar de ~800 px reales.
 2. **Datos**: carga los datos de ejemplo en "Buscar procesos" y desmarca "Solo publicados hace ≤30 días" para que haya tarjetas. Con datos reales de SECOP pueden aparecer cadenas largas sin espacios que los de ejemplo no tienen: prueba también una búsqueda en vivo si hay red.
 3. **Medir por cada ancho (375, 768, 1280) y cada vista**:
    ```js

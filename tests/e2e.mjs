@@ -76,7 +76,7 @@ async function abrir({ viewport = { width: 1280, height: 900 }, sembrar = {}, ha
   pg.errores = [];
   pg.on('pageerror', e => pg.errores.push(e.message));
   pg.on('dialog', d => d.accept());
-  await pg.goto(BASE + '/index.html');
+  await pg.goto(BASE + '/app.html');
   // La app consulta SECOP (abortado), cae al snapshot y dibuja la lista.
   await pg.waitForFunction(() => document.querySelectorAll('#bt-results .row').length > 0, null, { timeout: 20000 });
   return { ctx, pg };
@@ -1053,14 +1053,14 @@ await check('Formato Maestro: se detecta al cargar el libro, sugiere el sujeto p
   await ctx.close();
 });
 
-// ---- Landing (landing.html) ----
+// ---- Landing (index.html, la dirección principal del sitio) ----
 await check('Landing: abre sin desborde a 1280 y 375 px, carga todas sus imágenes, los botones miden 44 px, el índice por teclado funciona y «Abrir la app» lleva a la app', async () => {
   for (const [ancho, tactil] of [[1280, false], [375, true]]) {
     const ctx = await navegador.newContext({ viewport: { width: ancho, height: 900 }, hasTouch: tactil });
     await ctx.route('**/*', ruta => ruta.request().url().startsWith(BASE) ? ruta.continue() : ruta.abort());
     const pg = await ctx.newPage(); pg.errores = [];
     pg.on('pageerror', e => pg.errores.push(e.message));
-    await pg.goto(BASE + '/landing.html');
+    await pg.goto(BASE + '/');
     await pg.evaluate(() => { document.querySelectorAll('img[loading=lazy]').forEach(i => { i.loading = 'eager'; }); }); // fuerza la carga de las diferidas: se comprueba que existen y se decodifican
     await pg.waitForFunction(() => [...document.images].every(i => i.complete && i.naturalWidth > 0), null, { timeout: 8000 }).catch(() => {});
     const r = await pg.evaluate(() => ({
@@ -1083,7 +1083,7 @@ await check('Landing: abre sin desborde a 1280 y 375 px, carga todas sus imágen
     if (ancho === 1280) {
       await pg.click('.portada a.btn-primario');
       await pg.waitForFunction(() => !!document.getElementById('bitacora-root'), null, { timeout: 15000 });
-      assert(/\/index\.html$/.test(new URL(pg.url()).pathname), 'el botón principal debe abrir la app: ' + pg.url());
+      assert(/\/app\.html$/.test(new URL(pg.url()).pathname), 'el botón principal debe abrir la app: ' + pg.url());
     }
     await ctx.close();
   }

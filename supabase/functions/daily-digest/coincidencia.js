@@ -1,5 +1,5 @@
 // Reglas compartidas de "¿este proceso coincide con mi búsqueda o alerta?": las usan el navegador
-// (index.html) y la función diaria (supabase/functions/daily-digest). Un solo origen: este archivo.
+// (app.html) y la función diaria (supabase/functions/daily-digest). Un solo origen: este archivo.
 // daily-digest necesita su propia copia dentro de su carpeta (la CLI de Supabase solo empaqueta lo
 // que está bajo la carpeta de la función); una prueba de tests/smoke.mjs falla si las dos difieren
 // -- para actualizarla: cp coincidencia.js supabase/functions/daily-digest/

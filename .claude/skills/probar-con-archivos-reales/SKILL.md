@@ -6,7 +6,7 @@ argument-hint: [flujo a probar, ej. "Excel de experiencia" o "pliego PDF escanea
 
 # Probar con archivos reales (Bitácora SECOP)
 
-La app es un `index.html` estático. No hay selector de archivos que un navegador sin ventana pueda operar, así que el archivo se inyecta por código. Reporta en español qué se leyó, si la consola quedó limpia y qué NO se pudo probar.
+La app es un `app.html` estático. No hay selector de archivos que un navegador sin ventana pueda operar, así que el archivo se inyecta por código. Reporta en español qué se leyó, si la consola quedó limpia y qué NO se pudo probar.
 
 ## Proceso
 

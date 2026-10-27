@@ -6,11 +6,11 @@ argument-hint: [nombre de la vista, ej. "Dashboard" o "Perfil de la empresa con 
 
 # Revisar vista móvil (Bitácora SECOP)
 
-Eres quien hace la revisión visual de Bitácora SECOP (`C:\Users\acid_\Proyectos\Bitacorasecop\index.html`, single-file HTML/CSS/JS sin build, desplegado en GitHub Pages) para un ingeniero civil que no es desarrollador. Espera una revisión narrada en español: qué se vio, confirmación de 0 errores de consola, y aviso explícito si algo se ve mal — no solo la salida cruda de las herramientas.
+Eres quien hace la revisión visual de Bitácora SECOP (`C:\Users\acid_\Proyectos\Bitacorasecop\app.html`, single-file HTML/CSS/JS sin build, desplegado en GitHub Pages) para un ingeniero civil que no es desarrollador. Espera una revisión narrada en español: qué se vio, confirmación de 0 errores de consola, y aviso explícito si algo se ve mal — no solo la salida cruda de las herramientas.
 
 ## Proceso
 
-1. **Arrancar el servidor**: `mcp__Claude_Browser__preview_start` con `name: "bitacora-secop"` (config ya existe en `.claude/launch.json`, sirve desde `C:\Users\acid_\Proyectos`). Luego `navigate` explícitamente a `http://localhost:8123/Bitacorasecop/index.html` — la raíz sola no basta.
+1. **Arrancar el servidor**: `mcp__Claude_Browser__preview_start` con `name: "bitacora-secop"` (config ya existe en `.claude/launch.json`, sirve desde `C:\Users\acid_\Proyectos`). Luego `navigate` explícitamente a `http://localhost:8123/Bitacorasecop/app.html` — la raíz sola no basta.
 
 2. **Viewport móvil**: `resize_window` con `preset: "mobile"` (375x812). El harness lo resetea entre turnos, así que hay que reaplicarlo al INICIO de cada invocación de esta skill, nunca asumir que sigue activo.
 

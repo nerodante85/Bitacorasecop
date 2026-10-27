@@ -1,6 +1,6 @@
 # Prototipos de rediseño
 
-Tres maquetas estáticas (HTML + CSS, datos ficticios) de la misma página con cuatro secciones: Inicio/Buscar con tarjeta de proceso, Mis procesos, Análisis (GO) y Empresa/pie. **No tocan `index.html` ni el sitio publicado**; la carpeta no está en `pages.yml`.
+Tres maquetas estáticas (HTML + CSS, datos ficticios) de la misma página con cuatro secciones: Inicio/Buscar con tarjeta de proceso, Mis procesos, Análisis (GO) y Empresa/pie. **No tocan `app.html` ni el sitio publicado**; la carpeta no está en `pages.yml`.
 
 | | Referencia | Color | Tipografía | Rasgo memorable |
 |---|---|---|---|---|
@@ -14,7 +14,7 @@ Los estados (Cumple / No cumple / Revisar / No determinable) conservan los color
 Sin desborde horizontal, sin objetivos táctiles menores de 44 px, contraste AA en cada texto, foco visible, sin errores de consola y `prefers-reduced-motion` respetado.
 
 ## Para llevarlo a la app
-- Tokens en `index.html` (~53-120); los prototipos usan los mismos nombres (`--accent`, `--surface`, `--bg`, `--text*`, `--radius-*`).
+- Tokens en `app.html` (~53-120); los prototipos usan los mismos nombres (`--accent`, `--surface`, `--bg`, `--text*`, `--radius-*`).
 - Cambiar también `.brand-mark` y el favicon (colores fijos).
 - Pruebas que fijan lima, Inter + Archivo y el degradado de `.view-header`: `tests/smoke.mjs` y `tests/e2e.mjs`.
 - La CSP solo permite Google Fonts: Las dos son familias nuevas respecto a la app (que usa Inter + Archivo), así que A y C requieren cambiar el `<link>` y las pruebas que fijan esas fuentes.

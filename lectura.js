@@ -7,7 +7,7 @@
 (function (root) {
   'use strict';
 
-  // Una sola operación de lectura/IA por proceso a la vez (la comparte index.html con la
+  // Una sola operación de lectura/IA por proceso a la vez (la comparte app.html con la
   // extracción de requisitos). Se sostiene durante toda la operación, incluidas las pausas
   // entre tandas de leerTodo.
   const enCurso = {};

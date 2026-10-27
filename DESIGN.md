@@ -34,7 +34,7 @@ radii: "12 / 16 / 24 px (--radius-sm / md / lg) y --radius-pill (999px) para bot
 > Dirección «Wise» (2026-10-21), tomada de wise.com por petición del usuario: sustituye al rediseño «Inntegrate» (lila + azul noche).
 > Wise no se pudo consultar desde el sandbox (sin red): se aplicó de memoria (lima + verde bosque, píldoras, titulares pesados).
 > Los tokens `--navy-*` conservan el nombre pero ahora son azul pizarra; `--lime-*` conserva el nombre pero ahora es amarillo señal (paleta «Obra», elegida por el usuario sobre la forma Wise, 2026-10-24). La fuente de verdad de los valores es el bloque de tokens
-> `#bitacora-root { … }` de `index.html`; este documento explica las decisiones. Los nombres de los tokens no cambiaron
+> `#bitacora-root { … }` de `app.html`; este documento explica las decisiones. Los nombres de los tokens no cambiaron
 > (`--accent`, `--surface`, `--bg`, `--text*`, `--success/--danger/--warning`…): cambiar el aspecto es redefinir valores.
 
 ## Principios
@@ -71,6 +71,6 @@ solo cambios de color, borde, sombra y opacidad.
 en textos de SECOP; sin `text-transform` en clases con texto dinámico; tras un cambio de tema buscar variables CSS huérfanas y fuentes
 viejas dentro de los strings de JS. Cada ítem nuevo de navegación obliga a volver a medir el menú en celular.
 
-## Landing (`landing.html`, 2026-10-24)
+## Landing (`index.html`, 2026-10-24)
 
 Misma identidad que la app: pizarra `#16212E`, amarillo señal `#F2B705` solo en acción, Inter + Archivo 900, píldoras. Portada oscura con la tarjeta de resultado real y el panel de evidencia encima (el diferencial: cada resultado cita su página); bandas alternas (claro, oscuro, claro); los cuatro resultados con nombre y símbolo; teléfonos con capturas reales del celular. Sin degradados decorativos, sin animación (solo transiciones de botón; respeta «reducir movimiento»). Imágenes WebP con `width`/`height` y `alt` descriptivo, diferidas salvo la portada.

@@ -1,6 +1,6 @@
 // Motor del veredicto GO / REVISAR / NO-GO de un proceso contra el perfil de una empresa.
 // Sin DOM, sin red y sin estado global: todo lo que necesita entra por `deps` (las piezas que siguen
-// viviendo en index.html: formato de dinero, lectura de palabras clave, matriz de capacidad...) y por
+// viviendo en app.html: formato de dinero, lectura de palabras clave, matriz de capacidad...) y por
 // el `ctx` de cada evaluación ({ minV, maxV, perfilesProfesionales, perfiles }). Así se prueba en Node
 // sin navegador. Uso: const motor = Evaluacion.crear(deps); motor.evaluarProceso(item, s, matriz, entry, ctx).
 (function (root) {

@@ -2,7 +2,7 @@
 // Bitácora SECOP — resumen diario por correo (Fase 6 del prompt maestro:
 // "correo/job programado" para Alertas guardadas).
 // ============================================================================
-// POR QUÉ EXISTE ESTE ARCHIVO SEPARADO (no vive en index.html):
+// POR QUÉ EXISTE ESTE ARCHIVO SEPARADO (no vive en app.html):
 // la app es 100% estática (GitHub Pages, sin backend) -- lo único que puede
 // "correr solo" en un horario, sin que el usuario tenga la pestaña abierta,
 // es el servidor de Supabase. Esta Supabase Edge Function la dispara un cron
@@ -12,7 +12,7 @@
 // algo nuevo, envía un correo breve (vía Resend) con el conteo y un enlace a
 // la app -- el detalle completo se ve adentro, este correo es solo el aviso.
 //
-// CÓDIGO COMPARTIDO CON index.html: las reglas de coincidencia (parseNumCO, normalizeGeo,
+// CÓDIGO COMPARTIDO CON app.html: las reglas de coincidencia (parseNumCO, normalizeGeo,
 // matchesGeo, matchesTerm, findField, esEstadoNoVigente,
 // consultasSecopII) viven en coincidencia.js, la misma fuente que carga el navegador. Esta carpeta
 // lleva una copia idéntica (la CLI solo empaqueta lo que está bajo la carpeta de la función) y una
@@ -32,7 +32,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 
 const SECOP_II_DATASET = 'p6dx-8zbt';
-// Mismo token que SOCRATA_APP_TOKEN en index.html -- identifica a "esta app"
+// Mismo token que SOCRATA_APP_TOKEN en app.html -- identifica a "esta app"
 // ante Socrata (no es secreto: Socrata los diseña para ir embebidos en
 // código de cliente, y aquí corre server-side igual). Compartir el mismo
 // token entre el navegador y esta función es intencional: es la misma app.
@@ -50,7 +50,7 @@ import './coincidencia.js';
 const { parseNumCO, normalizeGeo, matchesGeo, matchesTerm, findField, esEstadoNoVigente, consultasSecopII, opcionesDeAlerta, coincideFiltrosAlerta } = (globalThis as any).Coincidencia;
 
 // Extrae fecha de publicación y objeto/entidad/departamento de un registro
-// crudo de SECOP II -- versión recortada de normalize() en index.html: solo
+// crudo de SECOP II -- versión recortada de normalize() en app.html: solo
 // lo que hace falta para evaluar una alerta (no arma toda la ficha visual).
 function pubRawDeSecopII(record: Record<string, unknown>): string | null {
   const keys = Object.keys(record).filter((k) => /fecha/i.test(k));
@@ -62,7 +62,7 @@ function pubRawDeSecopII(record: Record<string, unknown>): string | null {
   return all.length ? all[0] : null;
 }
 
-// = fetchSecopDataset en index.html (mismo $limit, mismo reintento sin orden si la columna no
+// = fetchSecopDataset en app.html (mismo $limit, mismo reintento sin orden si la columna no
 // existe en ese dataset). Las dos consultas a SECOP II (vigentes + recientes, auditoría
 // S2-001/S2-002) las arma consultasSecopII, del módulo compartido.
 async function fetchSecopDataset(datasetId: string, qTerm: string | null, ordenCol: string, geos: string[] = [], opciones: Record<string, unknown> = {}): Promise<Record<string, unknown>[]> {
@@ -115,7 +115,7 @@ interface Alerta {
   minV?: number; maxV?: number; ultimaRevision?: string;
 }
 
-// = evaluarAlerta en index.html -- cuenta procesos de SECOP II que coinciden
+// = evaluarAlerta en app.html -- cuenta procesos de SECOP II que coinciden
 // con los criterios de la alerta Y se publicaron después de ultimaRevision.
 async function contarNuevosDeAlerta(alerta: Alerta): Promise<number> {
   const opc = opcionesDeAlerta(alerta);
@@ -323,7 +323,7 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const admin = createClient(supabaseUrl, serviceRoleKey);
-  const appUrl = Deno.env.get('APP_URL') || 'https://nerodante85.github.io/Bitacorasecop/';
+  const appUrl = Deno.env.get('APP_URL') || 'https://nerodante85.github.io/Bitacorasecop/app.html';
   // Monitor: una fila por corrida (solo si llegó hasta aquí, es decir, autenticó). Un 401 no deja fila a propósito.
   const inicioCorrida = Date.now();
   const corridaId = await iniciarCorrida(admin);

@@ -5,7 +5,7 @@
 -- Supabase (Project → SQL Editor → New query → pegar todo → Run).
 -- Ver "Fase 1: cuentas y sincronización" en CLAUDE.md para el contexto
 -- completo y los pasos de activación en el frontend (rellenar SUPABASE_URL /
--- SUPABASE_ANON_KEY en index.html).
+-- SUPABASE_ANON_KEY en app.html).
 --
 -- Diseño deliberadamente simple para esta fase: en vez de normalizar cada
 -- perfil/análisis/experiencia en tablas separadas (como sugiere el modelo de

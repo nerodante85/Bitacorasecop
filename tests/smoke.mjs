@@ -29,8 +29,8 @@ const Coincidencia = (await import(pathToFileURL(path.join(ROOT, 'coincidencia.j
 const Evaluacion = (await import(pathToFileURL(path.join(ROOT, 'evaluacion.js')).href)).default;
 const FormatoMaestro = (await import(pathToFileURL(path.join(ROOT, 'formatomaestro.js')).href)).default;
 const Magnitudes = (await import(pathToFileURL(path.join(ROOT, 'magnitudes.js')).href)).default;
-globalThis.Magnitudes = Magnitudes; // index.html lo carga como script global; el motor extraído lo busca en el scope global
-const HTML_PATH = path.join(ROOT, 'index.html');
+globalThis.Magnitudes = Magnitudes; // app.html lo carga como script global; el motor extraído lo busca en el scope global
+const HTML_PATH = path.join(ROOT, 'app.html');
 const html = readFileSync(HTML_PATH, 'utf8');
 
 let failed = 0;
@@ -150,7 +150,7 @@ await check('todo host https:// usado en el código aparece en la política CSP'
 // copió al repositorio en vendor/ porque las versiones parcheadas solo se
 // distribuyen desde cdn.sheetjs.com, sin un hash SRI verificable de un
 // tercero -- se verifica aparte, más abajo (test 6), que el propio archivo
-// exista y que index.html/pages.yml lo referencien.
+// exista y que app.html/pages.yml lo referencien.
 await check('el SRI embebido de pdf.js/Tesseract.js/supabase-js/mammoth.js coincide con el archivo real del CDN', async () => {
   const scriptBody = extractMainScript();
   const pairs = [...scriptBody.matchAll(
@@ -170,18 +170,18 @@ await check('el SRI embebido de pdf.js/Tesseract.js/supabase-js/mammoth.js coinc
   }
 });
 
-// 5b) SEG-006: xlsx (SheetJS) se auto-aloja en vendor/ -- el archivo que index.html referencia
+// 5b) SEG-006: xlsx (SheetJS) se auto-aloja en vendor/ -- el archivo que app.html referencia
 // debe existir de verdad en el repo, y el workflow de despliegue debe copiarlo al sitio
 // publicado (si no, la app funcionaría en local pero "Cargar experiencia" fallaría en
 // producción con un 404 silencioso -- el mismo tipo de bug que el test 4/5 ya atrapan para
 // los scripts CDN, pero esos no cubren un archivo propio).
-await check('SEG-006: el xlsx auto-alojado en vendor/ existe, index.html lo referencia por su nombre exacto, y pages.yml lo copia al sitio publicado', () => {
+await check('SEG-006: el xlsx auto-alojado en vendor/ existe, app.html lo referencia por su nombre exacto, y pages.yml lo copia al sitio publicado', () => {
   const scriptBody = extractMainScript();
   const m = scriptBody.match(/script\.src\s*=\s*'vendor\/(xlsx-[^']+\.js)'/);
   assert(m, 'no se encontró la referencia a vendor/xlsx-*.js en loadXlsxLib()');
   const nombreArchivo = m[1];
   const rutaVendor = path.join(ROOT, 'vendor', nombreArchivo);
-  assert(existsSync(rutaVendor), 'index.html referencia "' + nombreArchivo + '" pero no existe en vendor/');
+  assert(existsSync(rutaVendor), 'app.html referencia "' + nombreArchivo + '" pero no existe en vendor/');
   const pagesYml = readFileSync(path.join(ROOT, '.github', 'workflows', 'pages.yml'), 'utf8');
   assert(/cp\s+vendor\/\*\.js\s+_site\/vendor\//.test(pagesYml), 'pages.yml debe copiar vendor/*.js al sitio publicado, o el archivo nunca llega a producción');
 });
@@ -241,7 +241,7 @@ function extractExperienceEngine() {
   const blockD = scriptBody.slice(iD0, iD1);
 
   // Las reglas de coincidencia (parseNumCO, normalizeGeo, prepararBusquedaPorNombre...) ya no están en
-  // index.html: vienen del módulo compartido coincidencia.js y se exponen como globales.
+  // app.html: vienen del módulo compartido coincidencia.js y se exponen como globales.
   Object.assign(globalThis, Coincidencia);
 
   // Bloque F: generadores de documentos (carta, anexos, paquete) -- DG-001..DG-003. Usan
@@ -270,7 +270,7 @@ function extractExperienceEngine() {
   // mutable) -- ambos se inyectan como globales mínimos más abajo, mismo patrón que el resto
   // de shims de esta función.
   // El motor del veredicto (evaluarProceso, los gates, decidirVeredicto...) vive en evaluacion.js
-  // y se crea más abajo con las piezas extraídas de index.html; aquí solo se extrae matrizCapacidad.
+  // y se crea más abajo con las piezas extraídas de app.html; aquí solo se extrae matrizCapacidad.
   const iI0 = scriptBody.indexOf('function matrizCapacidad(p){');
   const iI1 = scriptBody.indexOf('// El motor del veredicto GO/NO-GO vive en evaluacion.js', iI0);
   assert(iI0 !== -1 && iI1 !== -1 && iI1 > iI0, 'no se encontraron las anclas de matrizCapacidad');
@@ -354,7 +354,7 @@ function extractExperienceEngine() {
   const factory = new Function('window', source);
   const eng = factory(fakeWindow);
   eng.__window = fakeWindow;
-  // El motor del veredicto sale de evaluacion.js, con las mismas piezas que le inyecta index.html.
+  // El motor del veredicto sale de evaluacion.js, con las mismas piezas que le inyecta app.html.
   Object.assign(eng, Evaluacion.crear({
     fmtMoney: globalThis.fmtMoney, truncate: globalThis.truncate, palabrasClaveDe: eng.palabrasClaveDe,
     PALABRAS_GENERICAS_OBRA: eng.PALABRAS_GENERICAS_OBRA, esTokenNumerico: eng.esTokenNumerico, normHeader: eng.normHeader,
@@ -1524,7 +1524,7 @@ await check('PAA por departamento: se busca por CÓDIGO de entidad (el PAA no tr
   assert(C.codigosDeDepartamento(m, ['Norte de Santander']).length > 300, 'Norte de Santander tiene unos 360 códigos de entidad');
   const html = readFileSync(HTML_PATH, 'utf8');
   assert(/fetch\('entidades\.json'/.test(html) && /consultasPAA\(/.test(html) && /codigosDeDepartamento\(/.test(html), 'la app carga entidades.json y busca el PAA por código');
-  assert(/cp index\.html [^\n]*entidades\.json/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia entidades.json al sitio');
+  assert(/cp app\.html [^\n]*entidades\.json/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia entidades.json al sitio');
 });
 
 await check('Buscar procesos: la casilla «Solo Licitación Pública» vuelve a consultar SECOP al cambiar (el servidor ya filtró: re-pintar la muestra vieja escondería o mezclaría procesos)', () => {
@@ -1567,7 +1567,7 @@ await check('Ubicación: municipios.json (DIVIPOLA + SECOP II) existe, resuelve 
   const html = readFileSync(HTML_PATH, 'utf8');
   assert(/fetch\('municipios\.json'/.test(html), 'la app carga municipios.json del mismo sitio (connect-src \'self\')');
   assert(!/\$group=ciudad_entidad,departamento_entidad/.test(html), 'ya no consulta el mapa a datos.gov.co en cada búsqueda (tardaba 16-19 s)');
-  assert(/cp index\.html [^\n]*municipios\.json/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia municipios.json al sitio');
+  assert(/cp app\.html [^\n]*municipios\.json/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia municipios.json al sitio');
 });
 
 // ---- S2-003: estados que ya no son una oportunidad ---------------------------
@@ -2803,8 +2803,8 @@ await check('Filtros de Buscar: el valor, la entidad y la fecha de cierre filtra
   assert(c(null, 7) === false, 'con el filtro puesto, un proceso sin fecha de cierre confiable no se muestra como "cierra pronto"');
   assert(c(null, 0) === true && c(null, '') === true && c(500, 0) === true, 'sin filtro todo pasa');
 });
-await check('Entradas: el campo de años no se guarda si es inválido y el rango muestra su aviso (cableado en index.html)', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+await check('Entradas: el campo de años no se guarda si es inválido y el rango muestra su aviso (cableado en app.html)', () => {
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   assert(/const errAnos = validarAnosExperiencia\(getCampo\(personalAnosEl\)\);\s*if \(errAnos\)\{[\s\S]{0,200}return;/.test(html), 'savePersonal debe salir antes de guardar con años inválidos');
   assert(/id="bt-rango-aviso"/.test(html) && /minInput\.addEventListener\('input', actualizarAvisoRango\)/.test(html) && /maxInput\.addEventListener\('input', actualizarAvisoRango\)/.test(html), 'el aviso de rango debe estar cableado a mínimo y máximo');
 });
@@ -4019,7 +4019,7 @@ await check('textoKResidualDetectado: las 3 formas reales de extraerKResidualUmb
 // texto fuente, sino EJECUTAR de verdad su lógica) ------------------------------------------
 // index.ts mismo lo documenta como "DUPLICACIÓN DELIBERADA": parseNumCO/normalizeGeo/matchesGeo/
 // matchesTerm/esEstadoNoVigente son un puerto a Deno de las funciones del mismo nombre en
-// index.html, comentadas ahí mismo con "hay que replicar el cambio aquí a mano" -- exactamente
+// app.html, comentadas ahí mismo con "hay que replicar el cambio aquí a mano" -- exactamente
 // el tipo de duplicación que puede divergir en silencio si alguien arregla un bug en una copia
 // y se olvida de la otra. Se extraen del .ts real (no de una copia a mano en este archivo de
 // tests) y se ejecutan con los mismos casos que ya prueban las funciones del cliente, para
@@ -4163,7 +4163,7 @@ await check('Monitor del digest (SQL): tabla cerrada al navegador, función de r
 });
 
 // ---- Módulo de coincidencia compartido (coincidencia.js): un solo origen de las reglas de "¿este
-// proceso coincide con mi búsqueda/alerta?" para el navegador (index.html) y la función diaria
+// proceso coincide con mi búsqueda/alerta?" para el navegador (app.html) y la función diaria
 // (daily-digest). Antes eran dos implementaciones a mano y YA habían divergido: el digest no tenía
 // el arreglo MC-015 de parseNumCO ("1,234,567,890" valía 1,234).
 await check('Coincidencia (módulo): expone las 8 reglas compartidas', () => {
@@ -4221,7 +4221,7 @@ await check('Alertas: el cliente guarda, evalúa y reabre municipio, entidad y l
   assert(/consultasSecopII\(qTerm, hoyISO, geos, opciones\)/.test(dd) && /fetchAllForDataset\(SECOP_II_DATASET, alerta\.keywords, 'fecha_de_publicacion_del', alerta\.geos, opcionesDeAlerta\(alerta\)\)/.test(dd) && /coincideFiltrosAlerta\(alerta,/.test(dd), 'el digest pasa geos y opciones al servidor y filtra igual que el cliente');
   assert(!/const anchors = alerta\.keywords\.length \? alerta\.keywords : alerta\.geos;/.test(dd), 'el digest ya no usa el departamento como palabra clave');
   ['coincideFiltrosAlerta', 'opcionesDeAlerta', 'esLicitacionObra', 'matchesMunicipio', 'coincideEntidad'].forEach(n => {
-    assert(!new RegExp('^\\s*function ' + n + '\\(', 'm').test(html), 'index.html no debe redefinir ' + n);
+    assert(!new RegExp('^\\s*function ' + n + '\\(', 'm').test(html), 'app.html no debe redefinir ' + n);
     assert(!new RegExp('^function ' + n + '\\(', 'm').test(dd), 'el digest no debe redefinir ' + n);
   });
 });
@@ -4236,13 +4236,13 @@ await check('Coincidencia (módulo): UN solo origen -- daily-digest usa una copi
     assert(!new RegExp('^function ' + n + '\\(', 'm').test(digest), 'el digest no debe redefinir ' + n));
 });
 
-await check('Coincidencia (módulo): index.html lo carga antes del script principal, no redefine las reglas y pages.yml lo publica', () => {
+await check('Coincidencia (módulo): app.html lo carga antes del script principal, no redefine las reglas y pages.yml lo publica', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const iMod = html.indexOf('<script src="coincidencia.js"></script>');
   assert(iMod !== -1 && iMod < html.search(/^<script>$/m), 'coincidencia.js se carga antes del <script> principal');
   ['parseNumCO', 'normalizeGeo', 'matchesGeo', 'matchesTerm', 'findField', 'prepararBusquedaPorNombre', 'esEstadoNoVigente', 'consultasSecopII'].forEach(n =>
-    assert(!new RegExp('^\\s+function ' + n + '\\(', 'm').test(html), 'index.html no debe redefinir ' + n));
-  assert(/cp index\.html lectura\.js evaluacion\.js coincidencia\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia coincidencia.js');
+    assert(!new RegExp('^\\s+function ' + n + '\\(', 'm').test(html), 'app.html no debe redefinir ' + n));
+  assert(/cp app\.html lectura\.js evaluacion\.js coincidencia\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml copia coincidencia.js');
 });
 
 await check('ESC-002: la caché devuelve lo guardado mientras esté fresco y lo descarta al vencer', () => {
@@ -4458,15 +4458,15 @@ await check('Espera informativa: la tarjeta muestra el estimado solo cuando exis
   assert(/calculado con lo que va tardando este documento/.test(html), 'declara de dónde sale el estimado');
 });
 
-await check('Lectura (módulo): index.html carga lectura.js, los 3 lectores comparten el módulo y pages.yml lo publica', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert(/<script src="lectura\.js"><\/script>/.test(html), 'index.html debe cargar lectura.js antes del script principal');
+await check('Lectura (módulo): app.html carga lectura.js, los 3 lectores comparten el módulo y pages.yml lo publica', () => {
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+  assert(/<script src="lectura\.js"><\/script>/.test(html), 'app.html debe cargar lectura.js antes del script principal');
   assert((html.match(/Lectura\.(avanzar|leerTodo)\(/g) || []).length === 4 && (html.match(/Lectura\.iniciar\(/g) || []).length === 3, 'los 4 caminos de seguir leyendo y las 3 primeras lecturas usan el módulo');
-  assert(/cp index\.html lectura\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar lectura.js al sitio');
+  assert(/cp app\.html lectura\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar lectura.js al sitio');
 });
 
 await check('Accesibilidad: todo control de formulario tiene su etiqueta (label for / label envolvente / aria-label) y los sellos de ayuda anuncian aria-expanded', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   const body = html.slice(0, html.indexOf('<script src="lectura.js">'));
   const conFor = new Set([...body.matchAll(/<label[^>]*\bfor="([^"]+)"/g)].map(m => m[1]));
   const envueltos = new Set();
@@ -4491,7 +4491,7 @@ await check('Accesibilidad: todo control de formulario tiene su etiqueta (label 
 });
 
 await check('Accesibilidad (controles generados por JS): cada <input>/<select>/<textarea> de un string tiene aria-label, <label for> con su id, o va dentro de un <label>', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   const js = html.slice(html.indexOf('<script src="lectura.js">'));
   const sinEtiqueta = [];
   for (const m of js.matchAll(/<(input|select|textarea)\b([^>]*)>/g)) {
@@ -4506,27 +4506,27 @@ await check('Accesibilidad (controles generados por JS): cada <input>/<select>/<
 });
 
 await check('Lectura parcial: la viabilidad y "sin alertas" dicen cuántas páginas se leyeron, y los gates de lectura son "nd" (no "cumple parcialmente")', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   assert(/const parcialRF = lecturaParcial\(entry\);/.test(html) && /solo con las ' \+ parcialRF\.pagesRead/.test(html), 'la viabilidad debe aclarar que es solo con lo leído');
   assert(/lecturaParcial\(entry\);\s*\n?\s*L\.push\('  No se detectaron|parcialTxt/.test(html), 'el informe de texto también debe aclararlo');
 });
 
-await check('Evaluacion (módulo): index.html lo carga antes del script principal, lo usa para el motor y pages.yml lo publica', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  assert(/<script src="evaluacion\.js"><\/script>/.test(html), 'index.html debe cargar evaluacion.js antes del script principal');
-  assert(/Evaluacion\.crear\(\{/.test(html), 'index.html debe crear el motor con Evaluacion.crear');
+await check('Evaluacion (módulo): app.html lo carga antes del script principal, lo usa para el motor y pages.yml lo publica', () => {
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+  assert(/<script src="evaluacion\.js"><\/script>/.test(html), 'app.html debe cargar evaluacion.js antes del script principal');
+  assert(/Evaluacion\.crear\(\{/.test(html), 'app.html debe crear el motor con Evaluacion.crear');
   ['evaluarProceso', 'decidirVeredicto', 'gatePersonalRequerido', 'compsDe'].forEach(n =>
-    assert(!new RegExp('^\\s+function ' + n + '\\(', 'm').test(html), 'index.html no debe redefinir ' + n));
-  assert(/cp index\.html lectura\.js evaluacion\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar evaluacion.js al sitio');
+    assert(!new RegExp('^\\s+function ' + n + '\\(', 'm').test(html), 'app.html no debe redefinir ' + n));
+  assert(/cp app\.html lectura\.js evaluacion\.js/.test(readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml debe copiar evaluacion.js al sitio');
 });
 
 await check('PDF-05: la primera lectura de texto usa extenderSiEscaso (la lógica se prueba en el módulo Lectura)', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   assert(/Lectura\.iniciar\(file, LECTOR_TEXTO, \{[^}]*minTexto: 200, extenderSiEscaso: true/.test(html), 'debe usar extenderSiEscaso con minTexto 200');
 });
 
 await check('IA en documentos cortos: leerEscaneadoConIA une las tandas con offsets correctos y el botón está en experiencia/Estudio Previo (no en RUP/RUT)', async () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   const i = html.indexOf('async function leerEscaneadoConIA(');
   const j = html.indexOf('// Botón "Leer con IA" junto al de OCR', i);
   assert(i > 0 && j > i, 'no se encontró leerEscaneadoConIA');
@@ -4555,7 +4555,7 @@ await check('IA en documentos cortos: leerEscaneadoConIA une las tandas con offs
 });
 
 await check('Tarjeta de análisis: las secciones que el usuario abrió o cerró se respetan al redibujar la tarjeta', () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   const i = html.indexOf('function seccionPlegable(');
   const f = html.slice(i, html.indexOf('}\n', i) + 2);
   assert(/foldAbierto\(titulo, abierto\)/.test(f), 'seccionPlegable debe consultar la preferencia del usuario antes del valor por defecto');
@@ -4566,7 +4566,7 @@ await check('Tarjeta de análisis: las secciones que el usuario abrió o cerró 
   assert(!/addEventListener\('toggle'/.test(html.slice(html.indexOf('foldPrefs'), html.indexOf('foldPrefs') + 3000)), 'no debe usar toggle: se dispararía al pintar la tarjeta');
 });
 await check('Tarjeta de análisis: resumen arriba y detalle en secciones plegables (cerradas salvo lo que obliga a actuar)', async () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   const i = html.indexOf('function renderAnalysisHtml(');
   const cuerpo = html.slice(i, html.indexOf('function ensurePublicAreaParams', i));
   assert(cuerpo.indexOf('resumenArriba + secciones') > 0, 'el resumen debe ir antes de las secciones plegables');
@@ -4581,7 +4581,7 @@ await check('Tarjeta de análisis: resumen arriba y detalle en secciones plegabl
 });
 
 await check('Veredicto: el recuadro y el contador cuentan igual los criterios por verificar (sin datos + parciales)', async () => {
-  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   const i = html.indexOf('const subHero = ');
   const bloque = html.slice(i, html.indexOf('const hero = ', i));
   assert(/porVerificarN/.test(bloque) && /resumen\.sinDato\.length \+ resumen\.parciales\.length/.test(html.slice(i - 400, i + 600)), 'el recuadro debe contar sinDato + parciales');
@@ -5364,18 +5364,18 @@ await check('Interfaz: los márgenes en línea más repetidos pasaron a clases u
 });
 
 // Caché de los scripts propios: GitHub Pages sirve lectura.js/evaluacion.js/coincidencia.js con caché del navegador, y
-// justo después de un despliegue alguien podía recibir el index.html NUEVO con un script VIEJO (TypeError en una
-// función que el viejo no tiene). El despliegue sella cada script propio con ?v=<commit> en el index.html publicado.
-await check('Despliegue: cada script propio sale sellado con ?v=<commit> en el index.html publicado (sin caché desfasada)', () => {
+// justo después de un despliegue alguien podía recibir el app.html NUEVO con un script VIEJO (TypeError en una
+// función que el viejo no tiene). El despliegue sella cada script propio con ?v=<commit> en el app.html publicado.
+await check('Despliegue: cada script propio sale sellado con ?v=<commit> en el app.html publicado (sin caché desfasada)', () => {
   const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
-  const lineaSed = yml.split('\n').find(l => /sed -i/.test(l) && /_site\/index\.html/.test(l));
-  assert(lineaSed, 'pages.yml debe sellar los scripts con sed sobre _site/index.html');
+  const lineaSed = yml.split('\n').find(l => /sed -i/.test(l) && /_site\/app\.html/.test(l));
+  assert(lineaSed, 'pages.yml debe sellar los scripts con sed sobre _site/app.html');
   const tmp = path.join(ROOT, 'tests', '_sello_tmp');
   try {
     execFileSync('bash', ['-c', 'mkdir -p tests/_sello_tmp/_site'], { cwd: ROOT });
-    execFileSync('bash', ['-c', 'cp index.html tests/_sello_tmp/_site/index.html'], { cwd: ROOT });
+    execFileSync('bash', ['-c', 'cp app.html tests/_sello_tmp/_site/app.html'], { cwd: ROOT });
     execFileSync('bash', ['-c', lineaSed.trim().replace(/_site\//g, 'tests/_sello_tmp/_site/')], { cwd: ROOT, env: Object.assign({}, process.env, { GITHUB_SHA: 'abc123' }) });
-    const out = readFileSync(path.join(tmp, '_site/index.html'), 'utf8');
+    const out = readFileSync(path.join(tmp, '_site/app.html'), 'utf8');
     const locales = [...readFileSync(HTML_PATH, 'utf8').matchAll(/<script src="([a-z]+\.js)"><\/script>/g)].map(m => m[1]);
     assert(locales.length >= 3, 'se esperaban al menos 3 scripts propios: ' + locales.join(','));
     locales.forEach(s => {
@@ -5483,11 +5483,11 @@ await check('FM-009: un contrato importado con participación se pondera en el m
   assert(rCon === 'CUMPLE' && rSin !== 'CUMPLE', 'con vinculadas ' + rCon + ' / sin vinculadas ' + rSin);
 });
 
-await check('FM-010: el importador está cargado en index.html antes del script principal y publicado por pages.yml', () => {
-  assert(/<script src="formatomaestro\.js"><\/script>/.test(html), 'index.html debe cargar formatomaestro.js');
+await check('FM-010: el importador está cargado en app.html antes del script principal y publicado por pages.yml', () => {
+  assert(/<script src="formatomaestro\.js"><\/script>/.test(html), 'app.html debe cargar formatomaestro.js');
   assert(html.indexOf('<script src="formatomaestro.js">') < html.indexOf('FormatoMaestro.esFormatoMaestro('), 'debe cargarse antes de usarlo');
   const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
-  assert(/cp index\.html [^\n]*formatomaestro\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro/.test(yml), 'pages.yml debe copiar y sellar formatomaestro.js');
+  assert(/cp app\.html [^\n]*formatomaestro\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro/.test(yml), 'pages.yml debe copiar y sellar formatomaestro.js');
 });
 
 // ---- Experiencia por UNSPSC: el pliego exige que el contrato acreditado esté clasificado en ciertos códigos ----
@@ -5671,11 +5671,11 @@ await check('MG-006: cruceFichaEmpresa cruza las magnitudes con los contratos de
   assert(sinBase['Específica: tubería'].estado === 'NO DETERMINABLE', 'sin base explícita en consorcio: no determinable');
 });
 
-await check('MG-007: magnitudes.js se carga en index.html antes del script principal y pages.yml lo copia y sella', () => {
-  assert(/<script src="magnitudes\.js"><\/script>/.test(html), 'index.html debe cargar magnitudes.js');
+await check('MG-007: magnitudes.js se carga en app.html antes del script principal y pages.yml lo copia y sella', () => {
+  assert(/<script src="magnitudes\.js"><\/script>/.test(html), 'app.html debe cargar magnitudes.js');
   assert(html.indexOf('<script src="magnitudes.js">') < html.indexOf('Magnitudes.parsearExigencia('), 'debe cargarse antes de usarlo');
   const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
-  assert(/cp index\.html [^\n]*magnitudes\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro\|magnitudes/.test(yml), 'pages.yml debe copiar y sellar magnitudes.js');
+  assert(/cp app\.html [^\n]*magnitudes\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro\|magnitudes/.test(yml), 'pages.yml debe copiar y sellar magnitudes.js');
 });
 
 await check('MG-008: selector de base de cantidades en consorcio — solo total/prorrata llegan al cruce, vacío = sin definir', () => {
@@ -6059,7 +6059,7 @@ await check('DG-RA3-3 (RA3-3): con más de una empresa (consorcio / unión tempo
 });
 
 await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabezado «MATRIZ N – EXPERIENCIA»', () => {
-  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   const i = html.indexOf('function etiquetaRequisitoExperiencia'), j = html.indexOf('function empresaParaFicha');
   assert(i > 0 && j > i, 'no se encontró la función');
   const et = new Function('PATRON_MATRIZ_EXPERIENCIA', 'truncate', html.slice(i, j) + '\nreturn etiquetaRequisitoExperiencia;')(
@@ -6073,7 +6073,7 @@ await check('ETIQ-001: la etiqueta del requisito de experiencia quita el encabez
 // Empresas ficticias para probar el análisis de pliegos (ejemplos/pruebas-pliegos/)
 // ============================================================================
 // Una sola fuente de verdad (escenarios.mjs) alimenta los archivos que carga el usuario y esta prueba, que
-// ejecuta el MOTOR REAL (mismas funciones de index.html + evaluacion.js) y afirma qué resultado sale con cada
+// ejecuta el MOTOR REAL (mismas funciones de app.html + evaluacion.js) y afirma qué resultado sale con cada
 // empresa. Si el motor cambia y la guía deja de decir la verdad, esto falla.
 const Escenarios = await import(pathToFileURL(path.join(ROOT, 'ejemplos', 'pruebas-pliegos', 'escenarios.mjs')).href);
 const HOY_FICT = '2026-10-24';
@@ -6311,7 +6311,7 @@ await check('las funciones clave del flujo (experiencia → personal → pliego 
     'generarAnticorrupcionTexto', 'generarParafiscalesTexto', 'generarFormatoExperienciaTexto', 'generarPaqueteTexto',
     'valorContratoEnSmmlv',
   ];
-  // Las funciones del motor del veredicto viven en evaluacion.js (no en index.html).
+  // Las funciones del motor del veredicto viven en evaluacion.js (no en app.html).
   const fuenteFunciones = html + '\n' + readFileSync(path.join(ROOT, 'evaluacion.js'), 'utf8');
   const missing = REQUIRED.filter(fn => !new RegExp('function\\s+' + fn + '\\s*\\(').test(fuenteFunciones));
   assert(missing.length === 0, 'función(es) esperadas y no encontradas: ' + missing.join(', '));
@@ -6405,7 +6405,7 @@ await check('Sin IA de extracción: la app, el servidor y la configuración ya n
   const html = readFileSync(HTML_PATH, 'utf8');
   const motor = readFileSync(path.join(ROOT, 'evaluacion.js'), 'utf8');
   for (const t of ['Extraer requisitos con IA', 'Volver a extraer con IA', 'Requisitos habilitantes (IA)', 'Cronograma y riesgos (IA)', "invoke('extraer-requisitos'", 'extraerRequisitosConIA', 'verificarCitasLeyendoPaginas', 'aplicarRequisitosIAaEntry', 'analysis-ia-btn', 'data-ia-confirmar'])
-    assert(!html.includes(t), 'index.html todavía contiene «' + t + '»');
+    assert(!html.includes(t), 'app.html todavía contiene «' + t + '»');
   for (const t of ['exigenciasIA', 'requisitosIA', 'gatesCompletitudIA', 'codigosUnspscIA', 'hallazgosPersonalIA'])
     assert(!motor.includes(t), 'evaluacion.js todavía usa «' + t + '»');
   assert(!existsSync(path.join(ROOT, 'supabase/functions/extraer-requisitos')), 'la carpeta de la función debe haberse borrado del repositorio');
@@ -6430,22 +6430,24 @@ await check('Análisis guardados antes: quitarCamposDeIA descarta los campos de 
   assert(quitar(null) === false && quitar('x') === false, 'entradas raras no rompen');
 });
 
-// ---- Landing (landing.html): página de presentación aparte de la app ----
-const LANDING_PATH = path.join(ROOT, 'landing.html');
+// ---- Landing (index.html): página de presentación aparte de la app ----
+const LANDING_PATH = path.join(ROOT, 'index.html');
 const textoVisibleLanding = () => readFileSync(LANDING_PATH, 'utf8')
   .replace(/<!--[\s\S]*?-->/g, '').replace(/<(style|script)[\s\S]*?<\/\1>/g, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
-await check('Landing: existe, pages.yml la publica con sus imágenes y el sitemap la lista', () => {
-  assert(existsSync(LANDING_PATH), 'falta landing.html');
+await check('Landing: es index.html (la raíz), pages.yml la publica con sus imágenes y el sitemap lista la raíz', () => {
+  assert(existsSync(LANDING_PATH), 'falta index.html');
   const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
-  assert(/cp index\.html [^\n]*\blanding\.html\b/.test(yml), 'pages.yml debe copiar landing.html al sitio publicado');
+  assert(/cp app\.html [^\n]*\bindex\.html\b/.test(yml), 'pages.yml debe copiar index.html al sitio publicado');
   assert(/landing\/(\.|\*)/.test(yml) || /cp -r landing/.test(yml), 'pages.yml debe copiar la carpeta landing/ (imágenes) al sitio publicado');
-  assert(/<loc>https:\/\/nerodante85\.github\.io\/Bitacorasecop\/landing\.html<\/loc>/.test(readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8')), 'sitemap.xml debe listar la landing');
+  const sitemap = readFileSync(path.join(ROOT, 'sitemap.xml'), 'utf8');
+  assert(/<loc>https:\/\/nerodante85\.github\.io\/Bitacorasecop\/<\/loc>/.test(sitemap), 'sitemap.xml debe listar la dirección principal (la landing)');
+  assert(!/(?:index|app|landing)\.html<\/loc>/.test(sitemap), 'sitemap.xml no debe listar archivos sueltos: la landing es la raíz y la app no se indexa');
 });
 await check('Landing: un solo h1, botón principal hacia la app, enlace a privacidad, CSP sin scripts y sin recursos externos salvo Google Fonts', () => {
   const html = readFileSync(LANDING_PATH, 'utf8');
   assert((html.match(/<h1[\s>]/g) || []).length === 1, 'debe haber un único h1');
   assert(/<html lang="es">/.test(html) && /<title>[^<]{10,}<\/title>/.test(html) && /<meta name="description" content="[^"]{60,}"/.test(html), 'lang, title y description');
-  assert(/<a class="btn btn-primario"[^>]*href="index\.html"[^>]*>Abrir la app<\/a>/.test(html), 'el botón principal «Abrir la app» lleva a index.html');
+  assert(/<a class="btn btn-primario"[^>]*href="app\.html"[^>]*>Abrir la app<\/a>/.test(html), 'el botón principal «Abrir la app» lleva a app.html');
   assert(/href="privacidad\.html"/.test(html), 'enlace a la política de datos');
   const csp = (html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/) || [])[1] || '';
   assert(/default-src 'none'/.test(csp) && !/script-src/.test(csp) && /img-src 'self' data:/.test(csp) && !/connect-src/.test(csp), 'CSP cerrada: solo estilos de Google Fonts e imágenes propias: ' + csp);
@@ -6488,11 +6490,26 @@ await check('Landing: la paleta cumple AA (texto atenuado sobre pizarra, texto s
 });
 
 await check('Enlace app ↔ landing: la landing abre la app y la app (Configuración y ayuda) enlaza a la landing, ambas existen', () => {
-  const landing = readFileSync(path.join(ROOT, 'landing.html'), 'utf8');
-  assert(/<a [^>]*href="index.html"/.test(landing), 'la landing debe enlazar a index.html (la app)');
+  const landing = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert(/<a [^>]*href="app.html"/.test(landing), 'la landing debe enlazar a app.html (la app)');
   const ayuda = html.slice(html.indexOf('<h1>Configuración y ayuda</h1>'));
-  assert(ayuda.length > 100 && /<a [^>]*href="landing.html"/.test(ayuda.slice(0, ayuda.indexOf('</section>'))), 'la sección «Configuración y ayuda» debe enlazar a landing.html');
-  assert(existsSync(path.join(ROOT, 'landing.html')) && existsSync(path.join(ROOT, 'index.html')), 'ambos archivos existen');
+  assert(ayuda.length > 100 && /<a [^>]*href="index.html"/.test(ayuda.slice(0, ayuda.indexOf('</section>'))), 'la sección «Configuración y ayuda» debe enlazar a index.html');
+  assert(existsSync(path.join(ROOT, 'index.html')) && existsSync(path.join(ROOT, 'app.html')), 'ambos archivos existen');
+});
+
+await check('Entrada del sitio: la raíz (index.html) es la landing, la app es app.html, y los enlaces cruzados, 404, privacidad y el correo diario apuntan bien', () => {
+  const land = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const app = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+  assert(/<link rel="canonical" href="https:\/\/nerodante85\.github\.io\/Bitacorasecop\/">/.test(land) && !/id="bitacora-root"/.test(land), 'index.html debe ser la landing (canónica en la raíz, sin la app)');
+  assert(/id="bitacora-root"/.test(app), 'app.html debe ser la app');
+  assert(/<a [^>]*href="app.html"[^>]*>Abrir la app/.test(land), 'la landing abre la app en app.html');
+  assert(!/href="index.html"[^>]*>Abrir la app/.test(land), 'ninguna entrada a la app debe apuntar a la landing');
+  const ayuda = app.slice(app.indexOf('<h1>Configuración y ayuda</h1>'));
+  assert(/<a [^>]*href="index.html"/.test(ayuda.slice(0, ayuda.indexOf('</section>'))), 'la app enlaza a la landing (index.html) desde Configuración y ayuda');
+  const priv = readFileSync(path.join(ROOT, 'privacidad.html'), 'utf8');
+  assert(/<a href="app.html">← Volver a Bitácora SECOP<\/a>/.test(priv), 'privacidad vuelve a la app (app.html), no a la landing');
+  const digest = readFileSync(path.join(ROOT, 'supabase/functions/daily-digest/index.ts'), 'utf8');
+  assert(/APP_URL'\) \|\| 'https:\/\/nerodante85\.github\.io\/Bitacorasecop\/app\.html'/.test(digest), 'el correo diario enlaza a la app (app.html), no a la landing');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');

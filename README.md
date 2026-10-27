@@ -72,7 +72,7 @@ hasta completar el anterior, con un indicador visible de en qué punto está.
 
 ## Arquitectura
 
-Un solo archivo (`index.html`): HTML + CSS + JavaScript, sin backend, sin
+Un solo archivo (`app.html`): HTML + CSS + JavaScript, sin backend, sin
 base de datos, sin build step ni `npm install`. Corre entero en el navegador
 del usuario y se publica tal cual con **GitHub Pages**.
 
@@ -113,12 +113,12 @@ documentado en [`CLAUDE.md`](CLAUDE.md) (guía vigente) y [`docs/HISTORIAL.md`](
 
 ## Desarrollo local
 
-No hay build step: para probar cambios alcanza con abrir `index.html`
+No hay build step: para probar cambios alcanza con abrir `app.html`
 directamente en el navegador, o servirlo con cualquier servidor estático:
 
 ```bash
 python -m http.server 8123
-# abrir http://localhost:8123/index.html
+# abrir http://localhost:8123/app.html
 ```
 
 ### Tests de humo
@@ -153,7 +153,7 @@ compartido con cualquier otra app anónima del mundo. Para subir ese límite:
    Token"** (nombre + descripción; el nombre debe ser único entre todas las
    apps registradas en cualquier dominio Socrata/Data & Insights).
 3. Pegar el token generado en la constante `SOCRATA_APP_TOKEN` de
-   `index.html` (búscala cerca de `fetchSecopDataset`).
+   `app.html` (búscala cerca de `fetchSecopDataset`).
 
 Instrucciones vigentes (verificadas octubre 2025):
 <https://support.socrata.com/hc/en-us/articles/210138558-Generating-App-Tokens-and-API-Keys>.
@@ -174,7 +174,7 @@ dispositivos:
    API (**nunca** la "service_role key" — esa habilita saltarse todos los
    permisos y no debe salir del panel de Supabase).
 4. Pegarlos en las constantes `SUPABASE_URL` / `SUPABASE_ANON_KEY` al
-   principio del `<script>` de `index.html`.
+   principio del `<script>` de `app.html`.
 
 Detalle de diseño (modelo de datos, seguridad por fila, qué se sincroniza y
 qué no) en `docs/HISTORIAL.md`, sección "Fase 1: cuentas y sincronización".
@@ -184,7 +184,7 @@ qué no) en `docs/HISTORIAL.md`, sección "Fase 1: cuentas y sincronización".
 Con cuenta conectada (arriba), en "Tu cuenta" puedes activar "Recibir un
 resumen diario por correo" para tus alertas guardadas y empresas seguidas.
 Esto necesita, además, una pieza de servidor que este repo no despliega
-sola con `git push` (a diferencia de `index.html`, que sí publica solo vía
+sola con `git push` (a diferencia de `app.html`, que sí publica solo vía
 GitHub Pages):
 
 1. Crear una cuenta gratis en [resend.com](https://resend.com) y generar una
@@ -195,7 +195,7 @@ GitHub Pages):
    dentro de un entorno sin ella), luego
    `supabase link --project-ref TU_PROJECT_REF` (el ref está en la URL del
    panel de tu proyecto).
-3. Configurar los secrets de la función (nunca se pegan en `index.html` ni
+3. Configurar los secrets de la función (nunca se pegan en `app.html` ni
    en ningún archivo del repo -- escribe el valor real después del `=`, sin
    ningún símbolo `<` `>` alrededor):
    ```bash
