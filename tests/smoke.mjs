@@ -6487,5 +6487,13 @@ await check('Landing: la paleta cumple AA (texto atenuado sobre pizarra, texto s
     assert(contraste(T[a], T[b]) >= 4.5, a + ' sobre ' + b + ': ' + contraste(T[a], T[b]).toFixed(2)));
 });
 
+await check('Enlace app ↔ landing: la landing abre la app y la app (Configuración y ayuda) enlaza a la landing, ambas existen', () => {
+  const landing = readFileSync(path.join(ROOT, 'landing.html'), 'utf8');
+  assert(/<a [^>]*href="index.html"/.test(landing), 'la landing debe enlazar a index.html (la app)');
+  const ayuda = html.slice(html.indexOf('<h1>Configuración y ayuda</h1>'));
+  assert(ayuda.length > 100 && /<a [^>]*href="landing.html"/.test(ayuda.slice(0, ayuda.indexOf('</section>'))), 'la sección «Configuración y ayuda» debe enlazar a landing.html');
+  assert(existsSync(path.join(ROOT, 'landing.html')) && existsSync(path.join(ROOT, 'index.html')), 'ambos archivos existen');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
