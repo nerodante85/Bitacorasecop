@@ -6512,5 +6512,65 @@ await check('Entrada del sitio: la raíz (index.html) es la landing, la app es a
   assert(/APP_URL'\) \|\| 'https:\/\/nerodante85\.github\.io\/Bitacorasecop\/app\.html'/.test(digest), 'el correo diario enlaza a la app (app.html), no a la landing');
 });
 
+// ---- Panel de evidencia: menos texto sin esconder la prueba (la cita y la página siempre visibles) ----
+const evidenciaFns = () => {
+  const i = html.indexOf('function etiquetaRequisitoEvidencia'), j = html.indexOf('function abrirEvidencia');
+  assert(i > 0 && j > i, 'no se encontraron las funciones del panel de evidencia');
+  return new Function('escapeHtml', 'badgeEstado4', 'textoDePaginaDeEntry', 'truncate',
+    html.slice(i, j) + '\nreturn { etiquetaRequisitoEvidencia, lineaFuenteEvidencia, resumenInfoEmpresaEvidencia, evidenciaHtml };')(
+    s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+    r => '<span class="badge-estado">' + r + '</span>', () => 'texto de la pagina', (t, n) => t.length > n ? t.slice(0, n - 1) + '…' : t);
+};
+const CITA_EXP = '1. Experiencia específica del proponente: mínimo 2 contratos de construcción de vías urbanas, dentro de los últimos diez (10) años.';
+const EMPRESA_LARGA = 'Contratos de tu empresa: Fila 1: Construcción de pavimento en vías urbanas del municipio ficticio de Vi... · valor 2400000000; Fila 2: Mejoramiento y construcción de vías urbanas en concreto asfáltico, mun... · valor 3100000000. Hay contratos con coincidencia total de palabras distintivas y satisfacen el/los criterio(s) numérico(s) exigido(s). Contratos relevantes encontrados: 2 (exige mínimo 2).';
+const filaEjemplo = (extra) => Object.assign({ clave: 'k1', requisito: 'Experiencia: ' + CITA_EXP, exigencia: 'Contratos relevantes encontrados: 2 (exige mínimo 2).', resultado: 'CUMPLE',
+  empresa: EMPRESA_LARGA, evidencia: { documento: 'Pliego de Condiciones', pagina: 5, cita: CITA_EXP, origen: 'texto' } }, extra || {});
+
+await check('EVID-001: el requisito que solo repite la cita no se muestra dos veces (queda su etiqueta); uno distinto de la cita sí se conserva', () => {
+  const { etiquetaRequisitoEvidencia: et } = evidenciaFns();
+  const a = et('Experiencia: ' + CITA_EXP, CITA_EXP);
+  assert(a.repetido === true && a.etiqueta === 'Experiencia', 'repite la cita: ' + JSON.stringify(a));
+  const b = et('Liquidez mínima', 'El proponente deberá acreditar un índice de liquidez mayor o igual a 1,5.');
+  assert(b.repetido === false, 'un requisito que NO contiene la cita se muestra (no se pierde su nombre): ' + JSON.stringify(b));
+  assert(et('Experiencia', '').repetido === false, 'sin cita no hay nada que repetir');
+  assert(et('', CITA_EXP).repetido === false, 'sin requisito no se oculta nada');
+});
+
+await check('EVID-002: la fuente y la página van en una sola línea («Pliego de Condiciones · p. 5») y sin página lo dice', () => {
+  const { lineaFuenteEvidencia: lf } = evidenciaFns();
+  assert(lf({ documento: 'Pliego de Condiciones', pagina: 5 }) === 'Pliego de Condiciones · p. 5', lf({ documento: 'Pliego de Condiciones', pagina: 5 }));
+  assert(lf({ documento: 'Estudio Previo', pagina: '' }) === 'Estudio Previo · página no identificada', lf({ documento: 'Estudio Previo', pagina: '' }));
+  assert(lf({}) === '— · página no identificada', lf({}));
+});
+
+await check('EVID-003: la información de la empresa corta se muestra entera; la larga da un resumen y deja el detalle completo para desplegar', () => {
+  const { resumenInfoEmpresaEvidencia: r } = evidenciaFns();
+  const corta = r('Capital de trabajo: 1.200.000.000');
+  assert(corta.resumen === 'Capital de trabajo: 1.200.000.000' && corta.detalle === null, JSON.stringify(corta));
+  const larga = r(EMPRESA_LARGA);
+  assert(larga.resumen === 'Contratos relevantes encontrados: 2 (exige mínimo 2).', 'resumen: ' + larga.resumen);
+  assert(larga.detalle === EMPRESA_LARGA, 'el detalle es el texto completo, sin recortar');
+  const sinPatron = r('x'.repeat(300));
+  assert(sinPatron.resumen.length <= 120 && sinPatron.detalle === 'x'.repeat(300), 'sin patrón conocido: resumen corto y detalle completo');
+});
+
+await check('EVID-004: el panel pone el resultado arriba, deja cita y página siempre visibles, plega lo largo y no pierde ningún dato', () => {
+  const { evidenciaHtml } = evidenciaFns();
+  const h = evidenciaHtml(filaEjemplo(), {});
+  assert(h.indexOf('badge-estado') > 0 && h.indexOf('badge-estado') < h.indexOf('evidencia-dl'), 'el resultado va antes de la lista de campos');
+  assert(!/<dt>Requisito<\/dt>/.test(h), 'el requisito que repite la cita no se muestra como campo aparte');
+  assert(h.includes('Pliego de Condiciones · p. 5') && !/<dt>Página<\/dt>/.test(h), 'fuente y página en una línea');
+  assert(h.includes('<blockquote class="evidencia-cita') && h.includes(CITA_EXP.slice(0, 40)), 'la cita textual sigue visible');
+  assert(h.includes(EMPRESA_LARGA), 'el texto completo de la empresa sigue en el panel (plegado, no borrado)');
+  assert(/<details[^>]*class="evidencia-detalle"/.test(h) && h.includes('Contratos relevantes encontrados: 2 (exige mínimo 2).'), 'detalle plegado con su resumen visible');
+  assert(h.includes('data-ev-pagina'), 'el botón «Ver página del documento» se conserva');
+  const visibleSinDetalle = h.replace(/<details[\s\S]*?<\/details>/, '');
+  assert(visibleSinDetalle.split('Contratos relevantes encontrados: 2 (exige mínimo 2).').length - 1 === 1, 'la frase de la exigencia no se repite en el resumen de la empresa (solo una vez a la vista)');
+  const corta = evidenciaHtml(filaEjemplo({ requisito: 'Liquidez mínima', empresa: 'Liquidez de tu RUP: 2,3', evidencia: { documento: 'Pliego de Condiciones', pagina: 31, cita: 'Índice de liquidez mayor o igual a 1,5.', origen: 'texto' } }), {});
+  assert(/<dt>Requisito<\/dt>/.test(corta) && !/evidencia-detalle/.test(corta) && !/data-ev-vermas/.test(corta), 'requisito distinto se muestra; lo corto no se pliega ni lleva «Ver más»');
+  const larga = evidenciaHtml(filaEjemplo({ evidencia: { documento: 'Pliego de Condiciones', pagina: 5, cita: CITA_EXP + ' ' + CITA_EXP, origen: 'texto' } }), {});
+  assert(/data-ev-vermas/.test(larga) && /evidencia-cita recortada/.test(larga) && larga.includes(CITA_EXP + ' ' + CITA_EXP), 'una cita larga se recorta con CSS y con «Ver más», sin cortar su texto');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

@@ -888,7 +888,8 @@ await check('Evidencia: el panel lateral muestra requisito, exigencia, fuente, p
   await pg.waitForFunction(() => !document.getElementById('bt-evidencia-backdrop').hidden);
   const t = await pg.evaluate(() => ({ rol: document.getElementById('bt-evidencia-panel').getAttribute('role'), texto: document.getElementById('bt-evidencia-panel').innerText, foco: document.activeElement.id, vista: !document.getElementById('view-analisis').hidden }));
   assert(t.rol === 'dialog' && t.vista, 'es un panel (diálogo) y no se sale de la pantalla de análisis');
-  for (const campo of ['Requisito', 'Exigencia', 'Fuente', 'Página', 'Cita textual', 'Información de la empresa', 'Resultado']) assert(t.texto.includes(campo), 'falta el campo "' + campo + '"');
+  for (const campo of ['Exigencia', 'Fuente', 'Cita textual', 'Información de la empresa']) assert(t.texto.includes(campo), 'falta el campo "' + campo + '"');
+  assert(/·\s*p\.\s*\d+/.test(t.texto), 'la fuente y la página van en una sola línea («Documento · p. N»)');
   assert(/Pliego de Condiciones/.test(t.texto) && /2/.test(t.texto) && /índice de liquidez debe ser mayor o igual a 1,5|indice de liquidez debe ser mayor o igual a 1,5/i.test(t.texto) && /Texto tomado directamente del documento leído/.test(t.texto), 'contenido de la evidencia: ' + t.texto.slice(0, 500));
   assert(/CUMPLE/.test(t.texto), 'resultado con texto');
   assert(t.foco === 'bt-evidencia-cerrar', 'el foco pasa al panel: ' + t.foco);

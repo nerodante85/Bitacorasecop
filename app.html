@@ -378,6 +378,12 @@
   #bitacora-root .evidencia-dl { margin: 0; display: grid; gap: 12px; }
   #bitacora-root .evidencia-dl dt { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 3px; }
   #bitacora-root .evidencia-dl dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+  #bitacora-root .evidencia-resultado { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 14px; }
+  #bitacora-root .evidencia-cita.recortada { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; padding-bottom: 0; border-bottom: 10px solid var(--bg); } /* sin relleno inferior: con él se asoma media línea cortada; el borde del mismo color lo repone */
+  #bitacora-root .evidencia-vermas { margin-top: 4px; min-height: 44px; padding: 0 2px; background: none; border: 0; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: underline; }
+  #bitacora-root .evidencia-detalle { margin-top: 4px; }
+  #bitacora-root .evidencia-detalle summary { display: flex; align-items: center; min-height: 44px; color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer; }
+  #bitacora-root .evidencia-detalle p { margin: 4px 0 0; font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
   #bitacora-root .evidencia-cita { margin: 0; padding: 10px 12px; border-left: 3px solid var(--accent-button); background: var(--bg); font-size: 13.5px; white-space: pre-wrap; }
   #bitacora-root .evidencia-pagina { margin-top: 10px; max-height: 320px; overflow: auto; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   #bitacora-root .evidencia-pagina mark { background: var(--accent-soft); color: var(--accent); }
@@ -11178,22 +11184,49 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const offsets = esEP ? entry.estudioPrevioPaginaOffsets : entry.paginaOffsets;
     return textoDePaginaPliego(texto, offsets, Number(pagina));
   }
+  // Panel de evidencia con menos texto, sin esconder la prueba: el resultado va arriba, la cita y la página siempre se ven,
+  // y lo largo (requisito repetido, detalle de contratos, cita extensa) se pliega en vez de borrarse.
+  // Un requisito que solo antepone una etiqueta a la cita («Experiencia: <cita>») no se muestra dos veces: queda su etiqueta.
+  function etiquetaRequisitoEvidencia(requisito, cita){
+    const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    const r = norm(requisito), c = norm(cita);
+    if (!r || !c || !r.includes(c)) return { repetido: false, etiqueta: '' };
+    const i = String(requisito).indexOf(':');
+    const etiqueta = (i > 0 && i <= 40 && norm(String(requisito).slice(i + 1)) === c) ? String(requisito).slice(0, i).trim() : '';
+    return { repetido: true, etiqueta };
+  }
+  function lineaFuenteEvidencia(ev){
+    ev = ev || {};
+    return (ev.documento || '—') + ' · ' + (ev.pagina ? 'p. ' + ev.pagina : 'página no identificada');
+  }
+  // Texto corto: entero. Largo: un resumen visible (la línea «Contratos relevantes encontrados: N (exige …)» si está) y el
+  // texto completo, sin recortar, para desplegar.
+  function resumenInfoEmpresaEvidencia(texto){
+    const t = String(texto || '');
+    if (t.length <= 140) return { resumen: t, detalle: null };
+    const m = t.match(/Contratos relevantes encontrados:\s*\d+(?:\s*\([^)]*\))?\.?/);
+    return { resumen: m ? m[0] : truncate(t, 110), detalle: t };
+  }
   function evidenciaHtml(fila, entry){
     const ev = fila.evidencia;
     let verif;
     if (ev.origen === 'texto') verif = '✓ Texto tomado directamente del documento leído.';
     else verif = ev.cita ? '✓ Texto tomado directamente del documento leído.' : 'Sin cita textual: esta conclusión sale de comparar datos de tu empresa con datos del proceso.';
-    const paginaTxt = ev.pagina ? String(ev.pagina) : 'No identificada';
     const puedePagina = !!(ev.pagina && textoDePaginaDeEntry(entry, ev.documento, ev.pagina));
-    return '<h2 id="bt-evidencia-titulo">Evidencia</h2><dl class="evidencia-dl">' +
-      '<div><dt>Requisito</dt><dd>' + escapeHtml(fila.requisito) + '</dd></div>' +
+    const req = etiquetaRequisitoEvidencia(fila.requisito, ev.cita);
+    const emp = resumenInfoEmpresaEvidencia(fila.empresa || '—');
+    const citaLarga = !!ev.cita && String(ev.cita).length > 180;
+    const igual = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const resumenRepiteExigencia = emp.detalle !== null && igual(emp.resumen) === igual(fila.exigencia);
+    return '<h2 id="bt-evidencia-titulo">Evidencia</h2>' +
+      '<div class="evidencia-resultado">' + badgeEstado4(fila.resultado) + (req.etiqueta ? ' <span class="tag tag-sutil">' + escapeHtml(req.etiqueta) + '</span>' : '') + '</div>' +
+      '<dl class="evidencia-dl">' +
+      (req.repetido ? '' : '<div><dt>Requisito</dt><dd>' + escapeHtml(fila.requisito) + '</dd></div>') +
       '<div><dt>Exigencia</dt><dd>' + escapeHtml(fila.exigencia || '—') + '</dd></div>' +
-      '<div><dt>Fuente</dt><dd>' + escapeHtml(ev.documento || '—') + (ev.modificadaPorAdenda ? ' <span class="tag tag-sutil">modificado por adenda</span>' : '') + '</dd></div>' +
-      '<div><dt>Página</dt><dd>' + escapeHtml(paginaTxt) + '</dd></div>' +
-      '<div><dt>Cita textual</dt><dd>' + (ev.cita ? '<blockquote class="evidencia-cita">«' + escapeHtml(ev.cita) + '»</blockquote>' : 'No hay cita textual.') + '<div class="saved-note mt-8">' + escapeHtml(verif) + '</div></dd></div>' +
-      '<div><dt>Información de la empresa</dt><dd>' + escapeHtml(fila.empresa || '—') + '</dd></div>' +
+      '<div><dt>Fuente</dt><dd>' + escapeHtml(lineaFuenteEvidencia(ev)) + (ev.modificadaPorAdenda ? ' <span class="tag tag-sutil">modificado por adenda</span>' : '') + '</dd></div>' +
+      '<div><dt>Cita textual</dt><dd>' + (ev.cita ? '<blockquote class="evidencia-cita' + (citaLarga ? ' recortada' : '') + '">«' + escapeHtml(ev.cita) + '»</blockquote>' + (citaLarga ? '<button type="button" class="evidencia-vermas" data-ev-vermas aria-expanded="false">Ver más</button>' : '') : 'No hay cita textual.') + '<div class="saved-note mt-8">' + escapeHtml(verif) + '</div></dd></div>' +
+      '<div><dt>Información de la empresa</dt><dd>' + (resumenRepiteExigencia ? '' : escapeHtml(emp.resumen)) + (emp.detalle === null ? '' : '<details class="evidencia-detalle"><summary>' + (resumenRepiteExigencia ? 'Ver los contratos de tu empresa' : 'Ver el detalle') + '</summary><p>' + escapeHtml(emp.detalle) + '</p></details>') + '</dd></div>' +
       (fila.nota ? '<div><dt>Nota del pliego</dt><dd>' + escapeHtml(fila.nota) + '</dd></div>' : '') +
-      '<div><dt>Resultado</dt><dd>' + badgeEstado4(fila.resultado) + '</dd></div>' +
       '</dl>' +
       '<div class="actions mt-12"><button type="button" class="btn-secondary" data-ev-pagina data-ev-doc="' + escapeHtml(ev.documento || '') + '" data-ev-pag="' + escapeHtml(String(ev.pagina || '')) + '"' + (puedePagina ? '' : ' disabled') + '>Ver página del documento</button></div>' +
       (!puedePagina ? '<div class="saved-note mt-8">' + (ev.pagina ? 'El texto completo de esta página ya no está en este navegador: vuelve a cargar el PDF para verlo.' : 'Esta conclusión no tiene una página asociada.') + '</div>' : '') +
@@ -11223,6 +11256,12 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   if (evidenciaBackdropEl){
     evidenciaBackdropEl.addEventListener('click', e => {
       if (e.target === evidenciaBackdropEl || e.target.closest('#bt-evidencia-cerrar')){ cerrarEvidencia(); return; }
+      const vm = e.target.closest('[data-ev-vermas]');
+      if (vm){
+        const c = evidenciaPanelEl.querySelector('.evidencia-cita');
+        if (c){ const abierta = !c.classList.toggle('recortada'); vm.textContent = abierta ? 'Ver menos' : 'Ver más'; vm.setAttribute('aria-expanded', String(abierta)); }
+        return;
+      }
       const pag = e.target.closest('[data-ev-pagina]');
       if (pag){
         const entry = analisis[evidenciaPanelEl.dataset.entryId];
