@@ -11110,7 +11110,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const quien = evalParaCompat.porPerfil.length > 1 ? ' Mejor resultado: ' + escapeHtml(m.perfil) + '.' : '';
     const hero = '<div class="resultado-global ' + claseVeredicto(v) + '" role="status"><div class="resultado-nombre">' + escapeHtml(v) + '</div>' +
       '<div class="resultado-expl">' + escapeHtml(explicacionVeredicto(v, m.gates, { hayPliego: !!m.conPliego })) + quien + '</div>' +
-      '<div class="resultado-meta">' + escapeHtml(descripcionVeredicto(v)) + '</div>' + cobertura + '</div>';
+      cobertura + '</div>'; // sin la frase genérica de descripcionVeredicto: repetía la explicación de arriba con otras palabras (el tooltip la sigue usando)
     const avisoIaRetirada = entry.iaRetirada
       ? '<div class="saved-note mb-8">Este análisis se hizo con la extracción de requisitos por IA, que ya no existe. Se descartaron sus resultados de experiencia y de IA; pulsa «Evaluar cumplimiento de experiencia» para recalcularlos con el lector por reglas.</div>'
       : '';

@@ -6572,5 +6572,15 @@ await check('EVID-004: el panel pone el resultado arriba, deja cita y página si
   assert(/data-ev-vermas/.test(larga) && /evidencia-cita recortada/.test(larga) && larga.includes(CITA_EXP + ' ' + CITA_EXP), 'una cita larga se recorta con CSS y con «Ver más», sin cortar su texto');
 });
 
+// ---- Pantalla de análisis: la tarjeta de resultado no dice dos veces lo mismo ----
+await check('ANA-001: la tarjeta de resultado muestra la explicación específica y la cobertura, sin repetirla con la frase genérica de descripcionVeredicto', () => {
+  const i = html.indexOf("const hero = '<div class=\"resultado-global"), j = html.indexOf('const avisoIaRetirada');
+  assert(i > 0 && j > i, 'no se encontró la tarjeta de resultado');
+  const bloque = html.slice(i, j);
+  assert(/resultado-expl/.test(bloque) && /cobertura/.test(bloque) && /escapeHtml\(v\)/.test(bloque), 'la tarjeta conserva el nombre, la explicación y la cobertura');
+  assert(!/descripcionVeredicto\(/.test(bloque), 'la tarjeta de resultado no debe repetir la explicación con descripcionVeredicto (decía lo mismo con otras palabras)');
+  assert(/function descripcionVeredicto\(/.test(html) && /descripcionVeredicto\(v\) \+ ' ' \+ \(res\.porPerfil/.test(html), 'descripcionVeredicto sigue existiendo para el tooltip');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
