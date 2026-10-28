@@ -6582,5 +6582,45 @@ await check('ANA-001: la tarjeta de resultado muestra la explicación específic
   assert(/function descripcionVeredicto\(/.test(html) && /descripcionVeredicto\(v\) \+ ' ' \+ \(res\.porPerfil/.test(html), 'descripcionVeredicto sigue existiendo para el tooltip');
 });
 
+// ---- Pantalla de análisis: lo que repite la «Decisión» queda plegado, con un resumen de una línea ----
+const resumenesAnalisis = () => {
+  const i = html.indexOf('function metaAlertasAnalisis'), j = html.indexOf('function resultadoAnalisisHtml');
+  assert(i > 0 && j > i, 'no se encontraron los resúmenes de las secciones plegadas');
+  return new Function(html.slice(i, j) + '\nreturn { metaAlertasAnalisis, metaCapacidadResidual };')();
+};
+
+await check('ANA-002: el resumen de una línea de «Alertas» cuenta las alertas y las críticas, y el de «Capacidad Residual» da el resultado de esa fila', () => {
+  const { metaAlertasAnalisis: ma, metaCapacidadResidual: mc } = resumenesAnalisis();
+  assert(ma([]) === 'ninguna', 'sin alertas: ' + ma([]));
+  assert(ma([{ nivel: 'revisar' }]) === '1 alerta', '1 alerta: ' + ma([{ nivel: 'revisar' }]));
+  assert(ma([{ nivel: 'critica' }, { nivel: 'revisar' }, { nivel: 'revisar' }, { nivel: 'revisar' }]) === '4 alertas · 1 crítica', ma([{ nivel: 'critica' }, { nivel: 'revisar' }, { nivel: 'revisar' }, { nivel: 'revisar' }]));
+  assert(ma([{ nivel: 'critica' }, { nivel: 'critica' }]) === '2 alertas · 2 críticas', 'plural de críticas');
+  const filas = [{ requisito: 'Índice de liquidez', resultado: 'CUMPLE' }, { requisito: 'Capacidad K residual', resultado: 'NO CUMPLE' }, { requisito: 'Capacidad vs valor', resultado: 'REVISAR' }];
+  assert(mc(filas) === 'NO CUMPLE', 'toma el resultado de la fila de K residual: ' + mc(filas));
+  assert(mc([{ requisito: 'Índice de liquidez', resultado: 'CUMPLE' }]) === '' && mc(null) === '', 'sin fila de K residual no inventa un resultado');
+});
+
+await check('ANA-003: «Alertas» y «Capacidad Residual» son secciones plegables cerradas por defecto (no tarjetas siempre abiertas), y su contenido sigue en la pantalla', () => {
+  const i = html.indexOf('function resultadoAnalisisHtml'), j = html.indexOf('function capacidadResidualAnalisisHtml');
+  assert(i > 0 && j > i, 'no se encontró resultadoAnalisisHtml');
+  const f = html.slice(i, j);
+  assert(/seccionPlegable\('Alertas', metaAlertasAnalisis\(alertas\), alertasHtml, false\)/.test(f), 'Alertas debe ser plegable, con su resumen y cerrada');
+  assert(/seccionPlegable\('Capacidad Residual', metaCapacidadResidual\(filas\), capacidadResidualAnalisisHtml\(entry, evalParaCompat, filas\), false\)/.test(f), 'Capacidad Residual debe ser plegable, con su resumen y cerrada');
+  assert(!/<h3>Alertas<\/h3>/.test(f) && !/<h3>Capacidad Residual<\/h3>/.test(f), 'ya no son tarjetas con título fijo');
+  assert(/<h3>Resumen de viabilidad<\/h3>/.test(f) && /<h3>Matriz de requisitos<\/h3>/.test(f), 'el resumen de viabilidad y la matriz siguen siempre visibles');
+});
+
+await check('ANA-004: en «Requisitos habilitantes» el recuento del cruce y el aviso de cifras quedan a la vista y la explicación larga va plegada', () => {
+  const i = html.indexOf('function fichaHabilitanteHtml'), j = html.indexOf('function resumenDecisionHtml');
+  assert(i > 0 && j > i, 'no se encontró fichaHabilitanteHtml');
+  const f = html.slice(i, j);
+  const k = f.indexOf('Cruce financiero con tu perfil');
+  assert(k > 0, 'el recuento del cruce sigue existiendo');
+  const linea = f.slice(k, f.indexOf('Cifras calculadas por el sistema'));
+  assert(/<details class="ficha-notas"/.test(linea) && linea.indexOf('<details class="ficha-notas"') > linea.indexOf('no determinable'), 'la explicación va en un plegable DESPUÉS del recuento');
+  assert(linea.indexOf('Compara capital de trabajo') > linea.indexOf('<details class="ficha-notas"'), 'el texto largo de «qué compara» está dentro del plegable');
+  assert(/Cifras calculadas por el sistema a partir del documento/.test(f) && !/ficha-notas[^]*Cifras calculadas por el sistema[^]*<\/details>/.test(f.slice(k)), 'el aviso de cifras calculadas sigue a la vista, fuera del plegable');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);

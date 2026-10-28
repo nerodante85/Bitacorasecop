@@ -378,6 +378,8 @@
   #bitacora-root .evidencia-dl { margin: 0; display: grid; gap: 12px; }
   #bitacora-root .evidencia-dl dt { font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0 0 3px; }
   #bitacora-root .evidencia-dl dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+  #bitacora-root .ficha-notas { margin-top: 4px; }
+  #bitacora-root .ficha-notas summary { display: flex; align-items: center; min-height: 44px; color: var(--accent); font-weight: 600; cursor: pointer; }
   #bitacora-root .evidencia-resultado { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 14px; }
   #bitacora-root .evidencia-cita.recortada { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; padding-bottom: 0; border-bottom: 10px solid var(--bg); } /* sin relleno inferior: con él se asoma media línea cortada; el borde del mismo color lo repone */
   #bitacora-root .evidencia-vermas { margin-top: 4px; min-height: 44px; padding: 0 2px; background: none; border: 0; color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: underline; }
@@ -11059,7 +11061,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
         f.observaciones.map(function(o){ return '<li><b>' + escapeHtml(o.tema) + '</b>' + (o.pagina ? ' (p. ' + o.pagina + ')' : '') + ': ' + escapeHtml(o.texto) + '</li>'; }).join('') + '</ol></details>' +
         '<div class="ficha-obs-acciones"><button type="button" class="link-btn" data-ficha-obs="copiar" data-obs-id="' + escapeHtml(entry.id || '') + '">Copiar borrador de observaciones</button> <button type="button" class="link-btn" data-ficha-obs="descargar" data-obs-id="' + escapeHtml(entry.id || '') + '">⬇ Descargar borrador (.txt)</button></div></div>' : '') +
       (f.avisos.length ? '<ul class="ficha-avisos">' + f.avisos.map(function(a){ return '<li class="alerta-item revisar"><span class="alerta-nivel">▲ REVISAR</span><span>' + escapeHtml(a) + '</span></li>'; }).join('') + '</ul>' : '') +
-      (hayCruce ? '<div class="resultado-meta" role="status">Cruce financiero con tu perfil: ' + cuentas['CUMPLE'] + ' cumple · ' + cuentas['NO CUMPLE'] + ' no cumple · ' + cuentas['REVISAR'] + ' por revisar · ' + cuentas['NO DETERMINABLE'] + ' no determinable. Compara capital de trabajo, patrimonio, K e índices y, en la experiencia específica, las cantidades por ítem que cargaste en la hoja CANTIDADES (tubería, pozos, conexiones, entibados); el resto de la experiencia se evalúa en la matriz.</div>' : '') +
+      (hayCruce ? '<div class="resultado-meta" role="status">Cruce financiero con tu perfil: ' + cuentas['CUMPLE'] + ' cumple · ' + cuentas['NO CUMPLE'] + ' no cumple · ' + cuentas['REVISAR'] + ' por revisar · ' + cuentas['NO DETERMINABLE'] + ' no determinable.' +
+        '<details class="ficha-notas"><summary>Qué compara el cruce</summary>Compara capital de trabajo, patrimonio, K e índices y, en la experiencia específica, las cantidades por ítem que cargaste en la hoja CANTIDADES (tubería, pozos, conexiones, entibados); el resto de la experiencia se evalúa en la matriz.</details></div>' : '') +
       '<div class="resultado-meta">Cifras calculadas por el sistema a partir del documento (SMMLV ' + new Date().getFullYear() + '); confírmalas en el pliego definitivo.</div></div>';
   }
 
@@ -11094,6 +11097,17 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       '<button type="button" class="link-btn" data-informe-doc="word" data-informe-doc-id="' + escapeHtml(entry.id || '') + '">⬇ Informe en Word (.doc)</button></div></div>';
   }
   // Cabecera del análisis: resultado global + explicación, resumen de viabilidad, alertas y matriz.
+  // Resumen de una línea para las secciones plegadas del análisis: lo importante se ve sin abrirlas.
+  function metaAlertasAnalisis(alertas){
+    const n = (alertas || []).length;
+    if (!n) return 'ninguna';
+    const c = alertas.filter(a => a.nivel === 'critica').length;
+    return n + (n === 1 ? ' alerta' : ' alertas') + (c ? ' · ' + c + (c === 1 ? ' crítica' : ' críticas') : '');
+  }
+  function metaCapacidadResidual(filas){
+    const f = (filas || []).find(x => /k residual/i.test(x.requisito || ''));
+    return f ? f.resultado : '';
+  }
   function resultadoAnalisisHtml(entry, evalParaCompat){
     const lp = lecturaParcial(entry);
     const cobertura = '<div class="resultado-meta">' + escapeHtml(textoCoberturaLectura(entry)) + ' · <i>' + AVISO_ORIENTATIVO + '</i></div>';
@@ -11133,8 +11147,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const decisionHtml = resumenDecisionHtml(entry, filas, v, !!m.conPliego);
     return '<div class="analysis-resumen">' + hero + decisionHtml + avisoIaRetirada + fichaHabilitanteHtml(entry) +
       '<div class="analisis-seccion"><h3>Resumen de viabilidad</h3>' + tabViab + '</div>' +
-      '<div class="analisis-seccion"><h3>Capacidad Residual</h3>' + capacidadResidualAnalisisHtml(entry, evalParaCompat, filas) + '</div>' +
-      '<div class="analisis-seccion"><h3>Alertas</h3>' + alertasHtml + '</div>' +
+      seccionPlegable('Capacidad Residual', metaCapacidadResidual(filas), capacidadResidualAnalisisHtml(entry, evalParaCompat, filas), false) +
+      seccionPlegable('Alertas', metaAlertasAnalisis(alertas), alertasHtml, false) +
       '<div class="analisis-seccion"><h3>Matriz de requisitos</h3>' + matrizHtml + '</div></div>';
   }
 
