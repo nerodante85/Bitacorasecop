@@ -59,7 +59,7 @@ jobs:
       - name: Preparar el sitio
         run: |
           mkdir -p _site/vendor
-          cp app.html lectura.js evaluacion.js coincidencia.js formatomaestro.js magnitudes.js 404.html privacidad.html snapshot.json municipios.json entidades.json sitemap.xml index.html _site/
+          cp app.html lectura.js evaluacion.js coincidencia.js formatomaestro.js magnitudes.js 404.html privacidad.html snapshot.json municipios.json entidades.json sitemap.xml index.html guia.html _site/
           cp vendor/*.js _site/vendor/
           mkdir -p _site/landing && cp -r landing/. _site/landing/
           # Sella los scripts propios con el commit: sin esto el navegador puede cruzar un app.html nuevo con un script viejo en caché.

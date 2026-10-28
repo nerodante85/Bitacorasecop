@@ -2,3 +2,7 @@
 # cual se descargó, sin que git le toque los saltos de línea (autocrlf podría alterar bytes
 # de un archivo que se supone es idéntico byte a byte al que se probó en el navegador).
 vendor/*.js -text
+
+# Los PDF de prueba (ejemplos/pruebas-pliegos) son ASCII y Git los tomaba por texto: con autocrlf (Windows) se descargaban con
+# saltos CRLF, que corrompen sus offsets y los hacen ilegibles. Binarios: se descargan tal cual se guardaron.
+*.pdf binary

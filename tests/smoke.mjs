@@ -23,6 +23,10 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
+// Las pruebas de fechas se escriben en UTC (como el servidor de CI) y la app lee las fechas de SECOP sin zona como hora LOCAL:
+// en un equipo en Colombia (UTC-5) cuatro pruebas fallaban solo por eso. Se fija la zona ANTES de usar cualquier fecha.
+process.env.TZ = 'UTC';
+
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 // Reglas compartidas (coincidencia.js): el mismo archivo que carga el navegador y copia daily-digest.
 const Coincidencia = (await import(pathToFileURL(path.join(ROOT, 'coincidencia.js')).href)).default;
@@ -6246,7 +6250,7 @@ await check('Empresas ficticias: los 3 pliegos PDF generados traen el mismo text
     const f = path.join(ROOT, 'ejemplos', 'pruebas-pliegos', p.archivo);
     assert(existsSync(f), 'falta ' + p.archivo + ': corre node ejemplos/pruebas-pliegos/generar.mjs');
     let txt;
-    try { txt = execFileSync('pdftotext', ['-layout', f, '-'], { encoding: 'utf8' }).replace(/\s+/g, ' '); }
+    try { txt = execFileSync('pdftotext', ['-enc', 'UTF-8', '-layout', f, '-'], { encoding: 'utf8' }).replace(/\s+/g, ' '); }
     catch (e) { if (e && e.code === 'ENOENT') return; throw e; } // sin poppler-utils no se puede leer el PDF: solo se comprueba que exista
     const frases = p.paginas.map(pg => pg.split('.')[0].replace(/\s+/g, ' ').trim());
     frases.forEach(fr => assert(txt.includes(fr.slice(0, 60)), p.archivo + ' no contiene «' + fr.slice(0, 60) + '»'));
@@ -6371,7 +6375,7 @@ await check('F-09: el envoltorio real de cada función (ejecutado con un manejad
   const quitarTipos = js => js.replace(/: Record<string, string>/g, '').replace(/: string \| null/g, '').replace(/: string \| undefined/g, '').replace(/\(s: string\)/g, '(s)').replace(/\(req: Request\)/g, '(req)');
   const PAGES = 'https://nerodante85.github.io';
   for (const f of ['eliminar-cuenta', 'transcribir-pdf']) {
-    const src = readFileSync(new URL('../supabase/functions/' + f + '/index.ts', import.meta.url), 'utf8');
+    const src = readFileSync(new URL('../supabase/functions/' + f + '/index.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n'); // tolera CRLF (checkout de Windows)
     const bloque = src.slice(src.indexOf('const ORIGENES_PERMITIDOS_BASE'), src.indexOf('// ==== CORS-F09 fin ===='));
     const ini = src.indexOf('Deno.serve(async (req: Request) => {');
     const envoltorio = src.slice(ini, src.indexOf('\n});\n', ini) + 5);
@@ -6620,6 +6624,57 @@ await check('ANA-004: en «Requisitos habilitantes» el recuento del cruce y el 
   assert(/<details class="ficha-notas"/.test(linea) && linea.indexOf('<details class="ficha-notas"') > linea.indexOf('no determinable'), 'la explicación va en un plegable DESPUÉS del recuento');
   assert(linea.indexOf('Compara capital de trabajo') > linea.indexOf('<details class="ficha-notas"'), 'el texto largo de «qué compara» está dentro del plegable');
   assert(/Cifras calculadas por el sistema a partir del documento/.test(f) && !/ficha-notas[^]*Cifras calculadas por el sistema[^]*<\/details>/.test(f.slice(k)), 'el aviso de cifras calculadas sigue a la vista, fuera del plegable');
+});
+
+// ---- Entrega a usuarios: la primera búsqueda no esconde procesos que siguen abiertos ----
+await check('ENT-001: los filtros de fábrica de «Buscar procesos» no ocultan procesos abiertos (solo «Ocultar vencidos» nace marcado)', () => {
+  const marcado = id => {
+    const m = html.match(new RegExp('<input type="checkbox" id="' + id + '"([^>]*)>'));
+    assert(m, 'no se encontró el filtro ' + id);
+    return /\bchecked\b/.test(m[1]);
+  };
+  assert(marcado('bt-hide-closed') === true, '«Ocultar vencidos» sí nace marcado: un proceso vencido ya no es oportunidad');
+  assert(marcado('bt-hide-old') === false, '«Solo publicados hace ≤30 días» no debe nacer marcado: escondía procesos abiertos publicados hace más de 30 días');
+  assert(marcado('bt-only-licitacion') === false, '«Solo Licitación Pública» no nace marcado');
+  assert(marcado('bt-hide-discarded') === false, '«Ocultar descartados» no nace marcado');
+});
+
+// ---- Guía de primeros pasos (guia.html): para quien recibe la app por primera vez ----
+const GUIA_PATH = path.join(ROOT, 'guia.html');
+
+await check('GUIA-001: guia.html existe, pages.yml la publica y la app la enlaza desde Inicio y desde «Configuración y ayuda»', () => {
+  assert(existsSync(GUIA_PATH), 'falta guia.html');
+  const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
+  assert(/cp app\.html [^\n]*\bguia\.html\b/.test(yml), 'pages.yml debe copiar guia.html al sitio publicado');
+  const aLaGuia = (html.match(/<a [^>]*href="guia\.html"/g) || []).length;
+  assert(aLaGuia >= 2, 'la app debe enlazar a guia.html desde Inicio y desde Configuración y ayuda (hay ' + aLaGuia + ')');
+});
+
+await check('GUIA-002: la guía es una página de lectura (un h1, sin scripts ni recursos externos salvo Google Fonts) y vuelve a la app', () => {
+  const g = readFileSync(GUIA_PATH, 'utf8');
+  assert((g.match(/<h1[\s>]/g) || []).length === 1, 'debe haber un único h1');
+  assert(!/<script\b/i.test(g), 'la guía no ejecuta scripts');
+  const csp = (g.match(/Content-Security-Policy"\s+content="([^"]+)"/) || [])[1] || '';
+  assert(/default-src 'none'/.test(csp) && !/script-src/.test(csp), 'CSP restrictiva y sin script-src');
+  assert(/<a [^>]*href="app\.html"/.test(g), 'la guía debe enlazar a la app (app.html)');
+  assert(/<html lang="es/.test(g), 'idioma en español');
+});
+
+await check('GUIA-003: cada botón y sección que la guía nombra existe de verdad en la app (si se renombra uno, la guía lo avisa)', () => {
+  const g = readFileSync(GUIA_PATH, 'utf8');
+  const nombres = [...g.matchAll(/<b class="ui">([^<]+)<\/b>/g)].map(m => m[1].replace(/&amp;/g, '&').replace(/&laquo;|&raquo;/g, ''));
+  assert(nombres.length >= 10, 'la guía debe marcar con <b class="ui"> los nombres de la interfaz (hay ' + nombres.length + ')');
+  const sinTexto = html.replace(/\s+/g, ' ');
+  const faltan = [...new Set(nombres)].filter(n => !sinTexto.includes(n));
+  assert(faltan.length === 0, 'nombres de la guía que no existen en la app: ' + faltan.join(' | '));
+});
+
+await check('GUIA-004: la guía explica los 4 resultados y no inventa precios, clientes ni promesas de la app', () => {
+  const g = readFileSync(GUIA_PATH, 'utf8');
+  const texto = g.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ');
+  for (const r of ['GO', 'REVISAR', 'NO-GO', 'NO DETERMINABLE']) assert(texto.includes(r), 'falta explicar el resultado ' + r);
+  assert(/orientativ/i.test(texto) && /pliego (oficial|definitivo)/i.test(texto), 'debe recordar que el resultado es orientativo y se confirma en el pliego oficial');
+  assert(!/gratis|precio|tarifa|suscripci|por mes|al mes|testimonio|garantizamos|100 ?%/i.test(texto), 'sin precios, «gratis», testimonios ni promesas absolutas (las cifras en pesos de un ejemplo de búsqueda sí valen)');
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
