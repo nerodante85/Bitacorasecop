@@ -62,6 +62,7 @@ jobs:
           cp app.html lectura.js evaluacion.js coincidencia.js formatomaestro.js magnitudes.js 404.html privacidad.html snapshot.json municipios.json entidades.json sitemap.xml index.html guia.html _site/
           cp vendor/*.js _site/vendor/
           mkdir -p _site/landing && cp -r landing/. _site/landing/
+          mkdir -p _site/plantillas && cp plantillas/*.xlsx _site/plantillas/
           # Sella los scripts propios con el commit: sin esto el navegador puede cruzar un app.html nuevo con un script viejo en caché.
           sed -i -E "s#<script src=\"(lectura|evaluacion|coincidencia|formatomaestro|magnitudes)\.js\">#<script src=\"\1.js?v=${GITHUB_SHA}\">#" _site/app.html
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1

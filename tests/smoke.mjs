@@ -6677,5 +6677,170 @@ await check('GUIA-004: la guía explica los 4 resultados y no inventa precios, c
   assert(!/gratis|precio|tarifa|suscripci|por mes|al mes|testimonio|garantizamos|100 ?%/i.test(texto), 'sin precios, «gratis», testimonios ni promesas absolutas (las cifras en pesos de un ejemplo de búsqueda sí valen)');
 });
 
+// ---- Empresa: una persona nueva no se queda atascada sin empresa (Guardar empresa no puede fallar en silencio) ----
+const asegurarPerfilHarness = (nombreEscrito) => {
+  const i = html.indexOf('function asegurarPerfilActivo'), j = html.indexOf('async function savePerfil');
+  assert(i > 0 && j > i, 'no se encontró asegurarPerfilActivo antes de savePerfil');
+  let n = 0;
+  return new Function('PERFIL_VACIO', 'nuevoPerfilId', 'perfilNombreEl',
+    'let perfiles = {}, perfilActivoId = null, perfilesActivos = [];\n' + html.slice(i, j) +
+    '\nreturn { asegurar: asegurarPerfilActivo, estado: () => ({ perfiles, perfilActivoId, perfilesActivos }), fijar: (a, p) => { perfilActivoId = a; perfiles = p; } };')(
+    { nombre: '', rup: '', k: '', contratosEnEjecucion: [] }, () => 'p' + (++n), { value: nombreEscrito || '' });
+};
+
+await check('EMP-001: sin empresa en edición, asegurarPerfilActivo crea una con el nombre escrito (o «Empresa 1»), la deja activa y marcada para comparar, y no crea otra si ya hay', () => {
+  const a = asegurarPerfilHarness('Constructora X SAS');
+  const id = a.asegurar();
+  let e = a.estado();
+  assert(e.perfilActivoId === id && e.perfiles[id].nombre === 'Constructora X SAS', 'crea la empresa con el nombre escrito: ' + JSON.stringify(e.perfiles));
+  assert(e.perfilesActivos.indexOf(id) !== -1, 'entra marcada para comparar, como con «+ Nueva empresa»');
+  assert(a.asegurar() === id && Object.keys(a.estado().perfiles).length === 1, 'una segunda llamada no crea otra empresa');
+  const b = asegurarPerfilHarness('');
+  const idb = b.asegurar();
+  assert(b.estado().perfiles[idb].nombre === 'Empresa 1', 'sin nombre escrito usa «Empresa 1»: ' + b.estado().perfiles[idb].nombre);
+  const c = asegurarPerfilHarness('Otra');
+  c.fijar('viejo', { viejo: { nombre: 'Existente' } });
+  assert(c.asegurar() === 'viejo' && Object.keys(c.estado().perfiles).length === 1, 'con una empresa activa no crea nada');
+  c.fijar('fantasma', { viejo: { nombre: 'Existente' } });
+  const idc = c.asegurar();
+  assert(idc !== 'fantasma' && c.estado().perfiles[idc], 'un id activo que ya no existe se repone con una empresa nueva');
+});
+
+await check('EMP-002: «Guardar empresa», escribir el nombre y «Agregar contrato» crean la empresa si no hay (antes no hacían nada y no avisaban), sin vaciar el formulario', () => {
+  const cuerpo = nombre => {
+    const i = html.indexOf(nombre);
+    assert(i > 0, 'no se encontró ' + nombre);
+    return html.slice(i, html.indexOf('\n  }\n', i));
+  };
+  assert(/asegurarPerfilActivo\(\)/.test(cuerpo('async function savePerfil')), 'savePerfil debe asegurar la empresa');
+  assert(!/if \(!perfilActivoId\) return;/.test(cuerpo('async function savePerfil')), 'savePerfil ya no sale en silencio si no hay empresa');
+  assert(/asegurarPerfilActivo\(\)/.test(cuerpo('function onNombrePerfilInput')), 'escribir el nombre de la empresa la crea');
+  assert(/asegurarPerfilActivo\(\)/.test(cuerpo('function agregarContratoEjecucion')), 'agregar un contrato en ejecución crea la empresa si no hay');
+  const i = html.indexOf('function asegurarPerfilActivo'), j = html.indexOf('async function savePerfil');
+  assert(!/cargarPerfilActivoEnCampos\(\)/.test(html.slice(i, j)), 'asegurarPerfilActivo NO debe recargar los campos: borraría lo que la persona ya escribió');
+  assert(/cargarPerfilActivoEnCampos\(\)/.test(cuerpo('async function nuevoPerfil')), '«+ Nueva empresa» sí empieza con el formulario vacío');
+});
+
+// ---- Empresa: nombres que no se confunden y textos que dicen por dónde se llega ----
+await check('EMP-003: la pestaña Empresa habla de «empresa» y «profesional» (no de dos «perfiles» distintos) y ningún texto manda a un sitio sin decir cómo llegar', () => {
+  for (const t of ['>Guardar empresa</button>', '>Guardar profesional</button>', '>+ Nueva empresa</button>', '>Eliminar empresa</button>', '<h2>Empresas guardadas</h2>', 'Sin empresas todavía']) {
+    assert(html.includes(t), 'falta el texto «' + t + '»');
+  }
+  for (const viejo of ['Guardar perfil', '+ Nuevo perfil', 'Eliminar perfil', 'Perfiles guardados', 'Sin perfiles todavía']) {
+    assert(!html.includes(viejo), 'queda el nombre viejo «' + viejo + '» (confunde «perfil» de empresa con «perfil profesional»)');
+  }
+  // Instrucciones que mandaban a «Análisis del proceso» (una pantalla sin ítem de menú) o a «Evaluación» (ya no existe) sin decir el camino.
+  for (const viejo of ['al analizar ese pliego, en "Análisis del proceso"', 'que analices en "Análisis del proceso"', 'y a "Análisis del proceso" para analizar su pliego',
+    'analiza su pliego en "Análisis del proceso"', 'Ve a "Análisis del proceso" y sube', 'de este proceso en "Análisis del proceso" para', 'Ve a "Análisis del proceso", analiza',
+    'de este pliego en "Análisis del proceso"', '(ver "Evaluación")']) {
+    assert(!html.includes(viejo), 'queda una instrucción sin camino: «' + viejo + '»');
+  }
+  assert((html.match(/"Mis procesos" › "Ver proceso"/g) || []).length >= 8, 'las instrucciones deben decir el camino real: "Mis procesos" › "Ver proceso"');
+  assert(/<div class="saved-note" id="bt-personal-siguiente-paso" hidden>[^<]*guarda un proceso[^<]*"Mis procesos" › "Ver proceso"/.test(html), 'el siguiente paso de Personal dice guardar y luego abrir desde Mis procesos');
+});
+
+// ---- Empresa › Datos: el formulario dice qué sirve para evaluar y qué solo para la carta, y explica la jerga ----
+await check('EMP-004: el formulario de Datos separa «Para evaluar tu cumplimiento» de «Para la carta de presentación» y cada campo queda en su grupo', () => {
+  const pos = s => { const i = html.indexOf(s); assert(i > 0, 'falta ' + s); return i; };
+  const evaluar = pos('Para evaluar tu cumplimiento'), carta = pos('Para la carta de presentación');
+  assert(evaluar < pos('id="bt-perfil-rup"') && pos('id="bt-perfil-rup"') < pos('id="bt-perfil-k"') && pos('id="bt-perfil-k"') < pos('id="bt-perfil-k-residual"') && pos('id="bt-perfil-k-residual"') < carta,
+    'RUP, K y K residual van bajo «Para evaluar tu cumplimiento»');
+  for (const id of ['bt-perfil-tipo-persona', 'bt-perfil-nit', 'bt-perfil-representante', 'bt-perfil-telefono', 'bt-perfil-direccion', 'bt-perfil-ciudad', 'bt-perfil-correo', 'bt-perfil-objeto-social'])
+    assert(pos('id="' + id + '"') > carta, id + ' debe ir bajo «Para la carta de presentación»');
+  const textoCarta = html.slice(carta, carta + 500);
+  assert(/solo se usan para redactar la carta/i.test(textoCarta) && /para despu[eé]s/i.test(textoCarta), 'el grupo de la carta dice que solo sirve para la carta y que puede esperar');
+});
+
+await check('EMP-005: K, K residual y los códigos UNSPSC traen una explicación en lenguaje llano, enlazada al campo para lectores de pantalla', () => {
+  const ayudas = { 'bt-perfil-rup': /UNSPSC/, 'bt-perfil-k': /capacidad de contrataci[oó]n/i, 'bt-perfil-k-residual': /descontar|libre|disponible/i };
+  for (const [campo, patron] of Object.entries(ayudas)) {
+    const m = html.match(new RegExp('<(?:textarea|input) id="' + campo + '"[^>]*aria-describedby="([^"]+)"'));
+    assert(m, campo + ' debe tener aria-describedby con su explicación');
+    const ayuda = html.match(new RegExp('id="' + m[1] + '"[^>]*>([^<]+)<'));
+    assert(ayuda && ayuda[1].length > 40 && patron.test(ayuda[1]), campo + ': la explicación debe existir y ser clara: ' + (ayuda && ayuda[1]));
+  }
+  assert(/K residual = 1\.200\.000\.000/.test(html.slice(html.indexOf('id="bt-perfil-k-residual"'), html.indexOf('id="bt-perfil-k-residual"') + 600)), 'K residual conserva su ejemplo en pesos');
+});
+
+// ---- Empresa: con una sola empresa no se muestra la comparación de varias (es un asunto de consorcios) ----
+await check('EMP-006: con menos de 2 empresas se esconde «Comparar en el análisis de pliegos» y el subtítulo habla de consorcios; con 2 o más aparece la comparación', () => {
+  const i = html.indexOf('function renderPerfilComparar'), j = html.indexOf('function', i + 40);
+  assert(i > 0 && j > i, 'no se encontró renderPerfilComparar');
+  const correr = (perfiles) => {
+    const fila = { hidden: false }, sub = { textContent: '' };
+    const wrap = { innerHTML: '', closest: () => fila, querySelectorAll: () => [] };
+    const doc = { getElementById: id => id === 'bt-perfil-comparar' ? wrap : id === 'bt-perfil-panel-sub' ? sub : null };
+    new Function('document', 'perfiles', 'perfilesActivos', 'escapeHtml',
+      html.slice(i, j) + '\nrenderPerfilComparar();')(doc, perfiles, Object.keys(perfiles), s => String(s));
+    return { oculta: fila.hidden, sub: sub.textContent, html: wrap.innerHTML };
+  };
+  const cero = correr({}), una = correr({ a: { nombre: 'A' } }), dos = correr({ a: { nombre: 'A' }, b: { nombre: 'B' } });
+  assert(cero.oculta && una.oculta, 'con 0 o 1 empresa la fila de comparar queda oculta: ' + JSON.stringify({ cero: cero.oculta, una: una.oculta }));
+  assert(/consorcio/i.test(una.sub) && /Nueva empresa/.test(una.sub), 'con una empresa el subtítulo explica cuándo agregar más: ' + una.sub);
+  assert(!dos.oculta && /Marca uno o varios/.test(dos.sub), 'con dos empresas la comparación aparece: ' + JSON.stringify(dos));
+  assert(/data-perfil-comparar="a"/.test(dos.html) && /data-perfil-comparar="b"/.test(dos.html), 'con dos empresas se pueden marcar las dos');
+  assert(/id="bt-perfil-panel-sub"/.test(html) && /\.perfil-comparar\[hidden\]/.test(html), 'el subtítulo tiene id y la fila oculta se oculta de verdad (display)');
+});
+
+// ---- Empresa › Experiencia: la persona nueva puede descargar la plantilla en vez de adivinar el formato ----
+await check('EMP-007: Experiencia ofrece descargar el Formato Maestro (Excel), el archivo existe y el despliegue lo publica', () => {
+  const nombre = 'Formato_Maestro_Experiencia_BitacoraSECOP_v1.xlsx';
+  assert(existsSync(path.join(ROOT, 'plantillas', nombre)), 'falta plantillas/' + nombre);
+  const enlace = html.match(/<a [^>]*href="plantillas\/Formato_Maestro_Experiencia_BitacoraSECOP_v1\.xlsx"[^>]*>([^<]+)<\/a>/);
+  assert(enlace && /download/.test(enlace[0]) && /Formato Maestro/i.test(enlace[1]), 'el enlace de descarga debe existir y llamarse «Formato Maestro»');
+  assert(html.indexOf(enlace[0]) > html.indexOf('id="bt-expeval-exp-file"') - 4000 && html.indexOf(enlace[0]) < html.indexOf('Ver ejemplo de formato aceptado'), 'el enlace va en Experiencia, antes del ejemplo de formato');
+  const yml = readFileSync(path.join(ROOT, '.github/workflows/pages.yml'), 'utf8');
+  assert(/plantillas\/\*\.xlsx\s+_site\/plantillas\//.test(yml) || /cp -r plantillas/.test(yml), 'pages.yml debe copiar plantillas/ al sitio publicado o el enlace daría 404');
+});
+
+// ---- Empresa: una línea dice qué está hecho y qué falta ----
+await check('EMP-008: avanceEmpresa dice en lenguaje llano qué está listo y qué falta (datos, experiencia, personal) y nunca da por hecho lo que no está', () => {
+  const i = html.indexOf('function avanceEmpresa'), j = html.indexOf('function renderAvanceEmpresa');
+  assert(i > 0 && j > i, 'no se encontró avanceEmpresa');
+  const av = new Function(html.slice(i, j) + '\nreturn avanceEmpresa;')();
+  const e = (empresas, contratos, profesionales) => av({ empresas, contratosCargados: contratos, profesionales });
+  const vacio = e([], 0, 0);
+  assert(vacio.listos.length === 0 && vacio.faltan.length === 3 && /^Para empezar/.test(vacio.texto) && /1\)[^]*2\)[^]*3\)/.test(vacio.texto), 'sin nada: da el orden para empezar: ' + vacio.texto);
+  assert(e([{ nombre: 'Mi empresa' }], 0, 0).listos.length === 0, 'una empresa con solo el nombre no cuenta como «datos» (no hay nada que comparar)');
+  assert(e([{ rup: '   ', k: '' }], 0, 0).listos.length === 0, 'campos en blanco no cuentan');
+  assert(e([{ rup: '72101507' }], 0, 0).texto === 'Listo: datos de la empresa ✓. Falta: experiencia y personal.', e([{ rup: '72101507' }], 0, 0).texto);
+  assert(e([{ k: 'K = 3.500.000.000' }], 4, 0).texto === 'Listo: datos de la empresa ✓, experiencia ✓. Falta: personal.', e([{ k: 'K = 3.500.000.000' }], 4, 0).texto);
+  const todo = e([{ kResidual: 'K residual = 1.200.000.000' }], 2, 3);
+  assert(todo.faltan.length === 0 && /Ya puedes analizar un proceso/.test(todo.texto) && /"Mis procesos" › "Ver proceso"/.test(todo.texto), 'con todo listo dice cómo seguir: ' + todo.texto);
+  assert(e([{ rup: 'x' }], 0, 2).texto === 'Listo: datos de la empresa ✓, personal ✓. Falta: experiencia.', 'el orden del texto sigue el de los pasos');
+});
+
+await check('EMP-009: la línea de avance existe como aviso de estado y se actualiza al entrar a Empresa, al guardar la empresa, la experiencia y el personal', () => {
+  assert(/<p class="saved-note empresa-avance" id="bt-empresa-avance" role="status"><\/p>/.test(html), 'falta la línea de avance con role="status"');
+  const cuerpo = nombre => { const i = html.indexOf(nombre); assert(i > 0, 'no se encontró ' + nombre); return html.slice(i, html.indexOf('\n  }\n', i)); };
+  assert(/renderAvanceEmpresa\(\)/.test(cuerpo('async function persistirPerfiles')), 'se actualiza al guardar la empresa');
+  assert(/renderAvanceEmpresa\(\)/.test(cuerpo('async function persistirPerfilesProfesionales')), 'se actualiza al guardar el personal');
+  assert(/renderAvanceEmpresa\(\)/.test(cuerpo('async function saveExpEval')), 'se actualiza al guardar la experiencia');
+  assert(/if \(esEmpresa\) renderAvanceEmpresa\(\);/.test(cuerpo('function mostrarVista')), 'se actualiza al entrar a cualquier pestaña de Empresa');
+});
+
+// ---- Personal: «Guardar profesional» tampoco puede fallar en silencio ----
+await check('EMP-010: sin profesional en edición, asegurarPersonalActivo crea uno con el nombre escrito (o «Profesional 1»), y «Guardar profesional» ya no sale en silencio', () => {
+  const i = html.indexOf('function asegurarPersonalActivo'), j = html.indexOf('async function savePersonal');
+  assert(i > 0 && j > i, 'no se encontró asegurarPersonalActivo antes de savePersonal');
+  const armar = (escrito) => { let n = 0; return new Function('PERFIL_PROFESIONAL_VACIO', 'nuevoPerfilId', 'personalNombreEl',
+    'let perfilesProfesionales = {}, personalActivoId = null;\n' + html.slice(i, j) +
+    '\nreturn { asegurar: asegurarPersonalActivo, estado: () => ({ perfilesProfesionales, personalActivoId }), fijar: (a, p) => { personalActivoId = a; perfilesProfesionales = p; } };')(
+    { nombre: '', cargo: '' }, () => 'q' + (++n), { value: escrito || '' }); };
+  const a = armar('Ing. Marta Rojas');
+  const id = a.asegurar();
+  assert(a.estado().personalActivoId === id && a.estado().perfilesProfesionales[id].nombre === 'Ing. Marta Rojas', 'crea al profesional con el nombre escrito');
+  assert(a.asegurar() === id && Object.keys(a.estado().perfilesProfesionales).length === 1, 'una segunda llamada no crea otro');
+  const b = armar(''); const idb = b.asegurar();
+  assert(b.estado().perfilesProfesionales[idb].nombre === 'Profesional 1', 'sin nombre escrito usa «Profesional 1»');
+  const c = armar('X'); c.fijar('viejo', { viejo: { nombre: 'Existente' } });
+  assert(c.asegurar() === 'viejo' && Object.keys(c.estado().perfilesProfesionales).length === 1, 'con un profesional activo no crea nada');
+  c.fijar('fantasma', { viejo: { nombre: 'Existente' } });
+  assert(c.estado().perfilesProfesionales[c.asegurar()], 'un id activo que ya no existe se repone');
+  const cuerpo = html.slice(j, html.indexOf('\n  }\n', j));
+  assert(/asegurarPersonalActivo\(\)/.test(cuerpo) && !/if \(!personalActivoId\) return;/.test(cuerpo), 'savePersonal asegura al profesional y ya no sale en silencio');
+  assert(!/cargarPersonalActivoEnCampos\(\)/.test(html.slice(i, j)), 'asegurarPersonalActivo NO recarga los campos (borraría lo escrito)');
+});
+
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
 if (failed > 0) process.exit(1);
