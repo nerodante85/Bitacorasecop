@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'self'; form-action 'none'">
 <title>Primeros pasos con Bitácora</title>
-<meta name="description" content="Cómo empezar a usar Bitácora SECOP: cargar los datos de la empresa, buscar procesos, analizar un pliego y leer el resultado.">
+<meta name="description" content="Cómo usar Bitácora SECOP: buscar procesos, guardar los que te interesan y leer el pliego de cada uno.">
 <meta name="theme-color" content="#16212E">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMxNDE4MUMiLz48cmVjdCB4PSIyMCIgeT0iMTUiIHdpZHRoPSI1IiBoZWlnaHQ9IjM0IiBmaWxsPSIjRjdGN0Y0Ii8+PHJlY3QgeD0iMjkiIHk9IjMyIiB3aWR0aD0iMTUiIGhlaWdodD0iMTciIHJ4PSI4IiBmaWxsPSIjNTE4MjVCIi8+PC9zdmc+">
@@ -104,65 +104,42 @@
 
     <div class="portada">
       <h1>Primeros pasos con Bitácora</h1>
-      <p>Bitácora busca procesos de contratación pública en SECOP II, lee el pliego de condiciones y compara sus requisitos con los datos de tu empresa. Esta guía te lleva de cero a tu primer análisis.</p>
+      <p>Bitácora busca procesos de contratación pública en SECOP II y te muestra lo importante de cada uno: cuánto vale, dónde es, cuándo cierra y, si lo quieres, qué exige el pliego. Esta guía te lleva de la búsqueda al pliego en cuatro pasos.</p>
     </div>
 
     <section aria-labelledby="h-pasos">
-      <h2 id="h-pasos">De cero a tu primer análisis</h2>
+      <h2 id="h-pasos">De la búsqueda al pliego</h2>
       <ol class="pasos">
         <li class="paso">
-          <h3>Carga los datos de la empresa</h3>
-          <p>Entra a <b class="ui">Empresa</b>, pestaña <b class="ui">Datos y registros</b>. Pulsa <b class="ui">Cargar certificado RUP</b> y <b class="ui">Cargar RUT</b>: los PDF oficiales llenan los datos solos. Revisa lo que se llenó y completa a mano lo que el RUP no trae, como la capacidad residual (K) y los contratos que tienes en ejecución. Al terminar, pulsa <b class="ui">Guardar empresa</b>.</p>
-        </li>
-        <li class="paso">
-          <h3>Carga la experiencia</h3>
-          <p>En <b class="ui">Empresa</b>, pestaña <b class="ui">Experiencia</b>, pulsa <b class="ui">Cargar experiencia</b> y elige el archivo con los contratos de la empresa (Excel, PDF o Word). Si prefieres una plantilla, descarga el <b class="ui">Formato Maestro de Experiencia (Excel)</b> que está en esa misma pestaña; Bitácora te pregunta a qué empresa corresponde.</p>
-          <p>Sin experiencia cargada, Bitácora no puede decir si la empresa cumple ese requisito: lo marca como no determinable.</p>
-        </li>
-        <li class="paso">
-          <h3>Registra el personal</h3>
-          <p>En <b class="ui">Empresa</b>, pestaña <b class="ui">Personal</b>, agrega a cada profesional de tu equipo y pulsa <b class="ui">Guardar profesional</b>. Los pliegos piden un personal mínimo y Bitácora lo compara con estas personas.</p>
-        </li>
-        <li class="paso">
           <h3>Busca procesos</h3>
-          <p>En <b class="ui">Buscar procesos</b> escribe lo que buscas en una frase, por ejemplo «pavimentación en Cúcuta entre $500 millones y $3.000 millones». Bitácora llena los filtros y te dice qué entendió. En los procesos que te interesen, pulsa <b class="ui">Guardar</b>.</p>
+          <p>En <b class="ui">Buscar procesos</b> escribe lo que buscas en una frase, por ejemplo «pavimentación en Cúcuta entre $500 millones y $3.000 millones». Bitácora llena los filtros y te dice qué entendió. Puedes ajustar lugar, valor, fecha de cierre y entidad.</p>
           <p>Si no aparece nada, la pantalla te dice cuántos procesos consultó y qué filtro ocultó cada uno; puedes quitar el filtro con un toque.</p>
         </li>
         <li class="paso">
-          <h3>Analiza un proceso</h3>
-          <p>Abre <b class="ui">Mis procesos</b> y pulsa <b class="ui">Ver proceso</b> en el proceso guardado. Pulsa <b class="ui">Analizar proceso</b> y elige el PDF del pliego de condiciones. Si el pliego aún no está publicado, usa <b class="ui">Analizar el Estudio Previo</b>.</p>
-          <p>Si el PDF es una copia escaneada, Bitácora puede leerla con <b class="ui">Leer con IA</b>. Es más lento: en una prueba real tardó unos 8 segundos por página, y la pantalla te avisa cuánto falta.</p>
+          <h3>Mira la ficha de cada proceso</h3>
+          <p>Cada resultado trae sus datos: valor, ubicación, fecha de cierre, estado, modalidad, número y código del proceso. Las alertas de cierre te avisan de lo que vence pronto. Si el objeto es largo, usa «Ver más». Con <b class="ui">Ver en SECOP</b> abres el proceso en el portal oficial.</p>
         </li>
         <li class="paso">
-          <h3>Lee el resultado</h3>
-          <p>Arriba ves el resultado del proceso y, debajo, lo que lo explica. Cada fila de la matriz tiene <b class="ui">Ver evidencia</b>: te muestra la página y el texto del pliego de donde sale esa conclusión. Compruébala ahí antes de decidir.</p>
+          <h3>Guarda los que te interesan</h3>
+          <p>Pulsa <b class="ui">Guardar</b> en los procesos que quieres seguir. Los encuentras en <b class="ui">Mis procesos</b>, ordenados por estado, con los próximos cierres arriba. Allí puedes cambiar el estado, agregar una nota propia, <b class="ui">Compartir</b> un resumen y copiar el código del proceso.</p>
         </li>
         <li class="paso">
-          <h3>Guarda un respaldo</h3>
-          <p>Entra a <b class="ui">Configuración y ayuda</b> y pulsa <b class="ui">Descargar mis datos (.json)</b>. Con ese archivo puedes recuperar tus datos con <b class="ui">Restaurar un respaldo…</b> si cambias de navegador o de equipo. Hazlo cada vez que cargues datos nuevos.</p>
+          <h3>Lee el pliego</h3>
+          <p>En <b class="ui">Mis procesos</b> pulsa <b class="ui">Ver proceso</b> y luego <b class="ui">Analizar proceso</b>: elige el PDF del pliego de condiciones. Si todavía no está publicado, usa <b class="ui">Analizar el Estudio Previo</b>.</p>
+          <p>Bitácora lee el documento y te muestra lo que exige: garantías, capital de trabajo, K residual, indicadores financieros, personal, la experiencia que pide y las alertas del pliego. Cada dato dice de qué página sale.</p>
+          <p>Si el PDF es una copia escaneada, puede leerlo con <b class="ui">Leer con IA</b>. Es más lento: en una prueba real tardó unos 8 segundos por página, y la pantalla te avisa cuánto falta.</p>
         </li>
       </ol>
-    </section>
-
-    <section aria-labelledby="h-res">
-      <h2 id="h-res">Qué significa cada resultado</h2>
-      <div class="resultados">
-        <div class="resultado"><span class="sello s-go">GO</span><p>No se encontró ningún incumplimiento determinante con la información cargada. Nunca sale GO si falta leer parte del pliego o hay algo sin resolver.</p></div>
-        <div class="resultado"><span class="sello s-rev">REVISAR</span><p>Hay puntos que una persona debe validar antes de decidir. La pantalla dice cuáles son y qué hacer con cada uno.</p></div>
-        <div class="resultado"><span class="sello s-nogo">NO-GO</span><p>Hay al menos un requisito crítico que la empresa aparentemente no cumple. Puede servir buscar un aliado (consorcio o unión temporal) o preguntar a la entidad.</p></div>
-        <div class="resultado"><span class="sello s-nd">NO DETERMINABLE</span><p>No hay evidencia suficiente para decir si se cumple. No significa que cumpla: falta información de la empresa o el documento no es claro.</p></div>
-      </div>
     </section>
 
     <section aria-labelledby="h-ojo">
       <h2 id="h-ojo">Tenlo presente</h2>
       <div class="nota">
         <ul>
-          <li><strong>El resultado es orientativo.</strong> Confírmalo siempre en el pliego oficial y, para los documentos jurídicos, con un profesional.</li>
-          <li><strong>Las reglas deciden, no la IA.</strong> La IA solo ayuda a leer los documentos escaneados; el cumplimiento lo calcula un motor de reglas con los datos de tu empresa.</li>
-          <li><strong>Ante la duda, Bitácora lo dice.</strong> Prefiere «requiere verificación» a inventar un cumplimiento.</li>
-          <li><strong>La carta y el paquete de propuesta son plantillas.</strong> Revísalas y confirma cada declaración antes de firmar.</li>
-          <li><strong>Tus datos son de tu empresa.</strong> Con cuenta se guardan y se sincronizan; sin cuenta quedan solo en este navegador.</li>
+          <li><strong>Los datos vienen de SECOP II.</strong> Se actualizan una vez al día; antes de decidir, confirma el estado del proceso en el portal.</li>
+          <li><strong>Lo que Bitácora lee del pliego es orientativo.</strong> No reemplaza revisar el pliego completo: verifica cada cifra en la página que se indica.</li>
+          <li><strong>Si no encuentra un dato, no lo inventa.</strong> Lo dice, y tú lo buscas en el documento.</li>
+          <li><strong>Respalda lo que guardas.</strong> En <b class="ui">Configuración y ayuda</b>, <b class="ui">Descargar respaldo (.json)</b> guarda tus procesos y notas, y <b class="ui">Restaurar un respaldo…</b> los recupera si cambias de navegador. Con cuenta se guardan y sincronizan solos; sin cuenta quedan solo en este navegador.</li>
         </ul>
       </div>
     </section>

@@ -1410,14 +1410,6 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="10" rx="1"/><rect x="16" y="4" width="5" height="13" rx="1"/></svg>
           <span class="nav-label">Mis procesos</span>
         </button>
-        <button class="nav-item" type="button" id="bt-nav-empresa" data-view="empresa" role="tab" aria-selected="false" aria-controls="view-empresa" title="Empresa" aria-label="Empresa">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-          <span class="nav-label">Empresa</span>
-        </button>
-        <button class="nav-item" type="button" id="bt-nav-documentos" data-view="documentos" role="tab" aria-selected="false" aria-controls="view-documentos" title="Documentos" aria-label="Documentos">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
-          <span class="nav-label">Documentos</span>
-        </button>
         <!-- Zona secundaria: no es un módulo de trabajo (ayuda, respaldo, cuenta). -->
         <div class="nav-secondary" role="presentation">
         <button class="nav-item nav-item-secondary" type="button" id="bt-nav-ajustes" data-view="ajustes" role="tab" aria-selected="false" aria-controls="view-ajustes" title="Configuración y ayuda" aria-label="Configuración y ayuda">
@@ -1435,7 +1427,7 @@
         <section class="view" id="view-dashboard" data-view="dashboard" role="region" aria-labelledby="bt-dash-greeting">
           <div class="view-header">
             <h1 id="bt-dash-greeting">Buenos días</h1>
-            <p>Encuentra procesos de contratación pública y decide rápido a cuáles vale la pena presentarse.</p>
+            <p>Encuentra procesos de contratación pública en SECOP II y revisa lo importante de cada uno.</p>
           </div>
 
           <div class="titleblock" id="bt-inicio-buscador">
@@ -1444,7 +1436,7 @@
               <input id="bt-inicio-q" type="search" autocomplete="off" placeholder="Obras civiles en Norte de Santander entre $500 millones y $3.000 millones">
               <button type="button" class="btn-primary" id="bt-inicio-buscar">Buscar procesos</button>
             </div>
-            <div class="saved-note mt-8">Escribe tipo de obra, lugar y valor con tus palabras; Bitácora llena los filtros por ti y te dice qué entendió.</div>
+            <div class="saved-note mt-8">Escribe tipo de obra, lugar y valor con tus palabras; Bitácora llena los filtros por ti y te dice qué entendió. <a href="guia.html" target="_blank" rel="noopener">Ver la guía corta</a>.</div>
           </div>
 
           <div class="quick-grid">
@@ -1458,14 +1450,8 @@
               <div class="quick-card-title">Ver mis procesos</div>
               <div class="quick-card-desc">Los que guardaste, por estado: de "Por revisar" a "Presentada".</div>
             </button>
-            <button class="quick-card" type="button" data-view="empresa">
-              <div class="quick-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg></div>
-              <div class="quick-card-title">Actualizar empresa</div>
-              <div class="quick-card-desc">Datos, experiencia y personal contra los que se compara cada proceso.</div>
-            </button>
           </div>
 
-          <div class="saved-note" id="bt-inicio-primeros" hidden>Para ver si tu empresa cumple, completa primero <button type="button" class="link-btn" data-ir-a="empresa">Empresa</button> (datos, experiencia y personal). Puedes buscar procesos desde ya. <a href="guia.html" target="_blank" rel="noopener">Ver los primeros pasos</a>.</div>
 
           <div class="titleblock" id="bt-inicio-actividad">
             <div class="titleblock-head"><h2>Actividad reciente</h2></div>
@@ -1937,7 +1923,7 @@
         <section class="view" id="view-analisis" data-view="analisis" role="region" aria-labelledby="bt-analisis-titulo" hidden>
           <div class="view-header">
             <h1 id="bt-analisis-titulo">Análisis del proceso</h1>
-            <p>El resultado, el resumen de viabilidad, las alertas y la matriz de requisitos de un proceso. Analiza su Pliego de Condiciones (o el Estudio Previo) para compararlo con tu empresa.</p>
+            <p>Lo que dice el pliego de un proceso: requisitos habilitantes, alertas y experiencia que pide. Analiza su Pliego de Condiciones (o el Estudio Previo) para verlo.</p>
           </div>
           <div class="demo-banner" id="bt-analisis-fuente" style="display:none" role="status"></div>
           <div class="empty" id="bt-analisis-empty">Todavía no hay procesos para analizar. Busca un proceso, guárdalo con "Guardar" y ábrelo desde "Mis procesos". <button type="button" class="link-btn" data-ir-a="buscar">Ir a Buscar procesos</button></div>
@@ -1979,7 +1965,7 @@
         <section class="view" id="view-ajustes" data-view="ajustes" role="tabpanel" aria-labelledby="bt-nav-ajustes" hidden>
           <div class="view-header">
             <h1>Configuración y ayuda</h1>
-            <p>Tu cuenta, el respaldo de tus datos y cómo leer los resultados.</p>
+            <p>Tu cuenta, el respaldo de tus datos y ayuda.</p>
           </div>
           <div class="titleblock" id="bt-ajustes-cuenta-panel">
             <div class="titleblock-head"><h2>Cuenta</h2></div>
@@ -1988,7 +1974,7 @@
           </div>
           <div class="titleblock" id="bt-ajustes-respaldo-panel">
             <div class="titleblock-head"><h2>Respaldo de tus datos</h2></div>
-            <p class="saved-note">Sin cuenta, tus perfiles, experiencia y análisis viven solo en este navegador: si borras los datos del navegador, se pierden. Descarga un respaldo de vez en cuando; puedes restaurarlo aquí o en otro navegador.</p>
+            <p class="saved-note">Sin cuenta, tus procesos guardados, notas y análisis viven solo en este navegador: si borras los datos del navegador, se pierden. Descarga un respaldo de vez en cuando; puedes restaurarlo aquí o en otro navegador.</p>
             <div class="actions" style="display:flex;gap:8px;flex-wrap:wrap;">
               <button type="button" class="btn-secondary" id="bt-respaldo-export">⬇ Descargar respaldo (.json)</button>
               <button type="button" class="btn-secondary" id="bt-respaldo-import">Restaurar un respaldo…</button>
@@ -1998,14 +1984,7 @@
           </div>
 
           <div class="titleblock" id="bt-ajustes-ayuda-panel">
-            <div class="titleblock-head"><h2>Cómo leer un resultado</h2></div>
-            <ul class="analysis-list">
-              <li><b>GO</b> — con la información disponible no se identificó ningún incumplimiento determinante. No es asesoría: confirma con el pliego oficial.</li>
-              <li><b>REVISAR</b> — hay aspectos relevantes que una persona debe validar antes de decidir.</li>
-              <li><b>NO-GO</b> — al menos un requisito crítico aparentemente no se cumple.</li>
-              <li><b>NO DETERMINABLE</b> — no hay evidencia suficiente para saber si se cumple. Nunca se interpreta como "cumple".</li>
-            </ul>
-            <p class="saved-note">El resultado lo decide un motor de reglas con los datos de tu empresa y el texto del pliego; no usa IA para evaluar.</p>
+            <div class="titleblock-head"><h2>Ayuda</h2></div>
             <p class="saved-note"><a href="guia.html" target="_blank" rel="noopener">Primeros pasos: de cero a tu primer análisis</a> (guía corta).</p>
             <p class="saved-note"><a href="index.html" target="_blank" rel="noopener">Qué es Bitácora y cómo funciona</a> (página de presentación).</p>
             <p class="saved-note"><a href="privacidad.html" target="_blank" rel="noopener">Política de tratamiento de datos personales</a> (borrador).</p>
@@ -2050,7 +2029,7 @@
 
       <div id="bt-account-logged-out">
         <h2 id="bt-account-title">Iniciar sesión</h2>
-        <p class="sub" id="bt-account-sub">Sincroniza tus perfiles, experiencia y análisis entre dispositivos.</p>
+        <p class="sub" id="bt-account-sub">Sincroniza tus procesos guardados y análisis entre dispositivos.</p>
         <div class="account-error" id="bt-account-error" hidden></div>
         <div class="field">
           <label for="bt-account-email">Correo</label>
@@ -2491,8 +2470,8 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     accountModalMode = mode;
     const titulos = { login: 'Iniciar sesión', signup: 'Crear cuenta', forgot: 'Recuperar contraseña' };
     const subs = {
-      login: 'Sincroniza tus perfiles, experiencia y análisis entre dispositivos.',
-      signup: 'Sincroniza tus perfiles, experiencia y análisis entre dispositivos.',
+      login: 'Sincroniza tus procesos guardados y análisis entre dispositivos.',
+      signup: 'Sincroniza tus procesos guardados y análisis entre dispositivos.',
       forgot: 'Escribe tu correo y te mandamos un enlace para elegir una contraseña nueva.'
     };
     const submits = { login: 'Iniciar sesión', signup: 'Crear cuenta', forgot: 'Enviar enlace de recuperación' };
@@ -3280,7 +3259,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const v = veredictoGlobalDeProceso(id);
     const chip = v ? '<span class="tag eval ' + claseVeredicto(v) + '">' + escapeHtml(v) + '</span>' : '';
     const estadoAnalisis = entry
-      ? ('Pliego analizado' + (lecturaParcial(entry) ? ' (lectura parcial)' : '') + (v ? '' : ' · sin empresa para comparar'))
+      ? ('Pliego analizado' + (lecturaParcial(entry) ? ' (lectura parcial)' : ''))
       : 'Pliego sin analizar todavía';
     const opciones = ETAPAS_PIPELINE.map(e => '<option value="' + e.id + '"' + (e.id === h.etapa ? ' selected' : '') + '>' + escapeHtml(e.label) + '</option>').join('');
     const safeUrl = sn.url && /^https?:\/\//i.test(sn.url) ? escapeHtml(sn.url) : null;
@@ -9706,8 +9685,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     const { minV, maxV } = getInputs();
     return { minV: minV, maxV: maxV, perfilesProfesionales: perfilesProfesionales, perfiles: perfilesParaComparar() };
   }
+  // La app ya no compara cada proceso con una empresa: no hay veredicto GO / NO-GO. Todo lo que lo mostraba recibe null.
   function evaluarMejor(item, s, entry){
-    return evaluarContraPerfiles(item, s, entry, contextoEvaluacion());
+    return null;
   }
 
   function evalChipHtml(res){
@@ -11100,23 +11080,9 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (m){ const n = /(\d+)/.exec(m[0]); if (n) pref += ' (Matriz ' + n[1] + ')'; t = t.slice(m[0].length).replace(/^[\s\-–—:]+/, ''); }
     return pref + ': ' + truncate(t, 160);
   }
+  // La ficha del pliego no se cruza con ninguna empresa (la app ya no guarda datos de empresa).
   function empresaParaFicha(entry){
-    try {
-      const ctx = itemYScorePara(entry.id);
-      const res = ctx && ctx.item ? evaluarMejor(ctx.item, ctx.s, entry) : null;
-      const p = res && res.mejor && perfiles[res.mejor.perfilId];
-      if (!p) return null;
-      const mat = matrizCapacidad(p);
-      let k = null;
-      if (mat.kResidual && mat.kResidual.valor != null){
-        if (mat.kResidual.unidad === 'COP') k = mat.kResidual.valor;
-        else if (/smmlv/i.test(mat.kResidual.unidad || '') && SMMLV_POR_ANIO[new Date().getFullYear()]) k = mat.kResidual.valor * SMMLV_POR_ANIO[new Date().getFullYear()];
-      }
-      const expP = expevalPorPerfil[res.mejor.perfilId];
-      const contratosExp = (expP && expP.contratos && expP.contratos.contratos) || [];
-      return { nombre: mat.nombre, contratos: contratosExp, baseCantidades: (entry.baseCantidades === 'total' || entry.baseCantidades === 'prorrata') ? entry.baseCantidades : null, capitalTrabajo: mat.capitalTrabajo, patrimonio: mat.patrimonio, kResidual: k, liquidez: mat.liquidez, endeudamiento: mat.endeudamiento, cobertura: mat.cobertura,
-        kIncompleto: !!(mat.capacidadEstimada && mat.capacidadEstimada.incompletos > 0) };
-    } catch (e) { return null; }
+    return null;
   }
   function fichaHabilitanteHtml(entry){
     const f = fichaHabilitanteDe(entry);
@@ -11404,88 +11370,29 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
     if (vacia) vacia.hidden = visibles > 0;
   }
 
-  // item/s son OPCIONALES (compatibilidad hacia atrás): cuando no se pasan
-  // (ej. una tanda de OCR que solo tiene el `entry`, no el proceso en pantalla)
-  // simplemente no se agrega el resumen de compatibilidad -- el resto del
-  // análisis se ve exactamente igual que antes.
+  // Qué pide el pliego en experiencia, sin evaluarlo contra nadie: solo los requisitos que el lector encuentra en el texto, con su página.
+  function experienciaPedidaHtml(entry){
+    let reqs = [];
+    try {
+      const texto = textoPliegoDe(entry);
+      if (texto) reqs = extraerRequisitosDePliego(texto, entry.paginaOffsets, entry.esSoloEP ? 'Estudio Previo' : 'Pliego de Condiciones').requisitos || [];
+      if (entry.estudioPrevioText) reqs = reqs.concat(extraerRequisitosDePliego(entry.estudioPrevioText, entry.estudioPrevioPaginaOffsets, 'Estudio Previo').requisitos || []);
+    } catch (e) { reqs = []; }
+    if (!reqs.length) return '<div class="saved-note">No se encontraron requisitos de experiencia en el texto leído (pueden estar en una tabla o en otro documento): revisa el pliego.</div>';
+    return '<ul class="analysis-list">' + reqs.map(q => {
+      const r = q.requisito || q;
+      return '<li>' + escapeHtml(r.criterio || '') + ' <span class="text-muted-c">— ' + escapeHtml(r.fuente || '') + (r.pagina ? ', p. ' + r.pagina : '') + (r.obligatoriedad ? ' · ' + escapeHtml(r.obligatoriedad) : '') + '</span></li>';
+    }).join('') + '</ul>';
+  }
+
+  // Tarjeta de análisis de un proceso: lo que el lector encuentra en el pliego o estudio previo. No hay veredicto ni comparación con empresa.
   function renderAnalysisHtml(entry, item, s){
     foldCtxId = entry.id;
-    const comps = compsDe(entry);
-    const primero = comps[0] || {};
-    const evalParaCompat = (item && s) ? evaluarMejor(item, s, entry) : null;
-    const compat = evalParaCompat ? partesCompatibilidad(evalParaCompat, entry) : null;
-    // Red de seguridad: sin item/s (proceso reabierto que ya no está en
-    // lastScored) o con 0 perfiles marcados para comparar, evalParaCompat/
-    // compatHtml quedan vacíos y la fila "Capacidad K residual" de la tabla
-    // de gates -- que hasta ahora era el ÚNICO lugar donde se mostraba
-    // entry.kResidual -- no aparece en ningún lado. Se restaura como
-    // respaldo SOLO quand esa fila no se está mostrando (bug real
-    // corregido, ver CLAUDE.md).
-    // Auditoría UX/UI (arquitectura de información, hallazgo CRÍTICO): antes, generar
-    // la carta/el paquete de propuesta solo existía en "Evaluación" -- una pantalla
-    // aparte donde había que volver a elegir este MISMO proceso, aunque la tarjeta ya
-    // mostraba el veredicto completo. Con el perfil que decidió el veredicto
-    // (`evalParaCompat.mejor.perfilId`), los mismos documentos se generan sin salir de
-    // aquí, reusando exactamente la misma lógica de "Evaluación" (ver
-    // descargarCartaDeProceso/descargarPaqueteDeProceso).
-    const docsPropuestaHtml = (evalParaCompat && evalParaCompat.mejor.perfilId)
-      ? '<div style="margin:2px 0 10px;display:flex;gap:12px;flex-wrap:wrap;">' +
-          '<button type="button" class="link-btn analysis-carta-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(evalParaCompat.mejor.perfilId) + '">⬇ Generar carta de presentación (.txt)</button>' +
-          '<button type="button" class="link-btn analysis-paquete-btn" data-eval-id="' + escapeHtml(item.id) + '" data-perfil-id="' + escapeHtml(evalParaCompat.mejor.perfilId) + '">📦 Generar paquete de propuesta (.txt)</button>' +
-        '</div>'
-      : '';
-    const kResidualEnTabla = evalParaCompat && evalParaCompat.mejor.gates.some(g => g.nombre === 'Capacidad K residual');
-    const kResidualFallbackHtml = (entry.kResidual && !kResidualEnTabla)
-      ? '<div class="analysis-sub">CAPACIDAD K RESIDUAL EXIGIDA (detectada en el texto)</div><div class="mb-8">' + escapeHtml(textoKResidualDetectado(entry.kResidual)) + '</div>'
-      : '';
-
-    // Requisitos detectados en el TEXTO -- no dependen del perfil, se listan una
-    // sola vez. Bajo cada uno se indica qué perfiles marcados lo cubren.
-    const porCategoria = {};
-    (primero.hallazgosAnotados || []).forEach((h, i) => {
-      const cubiertoPor = comps
-        .filter(c => ((c.hallazgosAnotados || [])[i] || {}).perfilMatches && c.hallazgosAnotados[i].perfilMatches.length)
-        .map(c => c.perfilNombre || 'Perfil');
-      (porCategoria[h.categoria] = porCategoria[h.categoria] || []).push(Object.assign({}, h, { cubiertoPor: cubiertoPor }));
-    });
-    // Capacidad K/Financiera y Experiencia se omiten de esta lista SOLO
-    // cuando sí tienen un bloque más completo mostrado en otro lado (la
-    // tabla de gates, "EXPERIENCIA REQUERIDA") -- si no lo tienen (ej. un
-    // hallazgo detectado por trigger de texto como "patrimonio" sin ningún
-    // gate/requisito estructurado correspondiente), vuelven a esta lista
-    // para que ese hallazgo no quede invisible en TODA la tarjeta (bug real
-    // corregido, ver CLAUDE.md -- antes se omitían siempre, sin importar si
-    // había algo real mostrado arriba o no).
-    const ex = entry.exigencias || {};
-    const kFinancieraSinDatosEstructurados = !ex.liquidez && !ex.endeudamiento && !ex.cobertura && !ex.kResidual && !entry.kResidual;
-    const experienciaSinRequisitos = !entry.experienciaResultado || !entry.experienciaResultado.resultados || !entry.experienciaResultado.resultados.length;
-    const ordenCategorias = ['RUP / Clasificador', 'Personal / Equipo de trabajo', 'Capacidad Organizacional']
-      .concat(kFinancieraSinDatosEstructurados ? ['Capacidad K / Financiera'] : [])
-      .concat(experienciaSinRequisitos ? ['Experiencia'] : []);
-    const hallazgosHtml = ordenCategorias
-      .filter(cat => porCategoria[cat] && porCategoria[cat].length)
-      .map(cat => {
-        const items = porCategoria[cat].map(h =>
-          '<li><b>' + escapeHtml(h.trigger) + ':</b> ' + escapeHtml(h.snippet) +
-          (h.cubiertoPor.length ? ' <span class="text-muted-c">— cubierto por: ' + escapeHtml(h.cubiertoPor.join(', ')) + '</span>' : '') +
-          '</li>'
-        ).join('');
-        return '<div class="analysis-sub">' + escapeHtml(cat.toUpperCase()) + '</div><ul class="analysis-list">' + items + '</ul>';
-      }).join('');
-
-    const sinHallazgos = ordenCategorias.every(cat => !porCategoria[cat] || !porCategoria[cat].length);
-    const notaElsewhere = [];
-    if (!kFinancieraSinDatosEstructurados) notaElsewhere.push('Capacidad K/Financiera');
-    if (!experienciaSinRequisitos) notaElsewhere.push('Experiencia');
     const fecha = fmtDate(new Date(entry.ts).toISOString()) || '';
-
-    // Alertas de garantías por debajo del mínimo legal (ver detectarRedFlags) +
-    // viabilidad orientativa. `entry.redFlags`/`entry.viabilidad` no existen en
-    // análisis guardados ANTES de esta funcionalidad -- se omite el bloque
-    // entero en vez de mostrar "undefined/100".
+    // Alertas de garantías por debajo del mínimo legal (ver detectarRedFlags). `entry.redFlags` no existe en análisis guardados antes de esa
+    // función: se omite el bloque entero en vez de mostrar valores vacíos.
     const alertasPliego = alertasDelPliego(entry, item);
     const tieneRedFlags = Array.isArray(alertasPliego);
-    // Con el pliego leído en parte, "100/100" y "sin alertas" solo hablan de lo leído: se dice explícito.
     const parcialRF = lecturaParcial(entry);
     const redFlagsHtml = !tieneRedFlags ? '' :
       (alertasPliego.length
@@ -11495,69 +11402,18 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
             (f.pagina ? ' <span class="text-muted-c">— pliego, p. ' + f.pagina + '</span>' : '') +
             ' <span class="tag fuente" title="' + escapeHtml(f.snippet) + '">' + escapeHtml(f.articulo) + '</span></li>'
           ).join('') + '</ul>'
-        : '<ul class="analysis-list"><li>No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialRF ? ' (solo ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas): las demás no se revisaron' : '') + '.</li></ul>') +
-      '';
-
-    const nSinDeterminarViab = evalParaCompat ? matrizRequisitos(entry, evalParaCompat.mejor.gates).filter(f => f.resultado === 'NO DETERMINABLE').length : 0;
-    const rangoViab = entry.viabilidad != null ? rangoViabilidad(entry.viabilidad, nSinDeterminarViab) : null;
-    const viabilidadHtml = (rangoViab
-        ? '<span><span style="font-size:22px;font-weight:700;color:' +
-          (rangoViab.min >= 80 ? 'var(--success)' : (rangoViab.min >= 50 ? 'var(--warning)' : 'var(--danger)')) +
-          ';">' + (rangoViab.exacta ? rangoViab.max : rangoViab.min + '–' + rangoViab.max) + '/100</span> <span style="color:var(--text-muted);font-size:12.5px;">viabilidad orientativa' +
-          (rangoViab.exacta ? '' : ' <strong>· ' + rangoViab.sinDeterminar + ' requisito(s) sin verificar</strong>') +
-          (parcialRF ? ' <strong>— solo con las ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas leídas</strong>' : '') +
-          '<details class="info-tip"><summary aria-label="Cómo se calcula"></summary><p>El máximo es 100 menos una penalización fija por cada alerta legal. El mínimo baja 4 puntos por cada requisito que sigue sin poder determinarse (tope 40): el máximo solo se alcanza si todo lo pendiente resulta favorable. No es una certificación.</p></details></span></span>'
-        : '');
-
-    const perfilesHtml = comps.length
-      ? comps.map(c =>
-          '<div class="analysis-sub">COINCIDENCIA — ' + escapeHtml(c.perfilNombre || 'Perfil') + '</div>' +
-          resumenPerfilHtml(c)
-        ).join('')
-      : '<ul class="analysis-list"><li>No hay perfiles marcados para comparar. Marca al menos uno en “Comparar en el análisis de pliegos” y vuelve a analizar.</li></ul>';
-
-    // ── Resumen arriba, detalle plegado ──
-    const ev = entry.experienciaResultado;
-    const evOk = !!(ev && ev.resultados && ev.resultados.length);
-    const nombres = arr => arr.map(g => g.nombre);
-    const nAltas = tieneRedFlags ? alertasPliego.filter(f => f.severidad === 'alta' || f.severidad === 'media').length : 0;
-    // Arriba: resultado, resumen de viabilidad, alertas y matriz (ver resultadoAnalisisHtml). Abajo: el detalle técnico plegado.
-    const resumenArriba = resultadoAnalisisHtml(entry, evalParaCompat);
-
-    const secciones =
-      (tieneRedFlags ? seccionPlegable('Alertas del pliego', alertasPliego.length ? alertasPliego.length + ' alerta(s)' : 'ninguna', (viabilidadHtml ? '<div class="mb-8">' + viabilidadHtml + '</div>' : '') + redFlagsHtml, false) : '') +
-      seccionPlegable('Experiencia requerida', evOk ? ev.conteo['CUMPLE'] + ' cumple · ' + ev.conteo['NO CUMPLE'] + ' no cumple · ' + ev.conteo['NO DETERMINABLE'] + ' por verificar' : 'sin evaluar',
-        bloqueExperienciaHtml(entry), !evOk || !!ev.conteo['NO CUMPLE'] || !expevalContratos, true) +
-      seccionPlegable(compat ? 'Detalle del veredicto' : 'Capacidad K residual exigida', compat ? compat.gates.length + ' criterio(s)' : '',
-        (compat ? compat.detalleHtml : '') + kResidualFallbackHtml, false) +
-      seccionPlegable('Coincidencia con tus perfiles y otros requisitos', comps.length + ' perfil(es)',
-        '<div class="analysis-sub">OTROS REQUISITOS HABILITANTES DETECTADOS (RUP, personal, organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ', experiencia' : '') + ')</div>' +
-        (sinHallazgos
-          ? '<ul class="analysis-list"><li>No se detectaron menciones explícitas de RUP, personal mínimo, capacidad organizacional' + (kFinancieraSinDatosEstructurados ? ', capacidad financiera' : '') + (experienciaSinRequisitos ? ' o experiencia' : '') + ' en el texto extraído — revisa el pliego completo.' +
-            (notaElsewhere.length ? ' (' + notaElsewhere.join(' y ') + ' se muestra' + (notaElsewhere.length > 1 ? 'n' : '') + ' arriba, en su' + (notaElsewhere.length > 1 ? 's' : '') + ' propio' + (notaElsewhere.length > 1 ? 's' : '') + ' bloque' + (notaElsewhere.length > 1 ? 's' : '') + '.)' : '') +
-            '</li></ul>'
-          : hallazgosHtml) +
-        '<div class="analysis-sub">RESUMEN DE COINCIDENCIA POR PERFIL' + (comps.length > 1 ? ' (' + comps.length + ')' : '') + '</div>' + perfilesHtml, false);
-
-    // Lectura y avisos: tiempos, descargas, aviso del método de lectura y botones de "seguir leyendo".
-    // Se abre sola mientras queden páginas sin leer, porque ahí están los botones para continuar.
+        : '<ul class="analysis-list"><li>No se detectaron garantías por debajo del mínimo legal en el texto leído' + (parcialRF ? ' (solo ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas)' : '') + '.</li></ul>');
     const parcialLect = entry.pagesRead < entry.numPages;
     const lecturaHtml =
       ((entry.lecturaMs || entry.transcripcionUso)
         ? '<div class="saved-note">Tiempo de lectura -- ' + escapeHtml(Lectura.resumenTiempos(entry)) +
             (entry.transcripcionUso ? ' · IA: ' + Number(entry.transcripcionUso.input_tokens).toLocaleString('es-CO') + ' tokens de entrada / ' + Number(entry.transcripcionUso.output_tokens).toLocaleString('es-CO') + ' de salida' : '') + '</div>'
         : '') +
-      (comps.length
-        ? '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">' +
-            '<button class="link-btn analysis-informe-btn" data-informe-id="' + escapeHtml(entry.id || '') + '">⬇ Descargar informe detallado (.txt)</button>' +
-            '<button class="link-btn analysis-informe-copy-btn" data-informe-id="' + escapeHtml(entry.id || '') + '">Copiar informe</button>' +
-          '</div>'
-        : '') +
       (entry.viaIA
-        ? '<div class="analysis-disclaimer">Texto transcrito con IA (Anthropic leyó el PDF como imagen, página por página) — más preciso que OCR, pero igual puede tener errores en sellos, firmas o escaneos de muy baja calidad. No reemplaza revisar el pliego completo antes de decidir.</div>'
+        ? '<div class="analysis-disclaimer">Texto transcrito con IA (Anthropic leyó el PDF como imagen, página por página) — más preciso que OCR, pero igual puede tener errores en sellos, firmas o escaneos de muy baja calidad. No reemplaza revisar el pliego completo.</div>'
         : entry.viaOcr
-        ? '<div class="analysis-disclaimer">Texto leído por OCR (reconocimiento en imagen) — puede tener errores de transcripción, sobre todo en sellos, firmas o escaneos de baja calidad. No reemplaza revisar el pliego completo antes de decidir.</div>'
-        : '<div class="analysis-disclaimer">Ayuda de lectura rápida por palabras clave — no reemplaza revisar el pliego completo antes de decidir.</div>') +
+        ? '<div class="analysis-disclaimer">Texto leído por OCR (reconocimiento en imagen) — puede tener errores de transcripción, sobre todo en sellos, firmas o escaneos de baja calidad. No reemplaza revisar el pliego completo.</div>'
+        : '<div class="analysis-disclaimer">Lectura rápida del texto del PDF — no reemplaza revisar el pliego completo.</div>') +
       (entry.viaIA && parcialLect
         ? '<div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">' +
             '<button class="link-btn analysis-ia-continue-btn" data-ia-continue-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo con IA (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button>' +
@@ -11567,19 +11423,19 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
       (entry.viaOcr && parcialLect
         ? '<div class="mt-8"><button class="link-btn analysis-ocr-continue-btn" data-ocr-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
         : '') +
-      // Camino de texto normal: un pliego de más de TEXT_BATCH_PAGES páginas no se trunca en
-      // silencio (SECOP-010, ver CLAUDE.md).
+      // Camino de texto normal: un pliego de más de TEXT_BATCH_PAGES páginas no se trunca en silencio (SECOP-010, ver CLAUDE.md).
       (!entry.viaOcr && !entry.viaIA && parcialLect
         ? '<div class="mt-8"><button class="link-btn analysis-continue-btn" data-analisis-id="' + escapeHtml(entry.id || '') + '">Seguir leyendo más páginas (' + entry.pagesRead + '/' + entry.numPages + ' leídas)</button></div>'
         : '');
-
+    const epHtml = renderEstudioPrevioUploadHtml(entry);
     return '<div class="analysis-block">' +
       '<div class="analysis-head">Análisis de "' + escapeHtml(entry.fileName) + '" · ' + entry.pagesRead + '/' + entry.numPages + ' páginas leídas' + (metodoLecturaDe(entry) ? ' · <span style="color:var(--warning);">vía ' + metodoLecturaDe(entry) + '</span>' : '') +
         (entry.esSoloEP ? ' · <span class="tag" title="Sin Pliego de Condiciones publicado todavía">Estudio Previo</span>' : '') +
         ' <span style="color:var(--text-muted);font-weight:400;">· ' + fecha + '</span></div>' +
-      resumenArriba + secciones +
-      (evalParaCompat ? evalSeccionesHtml(item, evalParaCompat, entry) : '') +
-      (docsPropuestaHtml ? seccionPlegable('Documentos de propuesta (plantillas orientativas)', 'carta y paquete', docsPropuestaHtml, false) : '') +
+      (parcialRF ? '<div class="saved-note">Se leyeron ' + parcialRF.pagesRead + ' de ' + parcialRF.numPages + ' páginas: lo que sigue habla solo de lo leído.</div>' : '') +
+      fichaHabilitanteHtml(entry) +
+      (tieneRedFlags ? seccionPlegable('Alertas del pliego', alertasPliego.length ? alertasPliego.length + ' alerta(s)' : 'ninguna', redFlagsHtml, false) : '') +
+      seccionPlegable('Experiencia que pide el pliego', 'sin evaluar', epHtml + experienciaPedidaHtml(entry), false) +
       seccionPlegable('Lectura y avisos', entry.pagesRead + '/' + entry.numPages + ' págs · ' + (metodoLecturaDe(entry) || 'texto del PDF'), lecturaHtml, parcialLect) +
     '</div>';
   }
@@ -14671,10 +14527,11 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // Inicio es la pantalla de entrada (la marca la abre) y "analisis" es el detalle de UN proceso: ninguna tiene ítem
   // propio. "perfil/experiencia/personal" son paneles (pestañas) dentro de "Empresa", y los nombres viejos
   // ("evaluacion", "pipeline") siguen funcionando como alias para no romper enlaces ni una última vista guardada.
-  const VISTAS_EMPRESA = ['perfil', 'experiencia', 'personal'];
-  const VISTAS_PRINCIPALES = ['dashboard', 'buscar', 'analisis', 'procesos', 'empresa', 'documentos', 'ajustes'];
+  const VISTAS_EMPRESA = [];
+  const VISTAS_PRINCIPALES = ['dashboard', 'buscar', 'analisis', 'procesos', 'ajustes'];
   const VISTAS = VISTAS_PRINCIPALES.concat(VISTAS_EMPRESA);
-  const ALIAS_VISTAS = { evaluacion: 'analisis', pipeline: 'procesos' };
+  // Empresa y Documentos se quitaron (la app es solo para buscar procesos): una vista guardada o un enlace viejo caen aquí.
+  const ALIAS_VISTAS = { evaluacion: 'analisis', pipeline: 'procesos', empresa: 'buscar', perfil: 'buscar', experiencia: 'buscar', personal: 'buscar', documentos: 'procesos' };
   let ultimaPestanaEmpresa = 'perfil';
   let vistaActual = null;
   let vistaOrigenAnalisis = 'buscar'; // desde dónde se abrió un proceso: decide qué ítem del menú queda marcado
@@ -14778,17 +14635,7 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   // buscar y analizar igual: lo que falte saldrá como NO DETERMINABLE (nunca como "cumple"). Se recalcula al entrar a Buscar.
   function renderFlujoStepper(){
     const msgEl = document.getElementById('bt-flujo-mensaje');
-    if (!msgEl) return;
-    const flujo = estadoFlujoPliego();
-    const hayEmpresa = Object.keys(perfiles || {}).length > 0;
-    const falta = [];
-    if (!hayEmpresa) falta.push({ txt: 'los datos de tu empresa', vista: 'perfil' });
-    if (!flujo.experienciaCargada) falta.push({ txt: 'tu experiencia acreditada', vista: 'experiencia' });
-    if (!flujo.perfilesCargados) falta.push({ txt: 'tu personal', vista: 'personal' });
-    if (!falta.length){ msgEl.innerHTML = ''; return; }
-    msgEl.innerHTML = '<div class="flujo-msg pendiente"><span>Para comparar un proceso contra tu empresa falta cargar ' + falta.map(f => f.txt).join(', ') +
-      '. Puedes buscar y analizar igual: lo que falte saldrá como NO DETERMINABLE.</span>' +
-      '<button class="btn-secondary" data-ir-a-flujo="' + falta[0].vista + '">Completar Empresa</button></div>';
+    if (msgEl) msgEl.innerHTML = '';
   }
 
   document.querySelectorAll('#bt-nav .nav-item, #bt-brand-home, .quick-card[data-view], .primeros-pasos-item[data-view]').forEach(btn => {
@@ -15052,8 +14899,6 @@ const { codigosDeDepartamento, consultasPAA, consultaNombresEntidad, consultaAdj
   function actualizarDashboard(){
     const greetEl = document.getElementById('bt-dash-greeting');
     if (greetEl) greetEl.textContent = saludoSegunHora();
-    const primerosEl = document.getElementById('bt-inicio-primeros');
-    if (primerosEl) primerosEl.hidden = !esCuentaVacia();
 
     const act = actividadReciente(analisis, historial, Date.now());
     const titulo = id => {

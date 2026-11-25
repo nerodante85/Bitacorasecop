@@ -511,14 +511,10 @@ await check('Pie de ayuda en Buscar procesos: corto (≤ 600 caracteres visibles
   await ctx.close();
 });
 
-await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agrupa 3 pestañas; "evaluacion" y "pipeline" guardados abren Análisis y Mis procesos', async () => {
+await check('Menú: Buscar procesos, Mis procesos y Configuración; la marca abre Inicio; las vistas guardadas viejas (evaluacion, pipeline, empresa, documentos) abren algo', async () => {
   let { ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'evaluacion' } });
-  const m = await pg.evaluate(() => ({
-    items: [...document.querySelectorAll('#bt-nav .nav-item')].map(i => i.textContent.trim()),
-    eval: !!document.getElementById('bt-nav-evaluacion') || !!document.getElementById('view-evaluacion') || !!document.querySelector('[data-view="evaluacion"]')
-  }));
-  assert(JSON.stringify(m.items) === JSON.stringify(['Buscar procesos', 'Mis procesos', 'Empresa', 'Documentos', 'Configuración y ayuda']), 'ítems del menú: ' + m.items.join(', '));
-  assert(!m.eval, 'ya no debe existir Evaluación');
+  const items = await pg.evaluate(() => [...document.querySelectorAll('#bt-nav .nav-item')].map(i => i.textContent.trim()));
+  assert(JSON.stringify(items) === JSON.stringify(['Buscar procesos', 'Mis procesos', 'Configuración y ayuda']), 'ítems del menú: ' + items.join(', '));
   assert(await vistaActiva(pg) === 'view-analisis', 'la vista guardada "evaluacion" debe abrir el análisis: ' + await vistaActiva(pg));
   // un proceso abierto cuenta como parte de la sección desde donde se llegó a él
   assert(await pg.evaluate(() => document.getElementById('bt-nav-buscar').classList.contains('active')), 'abierto el análisis, el ítem activo del menú es Buscar procesos');
@@ -526,45 +522,23 @@ await check('Menú: 4 ítems + Configuración; la marca abre Inicio; Empresa agr
   await pg.click('#bt-brand-home');
   assert(await vistaActiva(pg) === 'view-dashboard', 'la marca debe abrir Inicio');
   assert(await pg.evaluate(() => document.querySelectorAll('#bt-nav .nav-item.active').length) === 0, 'en Inicio no hay ítem activo');
+  // Inicio no habla de la empresa
+  const quick = await pg.evaluate(() => [...document.querySelectorAll('#view-dashboard .quick-card')].map(c => c.querySelector('.quick-card-title').textContent.trim()));
+  assert(JSON.stringify(quick) === JSON.stringify(['Buscar procesos', 'Ver mis procesos']), 'accesos de Inicio: ' + quick.join(', '));
   // flechas del menú: el foco se queda en el menú y la vista cambia
   await pg.focus('#bt-nav-buscar');
   await pg.keyboard.press('ArrowDown');
   assert((await focoActual(pg)).startsWith('BUTTON') && await vistaActiva(pg) === 'view-procesos', 'las flechas del menú deben conservar el foco en el menú y cambiar de vista');
   await pg.keyboard.press('ArrowDown');
-  assert(await vistaActiva(pg) === 'view-empresa', 'Empresa');
-  // pestañas de Empresa
-  const panel = () => pg.evaluate(() => ['perfil', 'experiencia', 'personal'].filter(v => !document.getElementById('view-' + v).hidden));
-  assert(JSON.stringify(await panel()) === '["perfil"]', 'Empresa abre en Datos y registros');
-  await pg.click('#bt-empresa-tab-experiencia');
-  assert(JSON.stringify(await panel()) === '["experiencia"]' && await vistaActiva(pg) === 'view-empresa', 'pestaña Experiencia');
-  await pg.keyboard.press('ArrowRight');
-  assert(JSON.stringify(await panel()) === '["personal"]' && (await focoActual(pg)).startsWith('BUTTON'), 'flecha derecha pasa a Personal y deja el foco en la pestaña');
-  assert(await pg.evaluate(() => document.getElementById('bt-nav-empresa').classList.contains('active')), 'Empresa sigue marcado en el menú');
+  assert(await vistaActiva(pg) === 'view-ajustes', 'Configuración y ayuda');
   assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
   await ctx.close();
   // nombres viejos guardados
-  ({ ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'pipeline' } }));
-  assert(await vistaActiva(pg) === 'view-procesos', '"pipeline" guardado abre Mis procesos: ' + await vistaActiva(pg));
-  await ctx.close();
-  ({ ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: 'experiencia' } }));
-  assert(await vistaActiva(pg) === 'view-empresa' && await pg.evaluate(() => !document.getElementById('view-experiencia').hidden), '"experiencia" guardado abre Empresa › Experiencia');
-  await ctx.close();
-});
-
-await check('Documentos: lista lo cargado por categoría y "Abrir análisis" abre el pliego analizado sin pasar por la búsqueda', async () => {
-  const analisis = { 'ps2-E2E-DOC': { id: 'ps2-E2E-DOC', ts: Date.now(), fileName: 'pliego-doc.pdf', pagesRead: 15, numPages: 76, text: 'x', proceso: { entidad: 'Alcaldía E2E', objeto: 'Obra de prueba documentos', modalidad: 'Licitación pública', valor: 1000, fuente: 'II' } } };
-  const { ctx, pg } = await abrir({ sembrar: Object.assign(dosEmpresas(), { bitacora_analisis_pliegos: JSON.stringify(analisis) }) });
-  await pg.click('#bt-nav-documentos');
-  assert(await vistaActiva(pg) === 'view-documentos', 'Documentos');
-  const t = await pg.evaluate(() => document.getElementById('bt-docs-out').innerText);
-  for (const sec of ['Empresa', 'Experiencia', 'Procesos']) assert(t.includes(sec), 'falta la categoría ' + sec);
-  assert(!t.includes('Todavía no registraste profesionales') && !/Profesionales del equipo/.test(t), 'Documentos ya no muestra la tarjeta de Personal');
-  assert(t.includes('pliego-doc.pdf') && /leídas 15 de 76/.test(t) && /Lectura parcial/.test(t), 'el pliego con lectura parcial debe decirlo: ' + t.slice(-300));
-  await pg.locator('#bt-docs-out [data-abrir-proceso]').first().click();
-  assert(await vistaActiva(pg) === 'view-analisis', 'Abrir análisis');
-  assert(await pg.evaluate(() => document.getElementById('bt-analisis-select').value) === 'ps2-E2E-DOC', 'debe quedar elegido el proceso guardado');
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
+  for (const [guardada, vista] of [['pipeline', 'view-procesos'], ['empresa', 'view-buscar'], ['perfil', 'view-buscar'], ['experiencia', 'view-buscar'], ['documentos', 'view-procesos']]) {
+    ({ ctx, pg } = await abrir({ sembrar: { bitacora_ultima_vista: guardada } }));
+    assert(await vistaActiva(pg) === vista, '"' + guardada + '" guardado abre ' + vista + ': ' + await vistaActiva(pg));
+    await ctx.close();
+  }
 });
 
 await check('Celular (375 y 320 px): los ítems del menú miden 44 px y las vistas no desbordan', async () => {
@@ -572,15 +546,9 @@ await check('Celular (375 y 320 px): los ítems del menú miden 44 px y las vist
     const { ctx, pg } = await abrir({ viewport: { width: ancho, height: 700 }, hasTouch: true });
     await pg.click('#bt-nav-toggle');
     const alturas = await pg.evaluate(() => [...document.querySelectorAll('#bt-nav .nav-item')].map(i => Math.round(i.getBoundingClientRect().height)));
-    assert(alturas.length === 5 && alturas.every(h => h >= 44), 'ítems del menú a ' + ancho + ' px: ' + alturas.join(','));
-    await pg.click('#bt-nav-empresa');
-    assert(await vistaActiva(pg) === 'view-empresa', 'el menú móvil debe abrir Empresa');
-    assert(await focoActual(pg) === 'H1:Empresa', 'tras elegir una sección del menú móvil el foco va al título: ' + await focoActual(pg));
-    assert(await sinDesborde(pg) <= 0, 'desborde horizontal en Empresa a ' + ancho + ' px');
-    const tabs = await pg.evaluate(() => [...document.querySelectorAll('#bt-empresa-tabs .subtab')].map(t => Math.round(t.getBoundingClientRect().height)));
-    assert(tabs.length === 3 && tabs.every(h => h >= 44), 'pestañas de Empresa a ' + ancho + ' px: ' + tabs.join(','));
-    for (const [nav, vista] of [['procesos', 'view-procesos'], ['documentos', 'view-documentos'], ['ajustes', 'view-ajustes'], ['buscar', 'view-buscar']]) {
-      await pg.click('#bt-nav-toggle');
+    assert(alturas.length === 3 && alturas.every(h => h >= 44), 'ítems del menú a ' + ancho + ' px: ' + alturas.join(','));
+    for (const [nav, vista] of [['procesos', 'view-procesos'], ['ajustes', 'view-ajustes'], ['buscar', 'view-buscar']]) {
+      if (nav !== 'procesos') await pg.click('#bt-nav-toggle');
       await pg.click('#bt-nav-' + nav);
       assert(await vistaActiva(pg) === vista, 'menú móvil -> ' + vista);
       assert(await sinDesborde(pg) <= 0, 'desborde horizontal en ' + vista + ' a ' + ancho + ' px');
@@ -588,23 +556,6 @@ await check('Celular (375 y 320 px): los ítems del menú miden 44 px y las vist
     assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
     await ctx.close();
   }
-});
-
-await check('Evaluación fusionada: con dos empresas el análisis trae la recomendación, el veredicto por empresa, el contexto de la entidad y descarga carta e informe', async () => {
-  const { ctx, pg } = await abrir({ sembrar: dosEmpresas() });
-  await abrirAnalisisDelPrimero(pg);
-  await pg.waitForFunction(() => document.querySelectorAll('#bt-analisis-out .fold-title').length > 0);
-  const t = await pg.evaluate(() => [...document.querySelectorAll('#bt-analisis-out .fold-title')].map(e => e.textContent));
-  assert(t.includes('Recomendación y comparación por empresa') && t.includes('Contexto de la entidad: adjudicaciones y oferta'), 'secciones fusionadas ausentes: ' + t.join(' | '));
-  await pg.evaluate(() => document.querySelectorAll('#bt-analisis-out details').forEach(d => { d.open = true; }));
-  const n = await pg.evaluate(() => ({ carta: document.querySelectorAll('#bt-analisis-out .eval-carta-btn').length, paquete: document.querySelectorAll('#bt-analisis-out .eval-paquete-btn').length, informe: document.querySelectorAll('#bt-analisis-out .eval-informe-btn').length, adj: document.querySelectorAll('#bt-analisis-out .eval-adj-btn').length }));
-  assert(n.carta === 2 && n.paquete === 2 && n.informe === 1 && n.adj === 1, 'botones por empresa/informe/adjudicaciones: ' + JSON.stringify(n));
-  const [carta] = await Promise.all([pg.waitForEvent('download', { timeout: 8000 }), pg.locator('#bt-analisis-out .eval-carta-btn').nth(1).click()]);
-  assert(/^carta-presentacion-empresa-2-/.test(carta.suggestedFilename()), 'carta de la empresa 2: ' + carta.suggestedFilename());
-  const [informe] = await Promise.all([pg.waitForEvent('download', { timeout: 8000 }), pg.locator('#bt-analisis-out .eval-informe-btn').click()]);
-  assert(/^evaluacion-/.test(informe.suggestedFilename()), 'informe: ' + informe.suggestedFilename());
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
 });
 
 await check('F-04: un análisis guardado se reabre aunque su proceso ya no salga en la búsqueda (con resumen, y "sin datos guardados")', async () => {
@@ -623,26 +574,6 @@ await check('F-04: un análisis guardado se reabre aunque su proceso ya no salga
   await pg.selectOption('#bt-analisis-select', 'ps2-E2E-SIN-DATOS');
   const b = await pg.evaluate(() => ({ ent: document.querySelector('#bt-analisis-out .row-ent').textContent, notas: [...document.querySelectorAll('#bt-analisis-out .saved-note')].map(n => n.textContent).join(' | ') }));
   assert(b.ent === 'Proceso sin datos guardados' && /no los datos del proceso/.test(b.notas), 'proceso sin datos: ' + JSON.stringify(b));
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
-});
-
-await check('Datos de ejemplo: "Análisis de pliegos" avisa que son ficticios y no deja generar la carta', async () => {
-  const { ctx, pg } = await abrir({ sembrar: dosEmpresas() });
-  await pg.click('#bt-nav-buscar');
-  await quitarFiltros(pg);
-  await pg.click('#bt-demo');
-  await pg.waitForFunction(() => /ejemplo/i.test(document.getElementById('bt-demo-banner').textContent) && getComputedStyle(document.getElementById('bt-demo-banner')).display !== 'none');
-  await abrirAnalisisDelPrimero(pg);
-  await pg.waitForFunction(() => document.querySelectorAll('#bt-analisis-out .row').length > 0);
-  const aviso = await pg.evaluate(() => getComputedStyle(document.getElementById('bt-analisis-fuente')).display !== 'none' ? document.getElementById('bt-analisis-fuente').textContent : '');
-  assert(/datos de ejemplo \(ficticios\)/.test(aviso), 'aviso de datos de ejemplo: ' + aviso);
-  await pg.evaluate(() => document.querySelectorAll('#bt-analisis-out details').forEach(d => { d.open = true; }));
-  let descargo = false;
-  pg.once('download', () => { descargo = true; });
-  await pg.locator('#bt-analisis-out .eval-carta-btn').first().click();
-  await pg.waitForTimeout(600);
-  assert(!descargo, 'con datos de ejemplo no debe generarse la carta');
   assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
   await ctx.close();
 });
@@ -722,76 +653,10 @@ const analisisSembrado = (extra = {}) => ({
 });
 const empresaAn = () => ({ bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa A', nit: '900', k: 'Liquidez = 2,0\nEndeudamiento = 0,4', kResidual: 'K residual = 3.000.000.000', rup: '' } }), bitacora_perfiles_activos: JSON.stringify(['p1']) });
 const abrirAnalisisSembrado = async (pg) => {
-  await pg.click('#bt-nav-documentos');
-  await pg.locator('#bt-docs-out [data-abrir-proceso="E2E-AN"]').click();
-  await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .resultado-nombre'));
+  await pg.click('#bt-brand-home');
+  await pg.locator('[data-pipeline-abrir-id="E2E-AN"]').first().click();
+  await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .analysis-block'));
 };
-
-await check('Rediseño fase 4: el análisis tiene tarjeta de resultado con relieve, secciones como tarjetas con título en tinta, plegables con flecha que gira y panel de evidencia que entra con animación (sin ella al reducir movimiento)', async () => {
-  const { ctx, pg } = await abrir({ viewport: { width: 1280, height: 900 }, sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
-  await abrirAnalisisSembrado(pg);
-  const r = await pg.evaluate(() => {
-    const h = document.querySelector('#bt-analisis-out .resultado-global'), n = document.querySelector('#bt-analisis-out .resultado-nombre');
-    const hs = getComputedStyle(h);
-    const secs = [...document.querySelectorAll('#bt-analisis-out .analisis-seccion')].map(e => { const c = getComputedStyle(e), t = getComputedStyle(e.querySelector('h3')); return { fondo: c.backgroundColor, borde: c.borderTopWidth, radio: parseFloat(c.borderTopLeftRadius), h3: t.color }; });
-    const fold = document.querySelector('#bt-analisis-out details.analysis-fold');
-    const antes = getComputedStyle(fold.querySelector('summary'), '::before').transform;
-    fold.open = true;
-    const abierto = getComputedStyle(fold.querySelector('summary'), '::before').transform;
-    return { radio: parseFloat(hs.borderTopLeftRadius), sombra: hs.boxShadow, tam: parseFloat(getComputedStyle(n).fontSize), secs, antes, abierto };
-  });
-  assert(r.radio >= 14 && r.sombra !== 'none' && r.tam >= 32, 'tarjeta de resultado con radio, sombra y nombre grande: ' + JSON.stringify({ radio: r.radio, sombra: r.sombra, tam: r.tam }));
-  assert(r.secs.length >= 3, 'hay secciones: ' + r.secs.length);
-  assert(r.secs.every(x => x.fondo === 'rgb(255, 255, 255)' && x.borde === '1px' && x.radio >= 14 && x.h3 === 'rgb(22, 33, 46)'), 'cada sección es una tarjeta blanca con título en tinta: ' + JSON.stringify(r.secs[0]));
-  assert(r.antes === 'none' && r.abierto !== 'none', 'la flecha del plegable gira al abrirlo: ' + r.antes + ' → ' + r.abierto);
-  const anim = async () => pg.evaluate(() => getComputedStyle(document.querySelector('#bt-evidencia-backdrop .evidencia-panel')).animationName);
-  await pg.locator('[data-ev-fila]').first().click();
-  await pg.waitForSelector('#bt-evidencia-backdrop:not([hidden])');
-  assert(await anim() === 'bt-ev-in', 'el panel de evidencia entra con animación: ' + await anim());
-  await pg.keyboard.press('Escape');
-  await pg.emulateMedia({ reducedMotion: 'reduce' });
-  await pg.locator('[data-ev-fila]').first().click();
-  await pg.waitForSelector('#bt-evidencia-backdrop:not([hidden])');
-  assert(await anim() === 'none', 'al reducir movimiento no hay animación: ' + await anim());
-  await ctx.close();
-  for (const w of [768, 1280]) {
-    const m = await abrir({ viewport: { width: w, height: 900 }, sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
-    await abrirAnalisisSembrado(m.pg);
-    assert(await sinDesborde(m.pg) <= 0, 'sin desborde a ' + w);
-    await m.ctx.close();
-  }
-});
-
-await check('Análisis: arranca con el resultado y su explicación, resume la viabilidad en 5 áreas, avisa lo importante y la matriz se filtra', async () => {
-  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
-  await abrirAnalisisSembrado(pg);
-  const orden = await pg.evaluate(() => { const o = document.querySelector('#bt-analisis-out .analysis-resumen'); return [...o.children].map(c => c.className.split(' ')[0] || c.tagName); });
-  assert(orden[0] === 'resultado-global', 'el análisis comienza con el resultado: ' + orden.join(','));
-  const hero = await pg.evaluate(() => ({ nombre: document.querySelector('.resultado-nombre').textContent, expl: document.querySelector('.resultado-expl').textContent, meta: document.querySelector('.resultado-meta').textContent }));
-  assert(hero.nombre === 'NO-GO' && /requisito\(s\) crítico\(s\)/.test(hero.expl) && /Capacidad K residual/.test(hero.expl), 'resultado y explicación: ' + JSON.stringify(hero));
-  const areas = await pg.evaluate(() => [...document.querySelectorAll('.viabilidad-tabla tbody tr')].map(tr => [tr.children[0].textContent, tr.children[1].textContent.replace(/^[^A-Z]*/, '').trim()]));
-  assert(areas.map(a => a[0]).join('|') === 'Experiencia|Capacidad financiera|Capacidad residual|Personal|Garantías', 'áreas: ' + JSON.stringify(areas));
-  const est = Object.fromEntries(areas);
-  assert(est['Capacidad residual'] === 'NO CUMPLE' && est['Garantías'] === 'NO DETERMINABLE' && est['Experiencia'] === 'NO DETERMINABLE', 'estados de las áreas: ' + JSON.stringify(est));
-  const al = await pg.evaluate(() => [...document.querySelectorAll('.alertas-analisis .alerta-item')].map(a => a.className.replace('alerta-item ', '') + ':' + a.textContent));
-  assert(al[0].startsWith('critica:') && /Capacidad K residual/.test(al[0]), 'la primera alerta es crítica: ' + al[0]);
-  assert(al.some(a => a.startsWith('revisar:') && /Faltan datos de la empresa/.test(a)), 'avisa lo que falta cargar de la empresa: ' + al.join(' | '));
-  // matriz: columnas, los 4 resultados y el filtro
-  const cols = await pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) thead th')].map(t => t.textContent));
-  assert(cols.join('|') === 'Requisito|Exigencia|Empresa|Resultado|Evidencia', 'columnas de la matriz: ' + cols.join('|'));
-  const res = await pg.evaluate(() => Object.fromEntries([...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) tbody tr')].map(tr => [tr.children[0].textContent.split(':')[0], tr.dataset.resultado])));
-  assert(res['Índice de liquidez'] === 'CUMPLE' && res['Capacidad K residual'] === 'NO CUMPLE' && res['Capacidad vs valor'] === 'REVISAR' && res['Experiencia'] === 'NO DETERMINABLE', 'resultados por fila (lo que no se puede comparar jamás da CUMPLE): ' + JSON.stringify(res));
-  const visibles = () => pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) tbody tr')].filter(t => !t.hidden).length);
-  const total = await visibles();
-  await pg.locator('[data-matriz-filtro="NO CUMPLE"]').click();
-  assert(await visibles() === 1 && await pg.evaluate(() => document.querySelector('[data-matriz-filtro="NO CUMPLE"]').getAttribute('aria-pressed')) === 'true', 'el filtro deja solo los NO CUMPLE');
-  await pg.locator('[data-matriz-filtro="CUMPLE"]').click();
-  assert(await visibles() === 1, 'filtro CUMPLE');
-  await pg.locator('[data-matriz-filtro=""]').click();
-  assert(await visibles() === total, 'Todos');
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
-});
 
 await check('Observaciones: la ficha lista los puntos para preguntar a la entidad (discrepancia del K contra el presupuesto) y descarga el borrador con la entidad, la página y la cifra', async () => {
   const texto = "1.1. OBJETO, PRESUPUESTO OFICIAL, PLAZO Y UBICACIÓN El objeto, presupuesto oficial estimado, plazo y ubicación del proyecto se identifican en la siguiente tabla: Objeto del proyecto ALCANTARILLADO BARRIO EL LIBANO Plazo del contrato Valor presupuesto oficial (pesos incluido IVA) CINCUENTA (50) DIAS $138.776.810,00 Lugar(es) de ejecución del contrato OCAÑA. 3.6 CALCULO LA CAPACIDAD RESIDUAL DEL PROPONENTE. El Proponente debe acreditar una capacidad residual o K de Contratación igual o superior al presupuesto oficial: $100.000.000 El proponente debe presentar un certificado.";
@@ -825,232 +690,17 @@ await check('Observaciones: la ficha lista los puntos para preguntar a la entida
   assert(/Alcaldía E2E/.test(cuerpo) && /\$100\.000\.000/.test(cuerpo) && /\$138\.776\.810/.test(cuerpo) && /Solicitamos/.test(cuerpo) && /Empresa A/.test(cuerpo), 'el borrador trae entidad, cifras, solicitud y la empresa: ' + cuerpo.slice(0, 300));
   await ctx.close();
 });
-await check('Análisis en celular (375 px): los puntos de «Decisión» apilan etiqueta y texto (el texto usa casi todo el ancho) y los botones, filtros y secciones plegables miden al menos 44 px', async () => {
-  const { ctx, pg } = await abrir({ viewport: { width: 375, height: 812 }, hasTouch: true, sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
-  await pg.click('#bt-nav-toggle'); // en celular el menú va plegado
+await check('Transparencia: un pliego leído en parte (15 de 76 páginas) lo dice y nunca se presenta como análisis completo', async () => {
+  const { ctx, pg } = await abrir({ sembrar: { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado({ pagesRead: 15, numPages: 76 })) } });
   await abrirAnalisisSembrado(pg);
-  const m = await pg.evaluate(() => {
-    const raiz = document.querySelector('#bt-analisis-out');
-    const items = [...raiz.querySelectorAll('.decision-lista .alerta-item')].map(li => {
-      const [a, b] = li.children, ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(), rl = li.getBoundingClientRect();
-      return { apilado: rb.top >= ra.bottom - 1, anchoTexto: Math.round(100 * rb.width / rl.width) };
-    });
-    const bajos = [...raiz.querySelectorAll('button.link-btn, .matriz-filtro, .analysis-fold > summary')].filter(el => el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height < 43.5).map(el => (el.textContent || '').trim().slice(0, 35) + ' h=' + Math.round(el.getBoundingClientRect().height));
-    return { items: items, bajos: bajos, desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth };
-  });
-  assert(m.items.length >= 2, 'hay puntos de decisión: ' + m.items.length);
-  assert(m.items.every(i => i.apilado && i.anchoTexto >= 85), 'etiqueta arriba y texto a casi todo el ancho: ' + JSON.stringify(m.items));
-  assert(m.bajos.length === 0, 'controles de menos de 44 px: ' + m.bajos.join(' | '));
-  assert(m.desborde <= 0, 'sin desborde horizontal: ' + m.desborde);
-  // Matriz de requisitos: las palabras y las cifras no se parten, «Ver evidencia» cabe en una línea y la tabla avisa que se desliza.
-  const mx = await pg.evaluate(() => {
-    const t = document.querySelector('#bt-analisis-out .matriz-req'); const w = t.closest('.expeval-table-wrap');
-    const lineas = (celda, texto) => { const wk = document.createTreeWalker(celda, NodeFilter.SHOW_TEXT); let n; while ((n = wk.nextNode())){ const i = n.nodeValue.indexOf(texto); if (i >= 0){ const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + texto.length); return r.getClientRects().length; } } return null; };
-    const celdaTexto = txt => [...t.querySelectorAll('td')].find(c => c.textContent.includes(txt));
-    const ev = t.querySelector('[data-ev-fila]').getBoundingClientRect();
-    const hint = w.previousElementSibling;
-    return { palabra: lineas(celdaTexto('liquidez'), 'liquidez'), cifra: lineas(celdaTexto('5.000.000.000'), '5.000.000.000'), evAncho: Math.round(ev.width), evAlto: Math.round(ev.height),
-      scroll: w.scrollWidth - w.clientWidth, sombra: /gradient/.test(getComputedStyle(w).backgroundImage), aviso: hint && hint.classList.contains('ficha-desliza') ? getComputedStyle(hint).display : 'sin aviso' };
-  });
-  assert(mx.palabra === 1 && mx.cifra === 1, 'palabras y cifras de la matriz sin partir: ' + JSON.stringify(mx));
-  assert(mx.evAlto <= 50 && mx.evAncho >= 75, '«Ver evidencia» en una sola línea: ' + mx.evAncho + 'x' + mx.evAlto);
-  assert(mx.scroll > 0 && mx.sombra && mx.aviso !== 'none' && mx.aviso !== 'sin aviso', 'la matriz se desplaza con sombra y aviso: ' + JSON.stringify(mx));
-  await pg.setViewportSize({ width: 1280, height: 900 });
-  const esc = await pg.evaluate(() => { const w = document.querySelector('#bt-analisis-out .matriz-req').closest('.expeval-table-wrap'); return { scroll: w.scrollWidth - w.clientWidth, aviso: getComputedStyle(w.previousElementSibling).display }; });
-  assert(esc.scroll <= 0 && esc.aviso === 'none', 'en pantalla ancha la matriz no cambia: ' + JSON.stringify(esc));
-  await ctx.close();
-});
-await check('Informe del análisis: la tarjeta de decisión baja un Word con el análisis sin botones ni filtros; el PDF abre una ventana imprimible', async () => {
-  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
-  await abrirAnalisisSembrado(pg);
-  const dec = await pg.evaluate(() => { const d = document.querySelector('#bt-analisis-out [data-decision]'); return d ? { h3: d.querySelector('h3').textContent, botones: d.querySelectorAll('[data-informe-doc]').length } : null; });
-  assert(dec && /^Decisión: /.test(dec.h3) && dec.botones === 2, 'la tarjeta de decisión trae los 2 botones: ' + JSON.stringify(dec));
-  const [word] = await Promise.all([pg.waitForEvent('download', { timeout: 8000 }), pg.locator('#bt-analisis-out [data-informe-doc="word"]').click()]);
-  assert(/^analisis-.*\.doc$/.test(word.suggestedFilename()), 'nombre del Word: ' + word.suggestedFilename());
-  const ruta = await word.path();
-  const html = (await readFile(ruta, 'utf8'));
-  assert(/Decisión: /.test(html) && /Resumen de viabilidad/.test(html) && /Orientativo/.test(html) && /Fuente: /.test(html), 'el informe trae decisión, viabilidad, aviso y fuente');
-  assert(!/<button/i.test(html) && !/data-matriz-filtro/.test(html), 'sin botones ni filtros');
-  const [popup] = await Promise.all([pg.waitForEvent('popup', { timeout: 8000 }), pg.locator('#bt-analisis-out [data-informe-doc="pdf"]').click()]);
-  await popup.waitForLoadState('domcontentloaded');
-  const titulo = await popup.title();
-  assert(/^Análisis de proceso/.test(titulo), 'ventana imprimible: ' + titulo);
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
-});
-
-await check('Evidencia: el panel lateral muestra requisito, exigencia, fuente, página, cita textual y dato de la empresa; abre la página del documento; Escape lo cierra y devuelve el foco', async () => {
-  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
-  await abrirAnalisisSembrado(pg);
-  const boton = pg.locator('.matriz-tabla:not(.ficha-tabla) tbody tr', { hasText: 'Índice de liquidez' }).locator('[data-ev-fila]');
-  await boton.focus();
-  await boton.press('Enter');
-  await pg.waitForFunction(() => !document.getElementById('bt-evidencia-backdrop').hidden);
-  const t = await pg.evaluate(() => ({ rol: document.getElementById('bt-evidencia-panel').getAttribute('role'), texto: document.getElementById('bt-evidencia-panel').innerText, foco: document.activeElement.id, vista: !document.getElementById('view-analisis').hidden }));
-  assert(t.rol === 'dialog' && t.vista, 'es un panel (diálogo) y no se sale de la pantalla de análisis');
-  for (const campo of ['Exigencia', 'Fuente', 'Cita textual', 'Información de la empresa']) assert(t.texto.includes(campo), 'falta el campo "' + campo + '"');
-  assert(/·\s*p\.\s*\d+/.test(t.texto), 'la fuente y la página van en una sola línea («Documento · p. N»)');
-  assert(/Pliego de Condiciones/.test(t.texto) && /2/.test(t.texto) && /índice de liquidez debe ser mayor o igual a 1,5|indice de liquidez debe ser mayor o igual a 1,5/i.test(t.texto) && /Texto tomado directamente del documento leído/.test(t.texto), 'contenido de la evidencia: ' + t.texto.slice(0, 500));
-  assert(/CUMPLE/.test(t.texto), 'resultado con texto');
-  assert(t.foco === 'bt-evidencia-cerrar', 'el foco pasa al panel: ' + t.foco);
-  await pg.click('[data-ev-pagina]');
-  const pagina = await pg.evaluate(() => { const c = document.getElementById('bt-evidencia-pagina'); return { visible: !c.hidden, texto: c.textContent, marca: (c.querySelector('mark') || {}).textContent || '' }; });
-  assert(pagina.visible && /Pagina|indice de liquidez/i.test(pagina.texto) && /liquidez/i.test(pagina.marca), 'la página del documento se muestra con la cita resaltada: ' + JSON.stringify(pagina).slice(0, 300));
-  await pg.keyboard.press('Escape');
-  assert(await pg.evaluate(() => document.getElementById('bt-evidencia-backdrop').hidden), 'Escape cierra el panel');
-  assert(await pg.evaluate(() => document.activeElement.hasAttribute('data-ev-fila')), 'el foco vuelve al botón "Ver evidencia"');
-  // fila sin cita (conclusión que sale de comparar datos): lo dice
-  const sinCita = pg.locator('.matriz-tabla:not(.ficha-tabla) tbody tr', { hasText: 'Capacidad vs valor' }).locator('[data-ev-fila]');
-  await sinCita.click();
-  const t2 = await pg.evaluate(() => document.getElementById('bt-evidencia-panel').innerText);
-  assert(/No hay cita textual/.test(t2) && /Sin cita textual: esta conclusión sale de comparar datos de tu empresa con datos del proceso/.test(t2), 'una conclusión sin cita se declara: ' + t2.slice(0, 600));
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
-});
-
-await check('Transparencia: un pliego leído en parte (15 de 76 páginas) nunca se presenta como análisis completo', async () => {
-  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado({ pagesRead: 15, numPages: 76 })) }) });
-  await abrirAnalisisSembrado(pg);
-  const d = await pg.evaluate(() => ({ alertas: [...document.querySelectorAll('.alertas-analisis .alerta-item')].map(a => a.textContent), meta: [...document.querySelectorAll('.resultado-meta')].map(x => x.textContent).join(' '), texto: document.getElementById('bt-analisis-out').innerText }));
-  assert(d.alertas.some(a => /El análisis es parcial: se leyeron 15 de 76/.test(a)), 'alerta de análisis parcial: ' + d.alertas.join(' | '));
-  assert(/Leído: 15\/76 págs \(parcial\)/.test(d.meta), 'cobertura junto al resultado: ' + d.meta);
+  const d = await pg.evaluate(() => ({
+    nota: [...document.querySelectorAll('#bt-analisis-out .analysis-block > .saved-note')].map(x => x.textContent).join(' '),
+    texto: document.getElementById('bt-analisis-out').innerText,
+    lecturaAbierta: !!([...document.querySelectorAll('#bt-analisis-out details.analysis-fold')].find(f => /Lectura y avisos/.test(f.textContent)) || {}).open
+  }));
+  assert(/Se leyeron 15 de 76 páginas: lo que sigue habla solo de lo leído/.test(d.nota), 'la tarjeta dice que solo habla de lo leído: ' + d.nota);
   assert(!/analizado completamente|análisis completo/i.test(d.texto), 'nunca se dice "analizado completamente" con lectura parcial');
-  assert(await pg.evaluate(() => document.querySelector('.resultado-nombre').textContent) !== 'GO', 'con lectura parcial nunca hay GO');
-  await ctx.close();
-});
-
-await check('Sin pliego: el proceso se abre con NO DETERMINABLE (no hay evidencia) y sin datos de empresa el análisis lo dice', async () => {
-  const { ctx, pg } = await abrir({ sembrar: empresaAn() });
-  await abrirAnalisisDelPrimero(pg);
-  await pg.waitForFunction(() => !!document.querySelector('#bt-analisis-out .resultado-nombre'));
-  const v = await pg.evaluate(() => ({ nombre: document.querySelector('#bt-analisis-out .resultado-nombre').textContent, expl: document.querySelector('#bt-analisis-out .resultado-expl').textContent, botones: [...document.querySelectorAll('#bt-analisis-out .row-actions button, #bt-analisis-out .row-actions a')].map(b => b.textContent.trim()) }));
-  assert(['NO DETERMINABLE', 'NO-GO'].includes(v.nombre) && v.nombre !== 'GO', 'sin pliego nunca es GO ni REVISAR "de avance": ' + v.nombre);
-  if (v.nombre === 'NO DETERMINABLE') assert(/no hay evidencia|sin él/i.test(v.expl), 'explica por qué: ' + v.expl);
-  assert(v.botones[0] === 'Analizar proceso', 'la acción principal es "Analizar proceso": ' + v.botones.join(' | '));
-  assert(v.botones.some(b => b === 'Guardar' || /^✓ Guardado/.test(b)) && v.botones.includes('Ver en SECOP'), 'Guardar y Ver en SECOP: ' + v.botones.join(' | '));
-  await ctx.close();
-});
-
-await check('Análisis hecho antes con la IA: se abre sin usar nada de la IA (ni una exigencia imposible), avisa que se descartó y no ofrece «Extraer requisitos con IA»', async () => {
-  const viejo = analisisSembrado({
-    exigenciasIA: { liquidez: { valor: 9.9, raw: 'liquidez imposible', porcentaje: false, estricto: false } },
-    requisitosIA: { avisos: [], filas: [{ categoria: 'capacidad_financiera', indicador: 'liquidez', operador: '>=', valor_indicador: 9.9, descripcion: 'Índice de liquidez', pagina: 2, naturaleza: 'habilitante', documento: 'Pliego de Condiciones', verificada: true, confianza: 'alta', cita_textual: 'liquidez imposible' }] },
-    cronogramaIA: [{ evento: 'Cierre', fecha: '1 de enero', documento: 'Pliego de Condiciones', pagina: 1 }],
-    experienciaResultado: { resultadoGlobal: 'CUMPLE', totalObligatorios: 1, conteo: { 'CUMPLE': 1, 'NO CUMPLE': 0, 'NO DETERMINABLE': 0 }, resultados: [{ requisito: { criterio: 'Experiencia de la IA' }, resultado: 'CUMPLE', evidencia: [], contratosEvaluados: [], faltantes: [], justificacion: 'x' }] }
-  });
-  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(viejo) }) });
-  await abrirAnalisisSembrado(pg);
-  const t = await pg.evaluate(() => document.getElementById('bt-analisis-out').innerText);
-  assert(/ya no existe/.test(t) && /Evaluar cumplimiento de experiencia/.test(t), 'avisa que el análisis venía de la IA y qué hacer: ' + t.slice(0, 400));
-  assert(!/liquidez imposible|9\.9|Experiencia de la IA/.test(t), 'nada de lo que dijo la IA sigue influyendo');
-  assert(!/Extraer requisitos con IA|Requisitos habilitantes \(IA\)|Cronograma y riesgos/.test(t), 'no se ofrece la extracción con IA');
-  assert(!await pg.evaluate(() => !!document.querySelector('.analysis-ia-btn, [data-ia-confirmar]')), 'no hay controles de la extracción con IA');
-  const liq = await pg.evaluate(() => [...document.querySelectorAll('.matriz-tabla:not(.ficha-tabla) tbody tr')].find(tr => /Índice de liquidez/.test(tr.children[0].textContent)).dataset.resultado);
-  assert(liq === 'CUMPLE', 'la liquidez se compara con lo que dice el pliego por reglas (1,5), no con la cifra de la IA: ' + liq);
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
-});
-
-await check('Capacidad Residual (análisis): muestra lo que exige el proceso, lo que tiene la empresa, el resultado y la fuente con su página; nunca los mezcla', async () => {
-  const { ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
-  await abrirAnalisisSembrado(pg);
-  const b = await pg.evaluate(() => { const c = document.querySelector('#bt-analisis-out .cr-comparacion'); return c ? { cajas: [...c.children].map(x => x.textContent.replace(/\s+/g, ' ').trim()), nota: c.parentElement.textContent } : null; });
-  assert(b && b.cajas.length === 3, 'debe existir el bloque de comparación');
-  assert(/Requerida por el proceso.*\$5\.000\.000\.000/.test(b.cajas[0]), 'requerida: ' + b.cajas[0]);
-  assert(/Capacidad de tu empresa.*\$3\.000\.000\.000/.test(b.cajas[1]), 'empresa: ' + b.cajas[1]);
-  assert(/NO CUMPLE/.test(b.cajas[2]), 'resultado: ' + b.cajas[2]);
-  assert(/es menor que la exigida en \$2\.000\.000\.000/.test(b.nota), 'faltante: ' + b.nota);
-  assert(/Fuente: Pliego de Condiciones · Página: 3/.test(b.nota), 'fuente y página: ' + b.nota);
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
-});
-
-await check('Capacidad Residual (análisis): si la empresa supera la exigida, aparentemente cumple y muestra el margen; sin K exigida dice que no la identificó y no inventa una', async () => {
-  const rico = Object.assign(empresaAn(), { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa A', nit: '900', k: 'Liquidez = 2,0\nEndeudamiento = 0,4', kResidual: 'K residual = 8.000.000.000', rup: '' } }) });
-  let { ctx, pg } = await abrir({ sembrar: Object.assign(rico, { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) }) });
-  await abrirAnalisisSembrado(pg);
-  const t = await pg.evaluate(() => document.querySelector('#bt-analisis-out .cr-comparacion').parentElement.textContent.replace(/\s+/g, ' '));
-  assert(/APARENTEMENTE CUMPLE/.test(t) && /supera la exigida por el proceso en \$3\.000\.000\.000/.test(t), 'cumple con margen: ' + t);
-  await ctx.close();
-  const sinK = analisisSembrado({ exigencias: {} });
-  ({ ctx, pg } = await abrir({ sembrar: Object.assign(empresaAn(), { bitacora_analisis_pliegos: JSON.stringify(sinK) }) }));
-  await abrirAnalisisSembrado(pg);
-  const t2 = await pg.evaluate(() => document.querySelector('#bt-analisis-out .cr-comparacion').parentElement.textContent.replace(/\s+/g, ' '));
-  assert(/No se identificó de forma confiable un requisito de Capacidad Residual K/.test(t2) && !/APARENTEMENTE CUMPLE/.test(t2), 'sin K exigida: ' + t2);
-  await ctx.close();
-});
-
-await check('Capacidad Residual (empresa): estado de confianza, contrato en consorcio con participación, validaciones y "cómo se calculó"', async () => {
-  const sem = { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Empresa A', nit: '900', k: '', kResidual: 'K residual = 12.000.000.000', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']) };
-  const { ctx, pg } = await abrir({ sembrar: sem });
-  await pg.click('#bt-nav-empresa');
-  const hero = () => pg.evaluate(() => { const h = document.querySelector('#bt-capacidad-estimada-out .cr-hero'); return h ? h.textContent.replace(/\s+/g, ' ').trim() : ''; });
-  let h = await hero();
-  assert(/Tu Capacidad Residual\s*\$12\.000\.000\.000/.test(h) && /Información completa/.test(h), 'sin contratos y con K: ' + h);
-  await pg.click('#bt-contrato-nuevo');
-  const f = (campo, v) => pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="' + campo + '"]', v);
-  await f('nombre', 'Vía Cúcuta'); await f('valorInicial', '1.000.000.000'); await f('valorActual', '1.000.000.000'); await f('valorEjecutado', '400.000.000'); await f('saldo', '600.000.000');
-  const fin = new Date(Date.now() + 200 * 864e5).toISOString().slice(0, 10);
-  await pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="fechaFin"]', fin);
-  h = await hero();
-  assert(/\$11\.400\.000\.000/.test(h), 'K - saldo: ' + h);
-  await pg.check('#bt-contratos-ejecucion-list [data-contrato-campo="consorcio"]');
-  h = await hero();
-  assert(/Cálculo preliminar/.test(h), 'consorcio sin participación -> preliminar: ' + h);
-  assert(await pg.evaluate(() => /participación/i.test(document.querySelector('#bt-capacidad-estimada-out .cr-alertas').textContent)), 'avisa la participación no registrada');
-  await pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="participacion"]', '40');
-  h = await hero();
-  assert(/\$11\.760\.000\.000/.test(h), 'al 40 %: 12.000 - 240 = 11.760 millones: ' + h);
-  await pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="participacion"]', '150');
-  assert(await pg.evaluate(() => /entre 0 y 100/.test(document.querySelector('#bt-capacidad-estimada-out .cr-alertas').textContent)), 'participación > 100 es un error visible');
-  await pg.fill('#bt-contratos-ejecucion-list [data-contrato-campo="participacion"]', '40');
-  await pg.locator('#bt-capacidad-estimada-out summary').click();
-  const det = await pg.evaluate(() => document.querySelector('#bt-capacidad-estimada-out details').textContent.replace(/\s+/g, ' '));
-  assert(/K residual declarado\s*\$12\.000\.000\.000/.test(det) && /Participación/.test(det) && /40 %/.test(det), 'detalle del cálculo: ' + det);
-  assert(await pg.evaluate(() => /Última actualización: \d{2}\/\d{2}\/\d{4}/.test(document.querySelector('#bt-capacidad-estimada-out .cr-hero').textContent)), 'muestra la última actualización');
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
-  await ctx.close();
-});
-
-await check('Formato Maestro: se detecta al cargar el libro, sugiere el sujeto por el nombre de la empresa, importa los contratos y manda los que están en ejecución a Capacidad Residual', async () => {
-  const sem = { bitacora_perfiles_empresa: JSON.stringify({ p1: { nombre: 'Constructora Ejemplo S.A.S.', nit: '900', k: '', kResidual: 'K residual = 5.000.000.000', rup: '' } }), bitacora_perfil_activo_id: 'p1', bitacora_perfiles_activos: JSON.stringify(['p1']) };
-  const { ctx, pg } = await abrir({ sembrar: sem });
-  await pg.click('#bt-nav-empresa'); await pg.click('#bt-empresa-tab-experiencia');
-  const archivo = join(RAIZ, 'plantillas', 'Formato_Maestro_Experiencia_BitacoraSECOP_v1.xlsx');
-  await pg.setInputFiles('#bt-expeval-exp-file', archivo);
-  await pg.waitForSelector('#bt-fm-panel:not([hidden])');
-  const p = await pg.evaluate(() => ({ sujeto: document.getElementById('bt-fm-sujeto').selectedOptions[0].textContent, vinc: document.getElementById('bt-fm-vinculadas').checked, prev: document.getElementById('bt-fm-preview').textContent, estado: document.getElementById('bt-expeval-exp-status').textContent }));
-  assert(/CONSTRUCTORA EJEMPLO/.test(p.sujeto), 'sugiere el sujeto por nombre: ' + p.sujeto);
-  assert(/2 contrato\(s\): 2 para acreditar experiencia y 0 en ejecución/.test(p.prev), 'vista previa (con la persona vinculada): ' + p.prev);
-  assert(/Formato Maestro leído/.test(p.estado), 'estado: ' + p.estado);
-  // quitar a las personas vinculadas no cambia el número de contratos, pero sí la participación del primero
-  await pg.click('#bt-fm-importar');
-  await pg.waitForFunction(() => document.getElementById('bt-fm-panel').hidden === true);
-  const rev = await pg.evaluate(() => ({ estado: document.getElementById('bt-expeval-exp-status').textContent, filas: [...document.querySelectorAll('#bt-expeval-review .expeval-table tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim())), aviso: (document.querySelector('#bt-expeval-review .account-notice') || {}).textContent }));
-  assert(/2 contrato\(s\) importado\(s\) del Formato Maestro/.test(rev.estado), 'estado tras importar: ' + rev.estado);
-  assert(rev.filas.length === 2 && rev.filas[0][1] === 'C-0001' && /100/.test(rev.filas[0][5]), 'tabla de revisión: ' + JSON.stringify(rev.filas));
-  // el motor guarda los contratos importados para esta empresa
-  const guardados = await pg.evaluate(() => { const d = JSON.parse(localStorage.getItem('bitacora_experiencia_evaluacion') || '{}'); const c = (((d.porPerfil || {}).p1 || {}).contratos || {}); return { fuente: c.fuente, n: (c.contratos || []).length, valor: c.contratos && c.contratos[0] && c.contratos[0].valor }; });
-  assert(guardados.fuente === 'formato-maestro' && guardados.n === 2 && guardados.valor === 163147838, 'guardado: ' + JSON.stringify(guardados));
-  // ahora el sujeto con un contrato en ejecución -> Capacidad Residual
-  await pg.setInputFiles('#bt-expeval-exp-file', archivo);
-  await pg.waitForSelector('#bt-fm-panel:not([hidden])');
-  await pg.selectOption('#bt-fm-sujeto', 'S-003');
-  assert(/1 contrato\(s\): 0 para acreditar experiencia y 1 en ejecución/.test(await pg.textContent('#bt-fm-preview')), 'vista previa del sujeto con contrato en ejecución');
-  await pg.click('#bt-fm-importar');
-  await pg.waitForFunction(() => /1 contrato\(s\) en ejecución agregado\(s\) a Capacidad Residual/.test(document.getElementById('bt-expeval-exp-status').textContent));
-  await pg.click('#bt-empresa-tab-perfil');
-  const cr = await pg.evaluate(() => ({ numeros: [...document.querySelectorAll('#bt-contratos-ejecucion-list [data-contrato-campo="numero"]')].map(i => i.value), hero: (document.querySelector('#bt-capacidad-estimada-out .cr-hero') || {}).textContent }));
-  assert(cr.numeros.indexOf('GG-4215-2020') !== -1, 'el contrato en ejecución llegó a Capacidad Residual: ' + JSON.stringify(cr));
-  // importar de nuevo no duplica
-  await pg.click('#bt-empresa-tab-experiencia');
-  await pg.setInputFiles('#bt-expeval-exp-file', archivo);
-  await pg.waitForSelector('#bt-fm-panel:not([hidden])');
-  await pg.selectOption('#bt-fm-sujeto', 'S-003');
-  await pg.click('#bt-fm-importar');
-  await pg.waitForFunction(() => document.getElementById('bt-fm-panel').hidden === true);
-  assert(await pg.evaluate(() => document.querySelectorAll('#bt-contratos-ejecucion-list .contrato-row').length) === 1, 're-importar no duplica el contrato en ejecución');
-  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  assert(d.lecturaAbierta, '«Lectura y avisos» se abre sola mientras falten páginas (ahí están los botones para seguir leyendo)');
   await ctx.close();
 });
 
@@ -1088,6 +738,38 @@ await check('Landing: abre sin desborde a 1280 y 375 px, carga todas sus imágen
     }
     await ctx.close();
   }
+});
+
+await check('Análisis: muestra lo que dice el pliego (ficha de requisitos, alertas, experiencia que pide, lectura) y no trae veredicto, empresa ni cartas', async () => {
+  const { ctx, pg } = await abrir({ sembrar: { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) } });
+  await abrirAnalisisSembrado(pg);
+  const d = await pg.evaluate(() => {
+    const o = document.getElementById('bt-analisis-out');
+    return { titulos: [...o.querySelectorAll('.fold-title')].map(e => e.textContent), ficha: !!o.querySelector('[data-ficha-seccion]'), veredicto: !!o.querySelector('.resultado-global, .resultado-nombre, [data-decision]'),
+      texto: o.innerText, botones: [...o.querySelectorAll('button')].map(b => b.textContent.trim()) };
+  });
+  assert(d.ficha, 'la ficha de requisitos habilitantes del proceso está');
+  for (const t of ['Experiencia que pide el pliego', 'Lectura y avisos']) assert(d.titulos.includes(t), 'falta la sección «' + t + '»: ' + d.titulos.join(' | '));
+  assert(!d.veredicto, 'no hay tarjeta de resultado ni de decisión');
+  const prohibido = /NO-GO|NO DETERMINABLE|Decisión:|Tu empresa|Generar carta|paquete de propuesta|Comparar en el análisis/;  // «▲ REVISAR» es la etiqueta de los avisos de la ficha, no un veredicto
+  assert(!prohibido.test(d.texto), 'el análisis no habla de veredictos ni de la empresa: «' + (d.texto.match(prohibido) || [''])[0] + '»');
+  assert(!d.botones.some(b => /\bcarta\b|paquete|informe/i.test(b) && !/observaciones|borrador/i.test(b)), 'sin botones de carta, paquete ni informe de evaluación: ' + d.botones.join(' | '));
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
+});
+
+await check('Análisis en celular (375 px): sin desborde y con secciones plegables y botones de al menos 44 px', async () => {
+  const { ctx, pg } = await abrir({ viewport: { width: 375, height: 812 }, hasTouch: true, sembrar: { bitacora_analisis_pliegos: JSON.stringify(analisisSembrado()) } });
+  await abrirAnalisisSembrado(pg);
+  const m = await pg.evaluate(() => ({
+    desborde: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    resumenes: [...document.querySelectorAll('#bt-analisis-out .analysis-fold > summary')].map(s => Math.round(s.getBoundingClientRect().height)),
+    botones: [...document.querySelectorAll('#bt-analisis-out .analysis-block button.link-btn, #bt-analisis-out .analysis-block button.btn-secondary')].filter(b => b.getClientRects().length).map(b => Math.round(b.getBoundingClientRect().height))
+  }));
+  assert(m.desborde <= 0, 'sin desborde horizontal a 375 px: ' + m.desborde);
+  assert(m.resumenes.length >= 2 && m.resumenes.every(h => h >= 44), 'secciones plegables de al menos 44 px: ' + m.resumenes.join(','));
+  assert(pg.errores.length === 0, 'errores de JS: ' + pg.errores.join(' | '));
+  await ctx.close();
 });
 
 await navegador.close();

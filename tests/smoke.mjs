@@ -35,7 +35,8 @@ const FormatoMaestro = (await import(pathToFileURL(path.join(ROOT, 'formatomaest
 const Magnitudes = (await import(pathToFileURL(path.join(ROOT, 'magnitudes.js')).href)).default;
 globalThis.Magnitudes = Magnitudes; // app.html lo carga como script global; el motor extraído lo busca en el scope global
 const HTML_PATH = path.join(ROOT, 'app.html');
-const html = readFileSync(HTML_PATH, 'utf8');
+// Saltos de línea normalizados: en Windows (autocrlf) el archivo llega con CRLF y las pruebas que cortan por un salto Unix no encontraban el final de la función.
+const html = readFileSync(HTML_PATH, 'utf8').replace(/\r\n/g, '\n');
 
 let failed = 0;
 let passed = 0;
@@ -4509,9 +4510,9 @@ await check('Accesibilidad (controles generados por JS): cada <input>/<select>/<
   assert(sinEtiqueta.length === 0, 'controles generados sin etiqueta: ' + sinEtiqueta.join(' | '));
 });
 
-await check('Lectura parcial: la viabilidad y "sin alertas" dicen cuántas páginas se leyeron, y los gates de lectura son "nd" (no "cumple parcialmente")', () => {
+await check('Lectura parcial: la tarjeta y "sin alertas" dicen cuántas páginas se leyeron, y los gates de lectura son "nd" (no "cumple parcialmente")', () => {
   const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
-  assert(/const parcialRF = lecturaParcial\(entry\);/.test(html) && /solo con las ' \+ parcialRF\.pagesRead/.test(html), 'la viabilidad debe aclarar que es solo con lo leído');
+  assert(/const parcialRF = lecturaParcial\(entry\);/.test(html) && /Se leyeron ' \+ parcialRF\.pagesRead \+ ' de ' \+ parcialRF\.numPages \+ ' páginas: lo que sigue habla solo de lo leído/.test(html), 'la tarjeta debe aclarar que habla solo de lo leído');
   assert(/lecturaParcial\(entry\);\s*\n?\s*L\.push\('  No se detectaron|parcialTxt/.test(html), 'el informe de texto también debe aclararlo');
 });
 
@@ -4569,19 +4570,17 @@ await check('Tarjeta de análisis: las secciones que el usuario abrió o cerró 
   // el registro es por clic del usuario, no por el evento toggle (que también dispara al pintar con "open")
   assert(!/addEventListener\('toggle'/.test(html.slice(html.indexOf('foldPrefs'), html.indexOf('foldPrefs') + 3000)), 'no debe usar toggle: se dispararía al pintar la tarjeta');
 });
-await check('Tarjeta de análisis: resumen arriba y detalle en secciones plegables (cerradas salvo lo que obliga a actuar)', async () => {
+await check('Tarjeta de análisis: la ficha del pliego va arriba y el detalle en secciones plegables (cerradas salvo lo que obliga a actuar)', async () => {
   const html = readFileSync(path.join(ROOT, 'app.html'), 'utf8');
   const i = html.indexOf('function renderAnalysisHtml(');
   const cuerpo = html.slice(i, html.indexOf('function ensurePublicAreaParams', i));
-  assert(cuerpo.indexOf('resumenArriba + secciones') > 0, 'el resumen debe ir antes de las secciones plegables');
-  ['Alertas del pliego', 'Experiencia requerida', 'Lectura y avisos'].forEach(t =>
+  assert(cuerpo.indexOf('fichaHabilitanteHtml(entry)') > 0 && cuerpo.indexOf('fichaHabilitanteHtml(entry)') < cuerpo.indexOf("seccionPlegable('Alertas del pliego'"), 'la ficha debe ir antes de las secciones plegables');
+  ['Alertas del pliego', 'Experiencia que pide el pliego', 'Lectura y avisos'].forEach(t =>
     assert(cuerpo.includes("seccionPlegable('" + t + "'"), 'falta la sección: ' + t));
-  assert(cuerpo.includes("compat ? 'Detalle del veredicto'"), 'falta la sección del detalle del veredicto');
   // los botones de seguir leyendo no se pierden: viven en "Lectura y avisos", abierta mientras falten páginas
   assert(/seccionPlegable\('Lectura y avisos'[^;]*parcialLect\)/.test(cuerpo), 'Lectura y avisos debe abrirse sola con lectura parcial');
   assert(cuerpo.includes('analysis-ocr-continue-btn') && cuerpo.includes('analysis-ia-leer-todo-btn') && cuerpo.includes('analysis-continue-btn'), 'faltan los botones de seguir leyendo');
   assert(/\.analysis-fold\[open\] > summary::before/.test(html), 'falta el estilo de las secciones plegables');
-  assert(html.includes('function partesCompatibilidad(') && html.includes("p.titulo + '</div>' + p.hero"), 'renderCompatibilidadHtml debe seguir devolviendo el veredicto completo');
 });
 
 await check('Veredicto: el recuadro y el contador cuentan igual los criterios por verificar (sin datos + parciales)', async () => {
@@ -5082,23 +5081,14 @@ await check('Matriz: las filas de experiencia del mismo encabezado, resultado y 
   ]);
   assert(no.length === 3, 'con distinto resultado o exigencia no se junta (esconder un CUMPLE o una exigencia sería mentir): ' + no.length);
 });
-await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; su contenido vive en "Análisis de pliegos"', () => {
+await check('Fusión: "Evaluación y documentos" ya no existe como pantalla; una vista guardada como evaluacion o pipeline abre Análisis o Mis procesos', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   for (const viejo of ['id="view-evaluacion"', 'id="bt-nav-evaluacion"', 'id="bt-eval-run"', 'id="bt-eval-select"', 'function runEvaluacion', 'function poblarEvalSelect', 'data-view="evaluacion"']) {
     assert(!html.includes(viejo), 'quedó rastro de la pantalla Evaluación: ' + viejo);
   }
   assert(!/const VISTAS_PRINCIPALES = \[[^\]]*'evaluacion'/.test(html), 'las vistas no deben incluir evaluacion');
-  assert(/const ALIAS_VISTAS = \{ evaluacion: 'analisis', pipeline: 'procesos' \}/.test(html), 'una "última vista" guardada como evaluacion debe abrir analisis (y pipeline, procesos)');
-  const i = html.indexOf('function evalSeccionesHtml');
-  assert(i !== -1, 'falta evalSeccionesHtml');
-  const fn = html.slice(i, i + 6000);
-  assert(/por empresa/.test(fn) && /Contexto de la entidad/.test(fn), 'faltan las secciones por empresa y de contexto de la entidad');
-  assert(/eval-adj-btn/.test(fn) && /eval-carta-btn/.test(fn) && /eval-paquete-btn/.test(fn) && /eval-informe-btn/.test(fn), 'faltan los botones de adjudicaciones, carta, paquete e informe');
-  const ra = html.slice(html.indexOf('function renderAnalysisHtml'), html.indexOf('function ensurePublicAreaParams'));
-  assert(/evalSeccionesHtml\(/.test(ra), 'renderAnalysisHtml debe incluir las secciones fusionadas (se redibujan con el análisis: no quedan veredictos viejos)');
-  assert(/function renderSinPliegoHtml/.test(html) && /renderSinPliegoHtml\(/.test(html.slice(html.indexOf('function tarjetaProcesoHtml'), html.indexOf('function truncate('))), 'sin pliego analizado la vista también debe mostrar la evaluación ligera y las secciones');
-  assert(/const mostrarEmpresas = varias \|\| !entry/.test(fn) && /mostrarEmpresas \? res\.porPerfil\.map\(bloquePerfil\)/.test(fn), 'sin pliego analizado (y con una sola empresa) la carta y el paquete por empresa deben seguir ofreciéndose');
-  assert(/enContenedoresDeProceso\('click', async function manejarClickEvaluacion/.test(html), 'los botones eval-* deben colgar de ambos contenedores');
+  assert(/const ALIAS_VISTAS = \{[^}]*evaluacion: 'analisis'[^}]*pipeline: 'procesos'/.test(html), 'una "última vista" guardada como evaluacion debe abrir analisis (y pipeline, procesos)');
+  assert(/function renderSinPliegoHtml/.test(html) && /renderSinPliegoHtml\(/.test(html.slice(html.indexOf('function tarjetaProcesoHtml'), html.indexOf('function truncate('))), 'sin pliego analizado la vista también debe mostrar su tarjeta');
 });
 // Reestructuración (2026-10): el menú principal son 4 ítems (+ una zona secundaria), no 7 módulos.
 // Casos 5 y 6 del prompt de reestructuración: una cita falsa no produce CUMPLE; un documento parcial se declara.
@@ -5218,33 +5208,32 @@ await check('Búsqueda natural: entiende tipo de obra, departamento, municipio y
   assert(r.minV === 500e6 && r.maxV === 3000e6, 'rango en cualquier orden: ' + r.minV + '-' + r.maxV);
 });
 
-await check('Menú: Buscar procesos · Mis procesos · Empresa · Documentos, y "Configuración y ayuda" aparte; sin módulos de PAA, alertas, pipeline, perfil, experiencia ni personal', () => {
+await check('Menú: Buscar procesos · Mis procesos, y "Configuración y ayuda" aparte; sin Empresa, Documentos ni módulos viejos', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
   const nav = html.slice(html.indexOf('<div class="sidebar-nav" id="bt-nav"'), html.indexOf('<div class="sidebar-foot"'));
   const items = [...nav.matchAll(/<button class="nav-item([^"]*)"[^>]*data-view="([a-z]+)"[^>]*aria-label="([^"]+)"/g)].map(m => ({ secundario: /nav-item-secondary/.test(m[1]), vista: m[2], etiqueta: m[3] }));
   const principales = items.filter(i => !i.secundario);
-  assert(JSON.stringify(principales.map(i => i.etiqueta)) === JSON.stringify(['Buscar procesos', 'Mis procesos', 'Empresa', 'Documentos']), 'el menú principal debe ser exactamente Buscar procesos, Mis procesos, Empresa, Documentos; fue ' + JSON.stringify(principales.map(i => i.etiqueta)));
+  assert(JSON.stringify(principales.map(i => i.etiqueta)) === JSON.stringify(['Buscar procesos', 'Mis procesos']), 'el menú principal debe ser exactamente Buscar procesos y Mis procesos; fue ' + JSON.stringify(principales.map(i => i.etiqueta)));
   const secundarios = items.filter(i => i.secundario);
   assert(secundarios.length === 1 && secundarios[0].etiqueta === 'Configuración y ayuda', 'la zona secundaria es solo "Configuración y ayuda"');
-  for (const prohibido of ['PAA', 'Plan Anual', 'Alertas', 'Pipeline', 'Perfil de la empresa', 'Personal', 'Dashboard', 'Histórico', 'Calculadora', 'Plantillas']) {
+  for (const prohibido of ['PAA', 'Plan Anual', 'Alertas', 'Pipeline', 'Perfil de la empresa', 'Personal', 'Empresa', 'Documentos', 'Dashboard', 'Histórico', 'Calculadora', 'Plantillas']) {
     assert(!items.some(i => i.etiqueta.includes(prohibido)), 'el menú no debe tener "' + prohibido + '"');
   }
   assert(/id="bt-brand-home"[^>]*data-view="dashboard"/.test(html), 'la marca lleva a Inicio (Inicio no es un ítem del menú)');
 });
-await check('Vistas: Empresa agrupa Datos/Experiencia/Personal con pestañas; los nombres viejos (pipeline, evaluacion, perfil...) siguen abriendo algo; todo id referenciado por ARIA existe', () => {
+await check('Vistas: sin Empresa ni Documentos; los nombres viejos (pipeline, evaluacion, perfil, empresa, documentos...) siguen abriendo algo; todo id referenciado por ARIA existe', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
-  for (const v of ['perfil', 'experiencia', 'personal']) {
-    assert(new RegExp('class="empresa-panel" id="view-' + v + '"').test(html), 'el panel ' + v + ' debe vivir dentro de Empresa');
-    assert(html.includes('id="bt-empresa-tab-' + v + '"'), 'falta la pestaña ' + v);
-  }
   assert(!/id="view-pipeline"/.test(html) && /id="view-procesos"/.test(html), 'Pipeline pasó a ser "Mis procesos" (view-procesos)');
-  assert(/const VISTAS_EMPRESA = \['perfil', 'experiencia', 'personal'\]/.test(html), 'VISTAS_EMPRESA');
+  assert(/const VISTAS_EMPRESA = \[\];/.test(html), 'VISTAS_EMPRESA vacía: ya no hay pestañas de empresa');
   const ids = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]));
   const roto = [];
   for (const m of html.matchAll(/\s(aria-controls|aria-labelledby)="([^"]+)"/g)) {
     if (!ids.has(m[2]) && !/['"+]/.test(m[2])) roto.push(m[1] + '=' + m[2]);
   }
-  assert(!roto.length, 'referencias ARIA a ids que no existen: ' + roto.join(', '));
+  // Las secciones view-empresa y view-documentos siguen en el archivo (fase 1: ocultas, se borran en la limpieza) y apuntan a un menú que ya no existe.
+  const aceptado = new Set(['aria-labelledby=bt-nav-empresa', 'aria-labelledby=bt-nav-documentos']);
+  const rotoReal = roto.filter(r => !aceptado.has(r));
+  assert(!rotoReal.length, 'referencias ARIA a ids que no existen: ' + rotoReal.join(', '));
 });
 await check('Documentos: el inventario dice qué hay cargado sin inventar (RUP/RUT, experiencia con su archivo, personal, pliegos con lectura parcial)', () => {
   const html = readFileSync(HTML_PATH, 'utf8');
@@ -5332,7 +5321,7 @@ await check('F-05: al cambiar de vista el foco del teclado no se pierde (pasa al
 });
 await check('F-07: las pruebas de punta a punta (navegador real) existen y corren en pull requests y en main', () => {
   const e2e = readFileSync(new URL('./e2e.mjs', import.meta.url), 'utf8');
-  for (const flujo of ['"Analizar pliego →"', 'Menú:', 'Celular', 'Evaluación fusionada', 'F-04', 'Datos de ejemplo']) assert(e2e.includes(flujo), 'e2e.mjs debe cubrir el flujo: ' + flujo);
+  for (const flujo of ['"Analizar pliego →"', 'Menú:', 'Celular', 'Análisis:', 'F-04', 'Transparencia', 'Inicio:']) assert(e2e.includes(flujo), 'e2e.mjs debe cubrir el flujo: ' + flujo);
   assert(/ruta\.abort\(\)/.test(e2e), 'e2e debe bloquear la red externa (resultado determinista, sin depender de SECOP en vivo)');
   for (const wf of ['smoke.yml', 'pages.yml']) {
     const y = readFileSync(new URL('../.github/workflows/' + wf, import.meta.url), 'utf8');
@@ -5682,10 +5671,6 @@ await check('MG-007: magnitudes.js se carga en app.html antes del script princip
   assert(/cp app\.html [^\n]*magnitudes\.js/.test(yml) && /lectura\|evaluacion\|coincidencia\|formatomaestro\|magnitudes/.test(yml), 'pages.yml debe copiar y sellar magnitudes.js');
 });
 
-await check('MG-008: selector de base de cantidades en consorcio — solo total/prorrata llegan al cruce, vacío = sin definir', () => {
-  assert(/data-ficha-base/.test(html) && /baseCantidades: \(entry\.baseCantidades === 'total' \|\| entry\.baseCantidades === 'prorrata'\)/.test(html), 'empresaParaFicha debe filtrar la base');
-  assert(/en\.baseCantidades = baseBtn\.getAttribute\('data-ficha-base'\) \|\| null/.test(html), 'el botón "Sin definir" debe volver a null');
-});
 
 await check('NAV-001: un proceso guardado en Mis procesos sin análisis ni búsqueda activa también está en la lista de Análisis (Ver proceso abre ese, no otro)', () => {
   const snap = { entidad: 'Empresa Toledo', objeto: 'Alcantarillado Toledo', valor: 3185389625, closingRaw: '2026-11-20T00:00:00Z', fuente: 'II', referencia: 'LP-SAPSB-03215-2026' };
@@ -6669,12 +6654,13 @@ await check('GUIA-003: cada botón y sección que la guía nombra existe de verd
   assert(faltan.length === 0, 'nombres de la guía que no existen en la app: ' + faltan.join(' | '));
 });
 
-await check('GUIA-004: la guía explica los 4 resultados y no inventa precios, clientes ni promesas de la app', () => {
+await check('GUIA-004: la guía explica cómo buscar, guardar y leer el pliego, recuerda que lo leído es orientativo y no inventa precios, clientes ni promesas', () => {
   const g = readFileSync(GUIA_PATH, 'utf8');
   const texto = g.replace(/<style[\s\S]*?<\/style>/g, '').replace(/<[^>]+>/g, ' ');
-  for (const r of ['GO', 'REVISAR', 'NO-GO', 'NO DETERMINABLE']) assert(texto.includes(r), 'falta explicar el resultado ' + r);
-  assert(/orientativ/i.test(texto) && /pliego (oficial|definitivo)/i.test(texto), 'debe recordar que el resultado es orientativo y se confirma en el pliego oficial');
-  assert(!/gratis|precio|tarifa|suscripci|por mes|al mes|testimonio|garantizamos|100 ?%/i.test(texto), 'sin precios, «gratis», testimonios ni promesas absolutas (las cifras en pesos de un ejemplo de búsqueda sí valen)');
+  for (const clave of ['Buscar procesos', 'Guardar', 'Mis procesos', 'Analizar proceso', 'Estudio Previo']) assert(texto.includes(clave), 'la guía debe explicar «' + clave + '»');
+  assert(/orientativ/i.test(texto) && /pliego (oficial|completo)|SECOP/i.test(texto), 'debe recordar que lo leído es orientativo y se confirma en el documento oficial');
+  assert(!/empresa|RUP|RUT|experiencia acreditada|GO|NO-GO|NO DETERMINABLE|veredicto/.test(texto.replace(/Estudio Previo/g, '')), 'la guía ya no habla de cargar una empresa ni de veredictos (la app es solo para buscar procesos)');
+  assert(!/gratis|precio|tarifa|suscripci|por mes|al mes|testimonio|garantizamos|100 ?%/i.test(texto), 'sin precios, «gratis», testimonios ni promesas absolutas');
 });
 
 // ---- Empresa: una persona nueva no se queda atascada sin empresa (Guardar empresa no puede fallar en silencio) ----
@@ -6840,6 +6826,58 @@ await check('EMP-010: sin profesional en edición, asegurarPersonalActivo crea u
   const cuerpo = html.slice(j, html.indexOf('\n  }\n', j));
   assert(/asegurarPersonalActivo\(\)/.test(cuerpo) && !/if \(!personalActivoId\) return;/.test(cuerpo), 'savePersonal asegura al profesional y ya no sale en silencio');
   assert(!/cargarPersonalActivoEnCampos\(\)/.test(html.slice(i, j)), 'asegurarPersonalActivo NO recarga los campos (borraría lo escrito)');
+});
+
+// ---- Producto: la app es solo para buscar procesos de SECOP (2026-11-25). Se quitó Empresa, Documentos y la comparación con la empresa ----
+const cuerpoFn = (nombre) => { const i = html.indexOf(nombre); assert(i > 0, 'no se encontró ' + nombre); return html.slice(i, html.indexOf('\n  }\n', i)); };
+
+await check('PROD-001: el menú tiene solo Buscar procesos, Mis procesos y Configuración y ayuda; Inicio ya no manda a Empresa', () => {
+  const nav = html.slice(html.indexOf('id="bt-nav" role="tablist"'), html.indexOf('</nav>'));
+  const items = [...nav.matchAll(/id="(bt-nav-[a-z]+)" data-view="([a-z]+)"/g)].map(m => m[2]);
+  assert(items.join(',') === 'buscar,procesos,ajustes', 'ítems del menú: ' + items);
+  assert(!/data-view="empresa"|data-view="documentos"/.test(html.slice(0, html.indexOf('<section class="view" id="view-empresa"'))), 'no queda ningún acceso a Empresa ni a Documentos');
+  const inicio = html.slice(html.indexOf('<section class="view" id="view-dashboard"'), html.indexOf('<section class="view" id="view-buscar"'));
+  assert(!/Actualizar empresa|bt-inicio-primeros|completa primero|empresa/i.test(inicio), 'Inicio no habla de la empresa');
+  assert((html.slice(html.indexOf('class="quick-grid"'), html.indexOf('class="quick-grid"') + 2500).match(/class="quick-card"/g) || []).length === 2, 'Inicio tiene 2 accesos rápidos');
+});
+
+await check('PROD-002: las vistas de Empresa y Documentos ya no existen como destino (las rutas guardadas caen en Buscar y Mis procesos)', () => {
+  const principales = (html.match(/const VISTAS_PRINCIPALES = \[([^\]]*)\]/) || [])[1] || '';
+  assert(!/empresa|documentos/.test(principales), 'VISTAS_PRINCIPALES sin empresa/documentos: ' + principales);
+  assert(/const VISTAS_EMPRESA = \[\];/.test(html), 'VISTAS_EMPRESA vacía: no hay pestañas de empresa');
+  const alias = (html.match(/const ALIAS_VISTAS = \{([^}]*)\}/) || [])[1] || '';
+  for (const v of ['empresa', 'perfil', 'experiencia', 'personal', 'documentos']) assert(new RegExp(v + ": '").test(alias), 'la vista guardada «' + v + '» debe tener a dónde ir: ' + alias);
+});
+
+await check('PROD-003: evaluarMejor ya no emite veredicto ni compara con ninguna empresa (todo lo que lo mostraba recibe null)', () => {
+  assert(/function evaluarMejor\(item, s, entry\)\{\s*return null;\s*\}/.test(html), 'evaluarMejor debe devolver null');
+});
+
+await check('PROD-004: la tarjeta de análisis muestra lo que dice el pliego (requisitos, alertas del pliego, lectura) y no trae veredicto, matriz, perfiles ni cartas', () => {
+  const f = cuerpoFn('function renderAnalysisHtml');
+  for (const fuera of ['resultadoAnalisisHtml(', 'matrizRequisitos(', 'Detalle del veredicto', 'Coincidencia con tus perfiles', 'Documentos de propuesta', 'evalSeccionesHtml(', 'Recomendación y comparación', 'data-informe-id', 'analysis-carta-btn']) {
+    assert(!f.includes(fuera), 'la tarjeta de análisis no debe incluir «' + fuera + '»');
+  }
+  for (const dentro of ['fichaHabilitanteHtml(entry)', "seccionPlegable('Lectura y avisos'", "seccionPlegable('Alertas del pliego'"]) {
+    assert(f.includes(dentro), 'la tarjeta de análisis debe incluir ' + dentro);
+  }
+});
+
+await check('PROD-005: la ficha del pliego no se cruza con ninguna empresa y Buscar no pide cargar datos de empresa', () => {
+  assert(/function empresaParaFicha\([^)]*\)\{\s*return null;\s*\}/.test(html), 'empresaParaFicha debe devolver null (sin columna «Tu empresa»)');
+  const fl = cuerpoFn('function renderFlujoStepper');
+  assert(!/tu empresa|experiencia acreditada|tu personal|Completar Empresa/.test(fl), 'el aviso de Buscar ya no pide cargar empresa, experiencia ni personal');
+});
+
+await check('PROD-006: Configuración y ayuda ya no explica GO / REVISAR / NO-GO ni cómo leer un resultado', () => {
+  const aj = html.slice(html.indexOf('<section class="view" id="view-ajustes"'), html.indexOf('</section>', html.indexOf('<section class="view" id="view-ajustes"')));
+  assert(!/NO-GO|NO DETERMINABLE|Cómo leer un resultado|motor de reglas/.test(aj), 'Ajustes no habla de veredictos');
+});
+
+await check('PROD-007: ningún texto visible habla de comparar con una empresa, de perfiles ni de experiencia cargada (Mis procesos, Configuración, cuenta y encabezado del análisis)', () => {
+  for (const viejo of ['sin empresa para comparar', 'tus perfiles, experiencia y análisis', 'la matriz de requisitos de un proceso', 'El resultado, el resumen de viabilidad']) {
+    assert(!html.includes(viejo), 'queda un texto de la versión anterior: «' + viejo + '»');
+  }
 });
 
 console.log('\n' + passed + ' ok, ' + failed + ' fallo(s).');
