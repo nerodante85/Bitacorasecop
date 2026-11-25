@@ -6448,7 +6448,7 @@ await check('Landing: un solo h1, botón principal hacia la app, enlace a privac
 await check('Landing: cada imagen existe, tiene texto alternativo y tamaño declarado, y todas pesan menos de 1,2 MB en total', () => {
   const html = readFileSync(LANDING_PATH, 'utf8');
   const imgs = [...html.matchAll(/<img\b[^>]*>/g)].map(m => m[0]);
-  assert(imgs.length >= 10, 'esperaba las capturas de la app: ' + imgs.length);
+  assert(imgs.length >= 4, 'esperaba las capturas de la app: ' + imgs.length);
   let peso = 0;
   imgs.forEach(tag => {
     const src = (tag.match(/src="([^"]+)"/) || [])[1];
@@ -6465,8 +6465,10 @@ await check('Landing: no inventa precios, clientes, testimonios ni cifras de ado
   const t = textoVisibleLanding();
   [/gratis|gratuit/i, /precio|tarifa|suscripci/i, /testimoni/i, /\bclientes\b/i, /\d+\s?%/, /m[aá]s de \d+/i, /\$\s?\d/, /garantizad/i, /100 ?% /].forEach(re =>
     assert(!re.test(t), 'la landing dice algo no respaldado: ' + re));
-  assert(/ficticios/.test(t), 'las capturas deben avisar que usan una empresa y un proceso de ejemplo');
-  assert(/No determinable/i.test(t) && /Garantías/.test(t) && /no se comparan con tu empresa/.test(t), 'dice lo que NO hace (garantías sin comparar) y la regla de «no determinable»');
+  assert(/proceso de ejemplo/.test(t), 'la captura debe avisar que usa un proceso de ejemplo');
+  assert(/no lo inventa/i.test(t) && /Garantías/.test(t), 'dice la regla de no inventar datos');
+  // producto de solo búsqueda (2026-11-25): la landing no promete comparar con una empresa ni dar un veredicto
+  assert(!/tu empresa|compara con/i.test(t) && !/NO-GO|GO|REVISAR|NO DETERMINABLE/.test(t), 'la landing no promete comparación con la empresa ni veredictos');
 });
 await check('Landing: la paleta cumple AA (texto atenuado sobre pizarra, texto sobre amarillo, sellos de estado) y usa los mismos colores de la app', () => {
   const css = readFileSync(LANDING_PATH, 'utf8').match(/:root\s*\{([^}]*)\}/)[1];

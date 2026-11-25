@@ -9,6 +9,15 @@ sincronización, Edge Functions de IA y correo).
 > (`grep -n "^## " docs/HISTORIAL.md`). Otros documentos: `README.md` (producto), `PRODUCT.md`, `DESIGN.md` (sistema visual),
 > `auditoria/` (informes y `RELEASE-BLOCKERS.md`).
 
+> **Giro del producto (2026-11-25):** la app es SOLO para buscar procesos de SECOP II. Se quitaron de la interfaz Empresa,
+> Documentos y toda comparación con la empresa (veredicto GO / REVISAR / NO-GO, matriz de cumplimiento, cartas y paquete de
+> propuesta). Se conserva: Buscar procesos, Mis procesos y la lectura del pliego o estudio previo con su ficha de requisitos
+> (sin cruzarla con ninguna empresa). `evaluarMejor()` y `empresaParaFicha()` devuelven `null`; la vista `empresa`/`documentos`
+> ya no existe como destino (`ALIAS_VISTAS`). **Las secciones de abajo sobre empresa, experiencia, personal, capacidad residual,
+> Formato Maestro, veredicto y documentos de propuesta describen código que sigue en el archivo pero está inactivo y se borrará
+> en una fase de limpieza; no las tomes como funcionalidad vigente.** No reintroduzcas la comparación con la empresa sin que el
+> usuario lo pida.
+
 ## Cómo trabajar con el usuario (reglas de colaboración)
 
 - Habla **español**, directo y consultivo (el usuario es gerente de una constructora, no desarrollador).

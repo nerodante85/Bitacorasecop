@@ -10,6 +10,8 @@ web
 
 Gerentes e ingenieros de empresas constructoras colombianas (hoy, sobre todo en Norte de Santander) que deciden a qué licitaciones de obra pública presentarse. Trabajan desde el escritorio y también desde el celular (iPhone/Android). Su trabajo: encontrar procesos abiertos en SECOP I y II, saber rápido si la empresa cumple los requisitos habilitantes del pliego o del estudio previo (experiencia, capacidad financiera y organizacional, K residual, personal, garantías) y, si vale la pena, armar la propuesta. La marca se presenta como "Consultoría en contratación pública"; una consultora que asesora a varias constructoras es un usuario posible pero no el principal.
 
+> **Giro del producto (2026-11-25):** el usuario decidió que la app es solo para buscar procesos de SECOP II y ver lo importante de cada uno (incluida la lectura del pliego y sus requisitos). Ya no compara con datos de la empresa ni da veredicto GO / REVISAR / NO-GO; lo que sigue describe el propósito anterior y se reescribirá.
+
 ## Product Purpose
 
 Ahorrar a la constructora el tiempo y el riesgo de decidir si participa en un proceso: reunir procesos de SECOP I y II, leer los documentos del proceso (pliego de condiciones o estudio previo, incluso escaneados) y comparar sus requisitos contra los datos reales de la empresa (RUP, RUT, experiencia acreditada, personal), con un veredicto orientativo (GO / REVISAR / NO-GO) y los documentos básicos de la propuesta. El éxito es que el ingeniero pueda decidir en minutos y confiar en por qué.

@@ -722,7 +722,7 @@ await check('Landing: abre sin desborde a 1280 y 375 px, carga todas sus imágen
       botones: [...document.querySelectorAll('a.btn')].filter(b => b.getBoundingClientRect().width > 0).map(b => Math.round(b.getBoundingClientRect().height)),
       preguntas: document.querySelectorAll('.faq details').length,
     }));
-    assert(r.h1 === 1 && r.imagenes >= 10, 'h1 e imágenes a ' + ancho + ': ' + JSON.stringify(r));
+    assert(r.h1 === 1 && r.imagenes >= 4, 'h1 e imágenes a ' + ancho + ': ' + JSON.stringify(r));
     assert(r.desborde <= 0, 'desborde horizontal a ' + ancho + ' px: ' + r.desborde);
     assert(r.sinCargar === 0, 'imágenes sin cargar a ' + ancho + ' px: ' + r.sinCargar + ' ' + r.nombres);
     assert(r.botones.length >= 2 && r.botones.every(h => h >= 44), 'botones de 44 px a ' + ancho + ': ' + r.botones.join(','));

@@ -2,9 +2,15 @@
 
 Rastreador de licitaciones **SECOP II** (Sistema Electrónico de Contratación
 Pública de Colombia) para una empresa constructora en Norte de Santander.
-Busca procesos de contratación abiertos, evalúa si la empresa está en
-condiciones de participar (experiencia, capacidad financiera, personal) y
-analiza el pliego de condiciones de un proceso puntual.
+Busca procesos de contratación abiertos, los guarda para seguirlos y lee el
+pliego de condiciones (o el estudio previo) de un proceso puntual para mostrar
+lo que exige, con la página de donde sale cada dato.
+
+> **Giro del producto (2026-11-25):** la app es solo para buscar procesos. La
+> evaluación de la empresa (perfil, experiencia, personal, capacidad residual,
+> veredicto GO / REVISAR / NO-GO, cartas y paquete) se quitó de la interfaz; las
+> secciones de este archivo que la describen están desactualizadas y se
+> eliminarán en la limpieza del código.
 
 **En vivo:** https://nerodante85.github.io/Bitacorasecop/
 

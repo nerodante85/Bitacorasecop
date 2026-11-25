@@ -1,4 +1,5 @@
 # Entrega de Bitácora al ingeniero y a la administradora
+> **Desactualizado (2026-11-25):** la app ya no tiene Empresa ni Documentos; los pasos que piden cargar datos de la empresa no aplican. Revisar antes de entregar.
 
 Estado: **beta controlada** (ver `auditoria/RELEASE-BLOCKERS.md`). Este documento es para quien entrega la app; lo que se manda a las personas usuarias es la guía `guia.html`.
 

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'self'; form-action 'none'">
-<title>Bitácora SECOP: licitaciones de obra comparadas con tu empresa</title>
-<meta name="description" content="Busca procesos de SECOP II, guarda los que te interesan y compara el pliego con los datos de tu empresa. Cada resultado cita la página del documento de donde sale.">
+<title>Bitácora SECOP: busca procesos de contratación pública</title>
+<meta name="description" content="Busca procesos de SECOP II, guarda los que te interesan y revisa lo importante de cada uno: valor, lugar, cierre y lo que exige el pliego, con la página de donde sale.">
 <meta name="theme-color" content="#16212E">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://nerodante85.github.io/Bitacorasecop/">
@@ -13,7 +13,7 @@
 <meta property="og:locale" content="es_CO">
 <meta property="og:site_name" content="Bitácora SECOP">
 <meta property="og:title" content="Bitácora SECOP: a qué licitaciones de obra puedes presentarte">
-<meta property="og:description" content="Compara el pliego de cada proceso de SECOP II con los datos de tu empresa. Cada resultado cita su página.">
+<meta property="og:description" content="Busca procesos de SECOP II y revisa lo que exige cada pliego, con la página de donde sale.">
 <meta property="og:url" content="https://nerodante85.github.io/Bitacorasecop/">
 <meta property="og:image" content="https://nerodante85.github.io/Bitacorasecop/landing/img/og.png">
 <meta property="og:image:width" content="1200">
@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo:wght@700;800;900&display=swap" rel="stylesheet">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Bitácora SECOP","applicationCategory":"BusinessApplication","operatingSystem":"Web","inLanguage":"es-CO","url":"https://nerodante85.github.io/Bitacorasecop/","description":"Busca procesos de SECOP II y compara el pliego con los datos de tu empresa, con la página del documento que respalda cada resultado."}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Bitácora SECOP","applicationCategory":"BusinessApplication","operatingSystem":"Web","inLanguage":"es-CO","url":"https://nerodante85.github.io/Bitacorasecop/","description":"Busca procesos de SECOP II y revisa lo que exige cada pliego, con la página del documento que respalda cada dato."}</script>
 <style>
   /* Landing de Bitácora SECOP. Mismos tokens que la app (app.html): pizarra, amarillo señal, Inter + Archivo, píldoras. */
   :root {
@@ -229,8 +229,7 @@
     </a>
     <nav aria-label="Secciones de la página">
       <a href="#como-funciona">Cómo funciona</a>
-      <a href="#resultados">Resultados</a>
-      <a href="#evidencia">Evidencia</a>
+      <a href="#pliego">El pliego</a>
       <a href="#preguntas">Preguntas</a>
     </nav>
     <a class="btn btn-primario btn-sm" href="app.html">Abrir la app</a>
@@ -241,8 +240,8 @@
   <section class="portada oscuro">
     <div class="wrap">
       <div>
-        <h1>Descubre a qué licitaciones de obra puedes presentarte, con la página del pliego que lo respalda.</h1>
-        <p class="sub">Busca procesos de SECOP II, guarda los que te interesan y compara cada pliego con los datos de tu empresa. Si algo no se puede comprobar, la app lo dice.</p>
+        <h1>Encuentra procesos de contratación pública en SECOP II y revisa lo importante de cada uno.</h1>
+        <p class="sub">Filtra por lugar, valor, entidad y fecha de cierre, guarda los que te interesan y lee lo que exige el pliego. Si un dato no aparece en el documento, la app lo dice.</p>
         <div class="acciones">
           <a class="btn btn-primario" href="app.html">Abrir la app</a>
           <a class="btn btn-contorno" href="#como-funciona">Ver cómo funciona</a>
@@ -254,13 +253,11 @@
           <div class="marco">
             <div class="marco-barra" aria-hidden="true"><i></i><i></i><i></i></div>
             <div class="marco-cuerpo">
-              <img src="landing/img/resultado.webp" width="1284" height="364" fetchpriority="high" alt="Tarjeta de resultado en verde: GO. No se identificaron incumplimientos determinantes con la información disponible. Leído: 5 de 5 páginas.">
-              <img src="landing/img/viabilidad.webp" width="1284" height="858" fetchpriority="high" alt="Resumen de viabilidad en cinco áreas: experiencia, capacidad financiera, capacidad residual y personal cumplen; garantías figura como no determinable.">
+              <img src="landing/img/buscar.webp" width="1440" height="646" fetchpriority="high" alt="Ficha de un proceso en Buscar procesos, con entidad, objeto, cuantía, ubicación, fechas y los botones Guardar y Ver en SECOP.">
             </div>
           </div>
-          <img class="panel" src="landing/img/evidencia.webp" width="750" height="1480" fetchpriority="high" alt="Panel de evidencia: requisito de experiencia, fuente Pliego de Condiciones, página 5, con la cita textual del documento y el resultado Cumple.">
         </div>
-        <p class="pie-escena">Capturas de la app con una empresa y un proceso de ejemplo (ficticios).</p>
+        <p class="pie-escena">Captura de la app con un proceso de ejemplo.</p>
       </div>
     </div>
   </section>
@@ -269,15 +266,15 @@
     <div class="wrap">
       <span><strong>Procesos de SECOP II</strong><br>Datos abiertos de datos.gov.co, actualizados una vez al día</span>
       <span><strong>Pliegos y estudios previos</strong><br>En PDF o Word, también escaneados</span>
-      <span><strong>Tu empresa</strong><br>Certificado RUP, RUT y experiencia en Excel</span>
+      <span><strong>Tus procesos</strong><br>Guardados en tu navegador, con tus notas</span>
     </div>
   </div>
 
   <section id="como-funciona">
     <div class="wrap">
       <div class="cab">
-        <h2>De la búsqueda a la decisión, en tres pasos</h2>
-        <p>Buscar no analiza nada: solo te muestra los datos del proceso. El análisis lo haces cuando guardas el proceso que de verdad te interesa.</p>
+        <h2>De la búsqueda al pliego, en tres pasos</h2>
+        <p>Buscar solo te muestra los datos del proceso. La lectura del pliego la haces cuando guardas el proceso que de verdad te interesa.</p>
       </div>
 
       <div class="paso">
@@ -305,65 +302,38 @@
       <div class="paso">
         <div class="paso-texto">
           <span class="num" aria-hidden="true">3</span>
-          <h3>Sube el pliego y compáralo con tu empresa</h3>
-          <p>Cargas el PDF del pliego o del estudio previo. Bitácora lo lee, extrae los requisitos habilitantes y los compara con tu RUP, tus indicadores, tu experiencia y tu equipo.</p>
+          <h3>Lee lo que exige el pliego</h3>
+          <p>Cargas el PDF del pliego o del estudio previo. Bitácora lo lee y te muestra lo que exige: capacidad financiera, garantías, personal, experiencia y alertas, cada dato con su página.</p>
         </div>
         <figure>
-          <div class="marco"><div class="marco-barra" aria-hidden="true"><i></i><i></i><i></i></div><div class="marco-cuerpo">
-            <img loading="lazy" decoding="async" src="landing/img/resultado.webp" width="1284" height="364" alt="Resultado GO del análisis del proceso.">
-            <img loading="lazy" decoding="async" src="landing/img/viabilidad.webp" width="1284" height="858" alt="Resumen de viabilidad por áreas, con el estado de cada una.">
-          </div></div>
+          <div class="marco"><div class="marco-barra" aria-hidden="true"><i></i><i></i><i></i></div><div class="marco-cuerpo"><img loading="lazy" decoding="async" src="landing/img/procesos.webp" width="1520" height="1290" alt="Pantalla Mis procesos, desde donde se abre el análisis de cada pliego."></div></div>
         </figure>
       </div>
     </div>
   </section>
 
-  <section id="resultados" class="claro">
+  <section id="pliego" class="claro">
     <div class="wrap">
       <div class="cab">
-        <h2>Cuatro respuestas posibles, y ninguna inventada</h2>
-        <p>Cada resultado lleva su nombre escrito y su símbolo, no solo un color. El cumplimiento lo decide un motor de reglas con el texto del documento; la IA no decide nada.</p>
+        <h2>Lo que Bitácora lee del pliego</h2>
+        <p>Los datos salen del pliego o del estudio previo de cada proceso, no de una lista fija, y cada uno dice de qué página sale. Si no lo encuentra, no lo inventa: te lo dice para que lo busques en el documento.</p>
       </div>
-      <ul class="resultados">
-        <li class="resultado"><span class="sello s-go"><b aria-hidden="true">✓</b> GO</span><p>No se identificaron incumplimientos determinantes con la información disponible. Aun así, confirma con el pliego oficial.</p></li>
-        <li class="resultado"><span class="sello s-rev"><b aria-hidden="true">!</b> REVISAR</span><p>Hay puntos por confirmar antes de decidir: un dato por validar o una condición que la app no puede dar por cumplida.</p></li>
-        <li class="resultado"><span class="sello s-no"><b aria-hidden="true">✕</b> NO-GO</span><p>Hay al menos un requisito crítico que tu empresa aparentemente no cumple. La app te dice cuál y cuánto falta.</p></li>
-        <li class="resultado"><span class="sello s-nd"><b aria-hidden="true">?</b> NO DETERMINABLE</span><p>No hay evidencia suficiente para afirmar nada: falta un dato de tu empresa o el documento no lo dice con claridad.</p></li>
-      </ul>
-      <div class="regla"><strong>Ante la duda, no determinable.</strong><span>Bitácora nunca da por cumplido un requisito que no puede comprobar.</span></div>
-    </div>
-  </section>
-
-  <section id="evidencia" class="evidencia oscuro">
-    <div class="wrap">
-      <div class="cab">
-        <h2>Cada resultado dice de qué página sale</h2>
-        <p>No tienes que creerle a la app. Abre cualquier fila de la matriz y verás el requisito, la fuente y la cita textual del pliego.</p>
-        <ul>
-          <li><span><strong>La página y la cita.</strong> El panel de evidencia muestra el fragmento exacto del documento donde se leyó el requisito.</span></li>
-          <li><span><strong>Lo que dice tu empresa.</strong> Al lado, los contratos o indicadores tuyos con los que se hizo la comparación.</span></li>
-          <li><span><strong>Un salto al documento.</strong> «Ver página del documento» abre el PDF en esa página para que lo verifiques.</span></li>
-        </ul>
-      </div>
-      <div class="doble">
-        <img class="matriz" loading="lazy" decoding="async" src="landing/img/matriz.webp" width="1284" height="1100" alt="Matriz de requisitos del proceso, con el requisito, lo que exige el pliego, los datos de la empresa y el resultado de cada fila.">
-        <img class="panel" loading="lazy" decoding="async" src="landing/img/evidencia.webp" width="750" height="1480" alt="Panel de evidencia con la página 5 del pliego y la cita textual del requisito de experiencia.">
-      </div>
+      <div class="regla"><strong>Ante la duda, no inventa.</strong><span>Verifica cada cifra en la página que se indica antes de decidir.</span></div>
     </div>
   </section>
 
   <section id="revisa">
     <div class="wrap">
       <div class="cab">
-        <h2>Lo que Bitácora compara con tu empresa</h2>
+        <h2>Lo que muestra de cada proceso</h2>
         <p>Los requisitos salen del pliego o del estudio previo de cada proceso, no de una lista fija.</p>
       </div>
       <div class="areas">
-        <div class="area"><h3>Experiencia</h3><p>Contratos que acreditan por objeto, valor, ventana de años y código UNSPSC. Si hay consorcio o unión temporal, suma la experiencia de cada integrante.</p></div>
-        <div class="area"><h3>Capacidad financiera</h3><p>Liquidez, endeudamiento y cobertura de intereses contra lo que exige el pliego, con capital de trabajo calculado cuando el documento lo permite.</p></div>
-        <div class="area"><h3>Capacidad residual</h3><p>Tu K declarada menos el saldo de los contratos que tienes en ejecución, frente a la que pide el proceso.</p></div>
-        <div class="area"><h3>Personal</h3><p>El equipo mínimo que pide el documento, con cargo, formación y experiencia, frente a los profesionales que registraste.</p></div>
-        <div class="area"><h3>Garantías</h3><p>Seriedad, cumplimiento, anticipo y demás pólizas, con cifra y página.</p><p class="aviso">Se leen y se citan, pero no se comparan con tu empresa: esa verificación es tuya.</p></div>
+        <div class="area"><h3>Experiencia</h3><p>Lo que el pliego pide acreditar: objeto, valor, años de ventana, códigos UNSPSC y número de contratos.</p></div>
+        <div class="area"><h3>Capacidad financiera</h3><p>Liquidez, endeudamiento y cobertura de intereses que exige el pliego, con el capital de trabajo calculado cuando el documento lo permite.</p></div>
+        <div class="area"><h3>Capacidad residual</h3><p>La capacidad residual (K) que pide el proceso y cómo la define el documento.</p></div>
+        <div class="area"><h3>Personal</h3><p>El equipo mínimo que pide el documento, con cargo, formación y experiencia.</p></div>
+        <div class="area"><h3>Garantías</h3><p>Seriedad, cumplimiento, anticipo y demás pólizas, con cifra y página.</p></div>
         <div class="area"><h3>Observaciones al pliego</h3><p>Si el documento se contradice o falta un dato, la app arma un borrador de observaciones con la página de cada punto, listo para copiar.</p></div>
       </div>
     </div>
@@ -373,11 +343,9 @@
     <div class="wrap">
       <div class="cab">
         <h2>También en el celular</h2>
-        <p>Pensada para gerentes e ingenieros que revisan procesos desde la obra: los mismos resultados y la misma evidencia, en pantalla pequeña.</p>
+        <p>Pensada para gerentes e ingenieros que revisan procesos desde la obra: la misma búsqueda y tus procesos guardados, en pantalla pequeña.</p>
       </div>
       <div class="moviles" tabindex="0" role="group" aria-label="Capturas de la app en el celular, desliza para ver más">
-        <figure class="movil"><div class="telefono"><img loading="lazy" decoding="async" src="landing/img/movil-analisis.webp" width="500" height="1200" alt="Análisis de un proceso en el celular, con el resultado GO."></div><figcaption>Análisis del proceso<span>El resultado y su explicación primero.</span></figcaption></figure>
-        <figure class="movil"><div class="telefono"><img loading="lazy" decoding="async" src="landing/img/movil-evidencia.webp" width="500" height="1200" alt="Panel de evidencia en el celular con la página y la cita del pliego."></div><figcaption>Evidencia<span>La página y la cita, a un toque.</span></figcaption></figure>
         <figure class="movil"><div class="telefono"><img loading="lazy" decoding="async" src="landing/img/movil-procesos.webp" width="500" height="1200" alt="Pantalla Mis procesos en el celular con las cifras y la lista de procesos."></div><figcaption>Mis procesos<span>Qué cierra esta semana y qué sigue.</span></figcaption></figure>
       </div>
     </div>
@@ -389,9 +357,9 @@
         <h2>Cómo cuida tus datos y tus decisiones</h2>
       </div>
       <div class="principios">
-        <div class="principio"><h3>Tus datos son tuyos</h3><p>Cada empresa ve solo lo suyo. Puedes descargar un respaldo, borrar tu cuenta y, sin cuenta, todo se queda en tu navegador. <a href="privacidad.html">Política de datos</a></p></div>
-        <div class="principio"><h3>La IA solo transcribe</h3><p>«Leer con IA» pasa a texto los PDF escaneados. No extrae requisitos ni decide nada: el cumplimiento lo decide siempre el motor de reglas.</p></div>
-        <div class="principio"><h3>Orientativo, no jurídico</h3><p>Es una ayuda para decidir si vale la pena presentarse. No reemplaza leer el pliego completo ni la revisión de un profesional.</p></div>
+        <div class="principio"><h3>Tus datos son tuyos</h3><p>Tus procesos y notas son tuyos. Puedes descargar un respaldo, borrar tu cuenta y, sin cuenta, todo se queda en tu navegador. <a href="privacidad.html">Política de datos</a></p></div>
+        <div class="principio"><h3>La IA solo transcribe</h3><p>«Leer con IA» pasa a texto los PDF escaneados. No decide nada: los datos del pliego los extrae un lector por reglas.</p></div>
+        <div class="principio"><h3>Orientativo, no jurídico</h3><p>Es una ayuda para revisar procesos con rapidez. No reemplaza leer el pliego completo ni la revisión de un profesional.</p></div>
       </div>
     </div>
   </section>
@@ -400,12 +368,12 @@
     <div class="wrap">
       <div class="cab"><h2>Preguntas frecuentes</h2></div>
       <div class="faq">
-        <details><summary>¿Necesito crear una cuenta?</summary><p>No. Puedes usar la app sin cuenta: tus empresas, procesos y análisis quedan guardados en tu navegador. Con una cuenta se sincronizan entre tus dispositivos.</p></details>
+        <details><summary>¿Necesito crear una cuenta?</summary><p>No. Puedes usar la app sin cuenta: tus procesos y análisis quedan guardados en tu navegador. Con una cuenta se sincronizan entre tus dispositivos.</p></details>
         <details><summary>¿De dónde salen los procesos?</summary><p>De los datos abiertos de SECOP II en datos.gov.co, que se actualizan una vez al día. Si la consulta en vivo falla, la app te avisa y muestra un respaldo con su fecha. Confirma siempre el proceso en SECOP antes de decidir.</p></details>
-        <details><summary>¿Qué documentos puede leer?</summary><p>Pliegos de condiciones y estudios previos en PDF o Word, incluso escaneados. Los escaneados se pasan a texto con OCR o con «Leer con IA». También lee el RUP y el RUT de tu empresa y tu experiencia en Excel, PDF o Word.</p></details>
+        <details><summary>¿Qué documentos puede leer?</summary><p>Pliegos de condiciones y estudios previos en PDF o Word, incluso escaneados. Los escaneados se pasan a texto con OCR o con «Leer con IA».</p></details>
         <details><summary>¿Qué pasa con los documentos que cargo?</summary><p>El texto del pliego queda en tu navegador. Si lees un escaneado con IA, el PDF se envía para transcribirlo y se borra al terminar. Los detalles están en la <a href="privacidad.html">política de tratamiento de datos</a>.</p></details>
-        <details><summary>¿Qué hace cuando no está seguro?</summary><p>Responde «No determinable» o «Revisar» y dice qué falta. Nunca marca como cumplido un requisito que no pudo comprobar.</p></details>
-        <details><summary>¿Reemplaza la revisión del pliego?</summary><p>No. Te ahorra tiempo para decidir si un proceso te conviene y te lleva a la página que importa. La decisión final y la revisión jurídica son tuyas.</p></details>
+        <details><summary>¿Qué hace cuando no encuentra un dato?</summary><p>Lo dice y no lo inventa. Tú lo buscas en el documento, en la página que se indica cuando la hay.</p></details>
+        <details><summary>¿Reemplaza la revisión del pliego?</summary><p>No. Te ahorra tiempo para saber qué exige un proceso y te lleva a la página que importa. La decisión final y la revisión jurídica son tuyas.</p></details>
       </div>
     </div>
   </section>
@@ -413,7 +381,7 @@
   <section class="cierre oscuro">
     <div class="wrap">
       <h2>Prueba con un proceso de tu zona</h2>
-      <p>Abre la app, busca un proceso y mira cómo queda frente a los datos de tu empresa.</p>
+      <p>Abre la app, busca un proceso y mira lo que exige su pliego.</p>
       <a class="btn btn-primario" href="app.html">Abrir la app</a>
     </div>
   </section>
